@@ -1,5 +1,5 @@
 from setuptools import setup
-from src.pythonbasictools.version import __version__
+from src.neurotorch.version import __version__
 import setuptools
 
 with open("README.md", "r", encoding="utf-8") as fh:

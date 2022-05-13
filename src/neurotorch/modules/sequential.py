@@ -30,6 +30,17 @@ Acceptable_Layer_Type = Union[Type[RNNLayer], LayerType]
 
 
 class SequentialModel(BaseModel):
+	def __new__(cls, *args, **kwargs):
+		# TODO: call the right constructor
+		# TODO: the first one to do:
+		# model = Sequential(
+		#   input_layers=...
+		#   hidden_layers=...
+		#   output_layers=...
+		# )
+		# exemple: https://stackoverflow.com/questions/682504/what-is-a-clean-pythonic-way-to-implement-multiple-constructors
+		raise NotImplementedError
+	
 	def __init__(
 			self,
 			input_sizes: Union[Dict[str, int], List[int], int],

@@ -32,13 +32,14 @@ Acceptable_Layer_Type = Union[Type[RNNLayer], LayerType]
 class SequentialModel(BaseModel):
 	def __init__(
 			self,
-			input_sizes: Union[Dict[str, int], List[int], int],
-			output_sizes: Union[Dict[str, int], List[int], int],
-			n_hidden_neurons: Optional[Union[int, Iterable[int]]] = None,
-			use_recurrent_connection: Union[bool, Iterable[bool]] = True,
-			spike_funcs: Union[Acceptable_Spike_Func, Iterable[Acceptable_Spike_Func]] = HeavisideSigmoidApprox,
-			hidden_layer_types: Union[Acceptable_Layer_Type, Iterable[Acceptable_Layer_Type]] = LIFLayer,
-			readout_layer_type: Optional[Acceptable_Layer_Type] = LILayer,
+			# input_sizes: Union[Dict[str, int], List[int], int],
+			# output_sizes: Union[Dict[str, int], List[int], int],
+			# n_hidden_neurons: Optional[Union[int, Iterable[int]]] = None,
+			# use_recurrent_connection: Union[bool, Iterable[bool]] = True,
+			# spike_funcs: Union[Acceptable_Spike_Func, Iterable[Acceptable_Spike_Func]] = HeavisideSigmoidApprox,
+			# hidden_layer_types: Union[Acceptable_Layer_Type, Iterable[Acceptable_Layer_Type]] = LIFLayer,
+			# readout_layer_type: Optional[Acceptable_Layer_Type] = LILayer,
+			layers: Iterable[RNNLayer],  # TODO: change the inputs to be more flexible
 			int_time_steps: int = 100,
 			name: str = "snn",
 			checkpoint_folder: str = "checkpoints",

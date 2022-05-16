@@ -31,8 +31,9 @@ Acceptable_Layer_Type = Union[Type[RNNLayer], LayerType]
 
 class SequentialModel(BaseModel):
 	def __new__(cls, *args, **kwargs):
-		# TODO: call the right constructor
-		# TODO: the first one to do:
+		# TODO: if the first argument is a iterable of layer, juste call the constructor
+		# TODO: instead create the iterable of layers with the named parameters and call the constructor
+		# TODO: the call of the constructor should be like this:
 		# model = Sequential(
 		#   input_layers=...
 		#   hidden_layers=...

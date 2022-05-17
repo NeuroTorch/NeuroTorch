@@ -6,6 +6,7 @@ from typing import Dict, List, NamedTuple
 import torch
 
 import numpy as np
+from matplotlib import pyplot as plt
 
 
 def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
@@ -71,6 +72,7 @@ def legend_without_duplicate_labels_(ax: plt.Axes):
 	handles, labels = ax.get_legend_handles_labels()
 	unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
 	ax.legend(*zip(*unique))
+
 
 def linear_decay(init_value, min_value, decay_value, current_itr):
 	return max(init_value * decay_value ** current_itr, min_value)

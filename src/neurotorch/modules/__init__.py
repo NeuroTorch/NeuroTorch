@@ -1,5 +1,5 @@
 
-from spike_funcs import (
+from .spike_funcs import (
 	SpikeFuncType,
 	SpikeFunction,
 	SpikeFuncType2Func,
@@ -7,9 +7,9 @@ from spike_funcs import (
 	HeavisidePhiApprox,
 )
 
-from layers import (
+from .layers import (
 	LayerType,
-	RNNLayer,
+	BaseLayer,
 	LIFLayer,
 	ALIFLayer,
 	IzhikevichLayer,
@@ -18,11 +18,13 @@ from layers import (
 )
 
 
-from base import (
+from .base import (
 	BaseModel,
 )
 
-
+from .sequential import (
+	SequentialModel,
+)
 
 
 

@@ -1,11 +1,12 @@
 import enum
-from typing import Tuple, Type
+from typing import Tuple, Type, Union
 
 import numpy as np
 import torch
 from torch import nn
 
 from . import HeavisideSigmoidApprox, SpikeFunction
+from ..dimension import Dimension
 
 
 class LayerType(enum.Enum):
@@ -15,20 +16,22 @@ class LayerType(enum.Enum):
 	LI = 3
 
 
-class RNNLayer(torch.nn.Module):
+class BaseLayer(torch.nn.Module):
 	def __init__(
 			self,
-			input_size: int,
+			input_size: Union[int, Dimension],
 			output_size: int,
+			name: str = "BaseLayer",
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			dt=1e-3,
 			device=None,
 			**kwargs
 	):
-		super(RNNLayer, self).__init__()
-		self.input_size = input_size
+		super(BaseLayer, self).__init__()
+		self.input_size = Dimension.from_int_or_dimension(input_size)
 		self.output_size = output_size
+		self.name = name
 		self.use_recurrent_connection = use_recurrent_connection
 		self.device = device
 		if self.device is None:
@@ -39,7 +42,7 @@ class RNNLayer(torch.nn.Module):
 		self._set_default_kwargs()
 
 		self.forward_weights = nn.Parameter(
-			torch.empty((self.input_size, self.output_size), device=self.device, dtype=torch.float32),
+			torch.empty((self.input_size.size, self.output_size), device=self.device, dtype=torch.float32),
 			requires_grad=True
 		)
 		self.use_rec_eye_mask = use_rec_eye_mask
@@ -94,11 +97,12 @@ class RNNLayer(torch.nn.Module):
 				torch.nn.init.normal_(param)
 
 
-class LIFLayer(RNNLayer):
+class LIFLayer(BaseLayer):
 	def __init__(
 			self,
-			input_size: int,
+			input_size: Union[int, Dimension],
 			output_size: int,
+			name: str = "LIF",
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
@@ -108,14 +112,10 @@ class LIFLayer(RNNLayer):
 	):
 		self.spike_func = spike_func
 		super(LIFLayer, self).__init__(
-			input_size=input_size,
-			output_size=output_size,
+			input_size=input_size, output_size=output_size, name=name,
 			use_recurrent_connection=use_recurrent_connection,
-			use_rec_eye_mask=use_rec_eye_mask,
-			dt=dt,
-			device=device,
-			**kwargs
-		)
+			use_rec_eye_mask=use_rec_eye_mask, dt=dt, device=device, **kwargs
+			)
 
 		self.alpha = torch.tensor(np.exp(-dt / self.kwargs["tau_m"]), dtype=torch.float32, device=self.device)
 		self.threshold = torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device)
@@ -175,8 +175,9 @@ class LIFLayer(RNNLayer):
 class ALIFLayer(LIFLayer):
 	def __init__(
 			self,
-			input_size: int,
+			input_size: Union[int, Dimension],
 			output_size: int,
+			name: str = "ALIF",
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
@@ -187,6 +188,7 @@ class ALIFLayer(LIFLayer):
 		super(ALIFLayer, self).__init__(
 			input_size=input_size,
 			output_size=output_size,
+			name=name,
 			use_recurrent_connection=use_recurrent_connection,
 			use_rec_eye_mask=use_rec_eye_mask,
 			spike_func=spike_func,
@@ -244,15 +246,16 @@ class ALIFLayer(LIFLayer):
 		return next_Z, (next_V, next_a, next_Z)
 
 
-class IzhikevichLayer(RNNLayer):
+class IzhikevichLayer(BaseLayer):
 	"""
 	Izhikevich p.274
 
 	"""
 	def __init__(
 			self,
-			input_size: int,
+			input_size: Union[int, Dimension],
 			output_size: int,
+			name: str = "Izhikevich",
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
@@ -264,12 +267,13 @@ class IzhikevichLayer(RNNLayer):
 		super(IzhikevichLayer, self).__init__(
 			input_size=input_size,
 			output_size=output_size,
+			name=name,
 			use_recurrent_connection=use_recurrent_connection,
 			use_rec_eye_mask=use_rec_eye_mask,
 			dt=dt,
 			device=device,
 			**kwargs
-		)
+			)
 
 		self.C = torch.tensor(self.kwargs["C"], dtype=torch.float32, device=self.device)
 		self.v_rest = torch.tensor(self.kwargs["v_rest"], dtype=torch.float32, device=self.device)
@@ -354,11 +358,12 @@ class IzhikevichLayer(RNNLayer):
 		return next_Z, (next_V, next_u, next_Z)
 
 
-class LILayer(RNNLayer):
+class LILayer(BaseLayer):
 	def __init__(
 			self,
-			input_size: int,
+			input_size: Union[int, Dimension],
 			output_size: int,
+			name: str = "LI",
 			dt=1e-3,
 			device=None,
 			**kwargs
@@ -366,11 +371,12 @@ class LILayer(RNNLayer):
 		super(LILayer, self).__init__(
 			input_size=input_size,
 			output_size=output_size,
+			name=name,
 			use_recurrent_connection=False,
 			dt=dt,
 			device=device,
 			**kwargs
-		)
+			)
 		self.bias_weights = nn.Parameter(
 			torch.empty((self.output_size,), device=self.device),
 			requires_grad=True,

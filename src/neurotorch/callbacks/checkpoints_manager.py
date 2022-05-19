@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional, Union
 
 import torch
 
+from .base_callback import BaseCallback
 from ..utils import mapping_update_recursively
 
 
@@ -13,7 +14,7 @@ class LoadCheckpointMode(enum.Enum):
 	LAST_ITR = 1
 
 
-class CheckpointManager:
+class CheckpointManager(BaseCallback):
 	SAVE_EXT = '.pth'
 	SUFFIX_SEP = '-'
 	CHECKPOINTS_META_SUFFIX = 'checkpoints'

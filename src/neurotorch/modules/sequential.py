@@ -300,7 +300,7 @@ class SequentialModel(BaseModel):
 				hh = hidden_states[layer_name][t - 1]
 				forward_tensor, hidden_states[layer_name][t] = layer(forward_tensor, hh)
 			
-			
+			# TODO: add pass to outputs layers
 			
 			outputs_trace.append(forward_tensor)
 

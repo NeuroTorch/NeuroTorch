@@ -1,8 +1,9 @@
 import collections.abc
 import enum
+import hashlib
 import os
 from collections import defaultdict
-from typing import Dict, List, NamedTuple
+from typing import Dict, List, NamedTuple, Any
 import torch
 
 import numpy as np
@@ -77,4 +78,19 @@ def legend_without_duplicate_labels_(ax: plt.Axes):
 def linear_decay(init_value, min_value, decay_value, current_itr):
 	return max(init_value * decay_value ** current_itr, min_value)
 
+
+def get_meta_name(params: Dict[str, Any]):
+	meta_name = f""
+	for k, v in params.items():
+		meta_name += f"{k}-{v}_"
+	return meta_name[:-1]
+
+
+def hash_params(params: Dict[str, Any]):
+	"""
+	Hash the parameters to get a unique and persistent id.
+	:param params:
+	:return:
+	"""
+	return int(hashlib.md5(get_meta_name(params).encode('utf-8')).hexdigest(), 16)
 

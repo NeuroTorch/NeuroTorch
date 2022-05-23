@@ -4,8 +4,10 @@ from typing import Dict, List
 import numpy as np
 import matplotlib.pyplot as plt
 
+from neurotorch.callbacks.base_callback import BaseCallback
 
-class TrainingHistory:
+
+class TrainingHistory(BaseCallback):
 	def __init__(self, container: Dict[str, List[float]] = None):
 		self.container = defaultdict(list)
 		if container is not None:

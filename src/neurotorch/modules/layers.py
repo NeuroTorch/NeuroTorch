@@ -9,6 +9,12 @@ from . import HeavisideSigmoidApprox, SpikeFunction
 from ..dimension import Dimension
 
 
+class LearningType(enum.Enum):
+	NONE = 0
+	BACKPROP = 1
+	E_PROP = 2
+
+
 class LayerType(enum.Enum):
 	LIF = 0
 	ALIF = 1
@@ -24,6 +30,7 @@ class BaseLayer(torch.nn.Module):
 			name: str = "BaseLayer",
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
+			learning_type: LearningType = LearningType.BACKPROP,
 			dt=1e-3,
 			device=None,
 			**kwargs
@@ -33,6 +40,7 @@ class BaseLayer(torch.nn.Module):
 		self.output_size = output_size
 		self.name = name
 		self.use_recurrent_connection = use_recurrent_connection
+		self.learning_type = learning_type
 		self.device = device
 		if self.device is None:
 			self._set_default_device_()
@@ -43,13 +51,13 @@ class BaseLayer(torch.nn.Module):
 
 		self.forward_weights = nn.Parameter(
 			torch.empty((self.input_size.size, self.output_size), device=self.device, dtype=torch.float32),
-			requires_grad=True
+			requires_grad=self.requires_grad
 		)
 		self.use_rec_eye_mask = use_rec_eye_mask
 		if use_recurrent_connection:
 			self.recurrent_weights = nn.Parameter(
 				torch.empty((self.output_size, self.output_size), device=self.device, dtype=torch.float32),
-				requires_grad=True
+				requires_grad=self.requires_grad
 			)
 			if use_rec_eye_mask:
 				self.rec_mask = (1 - torch.eye(self.output_size, device=self.device, dtype=torch.float32))
@@ -60,6 +68,10 @@ class BaseLayer(torch.nn.Module):
 		else:
 			self.recurrent_weights = None
 			self.rec_mask = None
+	
+	@property
+	def requires_grad(self):
+		return self.learning_type == LearningType.BACKPROP
 
 	def _set_default_kwargs(self):
 		raise NotImplementedError()
@@ -106,15 +118,22 @@ class LIFLayer(BaseLayer):
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
+			learning_type: LearningType = LearningType.BACKPROP,
 			dt=1e-3,
 			device=None,
 			**kwargs
 	):
 		self.spike_func = spike_func
 		super(LIFLayer, self).__init__(
-			input_size=input_size, output_size=output_size, name=name,
+			input_size=input_size,
+			output_size=output_size,
+			name=name,
 			use_recurrent_connection=use_recurrent_connection,
-			use_rec_eye_mask=use_rec_eye_mask, dt=dt, device=device, **kwargs
+			use_rec_eye_mask=use_rec_eye_mask,
+			learning_type=learning_type,
+			dt=dt,
+			device=device,
+			**kwargs
 			)
 
 		self.alpha = torch.tensor(np.exp(-dt / self.kwargs["tau_m"]), dtype=torch.float32, device=self.device)
@@ -181,6 +200,7 @@ class ALIFLayer(LIFLayer):
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
+			learning_type: LearningType = LearningType.BACKPROP,
 			dt=1e-3,
 			device=None,
 			**kwargs
@@ -192,6 +212,7 @@ class ALIFLayer(LIFLayer):
 			use_recurrent_connection=use_recurrent_connection,
 			use_rec_eye_mask=use_rec_eye_mask,
 			spike_func=spike_func,
+			learning_type=learning_type,
 			dt=dt,
 			device=device,
 			**kwargs
@@ -259,6 +280,7 @@ class IzhikevichLayer(BaseLayer):
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
+			learning_type: LearningType = LearningType.BACKPROP,
 			dt=1e-3,
 			device=None,
 			**kwargs
@@ -270,6 +292,7 @@ class IzhikevichLayer(BaseLayer):
 			name=name,
 			use_recurrent_connection=use_recurrent_connection,
 			use_rec_eye_mask=use_rec_eye_mask,
+			learning_type=learning_type,
 			dt=dt,
 			device=device,
 			**kwargs
@@ -364,6 +387,7 @@ class LILayer(BaseLayer):
 			input_size: Union[int, Dimension],
 			output_size: int,
 			name: str = "LI",
+			learning_type: LearningType = LearningType.BACKPROP,
 			dt=1e-3,
 			device=None,
 			**kwargs
@@ -373,13 +397,14 @@ class LILayer(BaseLayer):
 			output_size=output_size,
 			name=name,
 			use_recurrent_connection=False,
+			learning_type=learning_type,
 			dt=dt,
 			device=device,
 			**kwargs
 			)
 		self.bias_weights = nn.Parameter(
 			torch.empty((self.output_size,), device=self.device),
-			requires_grad=True,
+			requires_grad=self.requires_grad,
 		)
 		self.kappa = torch.tensor(np.exp(-self.dt / self.kwargs["tau_out"]), dtype=torch.float32, device=self.device)
 		self.initialize_weights_()

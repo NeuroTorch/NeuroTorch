@@ -24,6 +24,7 @@ from . import (
 	SpikeFuncType2Func,
 	SpikeFunction
 )
+from ..callbacks import LoadCheckpointMode
 from ..dimension import Dimension
 
 Acceptable_Spike_Func = Union[Type[SpikeFunction], SpikeFuncType]
@@ -68,7 +69,7 @@ class SequentialModel(BaseModel):
 			assert all([p is None for p in auto_construct_parameters]), \
 				f"You can't use the named parameters: {auto_construct_parameters} and layers at the same time"
 			return cls(layers=layers, **kwargs)
-		raise NotImplementedError()
+		raise NotImplementedError("Auto construct feature is not available yet.")
 	
 	def __init__(
 			self,
@@ -97,6 +98,10 @@ class SequentialModel(BaseModel):
 		# self.readout_layer_type = self._format_layer_type_(readout_layer_type)  # TODO: change for multiple readout layers
 		# self._add_layers_()
 		self.initialize_weights_()
+	
+	@property
+	def all_layers_names(self) -> List[str]:
+		return [layer.name for layer in self.layers]
 		
 	@staticmethod
 	def _format_input_output_layers(layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]) -> nn.ModuleDict:
@@ -272,18 +277,31 @@ class SequentialModel(BaseModel):
 		return hidden_states
 
 	def forward(self, inputs: Dict[str, Any], **kwargs) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-		inputs = self._format_inputs(inputs)
+		# TODO: make a forward function that store only the last hidden state
+		inputs = self.apply_transform(inputs)
+		inputs = {k: self._format_inputs(in_tensor) for k, in_tensor in inputs.items()}
 		hidden_states = {
 			layer_name: [None for t in range(self.int_time_steps+1)]
-			for layer_name, _ in self.hidden_layers.items()
+			for layer_name, _ in self.all_layers_names
 		}
 		outputs_trace: List[torch.Tensor] = []
 
 		for t in range(1, self.int_time_steps+1):
-			forward_tensor = inputs[:, t-1]
+			features_list = []
+			for layer_name, layer in self.input_layers.items():
+				features, hidden_states[layer_name][t] = layer(inputs[layer_name][:, t - 1])
+				features_list.append(features)
+			if features_list:
+				forward_tensor = torch.concat(features_list, dim=1)
+			else:
+				forward_tensor = torch.concat([inputs[in_name][:, t - 1] for in_name in inputs], dim=1)
+			
 			for layer_idx, (layer_name, layer) in enumerate(self.hidden_layers.items()):
 				hh = hidden_states[layer_name][t - 1]
 				forward_tensor, hidden_states[layer_name][t] = layer(forward_tensor, hh)
+			
+			
+			
 			outputs_trace.append(forward_tensor)
 
 		hidden_states = {layer_name: trace[1:] for layer_name, trace in hidden_states.items()}
@@ -342,144 +360,111 @@ class SequentialModel(BaseModel):
 				counts.extend(traces[-1].sum(dim=(0, 1)).tolist())
 		return torch.tensor(counts, dtype=torch.float32, device=self.device)
 
-	def plot_loss_history(self, loss_history: LossHistory = None, show=False):
-		if loss_history is None:
-			loss_history = self.loss_history
-		save_path = f"./{self.checkpoint_folder}/loss_history.png"
-		os.makedirs(f"./{self.checkpoint_folder}/", exist_ok=True)
-		loss_history.plot(save_path, show)
+	# def plot_loss_history(self, loss_history: LossHistory = None, show=False):
+	# 	if loss_history is None:
+	# 		loss_history = self.loss_history
+	# 	save_path = f"./{self.checkpoint_folder}/loss_history.png"
+	# 	os.makedirs(f"./{self.checkpoint_folder}/", exist_ok=True)
+	# 	loss_history.plot(save_path, show)
 
-	def _create_checkpoint_path(self, epoch: int = -1):
-		return f"./{self.checkpoint_folder}/{self.model_name}{SequentialModel.SUFFIX_SEP}{SequentialModel.CHECKPOINT_EPOCH_KEY}{epoch}{SequentialModel.SAVE_EXT}"
+	# def _create_checkpoint_path(self, epoch: int = -1):
+	# 	return f"./{self.checkpoint_folder}/{self.model_name}{SequentialModel.SUFFIX_SEP}{SequentialModel.CHECKPOINT_EPOCH_KEY}{epoch}{SequentialModel.SAVE_EXT}"
+	#
+	# def _create_new_checkpoint_meta(self, epoch: int, best: bool = False) -> dict:
+	# 	save_path = self._create_checkpoint_path(epoch)
+	# 	new_info = {SequentialModel.CHECKPOINT_EPOCHS_KEY: {epoch: save_path}}
+	# 	if best:
+	# 		new_info[SequentialModel.CHECKPOINT_BEST_KEY] = save_path
+	# 	return new_info
 
-	def _create_new_checkpoint_meta(self, epoch: int, best: bool = False) -> dict:
-		save_path = self._create_checkpoint_path(epoch)
-		new_info = {SequentialModel.CHECKPOINT_EPOCHS_KEY: {epoch: save_path}}
-		if best:
-			new_info[SequentialModel.CHECKPOINT_BEST_KEY] = save_path
-		return new_info
+	# def save_checkpoint(
+	# 		self,
+	# 		optimizer,
+	# 		epoch: int,
+	# 		epoch_losses: Dict[str, Any],
+	# 		best: bool = False,
+	# ):
+	# 	os.makedirs(self.checkpoint_folder, exist_ok=True)
+	# 	save_path = self._create_checkpoint_path(epoch)
+	# 	torch.save({
+	# 		SequentialModel.CHECKPOINT_EPOCH_KEY: epoch,
+	# 		SequentialModel.CHECKPOINT_STATE_DICT_KEY: self.state_dict(),
+	# 		SequentialModel.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: optimizer.state_dict(),
+	# 		SequentialModel.CHECKPOINT_LOSS_KEY: epoch_losses,
+	# 	}, save_path)
+	# 	self.save_checkpoints_meta(self._create_new_checkpoint_meta(epoch, best))
 
-	def save_checkpoint(
-			self,
-			optimizer,
-			epoch: int,
-			epoch_losses: Dict[str, Any],
-			best: bool = False,
-	):
-		os.makedirs(self.checkpoint_folder, exist_ok=True)
-		save_path = self._create_checkpoint_path(epoch)
-		torch.save({
-			SequentialModel.CHECKPOINT_EPOCH_KEY: epoch,
-			SequentialModel.CHECKPOINT_STATE_DICT_KEY: self.state_dict(),
-			SequentialModel.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: optimizer.state_dict(),
-			SequentialModel.CHECKPOINT_LOSS_KEY: epoch_losses,
-		}, save_path)
-		self.save_checkpoints_meta(self._create_new_checkpoint_meta(epoch, best))
+	# @staticmethod
+	# def get_save_path_from_checkpoints(
+	# 		checkpoints_meta: Dict[str, Union[str, Dict[Any, str]]],
+	# 		load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_EPOCH
+	# ) -> str:
+	# 	if load_checkpoint_mode == load_checkpoint_mode.BEST_EPOCH:
+	# 		return checkpoints_meta[SequentialModel.CHECKPOINT_BEST_KEY]
+	# 	elif load_checkpoint_mode == load_checkpoint_mode.LAST_EPOCH:
+	# 		epochs_dict = checkpoints_meta[SequentialModel.CHECKPOINT_EPOCHS_KEY]
+	# 		last_epoch: int = max([int(e) for e in epochs_dict])
+	# 		return checkpoints_meta[SequentialModel.CHECKPOINT_EPOCHS_KEY][str(last_epoch)]
+	# 	else:
+	# 		raise ValueError()
+	#
+	# def get_checkpoints_loss_history(self) -> LossHistory:
+	# 	history = LossHistory()
+	# 	with open(self.checkpoints_meta_path, "r+") as jsonFile:
+	# 		meta: dict = json.load(jsonFile)
+	# 	checkpoints = [torch.load(path) for path in meta[SequentialModel.CHECKPOINT_EPOCHS_KEY].values()]
+	# 	for checkpoint in checkpoints:
+	# 		history.concat(checkpoint[SequentialModel.CHECKPOINT_LOSS_KEY])
+	# 	return history
+	#
+	# def load_checkpoint(
+	# 		self,
+	# 		load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_EPOCH
+	# ) -> dict:
+	# 	with open(self.checkpoints_meta_path, "r+") as jsonFile:
+	# 		info: dict = json.load(jsonFile)
+	# 	path = self.get_save_path_from_checkpoints(info, load_checkpoint_mode)
+	# 	checkpoint = torch.load(path)
+	# 	self.load_state_dict(checkpoint[SequentialModel.CHECKPOINT_STATE_DICT_KEY], strict=True)
+	# 	return checkpoint
 
-	@staticmethod
-	def get_save_path_from_checkpoints(
-			checkpoints_meta: Dict[str, Union[str, Dict[Any, str]]],
-			load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_EPOCH
-	) -> str:
-		if load_checkpoint_mode == load_checkpoint_mode.BEST_EPOCH:
-			return checkpoints_meta[SequentialModel.CHECKPOINT_BEST_KEY]
-		elif load_checkpoint_mode == load_checkpoint_mode.LAST_EPOCH:
-			epochs_dict = checkpoints_meta[SequentialModel.CHECKPOINT_EPOCHS_KEY]
-			last_epoch: int = max([int(e) for e in epochs_dict])
-			return checkpoints_meta[SequentialModel.CHECKPOINT_EPOCHS_KEY][str(last_epoch)]
-		else:
-			raise ValueError()
+	# def save_checkpoints_meta(self, new_info: dict):
+	# 	info = dict()
+	# 	if os.path.exists(self.checkpoints_meta_path):
+	# 		with open(self.checkpoints_meta_path, "r+") as jsonFile:
+	# 			info = json.load(jsonFile)
+	# 	mapping_update_recursively(info, new_info)
+	# 	with open(self.checkpoints_meta_path, "w+") as jsonFile:
+	# 		json.dump(info, jsonFile, indent=4)
 
-	def get_checkpoints_loss_history(self) -> LossHistory:
-		history = LossHistory()
-		with open(self.checkpoints_meta_path, "r+") as jsonFile:
-			meta: dict = json.load(jsonFile)
-		checkpoints = [torch.load(path) for path in meta[SequentialModel.CHECKPOINT_EPOCHS_KEY].values()]
-		for checkpoint in checkpoints:
-			history.concat(checkpoint[SequentialModel.CHECKPOINT_LOSS_KEY])
-		return history
+	# def compute_confusion_matrix(
+	# 		self,
+	# 		nb_classes: int,
+	# 		dataloaders: Dict[str, DataLoader],
+	# 		fit=False,
+	# 		fit_kwargs=None,
+	# 		load_checkpoint_mode: LoadCheckpointMode = None,
+	# ):
+	# 	if fit_kwargs is None:
+	# 		fit_kwargs = {}
+	# 	if fit:
+	# 		self.fit(dataloaders['train'], dataloaders['val'], **fit_kwargs)
+	#
+	# 	if load_checkpoint_mode is not None:
+	# 		self.load_checkpoint(load_checkpoint_mode)
+	# 	return {key: self._compute_single_confusion_matrix(nb_classes, d) for key, d in dataloaders.items()}
 
-	def load_checkpoint(
-			self,
-			load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_EPOCH
-	) -> dict:
-		with open(self.checkpoints_meta_path, "r+") as jsonFile:
-			info: dict = json.load(jsonFile)
-		path = self.get_save_path_from_checkpoints(info, load_checkpoint_mode)
-		checkpoint = torch.load(path)
-		self.load_state_dict(checkpoint[SequentialModel.CHECKPOINT_STATE_DICT_KEY], strict=True)
-		return checkpoint
-
-	def to_onnx(self, in_viz=None):
-		if in_viz is None:
-			in_viz = torch.randn((1, self.input_size), device=self.device)
-		torch.onnx.export(
-			self,
-			in_viz,
-			f"{self.checkpoint_folder}/{self.model_name}.onnx",
-			verbose=True,
-			input_names=None,
-			output_names=None,
-			opset_version=11
-		)
-
-	def save_checkpoints_meta(self, new_info: dict):
-		info = dict()
-		if os.path.exists(self.checkpoints_meta_path):
-			with open(self.checkpoints_meta_path, "r+") as jsonFile:
-				info = json.load(jsonFile)
-		mapping_update_recursively(info, new_info)
-		with open(self.checkpoints_meta_path, "w+") as jsonFile:
-			json.dump(info, jsonFile, indent=4)
-
-	def compute_classification_accuracy(
-			self,
-			dataloader: DataLoader,
-			verbose: bool = False,
-			desc: Optional[str] = None,
-	) -> float:
-		""" Computes classification accuracy on supplied data in batches. """
-		self.eval()
-		accs = []
-		with torch.no_grad():
-			for i, (inputs, classes) in tqdm(
-					enumerate(dataloader), total=len(dataloader), desc=desc, disable=not verbose
-			):
-				inputs = inputs.to(self.device)
-				classes = classes.to(self.device)
-				outputs = self.get_prediction_logits(inputs, re_outputs_trace=False, re_hidden_states=False)
-				_, preds = torch.max(outputs, -1)
-				accs.extend(torch.eq(preds, classes).float().cpu().numpy())
-		return np.mean(np.asarray(accs)).item()
-
-	def compute_confusion_matrix(
-			self,
-			nb_classes: int,
-			dataloaders: Dict[str, DataLoader],
-			fit=False,
-			fit_kwargs=None,
-			load_checkpoint_mode: LoadCheckpointMode = None,
-	):
-		if fit_kwargs is None:
-			fit_kwargs = {}
-		if fit:
-			self.fit(dataloaders['train'], dataloaders['val'], **fit_kwargs)
-
-		if load_checkpoint_mode is not None:
-			self.load_checkpoint(load_checkpoint_mode)
-		return {key: self._compute_single_confusion_matrix(nb_classes, d) for key, d in dataloaders.items()}
-
-	def _compute_single_confusion_matrix(self, nb_classes: int, dataloader: DataLoader) -> np.ndarray:
-		self.eval()
-		confusion_matrix = np.zeros((nb_classes, nb_classes))
-		with torch.no_grad():
-			for i, (inputs, classes) in enumerate(dataloader):
-				inputs = inputs.to(self.device)
-				classes = classes.to(self.device)
-				outputs = self.get_prediction_logits(inputs, re_outputs_trace=False, re_hidden_states=False)
-				_, preds = torch.max(outputs, -1)
-				for t, p in zip(classes.view(-1), preds.view(-1)):
-					confusion_matrix[t.long(), p.long()] += 1
-		return confusion_matrix
+	# def _compute_single_confusion_matrix(self, nb_classes: int, dataloader: DataLoader) -> np.ndarray:
+	# 	self.eval()
+	# 	confusion_matrix = np.zeros((nb_classes, nb_classes))
+	# 	with torch.no_grad():
+	# 		for i, (inputs, classes) in enumerate(dataloader):
+	# 			inputs = inputs.to(self.device)
+	# 			classes = classes.to(self.device)
+	# 			outputs = self.get_prediction_logits(inputs, re_outputs_trace=False, re_hidden_states=False)
+	# 			_, preds = torch.max(outputs, -1)
+	# 			for t, p in zip(classes.view(-1), preds.view(-1)):
+	# 				confusion_matrix[t.long(), p.long()] += 1
+	# 	return confusion_matrix
 
 

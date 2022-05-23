@@ -1,4 +1,4 @@
-from typing import Optional, List, Callable, Dict, Any, Union
+from typing import Optional, List, Callable, Dict, Any, Union, NamedTuple
 
 import numpy as np
 import torch
@@ -8,6 +8,61 @@ from tqdm.auto import tqdm
 from ..callbacks import LoadCheckpointMode, TrainingHistory
 from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..modules import BaseModel
+
+
+class CurrentTrainingState(NamedTuple):
+	iteration: Optional[int]
+	epoch: Optional[int]
+	epoch_loss: Optional[Any]
+	batch: Optional[int]
+	batch_loss: Optional[Any]
+	batch_is_train: Optional[bool]
+	train_loss: Optional[Any]
+	val_loss: Optional[Any]
+	train_metrics: Optional[Any]
+	val_metrics: Optional[Any]
+	
+	@staticmethod
+	def get_null_state() -> "CurrentTrainingState":
+		return CurrentTrainingState(
+			iteration=None,
+			epoch=None,
+			epoch_loss=None,
+			batch=None,
+			batch_loss=None,
+			batch_is_train=None,
+			train_loss=None,
+			val_loss=None,
+			train_metrics=None,
+			val_metrics=None,
+		)
+	
+	def update(
+			self,
+			*,
+			iteration: Optional[int] = None,
+			epoch: Optional[int] = None,
+			epoch_loss: Optional[Any] = None,
+			batch: Optional[int] = None,
+			batch_loss: Optional[Any] = None,
+			batch_is_train: Optional[bool] = None,
+			train_loss: Optional[Any] = None,
+			val_loss: Optional[Any] = None,
+			train_metrics: Optional[Any] = None,
+			val_metrics: Optional[Any] = None,
+	) -> "CurrentTrainingState":
+		return CurrentTrainingState(
+			iteration=iteration if iteration is not None else self.iteration,
+			epoch=epoch if epoch is not None else self.epoch,
+			epoch_loss=epoch_loss if epoch_loss is not None else self.epoch_loss,
+			batch=batch if batch is not None else self.batch,
+			batch_loss=batch_loss if batch_loss is not None else self.batch_loss,
+			batch_is_train=batch_is_train if batch_is_train is not None else self.batch_is_train,
+			train_loss=train_loss if train_loss is not None else self.train_loss,
+			val_loss=val_loss if val_loss is not None else self.val_loss,
+			train_metrics=train_metrics if train_metrics is not None else self.train_metrics,
+			val_metrics=val_metrics if val_metrics is not None else self.val_metrics,
+		)
 
 
 class Trainer:
@@ -27,10 +82,11 @@ class Trainer:
 		self.criterion = self._set_default_criterion(criterion)
 		self.optimizer = self._set_default_optimizer(optimizer)
 		self.metrics = metrics
-		self.callbacks = self._set_default_callbacks(callbacks)
+		self.callbacks: CallbacksList = self._set_default_callbacks(callbacks)
 		self.device = self._set_default_device(device)
 		self.verbose = verbose
-		self.training_history = TrainingHistory()
+		self.training_history = list(filter(lambda x: isinstance(x, TrainingHistory), self.callbacks.callbacks))[0]
+		self.current_training_state = CurrentTrainingState.get_null_state()
 	
 	@staticmethod
 	def _set_default_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -68,6 +124,8 @@ class Trainer:
 	) -> CallbacksList:
 		if isinstance(callbacks, BaseCallback):
 			callbacks = [callbacks]
+		if not any([isinstance(callback, TrainingHistory) for callback in callbacks]):
+			callbacks.append(TrainingHistory())
 		return CallbacksList(callbacks)
 
 	def train(
@@ -82,7 +140,7 @@ class Trainer:
 			**kwargs
 	):
 		self.kwargs.update(kwargs)
-		start_epoch = 0
+		start_iteration = 0
 		if n_iterations is None:
 			n_iterations = self.kwargs["n_epochs"]
 		# if load_checkpoint_mode is None:
@@ -107,7 +165,7 @@ class Trainer:
 
 		# best_loss = self.loss_history.min('val')
 		p_bar = tqdm(
-			range(start_epoch, n_iterations),
+			range(start_iteration, n_iterations),
 			desc="Training",
 			disable=not self.verbose,
 			position=p_bar_position,
@@ -116,6 +174,7 @@ class Trainer:
 		)
 		self.callbacks.start(self)
 		for i in p_bar:
+			self.current_training_state = self.current_training_state.update(iteration=i)
 			itr_loss = self._exec_iteration(train_dataloader, val_dataloader)
 			# self.loss_history.concat(epoch_loss)
 			# is_best = epoch_loss['val'] < best_loss
@@ -134,15 +193,19 @@ class Trainer:
 	def _exec_iteration(self, train_dataloader, val_dataloader):
 		self.callbacks.on_train_begin(self)
 		self.model.train()
+		self.current_training_state = self.current_training_state.update(batch_is_train=True)
 		train_loss = self._exec_epoch(
 			train_dataloader,
 		)
+		self.current_training_state = self.current_training_state.update(train_loss=train_loss)
 		self.callbacks.on_train_end(self)
 		self.callbacks.on_validation_begin(self)
 		self.model.eval()
+		self.current_training_state = self.current_training_state.update(batch_is_train=False)
 		val_loss = self._exec_epoch(
 			val_dataloader,
 		)
+		self.current_training_state = self.current_training_state.update(val_loss=val_loss)
 		self.callbacks.on_validation_end(self)
 		return dict(train=train_loss, val=val_loss)
 
@@ -152,14 +215,16 @@ class Trainer:
 	):
 		self.callbacks.on_epoch_begin(self)
 		batch_losses = []
-		for x_batch, y_batch in dataloader:
+		for i, (x_batch, y_batch) in enumerate(dataloader):
+			self.current_training_state = self.current_training_state.update(batch=i)
 			batch_loss = self._exec_batch(
 				x_batch,
 				y_batch,
 			)
 			batch_losses.append(batch_loss)
+		mean_loss = np.mean(batch_losses)
 		self.callbacks.on_epoch_end(self)
-		return np.mean(batch_losses)
+		return mean_loss
 
 	def _exec_batch(
 			self,
@@ -182,6 +247,7 @@ class Trainer:
 			self.optimizer.zero_grad()
 			batch_loss.backward()
 			self.optimizer.step()
+		self.current_training_state = self.current_training_state.update(batch_loss=batch_loss.item())
 		self.callbacks.on_batch_end(self)
 		return batch_loss.item()
 

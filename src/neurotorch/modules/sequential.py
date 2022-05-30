@@ -2,6 +2,8 @@ import json
 import logging
 import os
 import shutil
+from collections import defaultdict
+from defaultlist import defaultlist
 from copy import deepcopy
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
 
@@ -81,10 +83,12 @@ class SequentialModel(BaseModel):
 			input_transform: Optional[Union[Dict[str, Callable], List[Callable]]] = None,
 			**kwargs
 	):
-		self.input_layers, self.hidden_layers, self.output_layers = self._format_layers_(layers)
+		self.input_layers, self.hidden_layers, self.output_layers = self._format_layers(layers)
+		assert len(self.all_layers_names) == len(set(self.all_layers_names)), \
+			"There are layers with the same name"
 		super(SequentialModel, self).__init__(
-			input_sizes={layer.name: layer.input_size for layer in self.input_layers},
-			output_size={layer.name: layer.output_size for layer in self.output_layers},
+			input_sizes={layer.name: layer.input_size for _, layer in self.input_layers.items()},
+			output_size={layer.name: layer.output_size for _, layer in self.output_layers.items()},
 			name=name,
 			checkpoint_folder=checkpoint_folder,
 			device=device,
@@ -98,6 +102,12 @@ class SequentialModel(BaseModel):
 		# self.readout_layer_type = self._format_layer_type_(readout_layer_type)  # TODO: change for multiple readout layers
 		# self._add_layers_()
 		self.initialize_weights_()
+		self._memory_size = self.kwargs.get("memory_size", self.int_time_steps)
+		assert self._memory_size > 0, "The memory size must be greater than 0"
+	
+	@property
+	def all_layers(self) -> List[BaseLayer]:
+		return list(self.input_layers.values()) + list(self.hidden_layers.values()) + list(self.output_layers.values())
 	
 	@property
 	def all_layers_names(self) -> List[str]:
@@ -261,7 +271,7 @@ class SequentialModel(BaseModel):
 				inputs = torch.cat([inputs, zero_inputs], dim=1)
 		return inputs.float()
 
-	def _format_hidden_outputs(
+	def _format_hidden_outputs_traces(
 			self,
 			hidden_states: Dict[str, List[Tuple[torch.Tensor, ...]]]
 	) -> Dict[str, Tuple[torch.Tensor, ...]]:
@@ -275,38 +285,87 @@ class SequentialModel(BaseModel):
 			for layer_name, trace in hidden_states.items()
 		}
 		return hidden_states
-
-	def forward(self, inputs: Dict[str, Any], **kwargs) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-		# TODO: make a forward function that store only the last hidden state
-		inputs = self.apply_transform(inputs)
-		inputs = {k: self._format_inputs(in_tensor) for k, in_tensor in inputs.items()}
-		hidden_states = {
-			layer_name: [None for t in range(self.int_time_steps+1)]
+	
+	def _pop_memory_(self, memory: List[Any]) -> List[Any]:
+		"""
+		Pop the memory from the list
+		:param memory: List of memory
+		:return: List of memory without the first element
+		"""
+		remove_count = len(memory) - self._memory_size
+		if remove_count > 0:
+			memory = memory[remove_count:]
+		return memory
+	
+	def _init_hidden_states_memory(self) -> Dict[str, List]:
+		return {
+			# layer_name: [None for t in range(self.int_time_steps+1)]
+			layer_name: []
 			for layer_name, _ in self.all_layers_names
 		}
-		outputs_trace: List[torch.Tensor] = []
+	
+	def _inputs_forward_(
+			self,
+			inputs: Dict[str, torch.Tensor],
+			hidden_states: Dict[str, List],
+			t: int
+	) -> torch.Tensor:
+		features_list = []
+		for layer_name, layer in self.input_layers.items():
+			features, hh = layer(inputs[layer_name][:, t - 1])
+			hidden_states[layer_name].append(hh)
+			features_list.append(features)
+		if features_list:
+			forward_tensor = torch.concat(features_list, dim=1)
+		else:
+			forward_tensor = torch.concat([inputs[in_name][:, t - 1] for in_name in inputs], dim=1)
+		return forward_tensor
+	
+	def _hidden_forward_(
+			self,
+			forward_tensor: torch.Tensor,
+			hidden_states: Dict[str, List],
+	) -> torch.Tensor:
+		for layer_idx, (layer_name, layer) in enumerate(self.hidden_layers.items()):
+			hh = hidden_states[layer_name][-1]
+			forward_tensor, hh = layer(forward_tensor, hh)
+			hidden_states[layer_name].append(hh)
+		return forward_tensor
+	
+	def _readout_forward_(
+			self,
+			forward_tensor: torch.Tensor,
+			hidden_states: Dict[str, List],
+			outputs_trace: Dict[str, List[torch.Tensor]]
+	):
+		for layer_name, layer in self.output_layers.items():
+			hh = hidden_states[layer_name][-1]
+			out, hh = layer(forward_tensor, hh)
+			outputs_trace[layer_name].append(out)
+			hidden_states[layer_name].append(hh)
+		return outputs_trace
+
+	def forward(
+			self,
+			inputs: Dict[str, Any],
+			**kwargs
+	) -> Tuple[Dict[str, torch.Tensor], Dict[str, Tuple[torch.Tensor, ...]]]:
+		inputs = self.apply_transform(inputs)
+		inputs = {k: self._format_inputs(in_tensor) for k, in_tensor in inputs.items()}
+		hidden_states = self._init_hidden_states_memory()
+		outputs_trace: Dict[str, List[torch.Tensor]] = defaultdict(list)
 
 		for t in range(1, self.int_time_steps+1):
-			features_list = []
-			for layer_name, layer in self.input_layers.items():
-				features, hidden_states[layer_name][t] = layer(inputs[layer_name][:, t - 1])
-				features_list.append(features)
-			if features_list:
-				forward_tensor = torch.concat(features_list, dim=1)
-			else:
-				forward_tensor = torch.concat([inputs[in_name][:, t - 1] for in_name in inputs], dim=1)
+			forward_tensor = self._inputs_forward_(inputs, hidden_states, t)
+			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
+			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace)
 			
-			for layer_idx, (layer_name, layer) in enumerate(self.hidden_layers.items()):
-				hh = hidden_states[layer_name][t - 1]
-				forward_tensor, hidden_states[layer_name][t] = layer(forward_tensor, hh)
-			
-			# TODO: add pass to outputs layers
-			
-			outputs_trace.append(forward_tensor)
+			outputs_trace = {layer_name: self._pop_memory_(trace) for layer_name, trace in outputs_trace.items()}
+			hidden_states = {layer_name: self._pop_memory_(trace) for layer_name, trace in hidden_states.items()}
 
 		hidden_states = {layer_name: trace[1:] for layer_name, trace in hidden_states.items()}
-		hidden_states = self._format_hidden_outputs(hidden_states)
-		outputs_trace_tensor = torch.stack(outputs_trace, dim=1)
+		hidden_states = self._format_hidden_outputs_traces(hidden_states)
+		outputs_trace_tensor = {layer_name: torch.stack(trace, dim=1) for layer_name, trace in outputs_trace.items()}
 		return outputs_trace_tensor, hidden_states
 
 	def get_prediction_logits(

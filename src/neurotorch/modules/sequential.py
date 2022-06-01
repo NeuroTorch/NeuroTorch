@@ -70,7 +70,7 @@ class SequentialModel(BaseModel):
 		if layers is not None:
 			assert all([p is None for p in auto_construct_parameters]), \
 				f"You can't use the named parameters: {auto_construct_parameters} and layers at the same time"
-			return cls(layers=layers, **kwargs)
+			return super(SequentialModel, cls).__new__(cls)
 		raise NotImplementedError("Auto construct feature is not available yet.")
 	
 	def __init__(
@@ -83,18 +83,21 @@ class SequentialModel(BaseModel):
 			input_transform: Optional[Union[Dict[str, Callable], List[Callable]]] = None,
 			**kwargs
 	):
-		self.input_layers, self.hidden_layers, self.output_layers = self._format_layers(layers)
-		assert len(self.all_layers_names) == len(set(self.all_layers_names)), \
-			"There are layers with the same name"
+		input_layers, hidden_layers, output_layers = self._format_layers(layers)
 		super(SequentialModel, self).__init__(
-			input_sizes={layer.name: layer.input_size for _, layer in self.input_layers.items()},
-			output_size={layer.name: layer.output_size for _, layer in self.output_layers.items()},
+			input_sizes={layer.name: layer.input_size for _, layer in input_layers.items()},
+			output_size={layer.name: layer.output_size for _, layer in output_layers.items()},
 			name=name,
 			checkpoint_folder=checkpoint_folder,
 			device=device,
 			input_transform=input_transform,
 			**kwargs
 		)
+		self.input_layers, self.hidden_layers, self.output_layers = self._layers_containers_to_modules(
+			input_layers, hidden_layers, output_layers
+		)
+		assert len(self.get_all_layers_names()) == len(set(self.get_all_layers_names())), \
+			"There are layers with the same name."
 		self.int_time_steps = int_time_steps
 		# self.n_hidden_neurons = self._format_hidden_neurons_(n_hidden_neurons)
 		# self.spike_func = self._format_spike_funcs_(spike_funcs)
@@ -103,29 +106,27 @@ class SequentialModel(BaseModel):
 		# self._add_layers_()
 		self.initialize_weights_()
 		self._memory_size = self.kwargs.get("memory_size", self.int_time_steps)
-		assert self._memory_size > 0, "The memory size must be greater than 0"
+		assert self._memory_size > 0, "The memory size must be greater than 0."
 	
-	@property
-	def all_layers(self) -> List[BaseLayer]:
-		return list(self.input_layers.values()) + list(self.hidden_layers.values()) + list(self.output_layers.values())
+	def get_all_layers(self) -> List[nn.Module]:
+		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
 	
-	@property
-	def all_layers_names(self) -> List[str]:
-		return [layer.name for layer in self.layers]
-		
+	def get_all_layers_names(self) -> List[str]:
+		return [layer.name for layer in self.get_all_layers()]
+	
 	@staticmethod
-	def _format_input_output_layers(layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]) -> nn.ModuleDict:
+	def _format_input_output_layers(layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]) -> Dict:
 		layers: Iterable[BaseLayer] = [layers] if not isinstance(layers, Iterable) else layers
 		assert all([isinstance(layer, BaseLayer) for layer in layers]), \
 			"All layers must be of type BaseLayer"
 		if not isinstance(layers, dict):
 			layers = {layer.name: layer for layer in layers}
-		return nn.ModuleDict({layer.name: layer for layer in layers})
+		return layers
 	
 	@staticmethod
 	def _format_layers(
 			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
-	) -> Tuple[nn.ModuleDict, nn.ModuleList, nn.ModuleDict]:
+	) -> Tuple[Dict, List, Dict]:
 		if not isinstance(layers, Iterable):
 			layers = [layers]
 		if len(layers) > 1:
@@ -142,8 +143,18 @@ class SequentialModel(BaseModel):
 		else:
 			hidden_layers = []
 		
-		hidden_layers = nn.ModuleList(hidden_layers)
 		output_layers = SequentialModel._format_input_output_layers(layers[-1])
+		return input_layers, hidden_layers, output_layers
+	
+	@staticmethod
+	def _layers_containers_to_modules(
+			inputs_layers: Dict,
+			hidden_layers: List,
+			outputs_layers: Dict
+	) -> Tuple[nn.ModuleDict, nn.ModuleList, nn.ModuleDict]:
+		input_layers = nn.ModuleDict(inputs_layers)
+		hidden_layers = nn.ModuleList(hidden_layers)
+		output_layers = nn.ModuleDict(outputs_layers)
 		return input_layers, hidden_layers, output_layers
 
 	def _format_spike_funcs_(
@@ -240,7 +251,7 @@ class SequentialModel(BaseModel):
 				torch.nn.init.xavier_normal_(param)
 			else:
 				torch.nn.init.normal_(param)
-		for layer_name, layer in self.hidden_layers.items():
+		for layer in self.get_all_layers():
 			if getattr(layer, "initialize_weights_") and callable(layer.initialize_weights_):
 				layer.initialize_weights_()
 
@@ -253,6 +264,7 @@ class SequentialModel(BaseModel):
 		:param inputs: Inputs tensor
 		:return: Formatted Input tensor.
 		"""
+		# TODO: adapt to DimensionProperty
 		with torch.no_grad():
 			if inputs.ndim == 2:
 				inputs = torch.unsqueeze(inputs, 1)
@@ -373,9 +385,9 @@ class SequentialModel(BaseModel):
 			inputs: torch.Tensor,
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
-	) -> Union[tuple[Tensor, Any, Any], tuple[Tensor, Any], Tensor]:
+	) -> Union[Tuple[Tensor, Any, Any], Tuple[Tensor, Any], Tensor]:
 		outputs_trace, hidden_states = self(inputs.to(self.device))
-		logits, _ = torch.max(outputs_trace, dim=1)
+		logits, _ = torch.max(outputs_trace, dim=1)  # TODO: adapt to multi-outputs
 		# logits = batchwise_temporal_filter(outputs_trace, decay=0.9)
 		if re_outputs_trace and re_hidden_states:
 			return logits, outputs_trace, hidden_states
@@ -392,6 +404,7 @@ class SequentialModel(BaseModel):
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
 	) -> Union[tuple[Tensor, Any, Any], tuple[Tensor, Any], Tensor]:
+		# TODO: adapt to multi-outputs
 		m, *outs = self.get_prediction_logits(inputs, re_outputs_trace, re_hidden_states)
 		if re_outputs_trace or re_hidden_states:
 			return F.softmax(m, dim=-1), *outs
@@ -403,6 +416,7 @@ class SequentialModel(BaseModel):
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
 	) -> Union[tuple[Tensor, Any, Any], tuple[Tensor, Any], Tensor]:
+		# TODO: adapt to multi-outputs
 		m, *outs = self.get_prediction_logits(inputs, re_outputs_trace, re_hidden_states)
 		if re_outputs_trace or re_hidden_states:
 			return F.log_softmax(m, dim=-1), *outs

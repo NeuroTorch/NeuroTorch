@@ -5,6 +5,7 @@ from typing import Any, Dict
 import psutil
 
 from applications.mnist.dataset import get_dataloaders, DatasetId
+from neurotorch import Dimension, DimensionProperty
 from neurotorch.callbacks import LoadCheckpointMode
 from neurotorch.modules import SequentialModel, ALIFLayer, LILayer
 from neurotorch.trainers import Trainer
@@ -18,17 +19,18 @@ def train_with_params(params: Dict[str, Any], data_folder="tr_results", verbose=
 
 	dataloaders = get_dataloaders(
 		dataset_id=params["dataset_id"],
-		batch_size=256,
+		batch_size=16,
 		n_steps=params["n_steps"],
 		to_spikes_use_periods=params["to_spikes_use_periods"],
 		train_val_split_ratio=params.get("train_val_split_ratio", 0.85),
-		nb_workers=psutil.cpu_count(logical=False),
+		# nb_workers=psutil.cpu_count(logical=False),
 	)
 	network = SequentialModel(
 		layers=[
-			ALIFLayer(input_size=28 * 28, output_size=128),
+			ALIFLayer(input_size=Dimension(28 * 28, DimensionProperty.SPATIAL), output_size=128),
 			LILayer(input_size=128, output_size=10),
 		],
+		name="mnist_network",
 		checkpoint_folder=checkpoint_folder,
 	)
 	# save_params(params, os.path.join(checkpoint_folder, "params.pkl"))

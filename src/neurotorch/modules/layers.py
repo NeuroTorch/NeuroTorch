@@ -218,7 +218,7 @@ class ALIFLayer(LIFLayer):
 			**kwargs
 		)
 		self.beta = torch.tensor(self.kwargs["beta"], dtype=torch.float32, device=self.device)
-		if kwargs["learn_beta"]:
+		if self.kwargs["learn_beta"]:
 			self.beta = torch.nn.Parameter(self.beta, requires_grad=True)
 		self.rho = torch.tensor(np.exp(-dt / self.kwargs["tau_a"]), dtype=torch.float32, device=self.device)
 

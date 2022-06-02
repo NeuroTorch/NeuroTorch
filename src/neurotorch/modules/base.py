@@ -1,9 +1,10 @@
 import json
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 
 import torch
 from torch import nn
 from torchvision.transforms import Compose, Lambda
+import torch.nn.functional as F
 
 from ..callbacks import CheckpointManager, LoadCheckpointMode
 from ..transforms import to_tensor
@@ -123,6 +124,54 @@ class BaseModel(torch.nn.Module):
 
 	def forward(self, inputs: Dict[str, Any], **kwargs) -> Dict[str, torch.Tensor]:
 		raise NotImplementedError()
+	
+	def get_raw_prediction(
+			self,
+			inputs: torch.Tensor,
+			re_outputs_trace: bool = True,
+			re_hidden_states: bool = True
+	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		raise NotImplementedError()
+	
+	def get_prediction_proba(
+			self,
+			inputs: torch.Tensor,
+			re_outputs_trace: bool = True,
+			re_hidden_states: bool = True
+	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		m, *outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
+		if isinstance(m, torch.Tensor):
+			proba = torch.softmax(m, dim=-1)
+		elif isinstance(m, dict):
+			proba = {
+				k: torch.softmax(v, dim=-1)
+				for k, v in m.items()
+			}
+		else:
+			raise ValueError("m must be a torch.Tensor or a dictionary")
+		if re_outputs_trace or re_hidden_states:
+			return proba, *outs
+		return proba
+	
+	def get_prediction_log_proba(
+			self,
+			inputs: torch.Tensor,
+			re_outputs_trace: bool = True,
+			re_hidden_states: bool = True
+	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		m, *outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
+		if isinstance(m, torch.Tensor):
+			log_proba = F.log_softmax(m, dim=-1)
+		elif isinstance(m, dict):
+			log_proba = {
+				k: F.log_softmax(v, dim=-1)
+				for k, v in m.items()
+			}
+		else:
+			raise ValueError("m must be a torch.Tensor or a dictionary")
+		if re_outputs_trace or re_hidden_states:
+			return log_proba, *outs
+		return log_proba
 
 	def soft_update(self, other: 'BaseModel', tau: float = 1e-2) -> None:
 		"""

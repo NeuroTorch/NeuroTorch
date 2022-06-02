@@ -1,5 +1,5 @@
 import enum
-from typing import Tuple, Type, Union
+from typing import Tuple, Type, Union, Iterable
 
 import numpy as np
 import torch
@@ -25,8 +25,9 @@ class LayerType(enum.Enum):
 class BaseLayer(torch.nn.Module):
 	def __init__(
 			self,
-			input_size: Union[int, Dimension],
-			output_size: int,
+			input_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
+			output_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
+			# TODO: maybe add a kernel size
 			name: str = "BaseLayer",
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
@@ -36,8 +37,9 @@ class BaseLayer(torch.nn.Module):
 			**kwargs
 	):
 		super(BaseLayer, self).__init__()
+		# TODO: adapt for multiple input and output sizes
 		self.input_size = Dimension.from_int_or_dimension(input_size)
-		self.output_size = output_size
+		self.output_size = Dimension.from_int_or_dimension(output_size)
 		self.name = name
 		self.use_recurrent_connection = use_recurrent_connection
 		self.learning_type = learning_type
@@ -48,22 +50,25 @@ class BaseLayer(torch.nn.Module):
 		self.dt = dt
 		self.kwargs = kwargs
 		self._set_default_kwargs()
-
+		
+		# TODO: create the parameters based on the kernel size instead
+		# TODO: if the kernel size is not specified, use the input size
+		# TODO: if the kernel size is lower than the input size, convolve on the input.
 		self.forward_weights = nn.Parameter(
-			torch.empty((self.input_size.size, self.output_size), device=self.device, dtype=torch.float32),
+			torch.empty((int(self.input_size), int(self.output_size)), device=self.device, dtype=torch.float32),
 			requires_grad=self.requires_grad
 		)
 		self.use_rec_eye_mask = use_rec_eye_mask
 		if use_recurrent_connection:
 			self.recurrent_weights = nn.Parameter(
-				torch.empty((self.output_size, self.output_size), device=self.device, dtype=torch.float32),
+				torch.empty((int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32),
 				requires_grad=self.requires_grad
 			)
 			if use_rec_eye_mask:
-				self.rec_mask = (1 - torch.eye(self.output_size, device=self.device, dtype=torch.float32))
+				self.rec_mask = (1 - torch.eye(int(self.output_size), device=self.device, dtype=torch.float32))
 			else:
 				self.rec_mask = torch.ones(
-					(self.output_size, self.output_size), device=self.device,  dtype=torch.float32
+					(int(self.output_size), int(self.output_size)), device=self.device,  dtype=torch.float32
 				)
 		else:
 			self.recurrent_weights = None
@@ -112,8 +117,8 @@ class BaseLayer(torch.nn.Module):
 class LIFLayer(BaseLayer):
 	def __init__(
 			self,
-			input_size: Union[int, Dimension],
-			output_size: int,
+			input_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
+			output_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
 			name: str = "LIF",
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
@@ -194,8 +199,8 @@ class LIFLayer(BaseLayer):
 class ALIFLayer(LIFLayer):
 	def __init__(
 			self,
-			input_size: Union[int, Dimension],
-			output_size: int,
+			input_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
+			output_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
 			name: str = "ALIF",
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
@@ -274,8 +279,8 @@ class IzhikevichLayer(BaseLayer):
 	"""
 	def __init__(
 			self,
-			input_size: Union[int, Dimension],
-			output_size: int,
+			input_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
+			output_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
 			name: str = "Izhikevich",
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
@@ -384,8 +389,8 @@ class IzhikevichLayer(BaseLayer):
 class LILayer(BaseLayer):
 	def __init__(
 			self,
-			input_size: Union[int, Dimension],
-			output_size: int,
+			input_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
+			output_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
 			name: str = "LI",
 			learning_type: LearningType = LearningType.BACKPROP,
 			dt=1e-3,

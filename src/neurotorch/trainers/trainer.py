@@ -69,7 +69,7 @@ class Trainer:
 	def __init__(
 			self,
 			model: BaseModel,
-			criterion: torch.nn.Module = torch.nn.MSELoss(),
+			criterion: Optional[Union[Dict[str, torch.nn.Module], torch.nn.Module]] = None,
 			optimizer: Optional[torch.optim.Optimizer] = None,
 			metrics: Optional[List[Callable]] = None,
 			callbacks: Optional[Union[List[BaseCallback], CallbacksList, BaseCallback]] = None,
@@ -107,10 +107,16 @@ class Trainer:
 			)
 		return optimizer
 	
-	@staticmethod
-	def _set_default_criterion(criterion: Optional[torch.nn.Module]) -> torch.nn.Module:
+	def _set_default_criterion(self, criterion: Optional[torch.nn.Module]) -> torch.nn.Module:
 		if criterion is None:
-			criterion = torch.nn.MSELoss()
+			if isinstance(self.model.output_sizes, dict):
+				criterion = {
+					k: torch.nn.MSELoss() for k in self.model.output_sizes
+				}
+			elif isinstance(self.model.output_sizes, int):
+				criterion = torch.nn.MSELoss()
+			else:
+				raise ValueError("Unknown criterion type")
 		return criterion
 	
 	def _set_default_device(self, device: Optional[torch.device]) -> torch.device:
@@ -122,6 +128,8 @@ class Trainer:
 	def _set_default_callbacks(
 			callbacks: Optional[Union[List[BaseCallback], CallbacksList, BaseCallback]]
 	) -> CallbacksList:
+		if callbacks is None:
+			callbacks = []
 		if isinstance(callbacks, BaseCallback):
 			callbacks = [callbacks]
 		if not any([isinstance(callback, TrainingHistory) for callback in callbacks]):
@@ -194,17 +202,14 @@ class Trainer:
 		self.callbacks.on_train_begin(self)
 		self.model.train()
 		self.current_training_state = self.current_training_state.update(batch_is_train=True)
-		train_loss = self._exec_epoch(
-			train_dataloader,
-		)
+		train_loss = self._exec_epoch(train_dataloader)
 		self.current_training_state = self.current_training_state.update(train_loss=train_loss)
 		self.callbacks.on_train_end(self)
+		
 		self.callbacks.on_validation_begin(self)
 		self.model.eval()
 		self.current_training_state = self.current_training_state.update(batch_is_train=False)
-		val_loss = self._exec_epoch(
-			val_dataloader,
-		)
+		val_loss = self._exec_epoch(val_dataloader)
 		self.current_training_state = self.current_training_state.update(val_loss=val_loss)
 		self.callbacks.on_validation_end(self)
 		return dict(train=train_loss, val=val_loss)
@@ -217,10 +222,7 @@ class Trainer:
 		batch_losses = []
 		for i, (x_batch, y_batch) in enumerate(dataloader):
 			self.current_training_state = self.current_training_state.update(batch=i)
-			batch_loss = self._exec_batch(
-				x_batch,
-				y_batch,
-			)
+			batch_loss = self._exec_batch(x_batch, y_batch)
 			batch_losses.append(batch_loss)
 		mean_loss = np.mean(batch_losses)
 		self.callbacks.on_epoch_end(self)
@@ -232,17 +234,7 @@ class Trainer:
 			y_batch,
 	):
 		self.callbacks.on_batch_begin(self)
-		if self.model.training:
-			log_p_y, out, h_sates = self.model.get_prediction_log_proba(
-				x_batch, re_outputs_trace=True, re_hidden_states=True
-			)
-		else:
-			with torch.no_grad():
-				log_p_y, out, h_sates = self.model.get_prediction_log_proba(
-					x_batch, re_outputs_trace=True, re_hidden_states=True
-				)
-		
-		batch_loss = self.criterion(log_p_y, y_batch.long().to(self.device))
+		batch_loss = self.apply_criterion_on_batch(x_batch, y_batch)
 		if self.model.training:
 			self.optimizer.zero_grad()
 			batch_loss.backward()
@@ -251,6 +243,27 @@ class Trainer:
 		self.callbacks.on_batch_end(self)
 		return batch_loss.item()
 
-
+	def apply_criterion_on_batch(self, x_batch, y_batch):
+		if self.model.training:
+			pred, out, h_sates = self.model.get_raw_prediction(
+				x_batch, re_outputs_trace=True, re_hidden_states=True
+			)
+		else:
+			with torch.no_grad():
+				pred, out, h_sates = self.model.get_raw_prediction(
+					x_batch, re_outputs_trace=True, re_hidden_states=True
+				)
+		if isinstance(self.criterion, dict):
+			if len(self.criterion) == 1 and isinstance(pred, torch.Tensor) and isinstance(y_batch, torch.Tensor):
+				return list(self.criterion.values())[0](pred, y_batch.long().to(self.device))
+			assert isinstance(x_batch, dict) and isinstance(y_batch, dict) and isinstance(pred, dict), \
+				"If criterion is a dict, x_batch, y_batch and pred must be a dict too."
+			batch_loss = sum([
+				self.criterion[k](pred[k], y_batch[k].long().to(self.device))
+				for k in self.criterion
+			])
+		else:
+			batch_loss = self.criterion(pred, y_batch.long().to(self.device))
+		return batch_loss
 
 

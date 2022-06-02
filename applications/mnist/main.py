@@ -8,7 +8,7 @@ from applications.mnist.dataset import get_dataloaders, DatasetId
 from neurotorch import Dimension, DimensionProperty
 from neurotorch.callbacks import LoadCheckpointMode
 from neurotorch.modules import SequentialModel, ALIFLayer, LILayer
-from neurotorch.trainers import Trainer
+from neurotorch.trainers import ClassificationTrainer
 from neurotorch.utils import hash_params
 
 
@@ -27,14 +27,14 @@ def train_with_params(params: Dict[str, Any], data_folder="tr_results", verbose=
 	)
 	network = SequentialModel(
 		layers=[
-			ALIFLayer(input_size=Dimension(28 * 28, DimensionProperty.SPATIAL), output_size=128),
+			ALIFLayer(input_size=Dimension(28 * 28, DimensionProperty.NONE), output_size=128),
 			LILayer(input_size=128, output_size=10),
 		],
 		name="mnist_network",
 		checkpoint_folder=checkpoint_folder,
 	)
 	# save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
-	trainer = Trainer(
+	trainer = ClassificationTrainer(
 		model=network,
 	)
 	trainer.train(

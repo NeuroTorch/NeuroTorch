@@ -29,27 +29,27 @@ class BaseMetrics:
 	
 	@property
 	def metrics_functions(self) -> Dict[str, Callable]:
-		all_metrics_names_to_func = BaseMetrics.get_unwrap_all_metrics_names_to_func()
+		all_metrics_names_to_func = self.get_unwrap_all_metrics_names_to_func()
 		return {
 			metric_name: all_metrics_names_to_func[metric_name]
 			for metric_name in self.metrics_names
 		}
 	
-	@staticmethod
-	def _format_metrics_names_(metrics: Any) -> List[str]:
-		if metrics == "all":
-			return BaseMetrics.get_unique_metrics_names()
+	@classmethod
+	def _format_metrics_names_(cls, metrics: Any) -> List[str]:
+		if isinstance(metrics, str) and metrics.lower() == "all":
+			return cls.get_unique_metrics_names()
 		if isinstance(metrics, str):
-			metrics = metrics.split(BaseMetrics.METRICS_NAMES_SEP)
+			metrics = metrics.split(cls.METRICS_NAMES_SEP)
 		elif isinstance(metrics, list):
 			metrics = [metric.strip() for metric in metrics]
 		else:
 			raise ValueError("metrics must be a string or a list of strings")
 		return metrics
 	
-	@staticmethod
-	def _check_metrics_names_(metrics: List[str]) -> None:
-		all_metrics_names = BaseMetrics.get_all_metrics_names()
+	@classmethod
+	def _check_metrics_names_(cls, metrics: List[str]) -> None:
+		all_metrics_names = cls.get_all_metrics_names()
 		assert all([metric in all_metrics_names for metric in metrics]), \
 			f"metrics must be in {all_metrics_names}"
 	
@@ -57,26 +57,26 @@ class BaseMetrics:
 	def get_all_metrics_names_to_func() -> Dict[str, Callable]:
 		raise NotImplementedError()
 	
-	@staticmethod
-	def get_unwrap_all_metrics_names_to_func() -> Dict[str, Callable]:
+	@classmethod
+	def get_unwrap_all_metrics_names_to_func(cls) -> Dict[str, Callable]:
 		return {
 			metric_name: metric_func
-			for metric_names, metric_func in BaseMetrics.get_all_metrics_names_to_func().items()
-			for metric_name in metric_names.split(BaseMetrics.METRICS_NAMES_SEP)
+			for metric_names, metric_func in cls.get_all_metrics_names_to_func().items()
+			for metric_name in metric_names.split(cls.METRICS_NAMES_SEP)
 		}
 	
-	@staticmethod
-	def get_all_metrics_names() -> List[str]:
+	@classmethod
+	def get_all_metrics_names(cls) -> List[str]:
 		all_metrics_names = []
-		for metric_names, _ in BaseMetrics.get_all_metrics_names_to_func().items():
-			all_metrics_names.extend(metric_names.split(BaseMetrics.METRICS_NAMES_SEP))
+		for metric_names, _ in cls.get_all_metrics_names_to_func().items():
+			all_metrics_names.extend(metric_names.split(cls.METRICS_NAMES_SEP))
 		return all_metrics_names
 	
-	@staticmethod
-	def get_unique_metrics_names() -> List[str]:
+	@classmethod
+	def get_unique_metrics_names(cls) -> List[str]:
 		all_metrics_names = []
-		for metric_names, _ in BaseMetrics.get_all_metrics_names_to_func().items():
-			all_metrics_names.extend(metric_names.split(BaseMetrics.METRICS_NAMES_SEP)[0])
+		for metric_names, _ in cls.get_all_metrics_names_to_func().items():
+			all_metrics_names.append(metric_names.split(cls.METRICS_NAMES_SEP)[0])
 		return all_metrics_names
 	
 	def __call__(
@@ -102,6 +102,7 @@ class BaseMetrics:
 			unit="metric",
 			position=0,
 		)
+		self.model.eval()
 		for i, (metric_name, metric_func) in p_bar:
 			output[metric_name] = metric_func(
 				model=self.model,

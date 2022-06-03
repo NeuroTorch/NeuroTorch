@@ -1,8 +1,11 @@
 import enum
 import json
 import os
+import shutil
+import warnings
 from typing import Any, Dict, Optional, Union
 
+import numpy as np
 import torch
 
 from .base_callback import BaseCallback
@@ -36,10 +39,17 @@ class CheckpointManager(BaseCallback):
 			self,
 			checkpoint_folder: Optional[str] = None,
 			meta_path_prefix: Optional[str] = None,
-
+			metric: str = "val_loss",
+			minimise_metric: bool = True,
+			verbose: bool = False
 	):
 		self.checkpoint_folder = checkpoint_folder
-		self.meta_path_prefix = meta_path_prefix if meta_path_prefix is not None else ""
+		self.meta_path_prefix = meta_path_prefix if meta_path_prefix is not None else "network"
+		self.verbose = verbose
+
+		self.metric = metric
+		self.minimise_metric = minimise_metric
+		self.curr_best_metric = np.inf if self.minimise_metric else -np.inf
 
 	@property
 	def checkpoints_meta_path(self) -> str:
@@ -115,3 +125,45 @@ class CheckpointManager(BaseCallback):
 		mapping_update_recursively(info, new_info)
 		with open(self.checkpoints_meta_path, "w+") as jsonFile:
 			json.dump(info, jsonFile, indent=4)
+
+	def start(self, trainer):
+		start_itr = 0
+		if trainer.load_checkpoint_mode is None:
+			if os.path.exists(self.checkpoints_meta_path):
+				if trainer.force_overwrite:
+					shutil.rmtree(self.checkpoint_folder)
+				else:
+					raise ValueError(
+						f"{self.checkpoints_meta_path} already exists. "
+						f"Set force_overwrite flag to True to overwrite existing saves."
+					)
+		else:
+			try:
+				checkpoint = self.load_checkpoint(trainer.load_checkpoint_mode)
+				trainer.model.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
+				start_itr = int(checkpoint[CheckpointManager.CHECKPOINT_ITR_KEY]) + 1
+				trainer.training_history = checkpoint[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY]
+			except FileNotFoundError as e:
+				if self.verbose:
+					warnings.warn(f"Error: {e}", Warning)
+					warnings.warn("No such checkpoint. Fit from beginning.")
+
+		trainer.current_training_state = trainer.current_training_state.update(iteration=start_itr)
+		if self.minimise_metric:
+			self.curr_best_metric = trainer.training_history.min(self.metric)
+		else:
+			self.curr_best_metric = trainer.training_history.max(self.metric)
+
+	def on_iteration_end(self, trainer):
+		if self.minimise_metric:
+			is_best = trainer.current_training_state.itr_metrics[self.metric] > self.curr_best_metric
+		else:
+			is_best = trainer.current_training_state.itr_metrics[self.metric] < self.curr_best_metric
+		if is_best:
+			self.curr_best_metric = trainer.current_training_state.itr_metrics[self.metric]
+		self.save_checkpoint(
+			trainer.current_training_state.iteration, trainer.current_training_state.itr_metrics, is_best,
+			state_dict=trainer.model.state_dict(),
+			optimizer_state_dict=trainer.optimizer.state_dict(),
+			training_history=trainer.training_history,
+		)

@@ -171,7 +171,7 @@ class LIFLayer(BaseLayer):
 		:return: The current state.
 		"""
 		state = tuple([torch.zeros(
-			(batch_size, self.output_size),
+			(batch_size, int(self.output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,
@@ -248,7 +248,7 @@ class ALIFLayer(LIFLayer):
 		:return: The current state.
 		"""
 		state = [torch.zeros(
-			(batch_size, self.output_size),
+			(batch_size, int(self.output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,
@@ -348,19 +348,19 @@ class IzhikevichLayer(BaseLayer):
 		:return: The current state.
 		"""
 		V = self.v_rest * torch.ones(
-			(batch_size, self.output_size),
+			(batch_size, int(self.output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,
 		)
 		u = torch.zeros(
-			(batch_size, self.output_size),
+			(batch_size, int(self.output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,
 		)
 		Z = torch.zeros(
-			(batch_size, self.output_size),
+			(batch_size, int(self.output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,
@@ -408,7 +408,7 @@ class LILayer(BaseLayer):
 			**kwargs
 			)
 		self.bias_weights = nn.Parameter(
-			torch.empty((self.output_size,), device=self.device),
+			torch.empty((int(self.output_size),), device=self.device),
 			requires_grad=self.requires_grad,
 		)
 		self.kappa = torch.tensor(np.exp(-self.dt / self.kwargs["tau_out"]), dtype=torch.float32, device=self.device)
@@ -429,7 +429,7 @@ class LILayer(BaseLayer):
 		:return: The current state.
 		"""
 		state = [torch.zeros(
-			(batch_size, self.output_size),
+			(batch_size, int(self.output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,

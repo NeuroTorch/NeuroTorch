@@ -3,7 +3,6 @@ import logging
 import os
 import shutil
 from collections import defaultdict
-from defaultlist import defaultlist
 from copy import deepcopy
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
 
@@ -313,8 +312,8 @@ class SequentialModel(BaseModel):
 	def _init_hidden_states_memory(self) -> Dict[str, List]:
 		return {
 			# layer_name: [None for t in range(self.int_time_steps+1)]
-			layer_name: []
-			for layer_name, _ in self.all_layers_names
+			layer_name: [None]
+			for layer_name in self.get_all_layers_names()
 		}
 	
 	def _inputs_forward_(
@@ -325,13 +324,13 @@ class SequentialModel(BaseModel):
 	) -> torch.Tensor:
 		features_list = []
 		for layer_name, layer in self.input_layers.items():
-			features, hh = layer(inputs[layer_name][:, t - 1])
+			features, hh = layer(inputs[layer_name][:, t])
 			hidden_states[layer_name].append(hh)
 			features_list.append(features)
 		if features_list:
 			forward_tensor = torch.concat(features_list, dim=1)
 		else:
-			forward_tensor = torch.concat([inputs[in_name][:, t - 1] for in_name in inputs], dim=1)
+			forward_tensor = torch.concat([inputs[in_name][:, t] for in_name in inputs], dim=1)
 		return forward_tensor
 	
 	def _hidden_forward_(
@@ -339,10 +338,10 @@ class SequentialModel(BaseModel):
 			forward_tensor: torch.Tensor,
 			hidden_states: Dict[str, List],
 	) -> torch.Tensor:
-		for layer_idx, (layer_name, layer) in enumerate(self.hidden_layers.items()):
-			hh = hidden_states[layer_name][-1]
+		for layer_idx, layer in enumerate(self.hidden_layers):
+			hh = hidden_states[layer.name][-1] if hidden_states[layer.name] else None
 			forward_tensor, hh = layer(forward_tensor, hh)
-			hidden_states[layer_name].append(hh)
+			hidden_states[layer.name].append(hh)
 		return forward_tensor
 	
 	def _readout_forward_(
@@ -352,7 +351,7 @@ class SequentialModel(BaseModel):
 			outputs_trace: Dict[str, List[torch.Tensor]]
 	):
 		for layer_name, layer in self.output_layers.items():
-			hh = hidden_states[layer_name][-1]
+			hh = hidden_states[layer_name][-1] if hidden_states[layer_name] else None
 			out, hh = layer(forward_tensor, hh)
 			outputs_trace[layer_name].append(out)
 			hidden_states[layer_name].append(hh)
@@ -370,7 +369,7 @@ class SequentialModel(BaseModel):
 		hidden_states = self._init_hidden_states_memory()
 		outputs_trace: Dict[str, List[torch.Tensor]] = defaultdict(list)
 		
-		for t in range(1, self.int_time_steps + 1):
+		for t in range(self.int_time_steps):
 			forward_tensor = self._inputs_forward_(inputs, hidden_states, t)
 			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
 			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace)
@@ -378,7 +377,7 @@ class SequentialModel(BaseModel):
 			outputs_trace = {layer_name: self._pop_memory_(trace) for layer_name, trace in outputs_trace.items()}
 			hidden_states = {layer_name: self._pop_memory_(trace) for layer_name, trace in hidden_states.items()}
 		
-		hidden_states = {layer_name: trace[1:] for layer_name, trace in hidden_states.items()}
+		# hidden_states = {layer_name: trace[1:] for layer_name, trace in hidden_states.items()}
 		hidden_states = self._format_hidden_outputs_traces(hidden_states)
 		outputs_trace_tensor = {layer_name: torch.stack(trace, dim=1) for layer_name, trace in outputs_trace.items()}
 		return outputs_trace_tensor, hidden_states
@@ -390,9 +389,9 @@ class SequentialModel(BaseModel):
 			re_hidden_states: bool = True
 	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
 		outputs_trace, hidden_states = self(inputs.to(self.device))
-		if isinstance(inputs, torch.Tensor):
+		if isinstance(outputs_trace, torch.Tensor):
 			logits, _ = torch.max(outputs_trace, dim=1)
-		elif isinstance(inputs, dict):
+		elif isinstance(outputs_trace, dict):
 			logits = {
 				k: torch.max(v, dim=1)[0]
 				for k, v in outputs_trace.items()
@@ -415,7 +414,11 @@ class SequentialModel(BaseModel):
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
 	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
-		m, *outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
+		outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
+		if isinstance(outs, (list, tuple)):
+			m = outs[0]
+		else:
+			m = outs
 		if isinstance(m, torch.Tensor):
 			proba = torch.softmax(m, dim=-1)
 		elif isinstance(m, dict):
@@ -426,7 +429,7 @@ class SequentialModel(BaseModel):
 		else:
 			raise ValueError("m must be a torch.Tensor or a dictionary")
 		if re_outputs_trace or re_hidden_states:
-			return proba, *outs
+			return proba, outs[1:]
 		return proba
 	
 	def get_prediction_log_proba(

@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Callable, List, Optional
 
 import torch
 
 from . import Trainer
+from ..metrics import ClassificationMetrics
 
 
 class ClassificationTrainer(Trainer):
@@ -17,7 +18,12 @@ class ClassificationTrainer(Trainer):
 			else:
 				raise ValueError("Unknown criterion type")
 		return criterion
-		
+
+	def _set_default_metrics(self, metrics: Optional[List[Callable]]):
+		if metrics is None:
+			metrics = [ClassificationMetrics(self.model)]
+		return metrics
+
 	def apply_criterion_on_batch(self, x_batch, y_batch):
 		if self.model.training:
 			pred, out, h_sates = self.model.get_prediction_log_proba(
@@ -29,10 +35,12 @@ class ClassificationTrainer(Trainer):
 					x_batch, re_outputs_trace=True, re_hidden_states=True
 				)
 		if isinstance(self.criterion, dict):
-			if len(self.criterion) == 1 and isinstance(pred, torch.Tensor) and isinstance(y_batch, torch.Tensor):
-				return list(self.criterion.values())[0](pred, y_batch.long().to(self.device))
-			assert isinstance(x_batch, dict) and isinstance(y_batch, dict) and isinstance(pred, dict), \
-				"If criterion is a dict, x_batch, y_batch and pred must be a dict too."
+			if isinstance(y_batch, torch.Tensor):
+				y_batch = {k: y_batch for k in self.criterion}
+			if isinstance(pred, torch.Tensor):
+				pred = {k: pred for k in self.criterion}
+			assert isinstance(pred, dict) and isinstance(y_batch, dict) and isinstance(pred, dict), \
+				"If criterion is a dict, pred, y_batch and pred must be a dict too."
 			batch_loss = sum([
 				self.criterion[k](pred[k], y_batch[k].long().to(self.device))
 				for k in self.criterion

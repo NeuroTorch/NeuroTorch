@@ -21,6 +21,7 @@ class CurrentTrainingState(NamedTuple):
 	val_loss: Optional[Any]
 	train_metrics: Optional[Any]
 	val_metrics: Optional[Any]
+	itr_metrics: Optional[Dict[str, Any]]
 	
 	@staticmethod
 	def get_null_state() -> "CurrentTrainingState":
@@ -35,6 +36,7 @@ class CurrentTrainingState(NamedTuple):
 			val_loss=None,
 			train_metrics=None,
 			val_metrics=None,
+			itr_metrics=None,
 		)
 	
 	def update(
@@ -50,6 +52,7 @@ class CurrentTrainingState(NamedTuple):
 			val_loss: Optional[Any] = None,
 			train_metrics: Optional[Any] = None,
 			val_metrics: Optional[Any] = None,
+			itr_metrics: Optional[Dict[str, Any]] = None,
 	) -> "CurrentTrainingState":
 		return CurrentTrainingState(
 			iteration=iteration if iteration is not None else self.iteration,
@@ -62,6 +65,7 @@ class CurrentTrainingState(NamedTuple):
 			val_loss=val_loss if val_loss is not None else self.val_loss,
 			train_metrics=train_metrics if train_metrics is not None else self.train_metrics,
 			val_metrics=val_metrics if val_metrics is not None else self.val_metrics,
+			itr_metrics=itr_metrics if itr_metrics is not None else self.itr_metrics,
 		)
 
 
@@ -81,12 +85,23 @@ class Trainer:
 		self.model = model
 		self.criterion = self._set_default_criterion(criterion)
 		self.optimizer = self._set_default_optimizer(optimizer)
-		self.metrics = metrics
+		self.metrics = self._set_default_metrics(metrics)
 		self.callbacks: CallbacksList = self._set_default_callbacks(callbacks)
 		self.device = self._set_default_device(device)
 		self.verbose = verbose
 		self.training_history = list(filter(lambda x: isinstance(x, TrainingHistory), self.callbacks.callbacks))[0]
 		self.current_training_state = CurrentTrainingState.get_null_state()
+
+		self._load_checkpoint_mode = None
+		self._force_overwrite = None
+
+	@property
+	def load_checkpoint_mode(self):
+		return self._load_checkpoint_mode
+
+	@property
+	def force_overwrite(self):
+		return self._force_overwrite
 	
 	@staticmethod
 	def _set_default_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -106,6 +121,11 @@ class Trainer:
 				weight_decay=self.kwargs["weight_decay"]
 			)
 		return optimizer
+
+	def _set_default_metrics(self, metrics: Optional[List[Callable]]):
+		if metrics is None:
+			metrics = [lambda *x: None]
+		return metrics
 	
 	def _set_default_criterion(self, criterion: Optional[torch.nn.Module]) -> torch.nn.Module:
 		if criterion is None:
@@ -146,57 +166,40 @@ class Trainer:
 			p_bar_position: Optional[int] = None,
 			p_bar_leave: Optional[bool] = None,
 			**kwargs
-	):
+	) -> TrainingHistory:
+		self._load_checkpoint_mode = load_checkpoint_mode
+		self._force_overwrite = force_overwrite
 		self.kwargs.update(kwargs)
-		start_iteration = 0
 		if n_iterations is None:
 			n_iterations = self.kwargs["n_epochs"]
-		# if load_checkpoint_mode is None:
-		# 	assert os.path.exists(self.checkpoints_meta_path) or force_overwrite, \
-		# 		f"{self.checkpoints_meta_path} already exists. " \
-		# 		f"Set force_overwrite flag to True to overwrite existing saves."
-		# 	if os.path.exists(self.checkpoints_meta_path) and force_overwrite:
-		# 		shutil.rmtree(self.checkpoint_folder)
-		# else:
-		# 	try:
-		# 		checkpoint = self.load_checkpoint(load_checkpoint_mode)
-		# 		self.load_state_dict(checkpoint[SequentialModel.CHECKPOINT_STATE_DICT_KEY], strict=True)
-		# 		optimizer.load_state_dict(checkpoint[SequentialModel.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY])
-		# 		start_epoch = int(checkpoint[SequentialModel.CHECKPOINT_EPOCH_KEY]) + 1
-		# 		self.loss_history = self.get_checkpoints_loss_history()
-		# 	except FileNotFoundError:
-		# 		if verbose:
-		# 			logging.warning("No such checkpoint. Fit from beginning.", UserWarning)
-		#
-		# if start_epoch >= nb_epochs:
-		# 	return self.loss_history
-
-		# best_loss = self.loss_history.min('val')
+		self.callbacks.start(self)
+		if self.current_training_state.iteration is None:
+			self.current_training_state = self.current_training_state.update(iteration=0)
 		p_bar = tqdm(
-			range(start_iteration, n_iterations),
+			range(self.current_training_state.iteration, n_iterations),
 			desc="Training",
 			disable=not self.verbose,
 			position=p_bar_position,
-			unit="epoch",
+			unit="itr",
 			leave=p_bar_leave
 		)
-		self.callbacks.start(self)
 		for i in p_bar:
 			self.current_training_state = self.current_training_state.update(iteration=i)
 			itr_loss = self._exec_iteration(train_dataloader, val_dataloader)
-			# self.loss_history.concat(epoch_loss)
-			# is_best = epoch_loss['val'] < best_loss
-			# self.save_checkpoint(optimizer, epoch, epoch_loss, is_best)
-			# if is_best:
-			# 	best_loss = epoch_loss['val']
-			p_bar.set_postfix(
-				train_loss=f"{itr_loss['train']:.5e}",
-				val_loss=f"{itr_loss['val']:.5e}",
+			itr_val_metrics = self._exec_metrics(val_dataloader)
+			itr_metrics = dict(**itr_loss, **itr_val_metrics)
+			postfix = dict(
+				train_loss=f"{itr_loss['train_loss']:.5e}",
+				val_loss=f"{itr_loss['val_loss']:.5e}",
 			)
+			postfix.update({f"val_{k}": f"{v:.5e}" for k, v in itr_val_metrics.items()})
+			self.current_training_state = self.current_training_state.update(itr_metrics=itr_metrics)
+			self.callbacks.on_iteration_end(self)
+			p_bar.set_postfix(postfix)
 		self.callbacks.close(self)
 		p_bar.close()
 		# self.plot_loss_history(show=False)
-		# return self.loss_history
+		return self.training_history
 
 	def _exec_iteration(self, train_dataloader, val_dataloader):
 		self.callbacks.on_train_begin(self)
@@ -212,7 +215,17 @@ class Trainer:
 		val_loss = self._exec_epoch(val_dataloader)
 		self.current_training_state = self.current_training_state.update(val_loss=val_loss)
 		self.callbacks.on_validation_end(self)
-		return dict(train=train_loss, val=val_loss)
+		return dict(train_loss=train_loss, val_loss=val_loss)
+
+	def _exec_metrics(self, dataloader) -> Dict:
+		metrics_dict = {}
+		for metric in self.metrics:
+			m_out = metric(dataloader)
+			if isinstance(m_out, dict):
+				metrics_dict.update(m_out)
+			else:
+				metrics_dict[metric.__name__] = m_out
+		return metrics_dict
 
 	def _exec_epoch(
 			self,

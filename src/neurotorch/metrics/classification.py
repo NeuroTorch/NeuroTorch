@@ -38,7 +38,11 @@ class ClassificationMetrics(BaseMetrics):
 			):
 				inputs = inputs.to(model.device)
 				classes = classes.to(model.device)
-				outputs = model.get_prediction_logits(inputs, re_outputs_trace=False, re_hidden_states=False)
-				_, preds = torch.max(outputs, -1)
-				accs.extend(torch.eq(preds, classes).float().cpu().numpy())
+				outputs = model.get_prediction_proba(inputs, re_outputs_trace=False, re_hidden_states=False)
+				if isinstance(outputs, dict):
+					if not isinstance(classes, dict):
+						classes = {k: classes for k in outputs}
+					for k, v in outputs.items():
+						_, preds = torch.max(v, -1)
+						accs.extend(torch.eq(preds, classes[k]).float().cpu().numpy())
 		return np.mean(np.asarray(accs)).item()

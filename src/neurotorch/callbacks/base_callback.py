@@ -32,6 +32,9 @@ class BaseCallback:
 	def on_validation_end(self, trainer):
 		pass
 
+	def on_iteration_end(self, trainer):
+		pass
+
 	
 class CallbacksList:
 	def __init__(self, callbacks: Optional[Iterable[BaseCallback]] = None):
@@ -89,5 +92,7 @@ class CallbacksList:
 		for callback in self.callbacks:
 			callback.on_validation_end(trainer)
 
-
+	def on_iteration_end(self, trainer):
+		for callback in self.callbacks:
+			callback.on_iteration_end(trainer)
 

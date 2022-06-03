@@ -4,7 +4,7 @@ from typing import Dict, List
 import numpy as np
 import matplotlib.pyplot as plt
 
-from neurotorch.callbacks.base_callback import BaseCallback
+from ..callbacks.base_callback import BaseCallback
 
 
 class TrainingHistory(BaseCallback):
@@ -109,6 +109,9 @@ class TrainingHistory(BaseCallback):
 		if show:
 			plt.show()
 		plt.close(fig)
+
+	def on_iteration_end(self, trainer):
+		self.concat(trainer.current_training_state.itr_metrics)
 
 
 

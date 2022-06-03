@@ -6,7 +6,8 @@ import psutil
 
 from applications.mnist.dataset import get_dataloaders, DatasetId
 from neurotorch import Dimension, DimensionProperty
-from neurotorch.callbacks import LoadCheckpointMode
+from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
+from neurotorch.metrics import ClassificationMetrics
 from neurotorch.modules import SequentialModel, ALIFLayer, LILayer
 from neurotorch.trainers import ClassificationTrainer
 from neurotorch.utils import hash_params
@@ -19,11 +20,11 @@ def train_with_params(params: Dict[str, Any], data_folder="tr_results", verbose=
 
 	dataloaders = get_dataloaders(
 		dataset_id=params["dataset_id"],
-		batch_size=16,
+		batch_size=256,
 		n_steps=params["n_steps"],
 		to_spikes_use_periods=params["to_spikes_use_periods"],
 		train_val_split_ratio=params.get("train_val_split_ratio", 0.85),
-		# nb_workers=psutil.cpu_count(logical=False),
+		nb_workers=psutil.cpu_count(logical=False),
 	)
 	network = SequentialModel(
 		layers=[
@@ -36,20 +37,21 @@ def train_with_params(params: Dict[str, Any], data_folder="tr_results", verbose=
 	# save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
 	trainer = ClassificationTrainer(
 		model=network,
+		callbacks=CheckpointManager(checkpoint_folder)
 	)
 	trainer.train(
 		dataloaders["train"],
 		dataloaders["val"],
 		n_iterations=params.get("n_iterations", 15),
 		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
-		force_overwrite=True,
+		force_overwrite=False,
 		verbose=verbose,
 	)
 	# network.load_checkpoint(LoadCheckpointMode.BEST_EPOCH)
 	return dict(
 		network=network,
 		accuracies={
-			k: network.compute_classification_accuracy(dataloaders[k], verbose=True, desc=k)
+			k: ClassificationMetrics.accuracy(network, dataloaders[k], verbose=True, desc=k)
 			for k in dataloaders
 		},
 		checkpoints_name=checkpoints_name,

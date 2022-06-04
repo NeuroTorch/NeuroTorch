@@ -1,5 +1,5 @@
 import enum
-from typing import Tuple, Type, Union, Iterable
+from typing import Optional, Tuple, Type, Union, Iterable
 
 import numpy as np
 import torch
@@ -22,12 +22,14 @@ class LayerType(enum.Enum):
 	LI = 3
 
 
+SizeTypes = Union[int, Dimension, Iterable[Union[int, Dimension]]]
+
+
 class BaseLayer(torch.nn.Module):
 	def __init__(
 			self,
-			input_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
-			output_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
-			# TODO: maybe add a kernel size
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
 			name: str = "BaseLayer",
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
@@ -37,9 +39,8 @@ class BaseLayer(torch.nn.Module):
 			**kwargs
 	):
 		super(BaseLayer, self).__init__()
-		# TODO: adapt for multiple input and output sizes
-		self.input_size = Dimension.from_int_or_dimension(input_size)
-		self.output_size = Dimension.from_int_or_dimension(output_size)
+		self._input_size = Dimension.from_int_or_dimension(input_size)
+		self._output_size = Dimension.from_int_or_dimension(output_size)
 		self.name = name
 		self.use_recurrent_connection = use_recurrent_connection
 		self.learning_type = learning_type
@@ -50,29 +51,35 @@ class BaseLayer(torch.nn.Module):
 		self.dt = dt
 		self.kwargs = kwargs
 		self._set_default_kwargs()
-		
-		# TODO: create the parameters based on the kernel size instead
-		# TODO: if the kernel size is not specified, use the input size
-		# TODO: if the kernel size is lower than the input size, convolve on the input.
-		self.forward_weights = nn.Parameter(
-			torch.empty((int(self.input_size), int(self.output_size)), device=self.device, dtype=torch.float32),
-			requires_grad=self.requires_grad
-		)
+
+		self.forward_weights = None
 		self.use_rec_eye_mask = use_rec_eye_mask
-		if use_recurrent_connection:
-			self.recurrent_weights = nn.Parameter(
-				torch.empty((int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32),
-				requires_grad=self.requires_grad
-			)
-			if use_rec_eye_mask:
-				self.rec_mask = (1 - torch.eye(int(self.output_size), device=self.device, dtype=torch.float32))
-			else:
-				self.rec_mask = torch.ones(
-					(int(self.output_size), int(self.output_size)), device=self.device,  dtype=torch.float32
-				)
-		else:
-			self.recurrent_weights = None
-			self.rec_mask = None
+		self.recurrent_weights = None
+		self.rec_mask = None
+		
+	@property
+	def _ready(self):
+		return all([s is not None for s in [self._input_size, self._output_size]])
+
+	@property
+	def input_size(self):
+		return self._input_size
+
+	@input_size.setter
+	def input_size(self, size: SizeTypes):
+		self._input_size = size
+		if self._ready:
+			self._create_weights()
+
+	@property
+	def output_size(self):
+		return self._output_size
+
+	@output_size.setter
+	def output_size(self, size: SizeTypes):
+		self._output_size = size
+		if self._ready:
+			self._create_weights()
 	
 	@property
 	def requires_grad(self):
@@ -83,6 +90,23 @@ class BaseLayer(torch.nn.Module):
 
 	def _set_default_device_(self):
 		self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+	def _create_weights(self):
+		self.forward_weights = nn.Parameter(
+			torch.empty((int(self.input_size), int(self.output_size)), device=self.device, dtype=torch.float32),
+			requires_grad=self.requires_grad
+		)
+		if self.use_recurrent_connection:
+			self.recurrent_weights = nn.Parameter(
+				torch.empty((int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32),
+				requires_grad=self.requires_grad
+			)
+			if self.use_rec_eye_mask:
+				self.rec_mask = (1 - torch.eye(int(self.output_size), device=self.device, dtype=torch.float32))
+			else:
+				self.rec_mask = torch.ones(
+					(int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32
+				)
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
 		raise NotImplementedError
@@ -102,6 +126,16 @@ class BaseLayer(torch.nn.Module):
 					state[i] = empty_state[i]
 			state = tuple(state)
 		return state
+
+	def infer_sizes_from_inputs(self, inputs: torch.Tensor):
+		self.input_size = inputs.shape[-1]
+		if self.output_size is None:
+			raise ValueError("output_size must be specified before the forward call.")
+	
+	def __call__(self, inputs: torch.Tensor, *args, **kwargs):
+		if not self._ready:
+			self.infer_sizes_from_inputs(inputs)
+		return super(BaseLayer, self).__call__(inputs, *args, **kwargs)
 
 	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, torch.Tensor]:
 		raise NotImplementedError
@@ -171,7 +205,7 @@ class LIFLayer(BaseLayer):
 		:return: The current state.
 		"""
 		state = tuple([torch.zeros(
-			(batch_size, int(self.output_size)),
+			(batch_size, int(self._output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,
@@ -248,7 +282,7 @@ class ALIFLayer(LIFLayer):
 		:return: The current state.
 		"""
 		state = [torch.zeros(
-			(batch_size, int(self.output_size)),
+			(batch_size, int(self._output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,
@@ -348,19 +382,19 @@ class IzhikevichLayer(BaseLayer):
 		:return: The current state.
 		"""
 		V = self.v_rest * torch.ones(
-			(batch_size, int(self.output_size)),
+			(batch_size, int(self._output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,
 		)
 		u = torch.zeros(
-			(batch_size, int(self.output_size)),
+			(batch_size, int(self._output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,
 		)
 		Z = torch.zeros(
-			(batch_size, int(self.output_size)),
+			(batch_size, int(self._output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,
@@ -408,7 +442,7 @@ class LILayer(BaseLayer):
 			**kwargs
 			)
 		self.bias_weights = nn.Parameter(
-			torch.empty((int(self.output_size),), device=self.device),
+			torch.empty((int(self._output_size),), device=self.device),
 			requires_grad=self.requires_grad,
 		)
 		self.kappa = torch.tensor(np.exp(-self.dt / self.kwargs["tau_out"]), dtype=torch.float32, device=self.device)
@@ -429,7 +463,7 @@ class LILayer(BaseLayer):
 		:return: The current state.
 		"""
 		state = [torch.zeros(
-			(batch_size, int(self.output_size)),
+			(batch_size, int(self._output_size)),
 			device=self.device,
 			dtype=torch.float32,
 			requires_grad=True,

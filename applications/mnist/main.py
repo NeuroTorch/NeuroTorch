@@ -27,8 +27,27 @@ def train_with_params(params: Dict[str, Any], data_folder="tr_results", verbose=
 		nb_workers=psutil.cpu_count(logical=False),
 	)
 	network = SequentialModel(
+		# input_sizes=[
+		# 	Dimension(28, DimensionProperty.SPATIAL),
+		# 	Dimension(100, DimensionProperty.TIME),
+		# 	Dimension(28, DimensionProperty.SPATIAL)
+		# ],
+		# layers=[
+		# 	ConvALIFLayer(
+		# 		input_sizes=[
+		# 			Dimension(28, DimensionProperty.SPATIAL),
+		# 			Dimension(100, DimensionProperty.TIME),
+		# 			Dimension(28, DimensionProperty.SPATIAL)
+		# 		],
+		# 		kernel_size=3,
+		# 	),
+		# 	ALIFLayer(
+		# 		kernel_size=128
+		# 	),
+		# 	LILayer(output_size=10),
+		# ],
 		layers=[
-			ALIFLayer(input_size=Dimension(28 * 28, DimensionProperty.NONE), output_size=128),
+			ALIFLayer(input_size=Dimension(28*28, DimensionProperty.NONE), output_size=128),
 			LILayer(input_size=128, output_size=10),
 		],
 		name="mnist_network",

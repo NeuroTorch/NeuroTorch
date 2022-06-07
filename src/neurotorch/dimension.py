@@ -8,15 +8,23 @@ class DimensionProperty(enum.Enum):
 	SPATIAL = 2
 	
 
-class Dimension(NamedTuple):
-	size: Optional[int]
-	dtype: DimensionProperty
+class Dimension:
+	def __init__(
+			self,
+			size: Optional[int] = None,
+			dtype: DimensionProperty = DimensionProperty.NONE
+	):
+		self.size: Optional[int] = size
+		self.dtype: DimensionProperty = dtype
 	
 	def __int__(self):
 		return self.size
 	
 	def __str__(self):
 		return f"{self.dtype.name}:{self.size}"
+
+	def __repr__(self):
+		return self.__str__()
 	
 	@staticmethod
 	def from_int(size: Optional[int]) -> "Dimension":

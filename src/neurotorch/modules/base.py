@@ -7,14 +7,15 @@ from torchvision.transforms import Compose, Lambda
 import torch.nn.functional as F
 
 from ..callbacks import CheckpointManager, LoadCheckpointMode
+from ..dimension import DimensionLike, SizeTypes
 from ..transforms import to_tensor
 
 
 class BaseModel(torch.nn.Module):
 	def __init__(
 			self,
-			input_sizes: Union[Dict[str, int], List[int], int],
-			output_size: Union[Dict[str, int], List[int], int],
+			input_sizes: Optional[Union[Dict[str, DimensionLike], SizeTypes]] = None,
+			output_size: Optional[Union[Dict[str, DimensionLike], SizeTypes]] = None,
 			name: str = "BaseModel",
 			checkpoint_folder: str = "checkpoints",
 			device: torch.device = None,
@@ -22,8 +23,10 @@ class BaseModel(torch.nn.Module):
 			**kwargs
 	):
 		super(BaseModel, self).__init__()
-		self._input_sizes = BaseModel._format_sizes(input_sizes)
-		self._output_size = BaseModel._format_sizes(output_size)
+		self._given_input_transform = input_transform
+		self.input_transform: Dict[str, Callable] = None
+		self.input_sizes = input_sizes
+		self.output_sizes = output_size
 		self.name = name
 		self.checkpoint_folder = checkpoint_folder
 		self.kwargs = kwargs
@@ -31,16 +34,33 @@ class BaseModel(torch.nn.Module):
 		if self.device is None:
 			self._set_default_device_()
 
-		self.input_transform: Dict[str, Callable] = self._make_input_transform(input_transform)
-		self._add_to_device_transform_()
-
 	@property
 	def input_sizes(self) -> Dict[str, int]:
 		return self._input_sizes
 
+	@input_sizes.setter
+	def input_sizes(self, input_sizes: Union[Dict[str, DimensionLike], SizeTypes]):
+		if self._input_sizes is not None:
+			raise ValueError("Input sizes can only be set once.")
+		if input_sizes is not None:
+			self._input_sizes = self._format_sizes(input_sizes)
+			self.input_transform: Dict[str, Callable] = self._make_input_transform(self._given_input_transform)
+			self._add_to_device_transform_()
+
 	@property
 	def output_sizes(self) -> Dict[str, int]:
-		return self._output_size
+		return self._output_sizes
+
+	@output_sizes.setter
+	def output_sizes(self, output_size: Union[Dict[str, DimensionLike], SizeTypes]):
+		if self._output_sizes is not None:
+			raise ValueError("Output sizes can only be set once.")
+		if output_size is not None:
+			self._output_sizes = self._format_sizes(output_size)
+
+	@property
+	def _ready(self):
+		return all([s is not None for s in [self._input_sizes, self._output_sizes]])
 
 	@property
 	def checkpoints_meta_path(self) -> str:
@@ -50,7 +70,7 @@ class BaseModel(torch.nn.Module):
 		return f"{self.checkpoint_folder}/{full_filename}.json"
 
 	@staticmethod
-	def _format_sizes(sizes: Union[Dict[str, int], List[int], int]) -> Dict[str, int]:
+	def _format_sizes(sizes: Union[Dict[str, DimensionLike], SizeTypes]) -> Dict[str, int]:
 		if isinstance(sizes, dict):
 			return sizes
 		elif isinstance(sizes, list):
@@ -121,6 +141,21 @@ class BaseModel(torch.nn.Module):
 
 	def _set_default_device_(self):
 		self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+	def infer_sizes_from_inputs(self, inputs: Dict[str, Any]):
+		if isinstance(inputs, torch.Tensor):
+			inputs = {
+				"0": inputs
+			}
+		self.input_sizes = {k: v.shape[1:] for k, v in inputs.items()}
+
+	def __call__(self, inputs: Dict[str, Any], *args, **kwargs):
+		# TODO: find a way to infer output sizes
+		if not self._ready:
+			self.infer_sizes_from_inputs(inputs)
+			# TODO: propagate input and hidden sizes to the network
+			# TODO: check if output sizes are set
+		return super(BaseModel, self).__call__(inputs, *args, **kwargs)
 
 	def forward(self, inputs: Dict[str, Any], **kwargs) -> Dict[str, torch.Tensor]:
 		raise NotImplementedError()

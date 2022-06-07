@@ -85,8 +85,8 @@ class SequentialModel(BaseModel):
 	):
 		input_layers, hidden_layers, output_layers = self._format_layers(layers)
 		super(SequentialModel, self).__init__(
-			input_sizes={layer.name: layer._input_size for _, layer in input_layers.items()},
-			output_size={layer.name: layer._output_size for _, layer in output_layers.items()},
+			input_sizes={layer.name: layer.input_size for _, layer in input_layers.items()},
+			output_size={layer.name: layer.output_size for _, layer in output_layers.items()},
 			name=name,
 			checkpoint_folder=checkpoint_folder,
 			device=device,
@@ -107,6 +107,9 @@ class SequentialModel(BaseModel):
 		self.initialize_weights_()
 		self._memory_size = self.kwargs.get("memory_size", self.int_time_steps)
 		assert self._memory_size > 0, "The memory size must be greater than 0."
+
+	def _propagate_sizes(self):
+		raise NotImplementedError()
 	
 	def get_all_layers(self) -> List[nn.Module]:
 		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())

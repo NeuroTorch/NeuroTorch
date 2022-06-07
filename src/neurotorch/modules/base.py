@@ -40,8 +40,8 @@ class BaseModel(torch.nn.Module):
 
 	@input_sizes.setter
 	def input_sizes(self, input_sizes: Union[Dict[str, DimensionLike], SizeTypes]):
-		if self._input_sizes is not None:
-			raise ValueError("Input sizes can only be set once.")
+		# if self.input_sizes is not None:
+		# 	raise ValueError("Input sizes can only be set once.")
 		if input_sizes is not None:
 			self._input_sizes = self._format_sizes(input_sizes)
 			self.input_transform: Dict[str, Callable] = self._make_input_transform(self._given_input_transform)
@@ -53,14 +53,19 @@ class BaseModel(torch.nn.Module):
 
 	@output_sizes.setter
 	def output_sizes(self, output_size: Union[Dict[str, DimensionLike], SizeTypes]):
-		if self._output_sizes is not None:
-			raise ValueError("Output sizes can only be set once.")
+		# if self._output_sizes is not None:
+		# 	raise ValueError("Output sizes can only be set once.")
 		if output_size is not None:
 			self._output_sizes = self._format_sizes(output_size)
 
 	@property
 	def _ready(self):
-		return all([s is not None for s in [self._input_sizes, self._output_sizes]])
+		is_all_not_none = all([s is not None for s in [self._input_sizes, self._output_sizes]])
+		if is_all_not_none:
+			is_any_none = any([s is None for s in list(self._input_sizes.values()) + list(self._output_sizes.values())])
+		else:
+			is_any_none = True
+		return is_all_not_none and not is_any_none
 
 	@property
 	def checkpoints_meta_path(self) -> str:
@@ -142,22 +147,23 @@ class BaseModel(torch.nn.Module):
 	def _set_default_device_(self):
 		self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-	def infer_sizes_from_inputs(self, inputs: Dict[str, Any]):
+	def infer_sizes_from_inputs(self, inputs: Union[Dict[str, Any], torch.Tensor]):
 		if isinstance(inputs, torch.Tensor):
 			inputs = {
 				"0": inputs
 			}
 		self.input_sizes = {k: v.shape[1:] for k, v in inputs.items()}
 
-	def __call__(self, inputs: Dict[str, Any], *args, **kwargs):
-		# TODO: find a way to infer output sizes
+	def build(self):
+		raise NotImplementedError()
+
+	def __call__(self, inputs: Union[Dict[str, Any], torch.Tensor], *args, **kwargs):
 		if not self._ready:
 			self.infer_sizes_from_inputs(inputs)
-			# TODO: propagate input and hidden sizes to the network
-			# TODO: check if output sizes are set
+			self.build()
 		return super(BaseModel, self).__call__(inputs, *args, **kwargs)
 
-	def forward(self, inputs: Dict[str, Any], **kwargs) -> Dict[str, torch.Tensor]:
+	def forward(self, inputs: Union[Dict[str, Any], torch.Tensor], **kwargs) -> Dict[str, torch.Tensor]:
 		raise NotImplementedError()
 	
 	def get_raw_prediction(

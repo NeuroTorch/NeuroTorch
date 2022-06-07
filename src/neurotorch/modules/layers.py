@@ -1,12 +1,13 @@
 import enum
-from typing import Optional, Tuple, Type, Union, Iterable
+from copy import deepcopy
+from typing import Optional, Sized, Tuple, Type, Union, Iterable
 
 import numpy as np
 import torch
 from torch import nn
 
 from . import HeavisideSigmoidApprox, SpikeFunction
-from ..dimension import Dimension
+from ..dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 
 
 class LearningType(enum.Enum):
@@ -20,9 +21,6 @@ class LayerType(enum.Enum):
 	ALIF = 1
 	Izhikevich = 2
 	LI = 3
-
-
-SizeTypes = Union[int, Dimension, Iterable[Union[int, Dimension]]]
 
 
 class BaseLayer(torch.nn.Module):
@@ -39,8 +37,8 @@ class BaseLayer(torch.nn.Module):
 			**kwargs
 	):
 		super(BaseLayer, self).__init__()
-		self._input_size = Dimension.from_int_or_dimension(input_size)
-		self._output_size = Dimension.from_int_or_dimension(output_size)
+		self.input_size = input_size
+		self.output_size = output_size
 		self.name = name
 		self.use_recurrent_connection = use_recurrent_connection
 		self.learning_type = learning_type
@@ -66,8 +64,8 @@ class BaseLayer(torch.nn.Module):
 		return self._input_size
 
 	@input_size.setter
-	def input_size(self, size: SizeTypes):
-		self._input_size = size
+	def input_size(self, size: Optional[SizeTypes]):
+		self._input_size = self._format_input_size(size)
 		if self._ready:
 			self._create_weights()
 
@@ -76,14 +74,31 @@ class BaseLayer(torch.nn.Module):
 		return self._output_size
 
 	@output_size.setter
-	def output_size(self, size: SizeTypes):
-		self._output_size = size
+	def output_size(self, size: Optional[SizeTypes]):
+		if size is not None:
+			assert isinstance(size, (int, Dimension)), "input_size must be an int or Dimension."
+			self._output_size = Dimension.from_int_or_dimension(size)
 		if self._ready:
 			self._create_weights()
 	
 	@property
 	def requires_grad(self):
 		return self.learning_type == LearningType.BACKPROP
+
+	def _format_input_size(self, size: Optional[SizeTypes]) -> Optional[DimensionsLike]:
+		if size is not None:
+			if isinstance(size, Iterable):
+				size = [Dimension.from_int_or_dimension(s) for s in size]
+				time_dim_count = len(list(filter(lambda d: d.dtype == DimensionProperty.TIME, size)))
+				assert time_dim_count <= 1, "input_size must not contain more than one Time dimension."
+				size = list(filter(lambda d: d.dtype != DimensionProperty.TIME, size))
+				if len(size) == 1:
+					size = size[0]
+				else:
+					raise ValueError("input_size must be a single dimension or a list of 2 dimensions with a Time one.")
+			assert isinstance(size, (int, Dimension)), "input_size must be an int or Dimension."
+			size = Dimension.from_int_or_dimension(size)
+		return size
 
 	def _set_default_kwargs(self):
 		raise NotImplementedError()

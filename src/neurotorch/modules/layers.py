@@ -28,7 +28,7 @@ class BaseLayer(torch.nn.Module):
 			self,
 			input_size: Optional[SizeTypes] = None,
 			output_size: Optional[SizeTypes] = None,
-			name: str = "BaseLayer",
+			name: Optional[str] = None,
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			learning_type: LearningType = LearningType.BACKPROP,
@@ -37,8 +37,7 @@ class BaseLayer(torch.nn.Module):
 			**kwargs
 	):
 		super(BaseLayer, self).__init__()
-		self.input_size = input_size
-		self.output_size = output_size
+		self._name_is_set = False
 		self.name = name
 		self.use_recurrent_connection = use_recurrent_connection
 		self.learning_type = learning_type
@@ -54,23 +53,26 @@ class BaseLayer(torch.nn.Module):
 		self.use_rec_eye_mask = use_rec_eye_mask
 		self.recurrent_weights = None
 		self.rec_mask = None
-		
-	@property
-	def _ready(self):
-		return all([s is not None for s in [self._input_size, self._output_size]])
+
+		self.input_size = input_size
+		self.output_size = output_size
 
 	@property
 	def input_size(self):
+		if not hasattr(self, "_input_size"):
+			return None
 		return self._input_size
 
 	@input_size.setter
 	def input_size(self, size: Optional[SizeTypes]):
 		self._input_size = self._format_input_size(size)
-		if self._ready:
-			self._create_weights()
+		if self._is_ready():
+			self.build()
 
 	@property
 	def output_size(self):
+		if not hasattr(self, "_output_size"):
+			return None
 		return self._output_size
 
 	@output_size.setter
@@ -78,12 +80,38 @@ class BaseLayer(torch.nn.Module):
 		if size is not None:
 			assert isinstance(size, (int, Dimension)), "input_size must be an int or Dimension."
 			self._output_size = Dimension.from_int_or_dimension(size)
-		if self._ready:
-			self._create_weights()
+		if self._is_ready():
+			self.build()
 	
 	@property
 	def requires_grad(self):
 		return self.learning_type == LearningType.BACKPROP
+
+	@property
+	def name(self) -> str:
+		if self._name is None:
+			return self.__class__.__name__
+		return self._name
+
+	@property
+	def name_is_set(self) -> bool:
+		return self._name_is_set
+
+	@name.setter
+	def name(self, name: str):
+		if name is not None:
+			assert isinstance(name, str), "name must be a string."
+			self._name = name
+			self._name_is_set = True
+
+	def _is_ready(self) -> bool:
+		return all([
+			s is not None
+			for s in [
+				self._input_size,
+				(self._output_size if hasattr(self, "_output_size") else None)
+			]
+		])
 
 	def _format_input_size(self, size: Optional[SizeTypes]) -> Optional[DimensionsLike]:
 		if size is not None:
@@ -101,12 +129,12 @@ class BaseLayer(torch.nn.Module):
 		return size
 
 	def _set_default_kwargs(self):
-		raise NotImplementedError()
+		pass
 
 	def _set_default_device_(self):
 		self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-	def _create_weights(self):
+	def build(self):
 		self.forward_weights = nn.Parameter(
 			torch.empty((int(self.input_size), int(self.output_size)), device=self.device, dtype=torch.float32),
 			requires_grad=self.requires_grad
@@ -148,7 +176,7 @@ class BaseLayer(torch.nn.Module):
 			raise ValueError("output_size must be specified before the forward call.")
 	
 	def __call__(self, inputs: torch.Tensor, *args, **kwargs):
-		if not self._ready:
+		if not self._is_ready():
 			self.infer_sizes_from_inputs(inputs)
 		return super(BaseLayer, self).__call__(inputs, *args, **kwargs)
 
@@ -166,9 +194,9 @@ class BaseLayer(torch.nn.Module):
 class LIFLayer(BaseLayer):
 	def __init__(
 			self,
-			input_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
-			output_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
-			name: str = "LIF",
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
@@ -248,9 +276,9 @@ class LIFLayer(BaseLayer):
 class ALIFLayer(LIFLayer):
 	def __init__(
 			self,
-			input_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
-			output_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
-			name: str = "ALIF",
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
@@ -328,9 +356,9 @@ class IzhikevichLayer(BaseLayer):
 	"""
 	def __init__(
 			self,
-			input_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
-			output_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
-			name: str = "Izhikevich",
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
@@ -438,9 +466,9 @@ class IzhikevichLayer(BaseLayer):
 class LILayer(BaseLayer):
 	def __init__(
 			self,
-			input_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
-			output_size: Union[int, Dimension, Iterable[Union[int, Dimension]]],
-			name: str = "LI",
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
 			learning_type: LearningType = LearningType.BACKPROP,
 			dt=1e-3,
 			device=None,
@@ -456,15 +484,19 @@ class LILayer(BaseLayer):
 			device=device,
 			**kwargs
 			)
-		self.bias_weights = nn.Parameter(
-			torch.empty((int(self._output_size),), device=self.device),
-			requires_grad=self.requires_grad,
-		)
+		self.bias_weights = None
 		self.kappa = torch.tensor(np.exp(-self.dt / self.kwargs["tau_out"]), dtype=torch.float32, device=self.device)
-		self.initialize_weights_()
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_out", 10.0 * self.dt)
+
+	def build(self):
+		super(LILayer, self).build()
+		self.bias_weights = nn.Parameter(
+			torch.empty((int(self.output_size),), device=self.device),
+			requires_grad=self.requires_grad,
+		)
+		self.initialize_weights_()
 
 	def initialize_weights_(self):
 		super(LILayer, self).initialize_weights_()

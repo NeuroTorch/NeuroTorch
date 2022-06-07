@@ -1,5 +1,5 @@
 import enum
-from typing import NamedTuple, Union, Optional
+from typing import Iterable, NamedTuple, Union, Optional
 
 
 class DimensionProperty(enum.Enum):
@@ -27,5 +27,11 @@ class Dimension(NamedTuple):
 		if isinstance(dimension, int) or dimension is None:
 			return Dimension.from_int(dimension)
 		return dimension
+
+
+SizeTypes = Union[int, Dimension, Iterable[Union[int, Dimension]]]
+DimensionLike = Union[int, Dimension]
+DimensionsLike = Union[Dimension, Iterable[Dimension]]
+
 
 

@@ -4,7 +4,7 @@ import os
 import shutil
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
 
 import numpy as np
 import torch
@@ -41,7 +41,7 @@ class SequentialModel(BaseModel):
 			*,
 			input_sizes: Optional[Union[Dict[str, IntDimension], List[int], IntDimension]] = None,
 			output_sizes: Optional[Union[Dict[str, int], List[int], int]] = None,
-			n_hidden_neurons: Optional[Union[int, Iterable[int]]] = None,
+			# n_hidden_neurons: Optional[Union[int, Iterable[int]]] = None,
 			use_recurrent_connection: Optional[Union[bool, Iterable[bool]]] = None,
 			spike_funcs: Optional[Acceptable_Spike_Funcs] = None,
 			hidden_layer_types: Optional[Acceptable_Layer_Types] = None,
@@ -49,27 +49,19 @@ class SequentialModel(BaseModel):
 			layers: Optional[Iterable[BaseLayer]] = None,
 			**kwargs
 	):
-		# TODO: if the first argument is a iterable of layer, juste call the constructor
-		# TODO: instead create the iterable of layers with the named parameters and call the constructor
-		# TODO: the call of the constructor should be like this:
-		# model = Sequential(
-		#   input_layers=...
-		#   hidden_layers=...
-		#   output_layers=...
-		# )
-		# exemple: https://stackoverflow.com/questions/682504/what-is-a-clean-pythonic-way-to-implement-multiple-constructors
-		auto_construct_parameters = [
-			input_sizes,
-			output_sizes,
-			n_hidden_neurons,
-			use_recurrent_connection,
-			spike_funcs,
-			hidden_layer_types,
-			readout_layer_type
-		]
+		auto_construct_parameters = {
+			"input_sizes": input_sizes,
+			"output_sizes": output_sizes,
+			# n_hidden_neurons,
+			"use_recurrent_connection": use_recurrent_connection,
+			"spike_funcs": spike_funcs,
+			"hidden_layer_types": hidden_layer_types,
+			"readout_layer_type": readout_layer_type
+		}
 		if layers is not None:
-			assert all([p is None for p in auto_construct_parameters]), \
-				f"You can't use the named parameters: {auto_construct_parameters} and layers at the same time"
+			assert all([p is None for _, p in auto_construct_parameters.items()]), \
+				f"You can't use the named parameters: " \
+				f"{auto_construct_parameters} and layers at the same time"
 			return super(SequentialModel, cls).__new__(cls)
 		raise NotImplementedError("Auto construct feature is not available yet.")
 	
@@ -93,6 +85,7 @@ class SequentialModel(BaseModel):
 			input_transform=input_transform,
 			**kwargs
 		)
+		self._default_n_hidden_neurons = self.kwargs.get("n_hidden_neurons", 128)
 		self.input_layers, self.hidden_layers, self.output_layers = self._layers_containers_to_modules(
 			input_layers, hidden_layers, output_layers
 		)
@@ -104,28 +97,50 @@ class SequentialModel(BaseModel):
 		# self.hidden_layer_types: List[Type] = self._format_layer_types_(hidden_layer_types)
 		# self.readout_layer_type = self._format_layer_type_(readout_layer_type)  # TODO: change for multiple readout layers
 		# self._add_layers_()
-		self.initialize_weights_()
 		self._memory_size = self.kwargs.get("memory_size", self.int_time_steps)
 		assert self._memory_size > 0, "The memory size must be greater than 0."
-
-	def _propagate_sizes(self):
-		raise NotImplementedError()
 	
 	def get_all_layers(self) -> List[nn.Module]:
 		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
 	
 	def get_all_layers_names(self) -> List[str]:
 		return [layer.name for layer in self.get_all_layers()]
+
+	def infer_sizes_from_inputs(self, inputs: Union[Dict[str, Any], torch.Tensor]):
+		if isinstance(inputs, torch.Tensor):
+			inputs = {
+				layer_name: inputs
+				for layer_name, _ in self.input_layers.items()
+			}
+		self.input_sizes = {k: v.shape[1:] for k, v in inputs.items()}
 	
 	@staticmethod
 	def _format_input_output_layers(layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]) -> Dict:
 		layers: Iterable[BaseLayer] = [layers] if not isinstance(layers, Iterable) else layers
-		assert all([isinstance(layer, BaseLayer) for layer in layers]), \
-			"All layers must be of type BaseLayer"
+		if isinstance(layers, Mapping):
+			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for _, layer in layers.items())
+
+			for layer_key, layer in layers.items():
+				if not layer.name_is_set:
+					layer.name = layer_key
+			assert all(layer_key == layer.name for layer_key, layer in layers.items()), \
+				"The layer names must be the same as the keys."
+		else:
+			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for layer in layers)
+		assert all_base_layer, "All layers must be of type BaseLayer"
 		if not isinstance(layers, dict):
 			layers = {layer.name: layer for layer in layers}
 		return layers
-	
+
+	@staticmethod
+	def _format_hidden_layers(layers: Iterable[BaseLayer]) -> List[BaseLayer]:
+		assert all([isinstance(layer, BaseLayer) for layer in layers]), \
+			"All hidden layers must be of type BaseLayer"
+		for i, layer in enumerate(layers):
+			if not layer.name_is_set:
+				layer.name = f"hidden_{i}"
+		return layers
+
 	@staticmethod
 	def _format_layers(
 			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
@@ -141,10 +156,9 @@ class SequentialModel(BaseModel):
 			hidden_layers = layers[1:-1]
 			if not isinstance(hidden_layers, Iterable):
 				hidden_layers = [hidden_layers]
-			assert all([isinstance(layer, BaseLayer) for layer in hidden_layers]), \
-				"All hidden layers must be of type BaseLayer"
 		else:
 			hidden_layers = []
+		hidden_layers = SequentialModel._format_hidden_layers(hidden_layers)
 		
 		output_layers = SequentialModel._format_input_output_layers(layers[-1])
 		return input_layers, hidden_layers, output_layers
@@ -318,6 +332,41 @@ class SequentialModel(BaseModel):
 			layer_name: [None]
 			for layer_name in self.get_all_layers_names()
 		}
+
+	def build(self):
+		inputs_layers_out_sum = 0
+		for layer_name, layer in self.input_layers.items():
+			if layer.input_size is None:
+				layer.input_size = self.input_sizes[layer_name]
+			if layer.output_size is None:
+				layer.output_size = self._default_n_hidden_neurons
+			inputs_layers_out_sum += int(layer.output_size)
+
+		last_hidden_out_size = inputs_layers_out_sum
+		for layer_idx, layer in enumerate(self.hidden_layers):
+			if layer_idx == 0:
+				layer.input_size = inputs_layers_out_sum
+			else:
+				layer.input_size = self.hidden_layers[layer_idx - 1].output_size
+			if layer.output_size is None:
+				layer.output_size = self._default_n_hidden_neurons
+			last_hidden_out_size = int(layer.output_size)
+
+		for layer_name, layer in self.output_layers.items():
+			if layer.input_size is None:
+				layer.input_size = last_hidden_out_size
+			if layer.output_size is None:
+				if self.output_sizes is None or self.output_sizes[layer_name] is None:
+					raise ValueError("output_sizes must be defined for all output layers")
+				else:
+					layer.output_size = self.output_sizes[layer_name]
+			else:
+				if self.output_sizes is None:
+					self.output_sizes = {layer_name: layer.output_size}
+				else:
+					self.output_sizes[layer_name] = layer.output_size
+
+		self.initialize_weights_()
 	
 	def _inputs_forward_(
 			self,
@@ -367,6 +416,9 @@ class SequentialModel(BaseModel):
 	) -> Tuple[Dict[str, torch.Tensor], Dict[str, Tuple[torch.Tensor, ...]]]:
 		if isinstance(inputs, torch.Tensor):
 			inputs = {k: inputs for k in self.input_layers.keys()}
+		else:
+			if set(inputs.keys()) != set(self.input_layers.keys()):
+				raise ValueError("inputs must have the same keys as the input layers")
 		inputs = self.apply_transform(inputs)
 		inputs = {k: self._format_inputs(in_tensor) for k, in_tensor in inputs.items()}
 		hidden_states = self._init_hidden_states_memory()

@@ -72,6 +72,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(model.output_layers["output"].input_size, None)
 
 		model.build()
+		self.assertTrue(model.is_built)
 
 		self.assertEqual(int(model.input_layers["input"].input_size), 12)
 		self.assertEqual(int(model.input_layers["input"].output_size), model._default_n_hidden_neurons)
@@ -105,6 +106,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(model.output_layers["output"].input_size, None)
 
 		model(torch.randn(1, 12))
+		self.assertTrue(model.is_built)
 
 		self.assertEqual(int(model.input_layers["input"].input_size), 12)
 		self.assertEqual(int(model.input_layers["input"].output_size), model._default_n_hidden_neurons)
@@ -138,6 +140,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(model.output_layers["output"].input_size, None)
 
 		model({"input": torch.randn(1, 12)})
+		self.assertTrue(model.is_built)
 
 		self.assertEqual(int(model.input_layers["input"].input_size), 12)
 		self.assertEqual(int(model.input_layers["input"].output_size), model._default_n_hidden_neurons)
@@ -171,6 +174,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(model.output_layers["output"].input_size, None)
 
 		model.build()
+		self.assertTrue(model.is_built)
 
 		for k, v in model.input_layers.items():
 			self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)
@@ -203,6 +207,7 @@ class TestSequential(unittest.TestCase):
 			self.assertEqual(v.input_size, None)
 
 		model({"input_0": torch.randn(1, 6), "input_1": torch.randn(1, 12)})
+		self.assertTrue(model.is_built)
 
 		for k, v in model.input_layers.items():
 			self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)
@@ -235,6 +240,7 @@ class TestSequential(unittest.TestCase):
 			self.assertEqual(v.input_size, None)
 
 		model.build()
+		self.assertTrue(model.is_built)
 
 		for k, v in model.input_layers.items():
 			self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)
@@ -269,6 +275,7 @@ class TestSequential(unittest.TestCase):
 			self.assertEqual(v.input_size, None)
 
 		model.build()
+		self.assertTrue(model.is_built)
 
 		for k, v in model.input_layers.items():
 			self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)

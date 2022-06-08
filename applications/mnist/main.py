@@ -27,29 +27,6 @@ def train_with_params(params: Dict[str, Any], data_folder="tr_results", verbose=
 		nb_workers=psutil.cpu_count(logical=False),
 	)
 	network = SequentialModel(
-		# input_sizes=[
-		# 	Dimension(28, DimensionProperty.SPATIAL),
-		# 	Dimension(100, DimensionProperty.TIME),
-		# 	Dimension(28, DimensionProperty.SPATIAL)
-		# ],
-		# layers=[
-		# 	ConvALIFLayer(
-		# 		input_sizes=[
-		# 			Dimension(28, DimensionProperty.SPATIAL),
-		# 			Dimension(100, DimensionProperty.TIME),
-		# 			Dimension(28, DimensionProperty.SPATIAL)
-		# 		],
-		# 		kernel_size=3,
-		# 	),
-		# 	ALIFLayer(
-		# 		kernel_size=128
-		# 	),
-		# 	LILayer(output_size=10),
-		# ],
-		# layers=[
-		# 	ALIFLayer(input_size=Dimension(28*28, DimensionProperty.NONE), output_size=128),
-		# 	LILayer(input_size=128, output_size=10),
-		# ],
 		layers=[
 			ALIFLayer(input_size=Dimension(28*28, DimensionProperty.NONE)),
 			LILayer(output_size=10),
@@ -86,10 +63,10 @@ if __name__ == '__main__':
 	results = train_with_params(
 		{
 			"dataset_id": DatasetId.MNIST,
-			"to_spikes_use_periods": False,
-			# "learn_beta": True,
-			"n_iterations": 30,
-			"n_steps": 2,
+			"to_spikes_use_periods": True,
+			"learn_beta": True,
+			"n_iterations": 100,
+			"n_steps": 100,
 			"train_val_split_ratio": 0.95,
 		},
 		verbose=True,

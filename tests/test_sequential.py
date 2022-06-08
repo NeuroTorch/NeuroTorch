@@ -208,7 +208,7 @@ class TestSequential(unittest.TestCase):
 			self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)
 		self.assertEqual(int(model.hidden_layers[0].input_size), model._default_n_hidden_neurons * len(model.input_layers))
 		self.assertEqual(int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons)
-		for k, v in model.input_layers.items():
+		for k, v in model.output_layers.items():
 			self.assertEqual(int(v.input_size), model._default_n_hidden_neurons)
 
 	def test_init_input_output_list(self):
@@ -240,8 +240,45 @@ class TestSequential(unittest.TestCase):
 			self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)
 		self.assertEqual(int(model.hidden_layers[0].input_size), model._default_n_hidden_neurons * len(model.input_layers))
 		self.assertEqual(int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons)
-		for k, v in model.input_layers.items():
+		for k, v in model.output_layers.items():
 			self.assertEqual(int(v.input_size), model._default_n_hidden_neurons)
 
+	def test_init_input_output_list_names_unspecified(self):
+		model = SequentialModel(
+			layers=[
+				[LIFLayer(6), LIFLayer(12)],
+				ALIFLayer(),
+				ALIFLayer(),
+				[LILayer(output_size=10), LILayer(output_size=16)],
+			],
+		)
+		self.assertEqual(len(model.input_layers), 2)
+		self.assertEqual(len(model.hidden_layers), 2)
+		self.assertEqual(len(model.output_layers), 2)
+
+		self.assertEqual({k: int(v) for k, v in model.input_sizes.items()}, {"input_0": 6, "input_1": 12})
+		self.assertEqual({k: int(v) for k, v in model.output_sizes.items()}, {"output_0": 10, "output_1": 16})
+		self.assertEqual(len([hh.name for hh in model.hidden_layers]), len(set([hh.name for hh in model.hidden_layers])))
+
+		for k, v in model.input_layers.items():
+			self.assertEqual(v.output_size, None)
+		for v in model.hidden_layers:
+			self.assertEqual(v.input_size, None)
+			self.assertEqual(v.output_size, None)
+		for k, v in model.output_layers.items():
+			self.assertEqual(v.input_size, None)
+
+		model.build()
+
+		for k, v in model.input_layers.items():
+			self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)
+
+		for i, v in enumerate(model.hidden_layers):
+			self.assertEqual(
+				int(v.input_size), model._default_n_hidden_neurons * (len(model.input_layers) if i == 0 else 1)
+			)
+			self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)
+		for k, v in model.output_layers.items():
+			self.assertEqual(int(v.input_size), model._default_n_hidden_neurons)
 
 

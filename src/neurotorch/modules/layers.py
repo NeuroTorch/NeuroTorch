@@ -37,6 +37,7 @@ class BaseLayer(torch.nn.Module):
 			**kwargs
 	):
 		super(BaseLayer, self).__init__()
+		self._is_built = False
 		self._name_is_set = False
 		self.name = name
 		self.use_recurrent_connection = use_recurrent_connection
@@ -66,7 +67,7 @@ class BaseLayer(torch.nn.Module):
 	@input_size.setter
 	def input_size(self, size: Optional[SizeTypes]):
 		self._input_size = self._format_input_size(size)
-		if self._is_ready():
+		if self.is_ready_to_build:
 			self.build()
 
 	@property
@@ -80,7 +81,7 @@ class BaseLayer(torch.nn.Module):
 		if size is not None:
 			assert isinstance(size, (int, Dimension)), "input_size must be an int or Dimension."
 			self._output_size = Dimension.from_int_or_dimension(size)
-		if self._is_ready():
+		if self.is_ready_to_build:
 			self.build()
 	
 	@property
@@ -99,12 +100,13 @@ class BaseLayer(torch.nn.Module):
 
 	@name.setter
 	def name(self, name: str):
+		self._name = name
 		if name is not None:
 			assert isinstance(name, str), "name must be a string."
-			self._name = name
 			self._name_is_set = True
 
-	def _is_ready(self) -> bool:
+	@property
+	def is_ready_to_build(self) -> bool:
 		return all([
 			s is not None
 			for s in [
@@ -112,6 +114,10 @@ class BaseLayer(torch.nn.Module):
 				(self._output_size if hasattr(self, "_output_size") else None)
 			]
 		])
+
+	@property
+	def is_built(self) -> bool:
+		return self._is_built
 
 	def _format_input_size(self, size: Optional[SizeTypes]) -> Optional[DimensionsLike]:
 		if size is not None:
@@ -150,6 +156,7 @@ class BaseLayer(torch.nn.Module):
 				self.rec_mask = torch.ones(
 					(int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32
 				)
+		self._is_built = True
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
 		raise NotImplementedError
@@ -176,8 +183,9 @@ class BaseLayer(torch.nn.Module):
 			raise ValueError("output_size must be specified before the forward call.")
 	
 	def __call__(self, inputs: torch.Tensor, *args, **kwargs):
-		if not self._is_ready():
+		if not self.is_built:
 			self.infer_sizes_from_inputs(inputs)
+			self.build()
 		return super(BaseLayer, self).__call__(inputs, *args, **kwargs)
 
 	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, torch.Tensor]:

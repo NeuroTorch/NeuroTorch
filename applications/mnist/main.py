@@ -46,13 +46,18 @@ def train_with_params(params: Dict[str, Any], data_folder="tr_results", verbose=
 		# 	),
 		# 	LILayer(output_size=10),
 		# ],
+		# layers=[
+		# 	ALIFLayer(input_size=Dimension(28*28, DimensionProperty.NONE), output_size=128),
+		# 	LILayer(input_size=128, output_size=10),
+		# ],
 		layers=[
-			ALIFLayer(input_size=Dimension(28*28, DimensionProperty.NONE), output_size=128),
-			LILayer(input_size=128, output_size=10),
+			ALIFLayer(input_size=Dimension(28*28, DimensionProperty.NONE)),
+			LILayer(output_size=10),
 		],
 		name="mnist_network",
 		checkpoint_folder=checkpoint_folder,
 	)
+	network.build()
 	# save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
 	trainer = ClassificationTrainer(
 		model=network,
@@ -63,7 +68,7 @@ def train_with_params(params: Dict[str, Any], data_folder="tr_results", verbose=
 		dataloaders["val"],
 		n_iterations=params.get("n_iterations", 15),
 		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
-		force_overwrite=False,
+		# force_overwrite=True,
 		verbose=verbose,
 	)
 	# network.load_checkpoint(LoadCheckpointMode.BEST_EPOCH)

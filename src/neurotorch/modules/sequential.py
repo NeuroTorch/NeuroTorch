@@ -99,7 +99,7 @@ class SequentialModel(BaseModel):
 		# self._add_layers_()
 		self._memory_size = self.kwargs.get("memory_size", self.int_time_steps)
 		assert self._memory_size > 0, "The memory size must be greater than 0."
-	
+
 	def get_all_layers(self) -> List[nn.Module]:
 		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
 	
@@ -115,7 +115,10 @@ class SequentialModel(BaseModel):
 		self.input_sizes = {k: v.shape[1:] for k, v in inputs.items()}
 	
 	@staticmethod
-	def _format_input_output_layers(layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]) -> Dict:
+	def _format_input_output_layers(
+			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
+			default_prefix_layer_name: str = "layer",
+	) -> Dict:
 		layers: Iterable[BaseLayer] = [layers] if not isinstance(layers, Iterable) else layers
 		if isinstance(layers, Mapping):
 			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for _, layer in layers.items())
@@ -129,6 +132,11 @@ class SequentialModel(BaseModel):
 			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for layer in layers)
 		assert all_base_layer, "All layers must be of type BaseLayer"
 		if not isinstance(layers, dict):
+			for layer_idx, layer in enumerate(layers):
+				if not layer.name_is_set:
+					layer.name = f"{default_prefix_layer_name}_{layer_idx}"
+			assert len([layer.name for layer in layers]) == len(set([layer.name for layer in layers])), \
+				"There are layers with the same name."
 			layers = {layer.name: layer for layer in layers}
 		return layers
 
@@ -139,7 +147,7 @@ class SequentialModel(BaseModel):
 		for i, layer in enumerate(layers):
 			if not layer.name_is_set:
 				layer.name = f"hidden_{i}"
-		return layers
+		return list(layers)
 
 	@staticmethod
 	def _format_layers(
@@ -148,7 +156,7 @@ class SequentialModel(BaseModel):
 		if not isinstance(layers, Iterable):
 			layers = [layers]
 		if len(layers) > 1:
-			input_layers = SequentialModel._format_input_output_layers(layers[0])
+			input_layers = SequentialModel._format_input_output_layers(layers[0], "input")
 		else:
 			input_layers = nn.ModuleDict()
 		
@@ -160,7 +168,7 @@ class SequentialModel(BaseModel):
 			hidden_layers = []
 		hidden_layers = SequentialModel._format_hidden_layers(hidden_layers)
 		
-		output_layers = SequentialModel._format_input_output_layers(layers[-1])
+		output_layers = SequentialModel._format_input_output_layers(layers[-1], "output")
 		return input_layers, hidden_layers, output_layers
 	
 	@staticmethod
@@ -334,6 +342,7 @@ class SequentialModel(BaseModel):
 		}
 
 	def build(self):
+		super(SequentialModel, self).build()
 		inputs_layers_out_sum = 0
 		for layer_name, layer in self.input_layers.items():
 			if layer.input_size is None:
@@ -367,7 +376,7 @@ class SequentialModel(BaseModel):
 					self.output_sizes[layer_name] = layer.output_size
 
 		self.initialize_weights_()
-	
+
 	def _inputs_forward_(
 			self,
 			inputs: Dict[str, torch.Tensor],

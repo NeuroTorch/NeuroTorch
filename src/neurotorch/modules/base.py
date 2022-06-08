@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 
 import torch
@@ -23,6 +24,7 @@ class BaseModel(torch.nn.Module):
 			**kwargs
 	):
 		super(BaseModel, self).__init__()
+		self._is_built = False
 		self._given_input_transform = input_transform
 		self.input_transform: Dict[str, Callable] = None
 		self.input_sizes = input_sizes
@@ -66,6 +68,10 @@ class BaseModel(torch.nn.Module):
 		else:
 			is_any_none = True
 		return is_all_not_none and not is_any_none
+
+	@property
+	def is_built(self) -> bool:
+		return self._is_built
 
 	@property
 	def checkpoints_meta_path(self) -> str:
@@ -154,11 +160,17 @@ class BaseModel(torch.nn.Module):
 			}
 		self.input_sizes = {k: v.shape[1:] for k, v in inputs.items()}
 
-	def build(self):
-		raise NotImplementedError()
+	def build(self, *args, **kwargs):
+		"""
+		Build the network.
+		:param args:
+		:param kwargs:
+		:return:
+		"""
+		self._is_built = True
 
 	def __call__(self, inputs: Union[Dict[str, Any], torch.Tensor], *args, **kwargs):
-		if not self._ready:
+		if not self._is_built:
 			self.infer_sizes_from_inputs(inputs)
 			self.build()
 		return super(BaseModel, self).__call__(inputs, *args, **kwargs)

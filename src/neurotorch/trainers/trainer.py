@@ -81,6 +81,7 @@ class Trainer:
 			verbose: bool = True,
 			**kwargs
 	):
+		assert model.is_built, "Model must be built before training"
 		self.kwargs = self._set_default_kwargs(kwargs)
 		self.model = model
 		self.criterion = self._set_default_criterion(criterion)

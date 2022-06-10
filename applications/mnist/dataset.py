@@ -7,7 +7,7 @@ from torchvision.datasets import MNIST, FashionMNIST
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import Compose, ToTensor
 
-from neurotorch.transforms.vision import ToSpikes
+from neurotorch.transforms.vision import ImgToSpikes
 
 
 class DatasetId(enum.Enum):
@@ -40,7 +40,7 @@ def get_dataloaders(
 		torch.flatten,
 	]
 	if as_timeseries:
-		list_of_transform.append(ToSpikes(n_steps=n_steps, use_periods=to_spikes_use_periods))
+		list_of_transform.append(ImgToSpikes(n_steps=n_steps, use_periods=to_spikes_use_periods))
 	transform = Compose(list_of_transform)
 
 	if dataset_id == DatasetId.MNIST:

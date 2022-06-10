@@ -13,7 +13,7 @@ from neurotorch.trainers import ClassificationTrainer
 from neurotorch.utils import hash_params
 
 
-def train_with_params(params: Dict[str, Any], data_folder="tr_results", verbose=False):
+def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_folder="tr_results", verbose=False):
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
 	os.makedirs(checkpoint_folder, exist_ok=True)
@@ -26,9 +26,21 @@ def train_with_params(params: Dict[str, Any], data_folder="tr_results", verbose=
 		train_val_split_ratio=params.get("train_val_split_ratio", 0.85),
 		nb_workers=psutil.cpu_count(logical=False),
 	)
+	hidden_layers = [
+		ALIFLayer(
+			use_recurrent_connection=params["use_recurrent_connection"],
+			learn_beta=params["learn_beta"],
+		)
+		for _ in range(params["n_hidden_layers"])
+	]
 	network = SequentialModel(
 		layers=[
-			ALIFLayer(input_size=Dimension(28*28, DimensionProperty.NONE)),
+			ALIFLayer(
+				input_size=Dimension(28*28, DimensionProperty.NONE),
+				use_recurrent_connection=params["use_recurrent_connection"],
+				learn_beta=params["learn_beta"],
+			),
+			*hidden_layers,
 			LILayer(output_size=10),
 		],
 		name="mnist_network",
@@ -43,7 +55,7 @@ def train_with_params(params: Dict[str, Any], data_folder="tr_results", verbose=
 	trainer.train(
 		dataloaders["train"],
 		dataloaders["val"],
-		n_iterations=params.get("n_iterations", 15),
+		n_iterations=n_iterations,
 		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
 		# force_overwrite=True,
 		verbose=verbose,
@@ -64,11 +76,13 @@ if __name__ == '__main__':
 		{
 			"dataset_id": DatasetId.MNIST,
 			"to_spikes_use_periods": True,
+			"use_recurrent_connection": False,
+			"n_hidden_layers": 1,
 			"learn_beta": True,
-			"n_iterations": 100,
 			"n_steps": 100,
 			"train_val_split_ratio": 0.95,
 		},
+		n_iterations=100,
 		verbose=True,
 	)
 	pprint.pprint(results, indent=4)

@@ -1,31 +1,14 @@
-import json
-import logging
-import os
-import shutil
 from collections import defaultdict
 from copy import deepcopy
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
 
 import numpy as np
 import torch
-from tqdm.auto import tqdm
-from torch import Tensor, nn
-from torch.utils.data import DataLoader
 import torch.nn.functional as F
+from torch import Tensor, nn
 
-from . import (
-	BaseModel,
-	HeavisideSigmoidApprox,
-	BaseLayer,
-	LIFLayer,
-	LayerType,
-	LayerType2Layer,
-	LILayer,
-	SpikeFuncType,
-	SpikeFuncType2Func,
-	SpikeFunction
-)
-from ..callbacks import LoadCheckpointMode
+from . import (BaseLayer, BaseModel, LIFLayer, LayerType, LayerType2Layer, SpikeFuncType, SpikeFuncType2Func,
+               SpikeFunction)
 from ..dimension import Dimension
 
 Acceptable_Spike_Func = Union[Type[SpikeFunction], SpikeFuncType]
@@ -64,7 +47,7 @@ class SequentialModel(BaseModel):
 				f"{auto_construct_parameters} and layers at the same time"
 			return super(SequentialModel, cls).__new__(cls)
 		raise NotImplementedError("Auto construct feature is not available yet.")
-	
+
 	def __init__(
 			self,
 			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
@@ -102,7 +85,7 @@ class SequentialModel(BaseModel):
 
 	def get_all_layers(self) -> List[nn.Module]:
 		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
-	
+
 	def get_all_layers_names(self) -> List[str]:
 		return [layer.name for layer in self.get_all_layers()]
 
@@ -113,7 +96,7 @@ class SequentialModel(BaseModel):
 				for layer_name, _ in self.input_layers.items()
 			}
 		self.input_sizes = {k: v.shape[1:] for k, v in inputs.items()}
-	
+
 	@staticmethod
 	def _format_input_output_layers(
 			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
@@ -159,7 +142,7 @@ class SequentialModel(BaseModel):
 			input_layers = SequentialModel._format_input_output_layers(layers[0], "input")
 		else:
 			input_layers = nn.ModuleDict()
-		
+
 		if len(layers) > 2:
 			hidden_layers = layers[1:-1]
 			if not isinstance(hidden_layers, Iterable):
@@ -167,10 +150,10 @@ class SequentialModel(BaseModel):
 		else:
 			hidden_layers = []
 		hidden_layers = SequentialModel._format_hidden_layers(hidden_layers)
-		
+
 		output_layers = SequentialModel._format_input_output_layers(layers[-1], "output")
 		return input_layers, hidden_layers, output_layers
-	
+
 	@staticmethod
 	def _layers_containers_to_modules(
 			inputs_layers: Dict,
@@ -181,7 +164,7 @@ class SequentialModel(BaseModel):
 		hidden_layers = nn.ModuleList(hidden_layers)
 		output_layers = nn.ModuleDict(outputs_layers)
 		return input_layers, hidden_layers, output_layers
-	
+
 	def _format_spike_funcs_(
 			self,
 			spike_funcs: Union[Acceptable_Spike_Func, Iterable[Acceptable_Spike_Func]]
@@ -194,7 +177,7 @@ class SequentialModel(BaseModel):
 		assert len(spike_funcs) == len(self.n_hidden_neurons), \
 			"Number of spike functions must match number of hidden neurons"
 		return spike_funcs
-	
+
 	def _format_layer_types_(
 			self,
 			layer_types: Union[Acceptable_Layer_Type, Iterable[Acceptable_Layer_Type]]
@@ -206,7 +189,7 @@ class SequentialModel(BaseModel):
 		assert len(layer_types) == len(self.n_hidden_neurons), \
 			"Number of layer types must match number of hidden neurons"
 		return layer_types
-	
+
 	@staticmethod
 	def _format_layer_type_(
 			layer_type: Optional[Acceptable_Layer_Type]
@@ -214,7 +197,7 @@ class SequentialModel(BaseModel):
 		if isinstance(layer_type, LayerType):
 			layer_type = LayerType2Layer[layer_type]
 		return layer_type
-	
+
 	@staticmethod
 	def _format_hidden_neurons_(n_hidden_neurons: Optional[Union[int, Iterable[int]]]) -> List[int]:
 		if n_hidden_neurons is None:
@@ -222,7 +205,7 @@ class SequentialModel(BaseModel):
 		if not isinstance(n_hidden_neurons, Iterable):
 			n_hidden_neurons = [n_hidden_neurons]
 		return n_hidden_neurons
-	
+
 	def _add_input_layer_(self):
 		if not self.n_hidden_neurons:
 			return
@@ -235,7 +218,7 @@ class SequentialModel(BaseModel):
 				device=self.device,
 				**self.kwargs
 			)
-	
+
 	def _add_hidden_layers_(self):
 		if not self.n_hidden_neurons:
 			return
@@ -250,7 +233,7 @@ class SequentialModel(BaseModel):
 				device=self.device,
 				**self.kwargs
 			)
-	
+
 	def _add_readout_layer(self):
 		if self.n_hidden_neurons:
 			in_size = self.n_hidden_neurons[-1]
@@ -264,12 +247,12 @@ class SequentialModel(BaseModel):
 				device=self.device,
 				**self.kwargs
 			)
-	
+
 	def _add_layers_(self):
 		self._add_input_layer_()
 		self._add_hidden_layers_()
 		self._add_readout_layer()
-	
+
 	def initialize_weights_(self):
 		for param in self.parameters():
 			if param.ndim > 2:
@@ -279,7 +262,7 @@ class SequentialModel(BaseModel):
 		for layer in self.get_all_layers():
 			if getattr(layer, "initialize_weights_") and callable(layer.initialize_weights_):
 				layer.initialize_weights_()
-	
+
 	def _format_inputs(self, inputs: torch.Tensor) -> torch.Tensor:
 		"""
 		Check the shape of the inputs. If the shape of the inputs is (batch_size, features),
@@ -296,7 +279,7 @@ class SequentialModel(BaseModel):
 				inputs = inputs.repeat(1, self.int_time_steps, 1)
 			assert inputs.ndim == 3, \
 				"shape of inputs must be (batch_size, time_steps, nb_features) or (batch_size, nb_features)"
-			
+
 			t_diff = self.int_time_steps - inputs.shape[1]
 			assert t_diff >= 0, "inputs time steps must me less or equal to int_time_steps"
 			if t_diff > 0:
@@ -307,7 +290,7 @@ class SequentialModel(BaseModel):
 				)
 				inputs = torch.cat([inputs, zero_inputs], dim=1)
 		return inputs.float()
-	
+
 	def _format_hidden_outputs_traces(
 			self,
 			hidden_states: Dict[str, List[Tuple[torch.Tensor, ...]]]
@@ -322,7 +305,7 @@ class SequentialModel(BaseModel):
 			for layer_name, trace in hidden_states.items()
 		}
 		return hidden_states
-	
+
 	def _pop_memory_(self, memory: List[Any]) -> List[Any]:
 		"""
 		Pop the memory from the list
@@ -333,7 +316,7 @@ class SequentialModel(BaseModel):
 		if remove_count > 0:
 			memory = memory[remove_count:]
 		return memory
-	
+
 	def _init_hidden_states_memory(self) -> Dict[str, List]:
 		return {
 			# layer_name: [None for t in range(self.int_time_steps+1)]
@@ -393,7 +376,7 @@ class SequentialModel(BaseModel):
 		else:
 			forward_tensor = torch.concat([inputs[in_name][:, t] for in_name in inputs], dim=1)
 		return forward_tensor
-	
+
 	def _hidden_forward_(
 			self,
 			forward_tensor: torch.Tensor,
@@ -404,7 +387,7 @@ class SequentialModel(BaseModel):
 			forward_tensor, hh = layer(forward_tensor, hh)
 			hidden_states[layer.name].append(hh)
 		return forward_tensor
-	
+
 	def _readout_forward_(
 			self,
 			forward_tensor: torch.Tensor,
@@ -417,7 +400,7 @@ class SequentialModel(BaseModel):
 			outputs_trace[layer_name].append(out)
 			hidden_states[layer_name].append(hh)
 		return outputs_trace
-	
+
 	def forward(
 			self,
 			inputs: Union[Dict[str, Any], torch.Tensor],
@@ -432,20 +415,20 @@ class SequentialModel(BaseModel):
 		inputs = {k: self._format_inputs(in_tensor) for k, in_tensor in inputs.items()}
 		hidden_states = self._init_hidden_states_memory()
 		outputs_trace: Dict[str, List[torch.Tensor]] = defaultdict(list)
-		
+
 		for t in range(self.int_time_steps):
 			forward_tensor = self._inputs_forward_(inputs, hidden_states, t)
 			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
 			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace)
-			
+
 			outputs_trace = {layer_name: self._pop_memory_(trace) for layer_name, trace in outputs_trace.items()}
 			hidden_states = {layer_name: self._pop_memory_(trace) for layer_name, trace in hidden_states.items()}
-		
+
 		# hidden_states = {layer_name: trace[1:] for layer_name, trace in hidden_states.items()}
 		hidden_states = self._format_hidden_outputs_traces(hidden_states)
 		outputs_trace_tensor = {layer_name: torch.stack(trace, dim=1) for layer_name, trace in outputs_trace.items()}
 		return outputs_trace_tensor, hidden_states
-	
+
 	def get_raw_prediction(
 			self,
 			inputs: torch.Tensor,
@@ -471,7 +454,7 @@ class SequentialModel(BaseModel):
 			return logits, hidden_states
 		else:
 			return logits
-	
+
 	def get_prediction_proba(
 			self,
 			inputs: torch.Tensor,
@@ -495,7 +478,7 @@ class SequentialModel(BaseModel):
 		if re_outputs_trace or re_hidden_states:
 			return proba, outs[1:]
 		return proba
-	
+
 	def get_prediction_log_proba(
 			self,
 			inputs: torch.Tensor,
@@ -515,7 +498,7 @@ class SequentialModel(BaseModel):
 		if re_outputs_trace or re_hidden_states:
 			return log_proba, *outs
 		return log_proba
-	
+
 	def get_spikes_count_per_neuron(self, hidden_states: Dict[str, List[torch.Tensor]]) -> torch.Tensor:
 		"""
 		Get the spikes count per neuron from the hidden states

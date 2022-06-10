@@ -47,10 +47,11 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		checkpoint_folder=checkpoint_folder,
 	)
 	network.build()
+	checkpoint_manager = CheckpointManager(checkpoint_folder)
 	# save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
 	trainer = ClassificationTrainer(
 		model=network,
-		callbacks=CheckpointManager(checkpoint_folder)
+		callbacks=checkpoint_manager,
 	)
 	trainer.train(
 		dataloaders["train"],
@@ -60,7 +61,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		# force_overwrite=True,
 		verbose=verbose,
 	)
-	# network.load_checkpoint(LoadCheckpointMode.BEST_EPOCH)
+	network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.BEST_ITR)
 	return dict(
 		network=network,
 		accuracies={
@@ -77,8 +78,9 @@ if __name__ == '__main__':
 			"dataset_id": DatasetId.MNIST,
 			"to_spikes_use_periods": True,
 			"use_recurrent_connection": False,
-			"n_hidden_layers": 1,
-			"learn_beta": True,
+			"n_hidden_layers": 0,
+			"n_hidden_neurons": 128,
+			"learn_beta": False,
 			"n_steps": 100,
 			"train_val_split_ratio": 0.95,
 		},

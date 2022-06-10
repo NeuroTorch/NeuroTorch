@@ -6,7 +6,7 @@ import torch
 from torchvision.transforms import Compose, ToTensor
 
 
-class ToSpikes:
+class ImgToSpikes:
 	def __init__(
 			self,
 			n_steps: int,
@@ -88,3 +88,4 @@ class ToSpikes:
 		firing_periods: np.ndarray = self.pixels_to_firing_periods(x)
 		spikes = self.spikes_gen_func(firing_periods)
 		return torch.tensor(spikes)
+

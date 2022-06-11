@@ -1,4 +1,5 @@
 import json
+import logging
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 
@@ -111,14 +112,18 @@ class BaseModel(torch.nn.Module):
 	def load_checkpoint(
 			self,
 			checkpoints_meta_path: Optional[str] = None,
-			load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR
+			load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR,
+			verbose: bool = True
 	) -> dict:
 		if checkpoints_meta_path is None:
 			checkpoints_meta_path = self.checkpoints_meta_path
 		with open(checkpoints_meta_path, "r+") as jsonFile:
 			info: dict = json.load(jsonFile)
-		path = CheckpointManager.get_save_name_from_checkpoints(info, load_checkpoint_mode)
-		checkpoint = torch.load(path)
+		save_name = CheckpointManager.get_save_name_from_checkpoints(info, load_checkpoint_mode)
+		checkpoint_path = f"{self.checkpoint_folder}/{save_name}"
+		if verbose:
+			logging.info(f"Loading checkpoint from {checkpoint_path}")
+		checkpoint = torch.load(checkpoint_path, map_location=self.device)
 		self.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
 		return checkpoint
 

@@ -99,13 +99,19 @@ class CheckpointManager(BaseCallback):
 			load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR
 	) -> str:
 		if load_checkpoint_mode == load_checkpoint_mode.BEST_ITR:
-			return checkpoints_meta[CheckpointManager.CHECKPOINT_BEST_KEY]
+			if CheckpointManager.CHECKPOINT_BEST_KEY in checkpoints_meta:
+				return checkpoints_meta[CheckpointManager.CHECKPOINT_BEST_KEY]
+			else:
+				raise FileNotFoundError(
+					f"No best checkpoint found in checkpoints_meta. "
+					f"Please use a different load_checkpoint_mode."
+				)
 		elif load_checkpoint_mode == load_checkpoint_mode.LAST_ITR:
 			itr_dict = checkpoints_meta[CheckpointManager.CHECKPOINT_ITRS_KEY]
 			last_itr: int = max([int(e) for e in itr_dict])
 			return checkpoints_meta[CheckpointManager.CHECKPOINT_ITRS_KEY][str(last_itr)]
 		else:
-			raise ValueError()
+			raise ValueError("Invalid load_checkpoint_mode")
 
 	def load_checkpoint(
 			self,

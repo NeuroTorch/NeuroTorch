@@ -11,8 +11,8 @@ from neurotorch.transforms.vision import ImgToSpikes
 
 
 class DatasetId(enum.Enum):
-	MNIST = enum.auto()
-	FASHION_MNIST = enum.auto()
+	MNIST = 0
+	FASHION_MNIST = 1
 
 
 def get_dataloaders(

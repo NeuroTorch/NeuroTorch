@@ -26,14 +26,14 @@ def get_dataloaders(
 ):
 	"""
 
-	:param dataset_id:
-	:param batch_size:
+	:param dataset_id: The dataset to use.
+	:param batch_size: The batch size.
 	:param train_val_split_ratio: The ratio of train data (i.e. train_length/data_length).
-	:param as_timeseries:
-	:param n_steps:
-	:param to_spikes_use_periods:
-	:param nb_workers:
-	:return:
+	:param as_timeseries: Whether to use the data as time series.
+	:param n_steps: The number of steps to use.
+	:param to_spikes_use_periods: Whether to use the periods in the ImgToSpikes transform.
+	:param nb_workers: The number of workers to use.
+	:return: The dataloaders.
 	"""
 	list_of_transform = [
 		ToTensor(),

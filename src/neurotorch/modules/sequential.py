@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from copy import deepcopy
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
 
@@ -51,14 +51,44 @@ class SequentialModel(BaseModel):
 	def __init__(
 			self,
 			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
-			int_time_steps: int = 100,
+			foresight_time_steps: int = 0,
 			name: str = "snn",
 			checkpoint_folder: str = "checkpoints",
 			device: Optional[torch.device] = None,
 			input_transform: Optional[Union[Dict[str, Callable], List[Callable]]] = None,
 			**kwargs
 	):
+		"""
+		The SequentialModel is a neural network that is constructed by stacking layers.
+		:param layers: The layers to be used in the model. The following structure is expected:
+			layers = [
+				[*inputs_layers, ],
+				*hidden_layers,
+				[*output_layers, ]
+			]
+			or
+			layers = [
+				input_layer,
+				*hidden_layers,
+				output_layer
+			].
+		:param foresight_time_steps: The number of time steps to predict in the future. When multiple inputs or outputs
+			are given, the outputs of the network are given to the inputs in the same order as they were specified in
+			the construction of the network. In other words, the first output is given to the first input, the second
+			output is given to the second input, and so on. If there are fewer outputs than inputs, the last inputs are
+			not considered as recurrent inputs, so they are not fed.
+		:param name: The name of the model.
+		:param checkpoint_folder: The folder where the checkpoints are saved.
+		:param device: The device to use.
+		:param input_transform: The transform to apply to the input.
+		:param kwargs:
+				memory_size (Optional[int]): The size of the memory buffer. The output of each layer is stored in
+					the memory buffer. If the memory_size is not specified, the memory_size is set to the number
+					of time steps of the inputs.
+		"""
 		input_layers, hidden_layers, output_layers = self._format_layers(layers)
+		self._ordered_inputs_names = [layer.name for layer in input_layers]
+		self._ordered_outputs_names = [layer.name for layer in output_layers]
 		super(SequentialModel, self).__init__(
 			input_sizes={layer.name: layer.input_size for _, layer in input_layers.items()},
 			output_size={layer.name: layer.output_size for _, layer in output_layers.items()},
@@ -74,14 +104,15 @@ class SequentialModel(BaseModel):
 		)
 		assert len(self.get_all_layers_names()) == len(set(self.get_all_layers_names())), \
 			"There are layers with the same name."
-		self.int_time_steps = int_time_steps
+		self.foresight_time_steps = foresight_time_steps
 		# self.n_hidden_neurons = self._format_hidden_neurons_(n_hidden_neurons)
 		# self.spike_func = self._format_spike_funcs_(spike_funcs)
 		# self.hidden_layer_types: List[Type] = self._format_layer_types_(hidden_layer_types)
 		# self.readout_layer_type = self._format_layer_type_(readout_layer_type)  # TODO: change for multiple readout layers
 		# self._add_layers_()
-		self._memory_size = self.kwargs.get("memory_size", self.int_time_steps)
-		assert self._memory_size > 0, "The memory size must be greater than 0."
+		self._memory_size: Optional[int] = self.kwargs.get("memory_size", None)
+		assert self._memory_size is None or self._memory_size > 0, "The memory size must be greater than 0 or None."
+		self._outputs_to_inputs_names_map: Optional[Dict[str, str]] = None
 
 	def get_all_layers(self) -> List[nn.Module]:
 		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
@@ -101,7 +132,7 @@ class SequentialModel(BaseModel):
 	def _format_input_output_layers(
 			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
 			default_prefix_layer_name: str = "layer",
-	) -> Dict:
+	) -> OrderedDict[str, BaseLayer]:
 		layers: Iterable[BaseLayer] = [layers] if not isinstance(layers, Iterable) else layers
 		if isinstance(layers, Mapping):
 			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for _, layer in layers.items())
@@ -120,7 +151,7 @@ class SequentialModel(BaseModel):
 					layer.name = f"{default_prefix_layer_name}_{layer_idx}"
 			assert len([layer.name for layer in layers]) == len(set([layer.name for layer in layers])), \
 				"There are layers with the same name."
-			layers = {layer.name: layer for layer in layers}
+			layers = OrderedDict((layer.name, layer) for layer in layers)
 		return layers
 
 	@staticmethod
@@ -135,7 +166,7 @@ class SequentialModel(BaseModel):
 	@staticmethod
 	def _format_layers(
 			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
-	) -> Tuple[Dict, List, Dict]:
+	) -> Tuple[OrderedDict, List, OrderedDict]:
 		if not isinstance(layers, Iterable):
 			layers = [layers]
 		if len(layers) > 1:
@@ -156,9 +187,9 @@ class SequentialModel(BaseModel):
 
 	@staticmethod
 	def _layers_containers_to_modules(
-			inputs_layers: Dict,
+			inputs_layers: OrderedDict,
 			hidden_layers: List,
-			outputs_layers: Dict
+			outputs_layers: OrderedDict
 	) -> Tuple[nn.ModuleDict, nn.ModuleList, nn.ModuleDict]:
 		input_layers = nn.ModuleDict(inputs_layers)
 		hidden_layers = nn.ModuleList(hidden_layers)
@@ -263,33 +294,44 @@ class SequentialModel(BaseModel):
 			if getattr(layer, "initialize_weights_") and callable(layer.initialize_weights_):
 				layer.initialize_weights_()
 
-	def _format_inputs(self, inputs: torch.Tensor) -> torch.Tensor:
+	def _format_single_inputs(self, inputs: torch.Tensor, time_steps: int) -> torch.Tensor:
 		"""
-		Check the shape of the inputs. If the shape of the inputs is (batch_size, features),
-		the inputs is considered constant over time and the inputs will be repeat over self.int_time_steps time steps.
-		If the shape of the inputs is (batch_size, time_steps, features), time_steps must be less are equal to
-		self.int_time_steps and the inputs will be padded by zeros for time steps greater than time_steps.
-		:param inputs: Inputs tensor
+		Check the shape of the inputs. If the shape of the inputs is (batch_size, features), a new dimension is added
+		to the front of the tensor to make it (batch_size, 1, features).
+		If the shape of the inputs is (batch_size, v_time_steps, features), v_time_steps must be less are equal to
+		time_steps and the inputs will be padded by zeros for time steps greater than time_steps.
+		:param inputs: Inputs tensor.
+		:param time_steps: Number of time steps.
 		:return: Formatted Input tensor.
 		"""
-		# TODO: adapt to DimensionProperty
 		with torch.no_grad():
 			if inputs.ndim == 2:
 				inputs = torch.unsqueeze(inputs, 1)
-				inputs = inputs.repeat(1, self.int_time_steps, 1)
-			assert inputs.ndim == 3, \
-				"shape of inputs must be (batch_size, time_steps, nb_features) or (batch_size, nb_features)"
+				# inputs = inputs.repeat(1, time_steps, 1)
+			assert inputs.ndim >= 3, \
+				"shape of inputs must be (batch_size, time_steps, ...) or (batch_size, nb_features)"
 
-			t_diff = self.int_time_steps - inputs.shape[1]
-			assert t_diff >= 0, "inputs time steps must me less or equal to int_time_steps"
+			t_diff = time_steps - inputs.shape[1]
+			assert t_diff >= 0, "inputs time steps must me less or equal to time_steps"
 			if t_diff > 0:
 				zero_inputs = torch.zeros(
-					(inputs.shape[0], t_diff, inputs.shape[-1]),
+					(inputs.shape[0], t_diff, *inputs.shape[2:]),
 					dtype=torch.float32,
 					device=self.device
 				)
 				inputs = torch.cat([inputs, zero_inputs], dim=1)
 		return inputs.float()
+
+	def _format_inputs(self, inputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+		max_time_steps = max([v.shape[1] for v in inputs.values()])
+		if self._memory_size is None:
+			self._memory_size = max_time_steps
+		return {k: self._format_single_inputs(in_tensor, max_time_steps) for k, in_tensor in inputs.items()}
+
+	def _get_time_steps_from_inputs(self, inputs: Dict[str, torch.Tensor]) -> int:
+		time_steps_entries = [in_tensor.shape[1] for in_tensor in inputs.values()]
+		assert len(set(time_steps_entries)) == 1, "inputs must have the same time steps"
+		return time_steps_entries[0]
 
 	def _format_hidden_outputs_traces(
 			self,
@@ -359,6 +401,30 @@ class SequentialModel(BaseModel):
 					self.output_sizes[layer_name] = layer.output_size
 
 		self.initialize_weights_()
+		if self.foresight_time_steps > 0:
+			self._map_outputs_to_inputs()
+
+	def _map_outputs_to_inputs(self) -> Dict[str, str]:
+		"""
+		Map the outputs of the model to the inputs of the model for forcasting purposes.
+		:return:
+		"""
+		self._outputs_to_inputs_names_map = {}
+		if len(self.input_layers) == 1 and len(self.output_layers) == 1:
+			in_name = list(self.input_layers.keys())[0]
+			out_name = list(self.output_layers.keys())[0]
+			self._outputs_to_inputs_names_map[out_name] = in_name
+			assert self.input_sizes[in_name] == self.output_sizes[out_name], \
+				"input and output sizes must be the same when foresight_time_steps > 0."
+		else:
+			self._outputs_to_inputs_names_map: Dict[str, str] = {
+				out_layer_name: in_layer_name
+				for in_layer_name, out_layer_name in zip(self._ordered_inputs_names, self._ordered_outputs_names)
+			}
+			for out_layer_name, in_layer_name in self._outputs_to_inputs_names_map.items():
+				assert self.input_sizes[in_layer_name] == self.output_sizes[out_layer_name], \
+					"input and output sizes must be the same when foresight_time_steps > 0."
+		return self._outputs_to_inputs_names_map
 
 	def _inputs_forward_(
 			self,
@@ -368,7 +434,8 @@ class SequentialModel(BaseModel):
 	) -> torch.Tensor:
 		features_list = []
 		for layer_name, layer in self.input_layers.items():
-			features, hh = layer(inputs[layer_name][:, t])
+			hh = hidden_states[layer.name][-1] if hidden_states[layer.name] else None
+			features, hh = layer(inputs[layer_name][:, t], hh)
 			hidden_states[layer_name].append(hh)
 			features_list.append(features)
 		if features_list:
@@ -406,17 +473,27 @@ class SequentialModel(BaseModel):
 			inputs: Union[Dict[str, Any], torch.Tensor],
 			**kwargs
 	) -> Tuple[Dict[str, torch.Tensor], Dict[str, Tuple[torch.Tensor, ...]]]:
+		"""
+		Forward pass of the model.
+		:param inputs: The inputs to the model where the dimensions are
+						{input_name: (batch_size, time_steps, input_size)}. If the inputs have the shape
+						(batch_size, input_size), then the time_steps is 1. All the inputs must have the same
+						time_steps otherwise the inputs with lower time_steps will be padded with zeros.
+		:param kwargs:
+		:return:
+		"""
 		if isinstance(inputs, torch.Tensor):
 			inputs = {k: inputs for k in self.input_layers.keys()}
 		else:
 			if set(inputs.keys()) != set(self.input_layers.keys()):
 				raise ValueError("inputs must have the same keys as the input layers")
 		inputs = self.apply_transform(inputs)
-		inputs = {k: self._format_inputs(in_tensor) for k, in_tensor in inputs.items()}
+		inputs = self._format_inputs(inputs)
+		time_steps = self._get_time_steps_from_inputs(inputs)
 		hidden_states = self._init_hidden_states_memory()
 		outputs_trace: Dict[str, List[torch.Tensor]] = defaultdict(list)
 
-		for t in range(self.int_time_steps):
+		for t in range(time_steps):
 			forward_tensor = self._inputs_forward_(inputs, hidden_states, t)
 			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
 			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace)
@@ -424,10 +501,41 @@ class SequentialModel(BaseModel):
 			outputs_trace = {layer_name: self._pop_memory_(trace) for layer_name, trace in outputs_trace.items()}
 			hidden_states = {layer_name: self._pop_memory_(trace) for layer_name, trace in hidden_states.items()}
 
-		# hidden_states = {layer_name: trace[1:] for layer_name, trace in hidden_states.items()}
+		for t in range(self.foresight_time_steps):
+			foresight_inputs_tensor = {
+				self._outputs_to_inputs_names_map[layer_name]: torch.stack(trace, dim=1)
+				for layer_name, trace in outputs_trace.items()
+			}
+			forward_tensor = self._inputs_forward_(foresight_inputs_tensor, hidden_states, -1)
+			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
+			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace)
+
 		hidden_states = self._format_hidden_outputs_traces(hidden_states)
 		outputs_trace_tensor = {layer_name: torch.stack(trace, dim=1) for layer_name, trace in outputs_trace.items()}
 		return outputs_trace_tensor, hidden_states
+
+	def get_prediction_trace(
+			self,
+			inputs: Union[Dict[str, Any], torch.Tensor],
+			**kwargs
+	) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
+		"""
+		Returns the prediction trace for the given inputs. Method used for time series prediction.
+		:param inputs: inputs to the network.
+		:param kwargs: kwargs to be passed to the forward method.
+		:return: the prediction trace.
+		"""
+		outputs_trace, hidden_states = self(inputs.to(self.device), **kwargs)
+		if isinstance(outputs_trace, dict):
+			outputs_trace = {
+				layer_name: trace[:, -self.foresight_time_steps:]
+				for layer_name, trace in outputs_trace.items()
+			}
+			if len(outputs_trace) == 1:
+				return outputs_trace[list(outputs_trace.keys())[0]]
+		else:
+			outputs_trace = outputs_trace[:, -self.foresight_time_steps:]
+		return outputs_trace
 
 	def get_raw_prediction(
 			self,
@@ -504,115 +612,11 @@ class SequentialModel(BaseModel):
 		Get the spikes count per neuron from the hidden states
 		:return:
 		"""
+		raise NotImplementedError()
 		counts = []
 		for l_name, traces in hidden_states.items():
 			if isinstance(self.hidden_layers[l_name], LIFLayer):
 				counts.extend(traces[-1].sum(dim=(0, 1)).tolist())
 		return torch.tensor(counts, dtype=torch.float32, device=self.device)
 
-# def plot_loss_history(self, loss_history: LossHistory = None, show=False):
-# 	if loss_history is None:
-# 		loss_history = self.loss_history
-# 	save_path = f"./{self.checkpoint_folder}/loss_history.png"
-# 	os.makedirs(f"./{self.checkpoint_folder}/", exist_ok=True)
-# 	loss_history.plot(save_path, show)
 
-# def _create_checkpoint_path(self, epoch: int = -1):
-# 	return f"./{self.checkpoint_folder}/{self.model_name}{SequentialModel.SUFFIX_SEP}{SequentialModel.CHECKPOINT_EPOCH_KEY}{epoch}{SequentialModel.SAVE_EXT}"
-#
-# def _create_new_checkpoint_meta(self, epoch: int, best: bool = False) -> dict:
-# 	save_path = self._create_checkpoint_path(epoch)
-# 	new_info = {SequentialModel.CHECKPOINT_EPOCHS_KEY: {epoch: save_path}}
-# 	if best:
-# 		new_info[SequentialModel.CHECKPOINT_BEST_KEY] = save_path
-# 	return new_info
-
-# def save_checkpoint(
-# 		self,
-# 		optimizer,
-# 		epoch: int,
-# 		epoch_losses: Dict[str, Any],
-# 		best: bool = False,
-# ):
-# 	os.makedirs(self.checkpoint_folder, exist_ok=True)
-# 	save_path = self._create_checkpoint_path(epoch)
-# 	torch.save({
-# 		SequentialModel.CHECKPOINT_EPOCH_KEY: epoch,
-# 		SequentialModel.CHECKPOINT_STATE_DICT_KEY: self.state_dict(),
-# 		SequentialModel.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: optimizer.state_dict(),
-# 		SequentialModel.CHECKPOINT_LOSS_KEY: epoch_losses,
-# 	}, save_path)
-# 	self.save_checkpoints_meta(self._create_new_checkpoint_meta(epoch, best))
-
-# @staticmethod
-# def get_save_path_from_checkpoints(
-# 		checkpoints_meta: Dict[str, Union[str, Dict[Any, str]]],
-# 		load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_EPOCH
-# ) -> str:
-# 	if load_checkpoint_mode == load_checkpoint_mode.BEST_EPOCH:
-# 		return checkpoints_meta[SequentialModel.CHECKPOINT_BEST_KEY]
-# 	elif load_checkpoint_mode == load_checkpoint_mode.LAST_EPOCH:
-# 		epochs_dict = checkpoints_meta[SequentialModel.CHECKPOINT_EPOCHS_KEY]
-# 		last_epoch: int = max([int(e) for e in epochs_dict])
-# 		return checkpoints_meta[SequentialModel.CHECKPOINT_EPOCHS_KEY][str(last_epoch)]
-# 	else:
-# 		raise ValueError()
-#
-# def get_checkpoints_loss_history(self) -> LossHistory:
-# 	history = LossHistory()
-# 	with open(self.checkpoints_meta_path, "r+") as jsonFile:
-# 		meta: dict = json.load(jsonFile)
-# 	checkpoints = [torch.load(path) for path in meta[SequentialModel.CHECKPOINT_EPOCHS_KEY].values()]
-# 	for checkpoint in checkpoints:
-# 		history.concat(checkpoint[SequentialModel.CHECKPOINT_LOSS_KEY])
-# 	return history
-#
-# def load_checkpoint(
-# 		self,
-# 		load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_EPOCH
-# ) -> dict:
-# 	with open(self.checkpoints_meta_path, "r+") as jsonFile:
-# 		info: dict = json.load(jsonFile)
-# 	path = self.get_save_path_from_checkpoints(info, load_checkpoint_mode)
-# 	checkpoint = torch.load(path)
-# 	self.load_state_dict(checkpoint[SequentialModel.CHECKPOINT_STATE_DICT_KEY], strict=True)
-# 	return checkpoint
-
-# def save_checkpoints_meta(self, new_info: dict):
-# 	info = dict()
-# 	if os.path.exists(self.checkpoints_meta_path):
-# 		with open(self.checkpoints_meta_path, "r+") as jsonFile:
-# 			info = json.load(jsonFile)
-# 	mapping_update_recursively(info, new_info)
-# 	with open(self.checkpoints_meta_path, "w+") as jsonFile:
-# 		json.dump(info, jsonFile, indent=4)
-
-# def compute_confusion_matrix(
-# 		self,
-# 		nb_classes: int,
-# 		dataloaders: Dict[str, DataLoader],
-# 		fit=False,
-# 		fit_kwargs=None,
-# 		load_checkpoint_mode: LoadCheckpointMode = None,
-# ):
-# 	if fit_kwargs is None:
-# 		fit_kwargs = {}
-# 	if fit:
-# 		self.fit(dataloaders['train'], dataloaders['val'], **fit_kwargs)
-#
-# 	if load_checkpoint_mode is not None:
-# 		self.load_checkpoint(load_checkpoint_mode)
-# 	return {key: self._compute_single_confusion_matrix(nb_classes, d) for key, d in dataloaders.items()}
-
-# def _compute_single_confusion_matrix(self, nb_classes: int, dataloader: DataLoader) -> np.ndarray:
-# 	self.eval()
-# 	confusion_matrix = np.zeros((nb_classes, nb_classes))
-# 	with torch.no_grad():
-# 		for i, (inputs, classes) in enumerate(dataloader):
-# 			inputs = inputs.to(self.device)
-# 			classes = classes.to(self.device)
-# 			outputs = self.get_prediction_logits(inputs, re_outputs_trace=False, re_hidden_states=False)
-# 			_, preds = torch.max(outputs, -1)
-# 			for t, p in zip(classes.view(-1), preds.view(-1)):
-# 				confusion_matrix[t.long(), p.long()] += 1
-# 	return confusion_matrix

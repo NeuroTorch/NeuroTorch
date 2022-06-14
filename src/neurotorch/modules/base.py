@@ -182,6 +182,13 @@ class BaseModel(torch.nn.Module):
 
 	def forward(self, inputs: Union[Dict[str, Any], torch.Tensor], **kwargs) -> Dict[str, torch.Tensor]:
 		raise NotImplementedError()
+
+	def get_prediction_trace(
+			self,
+			inputs: Union[Dict[str, Any], torch.Tensor],
+			**kwargs
+	) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
+		raise NotImplementedError()
 	
 	def get_raw_prediction(
 			self,

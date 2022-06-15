@@ -95,7 +95,6 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 
 
 if __name__ == '__main__':
-	SinusSpikesDataset(n_variables=25, noise_std=0.1, n_steps=10, n_samples=1).show()
 	results = train_with_params(
 		{
 			"to_spikes_use_periods": False,
@@ -104,6 +103,7 @@ if __name__ == '__main__':
 			"n_hidden_neurons": 128,
 			"learn_beta": False,
 			"n_steps": 10,
+			"n_variables": 5,
 			"train_val_split_ratio": 0.95,
 		},
 		n_iterations=100,

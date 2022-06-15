@@ -23,6 +23,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 	dataloaders = get_dataloaders(
 		dataset_id=params["dataset_id"],
 		batch_size=256,
+		inputs_linear=params["inputs_linear"],
 		n_steps=params["n_steps"],
 		to_spikes_use_periods=params["to_spikes_use_periods"],
 		train_val_split_ratio=params.get("train_val_split_ratio", 0.85),
@@ -59,13 +60,14 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		dataloaders["train"],
 		dataloaders["val"],
 		n_iterations=n_iterations,
-		# load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
-		force_overwrite=True,
+		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
+		# force_overwrite=True,
 		verbose=verbose,
 	)
 	try:
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.BEST_ITR, verbose=verbose)
 	except FileNotFoundError:
+		print("No best checkpoint found. Loading last checkpoint instead.")
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.LAST_ITR, verbose=verbose)
 	return OrderedDict(dict(
 		network=network,
@@ -94,14 +96,15 @@ if __name__ == '__main__':
 		{
 			"dataset_id": DatasetId.MNIST,
 			"to_spikes_use_periods": True,
+			"inputs_linear": True,
 			"use_recurrent_connection": True,
 			"n_hidden_layers": 0,
 			"n_hidden_neurons": 128,
-			"learn_beta": False,
+			"learn_beta": True,
 			"n_steps": 100,
 			"train_val_split_ratio": 0.95,
 		},
-		n_iterations=100,
+		n_iterations=30,
 		verbose=True,
 	)
 	pprint.pprint(results, indent=4)

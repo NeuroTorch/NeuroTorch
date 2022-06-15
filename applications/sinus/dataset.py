@@ -5,15 +5,16 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 import matplotlib.pyplot as plt
-from torchvision.transforms import ToTensor
+from torchvision.transforms import Compose, ToTensor
+
+from neurotorch.transforms import LinearRateToSpikes, to_tensor
 
 
-class SinusSpikesDataset(Dataset):
+class SinusDataset(Dataset):
 	def __init__(
 			self,
 			*,
 			n_samples: int = 1_000,
-			threshold: float = 0.95,
 			n_steps: int = 100,
 			n_variables: int = 1,
 			noise_std: float = 0.1,
@@ -22,7 +23,6 @@ class SinusSpikesDataset(Dataset):
 	):
 		super().__init__()
 		self.n_samples = n_samples
-		self.threshold = threshold
 		self.n_steps = n_steps
 		self.n_variables = n_variables
 		self.noise_std = noise_std
@@ -37,18 +37,16 @@ class SinusSpikesDataset(Dataset):
 		x, x_targets = self.get_x_from_index(index)
 		x, x_targets = x.unsqueeze(1), x_targets.unsqueeze(1)
 		y = torch.sin(x + self.rn_phases) + torch.randn(self.n_steps, self.n_variables) * self.noise_std
-		spikes = (y > self.threshold).float().squeeze()
 
 		targets = torch.sin(x_targets + self.rn_phases) + torch.randn(self.n_steps, self.n_variables) * self.noise_std
-		spikes_targets = (targets > self.threshold).float().squeeze()
 		if self.transform is not None:
-			spikes = self.transform(spikes)
+			y = self.transform(y)
 		if self.target_transform is not None:
-			spikes_targets = self.target_transform(spikes_targets)
+			targets = self.target_transform(targets)
 		if self.n_variables == 1:
-			spikes = spikes.unsqueeze(-1)
-			spikes_targets = spikes_targets.unsqueeze(-1)
-		return spikes, spikes_targets
+			y = y.unsqueeze(-1)
+			targets = targets.unsqueeze(-1)
+		return y, targets
 
 	def get_x_from_index(self, index):
 		x = torch.linspace(0, index * np.pi, self.n_steps)
@@ -63,10 +61,9 @@ class SinusSpikesDataset(Dataset):
 		x = np.concatenate([self.get_x_from_index(i)[0].numpy() for i in range(self.n_samples)])
 		line_length = 1.0
 		pad = 0.5
-		for n_idx, spikes in enumerate(y.T):
-			spikes_idx = x[np.isclose(spikes, 1.0)]
-			ymin = (spikes.shape[-1] - n_idx) * (pad + line_length)
-			ax.vlines(spikes_idx, ymin=ymin, ymax=ymin + line_length, colors=[0, 0, 0])
+		for n_idx, n_y in enumerate(y.T):
+			ymin = (n_y.shape[-1] - n_idx) * (pad + line_length)
+			ax.plot(n_y+ymin, color='black')
 		ax.get_yaxis().set_visible(False)
 		plt.show()
 
@@ -88,16 +85,20 @@ def get_dataloaders(
 	:return:
 	"""
 	list_of_transform = [
-		ToTensor(),
+		to_tensor,
 		torch.flatten,
+		LinearRateToSpikes(n_steps=n_steps),
 	]
-	train_dataset = SinusSpikesDataset(
+	transform = Compose(list_of_transform)
+	train_dataset = SinusDataset(
 		n_variables=n_variables,
 		n_steps=n_steps,
+		transform=transform,
 	)
-	test_dataset = SinusSpikesDataset(
+	test_dataset = SinusDataset(
 		n_variables=n_variables,
 		n_steps=n_steps,
+		transform=transform,
 	)
 	train_length = int(len(train_dataset) * train_val_split_ratio)
 	val_length = len(train_dataset) - train_length

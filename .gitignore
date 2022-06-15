@@ -268,3 +268,4 @@ pip-selfcheck.json
 
 
 user/
+*.pth

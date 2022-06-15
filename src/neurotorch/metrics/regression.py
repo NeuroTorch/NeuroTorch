@@ -16,7 +16,7 @@ class RegressionMetrics(BaseMetrics):
 	def get_all_metrics_names_to_func() -> Dict[str, Callable]:
 		sep = RegressionMetrics.METRICS_NAMES_SEP
 		return {
-			f"mae{sep}mean_absolute_error": sk_metrics.mean_absolute_error,
+			f"mae{sep}mean_absolute_error": RegressionMetrics.mean_absolute_error,
 			f"mse{sep}mean_squared_error": RegressionMetrics.mean_squared_error,
 			f"r2": RegressionMetrics.r2,
 			f"d2{sep}d2_tweedie": RegressionMetrics.d2_tweedie,
@@ -37,22 +37,22 @@ class RegressionMetrics(BaseMetrics):
 		predictions = defaultdict(list)
 		targets = defaultdict(list)
 		with torch.no_grad():
-			for i, (inputs, targets) in tqdm(
+			for i, (x, y_true) in tqdm(
 					enumerate(dataloader), total=len(dataloader),
 					desc=desc, disable=not verbose, position=p_bar_position,
 			):
-				inputs = inputs.to(model.device)
-				targets = targets.to(model.device)
-				preds = model.get_prediction_trace(inputs)
+				x = x.to(model.device)
+				y_true = y_true.to(model.device)
+				preds = model.get_prediction_trace(x)
 				if isinstance(preds, dict):
 					if not isinstance(targets, dict):
 						targets = {k: targets for k in preds}
 					for k, v in preds.items():
 						predictions[k].extend(v.cpu().numpy())
-						targets[k].extend(targets[k].cpu().numpy())
+						targets[k].extend(y_true[k].cpu().numpy())
 				else:
 					predictions["__all__"].extend(preds.cpu().numpy())
-					targets["__all__"].extend(targets.cpu().numpy())
+					targets["__all__"].extend(y_true.cpu().numpy())
 		predictions = {k: np.asarray(v) for k, v in predictions.items()}
 		targets = {k: np.asarray(v) for k, v in targets.items()}
 		if len(targets) == 1:
@@ -75,12 +75,13 @@ class RegressionMetrics(BaseMetrics):
 			assert model is not None, "Either model or y_pred and y_true must be supplied."
 			assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
 			y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
-				model, dataloader, device, verbose, desc, p_bar_position
+				model=model, dataloader=dataloader, device=device,
+				verbose=verbose, desc=desc, p_bar_position=p_bar_position
 			)
 
 		if isinstance(y_true, dict):
-			return {k: sk_metrics.mean_absolute_error(y_true[k], y_pred[k]) for k in y_true}
-		return sk_metrics.mean_absolute_error(y_true, y_pred)
+			return {k: sk_metrics.mean_absolute_error(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
+		return sk_metrics.mean_absolute_error(y_true.flatten(), y_pred.flatten())
 
 	@staticmethod
 	def mean_squared_error(
@@ -102,8 +103,8 @@ class RegressionMetrics(BaseMetrics):
 			)
 
 		if isinstance(y_true, dict):
-			return {k: sk_metrics.mean_squared_error(y_true[k], y_pred[k]) for k in y_true}
-		return sk_metrics.mean_squared_error(y_true, y_pred)
+			return {k: sk_metrics.mean_squared_error(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
+		return sk_metrics.mean_squared_error(y_true.flatten(), y_pred.flatten())
 
 	@staticmethod
 	def r2(
@@ -125,8 +126,8 @@ class RegressionMetrics(BaseMetrics):
 			)
 
 		if isinstance(y_true, dict):
-			return {k: sk_metrics.r2_score(y_true[k], y_pred[k]) for k in y_true}
-		return sk_metrics.r2_score(y_true, y_pred)
+			return {k: sk_metrics.r2_score(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
+		return sk_metrics.r2_score(y_true.flatten(), y_pred.flatten())
 
 	@staticmethod
 	def d2_tweedie(
@@ -148,8 +149,8 @@ class RegressionMetrics(BaseMetrics):
 			)
 
 		if isinstance(y_true, dict):
-			return {k: sk_metrics.d2_tweedie_score(y_true[k], y_pred[k]) for k in y_true}
-		return sk_metrics.d2_tweedie_score(y_true, y_pred)
+			return {k: sk_metrics.d2_tweedie_score(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
+		return sk_metrics.d2_tweedie_score(y_true.flatten(), y_pred.flatten())
 
 	def __call__(
 			self,

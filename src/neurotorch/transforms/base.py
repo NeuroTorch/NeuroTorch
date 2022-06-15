@@ -56,3 +56,4 @@ class LinearRateToSpikes(torch.nn.Module):
 		return spikes.to(device)
 
 
+

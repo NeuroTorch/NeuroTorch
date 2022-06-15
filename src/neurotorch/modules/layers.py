@@ -159,7 +159,7 @@ class BaseLayer(torch.nn.Module):
 		self._is_built = True
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
-		raise NotImplementedError
+		raise NotImplementedError()
 
 	def _init_forward_state(
 			self,

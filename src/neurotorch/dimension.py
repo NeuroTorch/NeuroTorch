@@ -16,14 +16,19 @@ class Dimension:
 	):
 		self.size: Optional[int] = size
 		self.dtype: DimensionProperty = dtype
+
+	def __eq__(self, other: Union[int, 'Dimension']) -> bool:
+		if isinstance(other, int):
+			return self == self.from_int(other)
+		return self.size == other.size and self.dtype == other.dtype
 	
-	def __int__(self):
+	def __int__(self) -> int:
 		return self.size
 	
-	def __str__(self):
+	def __str__(self) -> str:
 		return f"{self.dtype.name}:{self.size}"
 
-	def __repr__(self):
+	def __repr__(self) -> str:
 		return self.__str__()
 	
 	@staticmethod

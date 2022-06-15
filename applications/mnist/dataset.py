@@ -7,6 +7,7 @@ from torchvision.datasets import MNIST, FashionMNIST
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import Compose, ToTensor
 
+from neurotorch.transforms import LinearRateToSpikes
 from neurotorch.transforms.vision import ImgToSpikes
 
 
@@ -22,6 +23,7 @@ def get_dataloaders(
 		as_timeseries: bool = True,
 		n_steps: int = 100,
 		to_spikes_use_periods: bool = False,
+		inputs_linear: bool = False,
 		nb_workers: int = 0,
 ):
 	"""
@@ -40,7 +42,10 @@ def get_dataloaders(
 		torch.flatten,
 	]
 	if as_timeseries:
-		list_of_transform.append(ImgToSpikes(n_steps=n_steps, use_periods=to_spikes_use_periods))
+		list_of_transform.append(
+			LinearRateToSpikes(n_steps=n_steps)
+			if inputs_linear else ImgToSpikes(n_steps=n_steps, use_periods=to_spikes_use_periods)
+		)
 	transform = Compose(list_of_transform)
 
 	if dataset_id == DatasetId.MNIST:

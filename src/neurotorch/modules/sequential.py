@@ -87,8 +87,8 @@ class SequentialModel(BaseModel):
 					of time steps of the inputs.
 		"""
 		input_layers, hidden_layers, output_layers = self._format_layers(layers)
-		self._ordered_inputs_names = [layer.name for layer in input_layers]
-		self._ordered_outputs_names = [layer.name for layer in output_layers]
+		self._ordered_inputs_names = [layer.name for _, layer in input_layers.items()]
+		self._ordered_outputs_names = [layer.name for _, layer in output_layers.items()]
 		super(SequentialModel, self).__init__(
 			input_sizes={layer.name: layer.input_size for _, layer in input_layers.items()},
 			output_size={layer.name: layer.output_size for _, layer in output_layers.items()},
@@ -415,7 +415,8 @@ class SequentialModel(BaseModel):
 			out_name = list(self.output_layers.keys())[0]
 			self._outputs_to_inputs_names_map[out_name] = in_name
 			assert self.input_sizes[in_name] == self.output_sizes[out_name], \
-				"input and output sizes must be the same when foresight_time_steps > 0."
+				f"input ({self.input_sizes[in_name]}) and output ({self.output_sizes[out_name]}) sizes must be the " \
+				f"same when foresight_time_steps > 0."
 		else:
 			self._outputs_to_inputs_names_map: Dict[str, str] = {
 				out_layer_name: in_layer_name
@@ -479,8 +480,11 @@ class SequentialModel(BaseModel):
 						{input_name: (batch_size, time_steps, input_size)}. If the inputs have the shape
 						(batch_size, input_size), then the time_steps is 1. All the inputs must have the same
 						time_steps otherwise the inputs with lower time_steps will be padded with zeros.
-		:param kwargs:
-		:return:
+		:param kwargs: Additional arguments for the forward pass.
+		:return: A tuple of two dictionaries. The first dictionary contains the outputs of the model and the second
+						dictionary contains the hidden states of the model. The keys of the dictionaries are the
+						names of the layers. The values of the dictionaries are lists of tensors. The length of the
+						lists is the number of time steps.
 		"""
 		if isinstance(inputs, torch.Tensor):
 			inputs = {k: inputs for k in self.input_layers.keys()}
@@ -492,6 +496,10 @@ class SequentialModel(BaseModel):
 		time_steps = self._get_time_steps_from_inputs(inputs)
 		hidden_states = self._init_hidden_states_memory()
 		outputs_trace: Dict[str, List[torch.Tensor]] = defaultdict(list)
+
+		# TODO: implement a way to integrate an other time dimension for inputs of
+		#  shape: (batch_size, time_steps, time_steps, ...). Those inputs are obtained for forecasting a time series of
+		#  real values that were transformed to times series of spikes.
 
 		for t in range(time_steps):
 			forward_tensor = self._inputs_forward_(inputs, hidden_states, t)

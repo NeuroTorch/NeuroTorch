@@ -29,31 +29,22 @@ class BaseLayer(torch.nn.Module):
 			input_size: Optional[SizeTypes] = None,
 			output_size: Optional[SizeTypes] = None,
 			name: Optional[str] = None,
-			use_recurrent_connection=True,
-			use_rec_eye_mask=True,
 			learning_type: LearningType = LearningType.BACKPROP,
-			dt=1e-3,
-			device=None,
+			device: Optional[torch.device] = None,
 			**kwargs
 	):
 		super(BaseLayer, self).__init__()
 		self._is_built = False
 		self._name_is_set = False
 		self.name = name
-		self.use_recurrent_connection = use_recurrent_connection
+
 		self.learning_type = learning_type
 		self.device = device
 		if self.device is None:
 			self._set_default_device_()
 
-		self.dt = dt
 		self.kwargs = kwargs
 		self._set_default_kwargs()
-
-		self.forward_weights = None
-		self.use_rec_eye_mask = use_rec_eye_mask
-		self.recurrent_weights = None
-		self.rec_mask = None
 
 		self.input_size = input_size
 		self.output_size = output_size
@@ -141,21 +132,6 @@ class BaseLayer(torch.nn.Module):
 		self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 	def build(self):
-		self.forward_weights = nn.Parameter(
-			torch.empty((int(self.input_size), int(self.output_size)), device=self.device, dtype=torch.float32),
-			requires_grad=self.requires_grad
-		)
-		if self.use_recurrent_connection:
-			self.recurrent_weights = nn.Parameter(
-				torch.empty((int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32),
-				requires_grad=self.requires_grad
-			)
-			if self.use_rec_eye_mask:
-				self.rec_mask = (1 - torch.eye(int(self.output_size), device=self.device, dtype=torch.float32))
-			else:
-				self.rec_mask = torch.ones(
-					(int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32
-				)
 		self._is_built = True
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
@@ -188,7 +164,7 @@ class BaseLayer(torch.nn.Module):
 			self.build()
 		return super(BaseLayer, self).__call__(inputs, *args, **kwargs)
 
-	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, torch.Tensor]:
+	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
 		raise NotImplementedError
 
 	def initialize_weights_(self):
@@ -199,7 +175,60 @@ class BaseLayer(torch.nn.Module):
 				torch.nn.init.normal_(param)
 
 
-class LIFLayer(BaseLayer):
+class BaseNeuronsLayer(BaseLayer):
+	def __init__(
+			self,
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
+			use_recurrent_connection: bool = True,
+			use_rec_eye_mask: bool = True,
+			learning_type: LearningType = LearningType.BACKPROP,
+			dt: float = 1e-3,
+			device: Optional[torch.device] = None,
+			**kwargs
+	):
+		self.dt = dt
+		super().__init__(
+			input_size=input_size,
+			output_size=output_size,
+			name=name,
+			learning_type=learning_type,
+			device=device,
+			**kwargs
+		)
+		self.use_recurrent_connection = use_recurrent_connection
+		self.forward_weights = None
+		self.use_rec_eye_mask = use_rec_eye_mask
+		self.recurrent_weights = None
+		self.rec_mask = None
+
+	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
+		raise NotImplementedError()
+
+	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+		raise NotImplementedError()
+
+	def build(self):
+		super().build()
+		self.forward_weights = nn.Parameter(
+			torch.empty((int(self.input_size), int(self.output_size)), device=self.device, dtype=torch.float32),
+			requires_grad=self.requires_grad
+		)
+		if self.use_recurrent_connection:
+			self.recurrent_weights = nn.Parameter(
+				torch.empty((int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32),
+				requires_grad=self.requires_grad
+			)
+			if self.use_rec_eye_mask:
+				self.rec_mask = (1 - torch.eye(int(self.output_size), device=self.device, dtype=torch.float32))
+			else:
+				self.rec_mask = torch.ones(
+					(int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32
+				)
+
+
+class LIFLayer(BaseNeuronsLayer):
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -357,7 +386,7 @@ class ALIFLayer(LIFLayer):
 		return next_Z, (next_V, next_a, next_Z)
 
 
-class IzhikevichLayer(BaseLayer):
+class IzhikevichLayer(BaseNeuronsLayer):
 	"""
 	Izhikevich p.274
 
@@ -471,7 +500,11 @@ class IzhikevichLayer(BaseLayer):
 		return next_Z, (next_V, next_u, next_Z)
 
 
-class LILayer(BaseLayer):
+class WilsonCowanLayer(BaseNeuronsLayer):
+	pass
+
+
+class LILayer(BaseNeuronsLayer):
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,

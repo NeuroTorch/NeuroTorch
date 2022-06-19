@@ -18,6 +18,8 @@ class Dimension:
 		self.dtype: DimensionProperty = dtype
 
 	def __eq__(self, other: Union[int, 'Dimension']) -> bool:
+		if other is None:
+			return False
 		if isinstance(other, int):
 			return self == self.from_int(other)
 		return self.size == other.size and self.dtype == other.dtype

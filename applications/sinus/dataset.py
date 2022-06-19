@@ -74,6 +74,8 @@ def get_dataloaders(
 		train_val_split_ratio: float = 0.85,
 		n_steps: int = 100,
 		n_variables: int = 1,
+		noise_std=0.1,
+		use_to_spikes: bool = True,
 		nb_workers: int = 0,
 ):
 	"""
@@ -86,19 +88,23 @@ def get_dataloaders(
 	"""
 	list_of_transform = [
 		to_tensor,
-		torch.flatten,
-		LinearRateToSpikes(n_steps=n_steps),
 	]
+	if use_to_spikes:
+		list_of_transform.append(LinearRateToSpikes(n_steps=n_steps))
 	transform = Compose(list_of_transform)
 	train_dataset = SinusDataset(
 		n_variables=n_variables,
 		n_steps=n_steps,
+		noise_std=noise_std,
 		transform=transform,
+		target_transform=to_tensor,
 	)
 	test_dataset = SinusDataset(
 		n_variables=n_variables,
 		n_steps=n_steps,
+		noise_std=noise_std,
 		transform=transform,
+		target_transform=to_tensor,
 	)
 	train_length = int(len(train_dataset) * train_val_split_ratio)
 	val_length = len(train_dataset) - train_length
@@ -114,4 +120,5 @@ def get_dataloaders(
 		test_dataset, batch_size=batch_size, shuffle=False, num_workers=nb_workers
 	)
 	return dict(train=train_dataloader, val=val_dataloader, test=test_dataloader)
+
 

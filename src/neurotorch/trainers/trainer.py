@@ -273,7 +273,7 @@ class Trainer:
 			assert isinstance(x_batch, dict) and isinstance(y_batch, dict) and isinstance(pred, dict), \
 				"If criterion is a dict, x_batch, y_batch and pred must be a dict too."
 			batch_loss = sum([
-				self.criterion[k](pred[k], y_batch[k].long().to(self.device))
+				self.criterion[k](pred[k], y_batch[k].to(self.device))
 				for k in self.criterion
 			])
 		else:

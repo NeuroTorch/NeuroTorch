@@ -10,6 +10,7 @@ from neurotorch import Dimension, DimensionProperty
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
 from neurotorch.metrics import ClassificationMetrics
 from neurotorch.modules import SequentialModel, ALIFLayer, LILayer
+from neurotorch.modules.layers import LearningType
 from neurotorch.trainers import ClassificationTrainer
 from neurotorch.utils import hash_params
 
@@ -98,7 +99,7 @@ if __name__ == '__main__':
 			"to_spikes_use_periods": True,
 			"inputs_linear": True,
 			"use_recurrent_connection": True,
-			"n_hidden_layers": 0,
+			"n_hidden_layers": 1,
 			"n_hidden_neurons": 128,
 			"learn_beta": True,
 			"n_steps": 100,

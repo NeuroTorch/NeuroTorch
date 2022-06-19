@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict, OrderedDict
 from copy import deepcopy
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
@@ -86,6 +87,7 @@ class SequentialModel(BaseModel):
 					the memory buffer. If the memory_size is not specified, the memory_size is set to the number
 					of time steps of the inputs.
 		"""
+		# TODO: Add Time dimensions to the sizes of the layers.
 		input_layers, hidden_layers, output_layers = self._format_layers(layers)
 		self._ordered_inputs_names = [layer.name for _, layer in input_layers.items()]
 		self._ordered_outputs_names = [layer.name for _, layer in output_layers.items()]
@@ -391,14 +393,16 @@ class SequentialModel(BaseModel):
 				layer.input_size = last_hidden_out_size
 			if layer.output_size is None:
 				if self.output_sizes is None or self.output_sizes[layer_name] is None:
-					raise ValueError("output_sizes must be defined for all output layers")
+					warnings.warn(
+						f"output_size is not set for layer {layer_name}. It will be set to {last_hidden_out_size}"
+					)
+					layer.output_size = last_hidden_out_size
 				else:
 					layer.output_size = self.output_sizes[layer_name]
+			if self.output_sizes is None:
+				self.output_sizes = {layer_name: layer.output_size}
 			else:
-				if self.output_sizes is None:
-					self.output_sizes = {layer_name: layer.output_size}
-				else:
-					self.output_sizes[layer_name] = layer.output_size
+				self.output_sizes[layer_name] = layer.output_size
 
 		self.initialize_weights_()
 		if self.foresight_time_steps > 0:

@@ -111,6 +111,7 @@ class BaseLayer(torch.nn.Module):
 		return self._is_built
 
 	def _format_input_size(self, size: Optional[SizeTypes]) -> Optional[DimensionsLike]:
+		# TODO: must accept multiple time dimensions
 		if size is not None:
 			if isinstance(size, Iterable):
 				size = [Dimension.from_int_or_dimension(s) for s in size]

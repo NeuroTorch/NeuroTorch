@@ -525,7 +525,7 @@ class LILayer(BaseNeuronsLayer):
 			dt=dt,
 			device=device,
 			**kwargs
-			)
+		)
 		self.bias_weights = None
 		self.kappa = torch.tensor(np.exp(-self.dt / self.kwargs["tau_out"]), dtype=torch.float32, device=self.device)
 

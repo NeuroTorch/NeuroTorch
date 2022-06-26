@@ -190,6 +190,11 @@ class BaseNeuronsLayer(BaseLayer):
 			**kwargs
 	):
 		self.dt = dt
+		self.use_recurrent_connection = use_recurrent_connection
+		self.forward_weights = None
+		self.use_rec_eye_mask = use_rec_eye_mask
+		self.recurrent_weights = None
+		self.rec_mask = None
 		super().__init__(
 			input_size=input_size,
 			output_size=output_size,
@@ -198,11 +203,6 @@ class BaseNeuronsLayer(BaseLayer):
 			device=device,
 			**kwargs
 		)
-		self.use_recurrent_connection = use_recurrent_connection
-		self.forward_weights = None
-		self.use_rec_eye_mask = use_rec_eye_mask
-		self.recurrent_weights = None
-		self.rec_mask = None
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
 		raise NotImplementedError()

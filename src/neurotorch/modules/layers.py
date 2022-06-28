@@ -1,4 +1,5 @@
 import enum
+import warnings
 from copy import deepcopy
 from typing import Optional, Sized, Tuple, Type, Union, Iterable
 
@@ -58,8 +59,6 @@ class BaseLayer(torch.nn.Module):
 	@input_size.setter
 	def input_size(self, size: Optional[SizeTypes]):
 		self._input_size = self._format_input_size(size)
-		if self.is_ready_to_build:
-			self.build()
 
 	@property
 	def output_size(self):
@@ -72,8 +71,6 @@ class BaseLayer(torch.nn.Module):
 		if size is not None:
 			assert isinstance(size, (int, Dimension)), "input_size must be an int or Dimension."
 			self._output_size = Dimension.from_int_or_dimension(size)
-		if self.is_ready_to_build:
-			self.build()
 	
 	@property
 	def requires_grad(self):
@@ -133,6 +130,10 @@ class BaseLayer(torch.nn.Module):
 		self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 	def build(self):
+		if self._is_built:
+			raise ValueError("The layer can't be built multiple times.")
+		if not self.is_ready_to_build:
+			raise ValueError("Input size and output size must be specified before the build call.")
 		self._is_built = True
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
@@ -160,8 +161,10 @@ class BaseLayer(torch.nn.Module):
 			raise ValueError("output_size must be specified before the forward call.")
 	
 	def __call__(self, inputs: torch.Tensor, *args, **kwargs):
+		inputs = inputs.to(self.device)
 		if not self.is_built:
-			self.infer_sizes_from_inputs(inputs)
+			if not self.is_ready_to_build:
+				self.infer_sizes_from_inputs(inputs)
 			self.build()
 		return super(BaseLayer, self).__call__(inputs, *args, **kwargs)
 
@@ -190,6 +193,11 @@ class BaseNeuronsLayer(BaseLayer):
 			**kwargs
 	):
 		self.dt = dt
+		self.use_recurrent_connection = use_recurrent_connection
+		self.forward_weights = None
+		self.use_rec_eye_mask = use_rec_eye_mask
+		self.recurrent_weights = None
+		self.rec_mask = None
 		super().__init__(
 			input_size=input_size,
 			output_size=output_size,
@@ -198,11 +206,6 @@ class BaseNeuronsLayer(BaseLayer):
 			device=device,
 			**kwargs
 		)
-		self.use_recurrent_connection = use_recurrent_connection
-		self.forward_weights = None
-		self.use_rec_eye_mask = use_rec_eye_mask
-		self.recurrent_weights = None
-		self.rec_mask = None
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
 		raise NotImplementedError()
@@ -227,6 +230,7 @@ class BaseNeuronsLayer(BaseLayer):
 				self.rec_mask = torch.ones(
 					(int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32
 				)
+		self.initialize_weights_()
 
 
 class LIFLayer(BaseNeuronsLayer):
@@ -502,7 +506,104 @@ class IzhikevichLayer(BaseNeuronsLayer):
 
 
 class WilsonCowanLayer(BaseNeuronsLayer):
-	pass
+	"""
+	This layer is use for Wilson-Cowan neuronal dynamics.
+	Wilson-Cowan dynamic is great for neuronal calcium activity.
+	This layer use recurrent neural network (RNN)
+	For references, please read:
+	https://www.sciencedirect.com/science/article/abs/pii/S089360800580125X
+	https://www.biorxiv.org/content/10.1101/2020.12.18.423348v2.full.pdf
+	"""
+	# TODO: add mu to initialize, change the way we initialize mu,add r to model
+	def __init__(
+			self,
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			learning_type: LearningType = LearningType.BACKPROP,
+			dt: float = 1e-3,
+			device=None,
+			**kwargs):
+		"""
+		:param input_size: size of the input
+		:param output_size: size of the output
+			If we are predicting time series -> input_size = output_size
+		:param learning_type: Type of learning for the gradient descent
+		:param dt: Time step (Euler's discretisation)
+		:param device: device for computation
+		:param kwargs: Dict -> see below
+		:keyword Arguments:
+			* <std_weight>: float -> Instability of the initial random matrix
+			* <mu>: float or torch.Tensor -> Activation threshold
+			* <tau>: float -> Decay constant of RNN unit
+			* <learn_mu>: bool -> Whether to train the activation threshold
+			* <mean_mu>: float -> Mean of the activation threshold (if learn_mu is True)
+			* <std_mu>: float -> Standard deviation of the activation threshold (if learn_mu is True)
+		"""
+		super(WilsonCowanLayer, self).__init__(
+			input_size=input_size,
+			output_size=output_size,
+			use_recurrent_connection=False,
+			learning_type=learning_type,
+			dt=dt,
+			device=device,
+			**kwargs
+		)
+
+		self.std_weight = self.kwargs["std_weight"]
+		if not torch.is_tensor(self.kwargs["mu"]):
+			self.mu = torch.tensor(self.kwargs["mu"], dtype=torch.float32, device=self.device)
+		else:
+			self.mu = self.kwargs["mu"]
+			if self.mu.device != self.device:
+				self.mu = self.mu.to(self.device)
+			if self.mu.dtype != torch.float32:
+				self.mu = self.mu.to(dtype=torch.float32)
+		if self.kwargs["learn_mu"]:
+			self.mu = torch.nn.Parameter(self.mu, requires_grad=True)
+		self.mean_mu = self.kwargs["mean_mu"]
+		self.std_mu = self.kwargs["std_mu"]
+		self.tau = self.kwargs["tau"]
+		self.learn_mu = self.kwargs["learn_mu"]
+
+	def _set_default_kwargs(self):
+		self.kwargs.setdefault("std_weight", 1.0)
+		self.kwargs.setdefault("mu", 0.0)
+		self.kwargs.setdefault("tau", 1.0)
+		self.kwargs.setdefault("learn_mu", False)
+		self.kwargs.setdefault("mean_mu", 2.0)
+		self.kwargs.setdefault("std_mu", 0.0)
+
+	def initialize_weights_(self):
+		torch.nn.init.normal_(self.forward_weights, mean=0.0, std=self.std_weight)
+		if self.learn_mu:
+			torch.nn.init.normal_(self.mu, mean=self.mean_mu, std=self.std_mu)
+		#TODO add other initializations r
+
+	def create_empty_state(self, batch_size: int = 1) -> None:
+		"""
+		Create an empty state. With RNN, this function is not use
+		:param batch_size: The size of the current batch
+		:return: None
+		"""
+		return None
+
+	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, None]:
+		"""
+		Forward pass
+		:param inputs: time series at a time t
+		:param state: State of the layer (only for SNN -> not use for RNN)
+		:return: (time series at a time t+1, State of the layer -> None)
+		"""
+		if inputs.device != self.device:
+			inputs = inputs.to(self.device)
+		if self.forward_weights.device != self.device:
+			self.forward_weights = self.forward_weights.to(self.device)
+		ratio_dt_tau = self.dt / self.tau
+		if inputs.device != self.device:
+			inputs = inputs.to(self.device)
+		sigmoid = torch.sigmoid(torch.matmul(self.forward_weights, inputs) - self.mu)
+		output = inputs * (1 - ratio_dt_tau) + sigmoid * ratio_dt_tau
+		return output, None
 
 
 class LILayer(BaseNeuronsLayer):

@@ -1,9 +1,7 @@
-import hashlib
 import itertools
 import logging
 import os
 import pickle
-import pprint
 import warnings
 from collections import OrderedDict
 from typing import Any, Dict, Iterable, List
@@ -25,7 +23,7 @@ from neurotorch.utils import hash_params
 def get_training_params_space() -> Dict[str, Any]:
 	"""
 	Get the parameters space for the training.
-	:return:
+	:return: The parameters space.
 	"""
 	return {
 		"dataset_id": [
@@ -40,7 +38,12 @@ def get_training_params_space() -> Dict[str, Any]:
 			True,
 			# False,
 		],
-		"n_steps": [2, 10, 100, 1_000],
+		"n_steps": [
+			2,
+			10,
+			100,
+			# 1_000
+		],
 		"n_hidden_neurons": [
 			# 16,
 			# 32,
@@ -250,7 +253,7 @@ def train_all_params(
 						test_f1=[result["f1s"]["test"]],
 					))],  ignore_index=True,
 				)
-				df.to_csv(results_path)
+				df.to_csv(results_path, index=False)
 				p_bar.set_postfix(
 					params=params,
 					train_accuracy=result["accuracies"]['train'],

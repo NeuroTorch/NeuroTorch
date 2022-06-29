@@ -1,0 +1,9 @@
+matplotlib==3.5.2
+numpy~=1.23.0
+setuptools~=60.2.0
+torch==1.11.0
+torchvision==0.12.0
+tqdm==4.64.0
+
+psutil~=5.9.1
+pandas~=1.4.3

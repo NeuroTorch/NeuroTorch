@@ -102,7 +102,7 @@ if __name__ == '__main__':
 			"n_hidden_layers": 1,
 			"n_hidden_neurons": 128,
 			"learn_beta": True,
-			"n_steps": 100,
+			"n_steps": 200,
 			"train_val_split_ratio": 0.95,
 		},
 		n_iterations=30,

@@ -508,13 +508,29 @@ class IzhikevichLayer(BaseNeuronsLayer):
 class WilsonCowanLayer(BaseNeuronsLayer):
 	"""
 	This layer is use for Wilson-Cowan neuronal dynamics.
+	This dynamic is also referred to as firing rate model.
 	Wilson-Cowan dynamic is great for neuronal calcium activity.
 	This layer use recurrent neural network (RNN)
+	The number of parameters that are trained is N^2 (+2N if mu and r is train)
+	where N is the number of neurons.
 	For references, please read:
-	https://www.sciencedirect.com/science/article/abs/pii/S089360800580125X
-	https://www.biorxiv.org/content/10.1101/2020.12.18.423348v2.full.pdf
+	* Wilson HR, Cowan JD (1972) Excitatory and Inhibitory Interactions in
+	Localized Populations of Model Neurons :
+	https://doi.org/10.1016/S0006-3495(72)86068-5
+
+	* Painchaud V, Doyon N, Desrosiers P (2022) Beyond Wilson-Cowan dynamics: oscillations
+	and chaos without inhibitions :
+	https://doi.org/10.48550/arXiv.2204.00583
+
+	* Vogels TP, Rajan K, Abbott LF (2005) Neural Network dynamic:
+	https://doi.org/10.1146/annurev.neuro.28.061604.135637
+
+	The Wilson-Cowan dynamic is one of many dynamical models that can be used
+	to model neuronal activity. To explore more continuous and Non-linear dynamics,
+	please read:
+	* Grossberg S (1987) Nonlinear Neural Network: Principles, Mechanisms, and Architecture :
+	https://doi.org/10.1016/0893-6080(88)90021-4
 	"""
-	# TODO: add mu to initialize, change the way we initialize mu,add r to model
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -538,6 +554,12 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			* <learn_mu>: bool -> Whether to train the activation threshold
 			* <mean_mu>: float -> Mean of the activation threshold (if learn_mu is True)
 			* <std_mu>: float -> Standard deviation of the activation threshold (if learn_mu is True)
+			* <r>: float or torch.Tensor -> Transition rate of the RNN unit
+			* <learn_r>: bool -> Whether to train the transition rate
+			* <mean_r>: float -> Mean of the transition rate (if learn_r is True)
+			* <std_r>: float -> Standard deviation of the transition rate (if learn_r is True)
+
+		Remarks: Parameter mu and r can only be a parameter as a vector.
 		"""
 		super(WilsonCowanLayer, self).__init__(
 			input_size=input_size,
@@ -548,7 +570,6 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			device=device,
 			**kwargs
 		)
-
 		self.std_weight = self.kwargs["std_weight"]
 		if not torch.is_tensor(self.kwargs["mu"]):
 			self.mu = torch.tensor(self.kwargs["mu"], dtype=torch.float32, device=self.device)
@@ -558,12 +579,21 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 				self.mu = self.mu.to(self.device)
 			if self.mu.dtype != torch.float32:
 				self.mu = self.mu.to(dtype=torch.float32)
-		if self.kwargs["learn_mu"]:
-			self.mu = torch.nn.Parameter(self.mu, requires_grad=True)
 		self.mean_mu = self.kwargs["mean_mu"]
 		self.std_mu = self.kwargs["std_mu"]
 		self.tau = self.kwargs["tau"]
 		self.learn_mu = self.kwargs["learn_mu"]
+		if not torch.is_tensor(self.kwargs["r"]):
+			self.r = torch.tensor(self.kwargs["r"], dtype=torch.float32, device=self.device)
+		else:
+			self.r = self.kwargs["r"]
+			if self.r.device != self.device:
+				self.r = self.r.to(self.device)
+			if self.r.dtype != torch.float32:
+				self.r = self.r.to(dtype=torch.float32)
+		self.mean_r = self.kwargs["mean_r"]
+		self.std_r = self.kwargs["std_r"]
+		self.learn_r = self.kwargs["learn_r"]
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("std_weight", 1.0)
@@ -572,12 +602,29 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("learn_mu", False)
 		self.kwargs.setdefault("mean_mu", 2.0)
 		self.kwargs.setdefault("std_mu", 0.0)
+		self.kwargs.setdefault("r", 0.0)
+		self.kwargs.setdefault("learn_r", False)
+		self.kwargs.setdefault("mean_r", 2.0)
+		self.kwargs.setdefault("std_r", 0.0)
 
 	def initialize_weights_(self):
+		"""
+		Initialize the parameters (wights) that will be trained.
+		"""
 		torch.nn.init.normal_(self.forward_weights, mean=0.0, std=self.std_weight)
+		# If mu is not a parameter, it takes the value 0.0 unless stated otherwise by user
+		# If mu is a parameter, it is initialized as a vector with the correct mean and std
+		# unless stated otherwise by user.
 		if self.learn_mu:
+			if self.mu.dim() == 0:  # if mu is a scalar and a parameter -> convert it to a vector
+				self.mu = torch.empty((self.forward_weights.shape[0], 1), dtype=torch.float32, device=self.device)
+			self.mu = torch.nn.Parameter(self.mu, requires_grad=True)
 			torch.nn.init.normal_(self.mu, mean=self.mean_mu, std=self.std_mu)
-		#TODO add other initializations r
+		if self.learn_r:
+			if self.r.dim() == 0:
+				self.r = torch.empty((self.forward_weights.shape[0], 1), dtype=torch.float32, device=self.device)
+			self.r = torch.nn.Parameter(self.r, requires_grad=True)
+			torch.nn.init.normal_(self.r, mean=self.mean_r, std=self.std_r)
 
 	def create_empty_state(self, batch_size: int = 1) -> None:
 		"""
@@ -590,6 +637,8 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, None]:
 		"""
 		Forward pass
+		With Euler discretisation, Wilson-Cowan equation becomes:
+		output = input * (1 - dt/tau) + dt/tau * (1 - r @ input) * sigmoid(forward_weights @ input - mu)
 		:param inputs: time series at a time t
 		:param state: State of the layer (only for SNN -> not use for RNN)
 		:return: (time series at a time t+1, State of the layer -> None)
@@ -601,8 +650,9 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		ratio_dt_tau = self.dt / self.tau
 		if inputs.device != self.device:
 			inputs = inputs.to(self.device)
+		transition_rate = (1 - self.r * inputs)
 		sigmoid = torch.sigmoid(torch.matmul(self.forward_weights, inputs) - self.mu)
-		output = inputs * (1 - ratio_dt_tau) + sigmoid * ratio_dt_tau
+		output = inputs * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
 		return output, None
 
 

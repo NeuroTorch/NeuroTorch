@@ -45,6 +45,7 @@ class HeidelbergDataset(Dataset):
 			verbose: bool = False,
 			hasher: str = 'auto',
 			hash_chunk_size: int = 65535,
+			as_sparse: bool = False,
 	):
 		"""
 		Constructor for the Heidelberg dataset.
@@ -70,6 +71,7 @@ class HeidelbergDataset(Dataset):
 		self.transform = transform
 		self.target_transform = target_transform
 		self.verbose = verbose
+		self._as_sparse = as_sparse
 		if hasher.lower() in ['auto', 'sha256']:
 			self._hasher = hashlib.sha256()
 		elif hasher.lower() == 'md5':
@@ -84,20 +86,62 @@ class HeidelbergDataset(Dataset):
 		else:
 			self.load_hdf5()
 
+	@property
+	def n_units(self):
+		return self.data["unique_units"].shape[0]
+
+	@property
+	def n_labels(self):
+		return self.data['unique_labels'].shape[0]
+
+	@property
+	def n_classes(self):
+		return self.n_labels
+
 	def __len__(self):
-		raise NotImplementedError()
+		return len(self.data['labels'])
+
+	def getitem_as_sparse(self, index: int):
+		times = self.data["spikes"]['times'][index]
+		units = self.data["spikes"]['units'][index]
+		time_bins = np.linspace(0, self.data['max_time'], num=self.n_steps)
+		time_indexes = np.digitize(times, time_bins, right=True)
+		time_series = torch.sparse.FloatTensor(time_indexes, )
+		return NotImplementedError()
+
+	def getitem_as_dense(self, index: int):
+		time_series = np.zeros((self.n_units, self.n_steps), dtype=np.float32)
+		times = self.data["spikes"]['times'][index]
+		units = self.data["spikes"]['units'][index]
+		labels = self.data['labels'][index]
+		time_bins = np.linspace(0, self.data['max_time'], num=self.n_steps)
+		time_indexes = np.digitize(times, time_bins, right=True)
+
+		for t, unit in zip(time_indexes, units):
+			time_series[unit, t] = 1
+
+		time_series = time_series.transpose()
+
+		if self.transform is not None:
+			time_series = self.transform(time_series)
+		if self.target_transform is not None:
+			labels = self.target_transform(labels)
+		return time_series, labels
 
 	def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
-		time_series = np.zeros((self.data["unique_units"].shape[0], self.n_steps), dtype=np.float32)
-		time_bins = np.linspace(0, self.data['max_time'], num=self.n_steps)
-		time_indexes = np.digitize(self.data['times'], time_bins, right=True)
-		return time_series, time_indexes
+		if self._as_sparse:
+			return self.getitem_as_sparse(index)
+		else:
+			return self.getitem_as_dense(index)
 
 	def load_hdf5(self):
 		if os.path.exists(self._hdf5_file_path):
 			hdf5_file = h5py.File(self._hdf5_file_path, 'r')
 			self.data['spikes'] = {key: hdf5_file['spikes'][key] for key in ["times", "units"]}
 			self.data['labels'] = hdf5_file['labels']
+			self.data["unique_labels"] = np.unique(
+				np.concatenate([np.asarray(v).flatten() for v in hdf5_file['labels']])
+			)
 			self.data['unique_units'] = np.unique(
 				np.concatenate([np.asarray(v).flatten() for v in hdf5_file['spikes']["units"]])
 			)
@@ -238,3 +282,56 @@ class HeidelbergDataset(Dataset):
 		if self._reporthook_progress.n >= self._reporthook_progress.total:
 			self._reporthook_progress.close()
 			self._reporthook_progress = None
+
+
+def get_dataloaders(
+		*,
+		batch_size: int = 252,
+		train_val_split_ratio: float = 0.85,
+		n_steps: int = 100,
+		nb_workers: int = 0,
+):
+	"""
+
+	:param batch_size:
+	:param train_val_split_ratio:
+	:param n_steps:
+	:param nb_workers:
+	:return:
+	"""
+	list_of_transform = [
+		to_tensor,
+	]
+	transform = Compose(list_of_transform)
+	train_dataset = HeidelbergDataset(
+		n_steps=n_steps,
+		transform=transform,
+		target_transform=to_tensor,
+	)
+	test_dataset = HeidelbergDataset(
+		n_steps=n_steps,
+		transform=transform,
+		target_transform=to_tensor,
+	)
+	train_length = int(len(train_dataset) * train_val_split_ratio)
+	val_length = len(train_dataset) - train_length
+	train_set, val_set = torch.utils.data.random_split(train_dataset, [train_length, val_length])
+
+	train_dataloader = DataLoader(
+		train_set, batch_size=batch_size, shuffle=True, num_workers=nb_workers
+	)
+	val_dataloader = DataLoader(
+		val_set, batch_size=batch_size, shuffle=False, num_workers=nb_workers
+	)
+	test_dataloader = DataLoader(
+		test_dataset, batch_size=batch_size, shuffle=False, num_workers=nb_workers
+	)
+	return dict(train=train_dataloader, val=val_dataloader, test=test_dataloader)
+
+
+
+
+
+
+
+

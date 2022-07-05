@@ -81,7 +81,8 @@ class WilsonCowan_time_series:
         Plot the time series.
         """
         if show_matrix:
-            plt.imshow(self.forward_weights, cmap="RdBu")
+            plt.imshow(self.forward_weights, cmap="RdBu_r")
+            plt.colorbar()
             plt.show()
         timeseries = self.compute_timeseries()
         plt.plot(timeseries.T)
@@ -91,11 +92,11 @@ class WilsonCowan_time_series:
         plt.show()
 
 
-
+# Example
 i = 250  # Num of neurons
 num_step = 1000
 dt = 0.1
-t_0 = np.random.randn(i,)
+t_0 = np.random.rand(i,)
 forward_weights = 8 * np.random.randn(i, i)
 mu = 0
 r = np.random.rand(i,) * 2

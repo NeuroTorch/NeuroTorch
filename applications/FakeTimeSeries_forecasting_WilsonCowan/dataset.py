@@ -6,11 +6,12 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 import matplotlib.pyplot as plt
+from matplotlib import animation
 from torchvision.transforms import ToTensor
+import networkx as nx
 
-# TODO : class that generate fake data,
 
-class WilsonCowan_time_series:
+class WilsonCowanTimeSeries:
     """
     This class can be used to generate fake data from the initial conditions and the forward weights.
     It can also be used to predict and/or plot the time series if the initial conditions and the
@@ -85,16 +86,53 @@ class WilsonCowan_time_series:
             plt.colorbar()
             plt.show()
         timeseries = self.compute_timeseries()
-        plt.plot(timeseries.T)
+        time = np.linspace(0, self.num_step * self.dt, self.num_step)
+        plt.plot(time.T, timeseries.T)
         plt.xlabel('Time')
         plt.ylabel('Neuronal activity')
         plt.ylim([0, 1])
         plt.show()
 
+    # TODO : add documentation and adapt variable's name
+    def animate_timeseries(self, step=4, time_interval=1, node_size=50, alpha=0.01):
+        """
+        Animate the time series. The position of the nodes are obtained using the spring layout.
+        Spring-Layout use the Fruchterman-Reingold force-directed algorithm. For more information,
+        please refer to the following documentation of networkx:
+        https://networkx.org/documentation/stable/reference/generated/networkx.drawing.layout.spring_layout.html
+
+        :param step: Number of time step between two animation frames.
+            example: if step = 4, the animation will play at t = 0, t = 4, t = 8, t = 12 ...
+        :param time_interval: Time interval between two animation frames (in milliseconds)
+        :param node_size: Size of the nodes
+        :param alpha: Density of the connections. Small network should have a higher alpha value.
+        """
+        num_frames = int(self.num_step / step)
+        timeseries = self.compute_timeseries()
+        connectome = nx.from_numpy_array(self.forward_weights)
+        pos = nx.spring_layout(connectome)
+        fig, ax = plt.subplots(figsize=(7, 7))
+        nx.draw_networkx_nodes(connectome, pos, ax=ax, node_size=node_size, node_color=timeseries[:, 0], cmap="hot")
+        nx.draw_networkx_edges(connectome, pos, ax=ax, width=1.0, alpha=0.01)
+        x, y = ax.get_xlim()[0], ax.get_ylim()[1]
+        plt.axis("off")
+        text = ax.text(0, 1.15, rf"$t = 0 / {self.num_step * self.dt}$", ha="center")
+        plt.tight_layout(pad=0)
+
+        def _animate(i):
+            nodes = nx.draw_networkx_nodes(connectome, pos, ax=ax, node_size=node_size,
+                                           node_color=timeseries[:, i * step], cmap="hot")
+            text.set_text(rf"$t = {i * step * self.dt:.3f} / {self.num_step * self.dt}$")
+            return nodes, text
+
+        anim = animation.FuncAnimation(fig, _animate, frames=num_frames, interval=time_interval, blit=True)
+        plt.show()
+
+
 
 # Example
-i = 250  # Num of neurons
-num_step = 1000
+i = 300  # Num of neurons
+num_step = 5000
 dt = 0.1
 t_0 = np.random.rand(i,)
 forward_weights = 8 * np.random.randn(i, i)
@@ -102,6 +140,28 @@ mu = 0
 r = np.random.rand(i,) * 2
 tau = 1
 
-WilsonCowan_time_series(num_step, dt, t_0, forward_weights, mu, r, tau).plot_timeseries(show_matrix=True)
+dynamic = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
+
+#dynamic.plot_timeseries(show_matrix=True)
+#dynamic.animate_timeseries(time_interval=0.1)
+
+
+
+# TODO : Create dataset function for training and do documentation
+
+class WilsonCowanDataset(Dataset):
+    def __init__(self,
+                TimeSeries: torch.Tensor or numpy.array,
+                 *,
+                transform: Optional[Callable] = None,
+    ):
+        super().__init__()
+
+
+    def __len__(self):
+        pass
+
+    def __getitem__(self, index):
+        pass
 
 

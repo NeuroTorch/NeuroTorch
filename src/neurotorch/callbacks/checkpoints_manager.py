@@ -173,3 +173,8 @@ class CheckpointManager(BaseCallback):
 			optimizer_state_dict=trainer.optimizer.state_dict(),
 			training_history=trainer.training_history,
 		)
+		if trainer.training_history:
+			trainer.training_history.plot(
+				save_path=os.path.join(self.checkpoint_folder, "training_history.png"),
+				show=False
+			)

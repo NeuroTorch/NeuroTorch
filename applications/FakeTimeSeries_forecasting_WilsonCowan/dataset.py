@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 
 import matplotlib.pyplot as plt
 from matplotlib import animation
-from torchvision.transforms import ToTensor
+from src.neurotorch.transforms.base import to_tensor
 import networkx as nx
 
 
@@ -18,6 +18,7 @@ class WilsonCowanTimeSeries:
     forward weights are known. To have more informations about the Wilson-Cowan dynamics, please refer
     to the documentation in layers.py -> WilsonCowanLayer class.
     """
+
     def __init__(self,
                  num_step: int,
                  dt: float,
@@ -77,7 +78,7 @@ class WilsonCowanTimeSeries:
 
         return timeseries
 
-    def plot_timeseries(self, show_matrix=False):
+    def plot_timeseries(self, show_matrix: bool = False):
         """
         Plot the time series.
         """
@@ -94,7 +95,7 @@ class WilsonCowanTimeSeries:
         plt.show()
 
     # TODO : add documentation and adapt variable's name
-    def animate_timeseries(self, step=4, time_interval=1, node_size=50, alpha=0.01):
+    def animate_timeseries(self, step: int = 4, time_interval: float = 1.0, node_size: float = 50, alpha: float = 0.01):
         """
         Animate the time series. The position of the nodes are obtained using the spring layout.
         Spring-Layout use the Fruchterman-Reingold force-directed algorithm. For more information,
@@ -113,7 +114,7 @@ class WilsonCowanTimeSeries:
         pos = nx.spring_layout(connectome)
         fig, ax = plt.subplots(figsize=(7, 7))
         nx.draw_networkx_nodes(connectome, pos, ax=ax, node_size=node_size, node_color=timeseries[:, 0], cmap="hot")
-        nx.draw_networkx_edges(connectome, pos, ax=ax, width=1.0, alpha=0.01)
+        nx.draw_networkx_edges(connectome, pos, ax=ax, width=1.0, alpha=alpha)
         x, y = ax.get_xlim()[0], ax.get_ylim()[1]
         plt.axis("off")
         text = ax.text(0, 1.15, rf"$t = 0 / {self.num_step * self.dt}$", ha="center")
@@ -129,39 +130,66 @@ class WilsonCowanTimeSeries:
         plt.show()
 
 
-
 # Example
-i = 300  # Num of neurons
+i = 2  # Num of neurons
 num_step = 5000
 dt = 0.1
-t_0 = np.random.rand(i,)
+t_0 = np.random.rand(i, )
 forward_weights = 8 * np.random.randn(i, i)
 mu = 0
-r = np.random.rand(i,) * 2
+r = np.random.rand(i, ) * 2
 tau = 1
 
 dynamic = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
 
-#dynamic.plot_timeseries(show_matrix=True)
-#dynamic.animate_timeseries(time_interval=0.1)
+# dynamic.plot_timeseries(show_matrix=True)
+# dynamic.animate_timeseries(time_interval=0.1)
 
-
-
-# TODO : Create dataset function for training and do documentation
 
 class WilsonCowanDataset(Dataset):
+    """
+    Dataset for the Wilson-Cowan model.
+    """
     def __init__(self,
-                TimeSeries: torch.Tensor or numpy.array,
-                 *,
-                transform: Optional[Callable] = None,
-    ):
+                 dynamic: object,
+                 chunk_size: int,
+                 ratio: float = 0.5,
+                 transform: Optional[Callable] = to_tensor
+                 ):
+        """
+        :param dynamic: The dynamic of the Wilson-Cowan model. This object must have a compute_timeseries() method.
+        :param chunk_size: A chunk is a sequence of time series of length chunk_size.
+        :param ratio: Ratio of the number of training and testing data. Always between 0 and 1 (non-inclusive).
+        :param transform: Transform the data before returning it.
+        """
         super().__init__()
+        self.dynamic = dynamic
+        self.timeseries = self.dynamic.compute_timeseries()
+        self.timeseries = transform(self.timeseries)
+        print(self.timeseries.shape)
+        self.num_step = dynamic.num_step
+        self.chunk_size = chunk_size
+        if ratio <= 0 or ratio >= 1:
+            raise ValueError("ratio should be between 0 and 1 (non-inclusive)")
+        if chunk_size < 2:
+            raise ValueError("chunk_size should be 2 or greater")
+        if chunk_size > self.num_step:
+            raise ValueError("chunk_size should be less than or equal to the number of time steps")
+        self.ratio = ratio
 
+    def __len__(self) -> int:
+        """
+        :return: The maximal time shift of a chunk starting from index 0
+        """
+        return self.num_step - self.chunk_size
 
-    def __len__(self):
-        pass
-
-    def __getitem__(self, index):
-        pass
-
-
+    def __getitem__(self, index) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Separate the data that will be use for training (x) and testing (y)
+        :param index: index of the first time step of the chunk
+        """
+        print(self.timeseries.shape)
+        chunk = self.timeseries[:, index:index + self.chunk_size]
+        x = chunk[:, : int(self.ratio * self.chunk_size)]
+        y = chunk[:, int(self.ratio * self.chunk_size):]
+        return x, y

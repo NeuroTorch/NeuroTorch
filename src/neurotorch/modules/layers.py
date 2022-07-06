@@ -57,9 +57,7 @@ class BaseLayer(torch.nn.Module):
 
 	@input_size.setter
 	def input_size(self, size: Optional[SizeTypes]):
-		self._input_size = self._format_input_size(size)
-		if self.is_ready_to_build:
-			self.build()
+		self._input_size = self._format_size(size)
 
 	@property
 	def output_size(self):
@@ -69,11 +67,7 @@ class BaseLayer(torch.nn.Module):
 
 	@output_size.setter
 	def output_size(self, size: Optional[SizeTypes]):
-		if size is not None:
-			assert isinstance(size, (int, Dimension)), "input_size must be an int or Dimension."
-			self._output_size = Dimension.from_int_or_dimension(size)
-		if self.is_ready_to_build:
-			self.build()
+		self._output_size = self._format_size(size)
 	
 	@property
 	def requires_grad(self):
@@ -110,19 +104,19 @@ class BaseLayer(torch.nn.Module):
 	def is_built(self) -> bool:
 		return self._is_built
 
-	def _format_input_size(self, size: Optional[SizeTypes]) -> Optional[DimensionsLike]:
+	def _format_size(self, size: Optional[SizeTypes]) -> Optional[DimensionsLike]:
 		# TODO: must accept multiple time dimensions
 		if size is not None:
 			if isinstance(size, Iterable):
 				size = [Dimension.from_int_or_dimension(s) for s in size]
 				time_dim_count = len(list(filter(lambda d: d.dtype == DimensionProperty.TIME, size)))
-				assert time_dim_count <= 1, "input_size must not contain more than one Time dimension."
+				assert time_dim_count <= 1, "Size must not contain more than one Time dimension."
 				size = list(filter(lambda d: d.dtype != DimensionProperty.TIME, size))
 				if len(size) == 1:
 					size = size[0]
 				else:
-					raise ValueError("input_size must be a single dimension or a list of 2 dimensions with a Time one.")
-			assert isinstance(size, (int, Dimension)), "input_size must be an int or Dimension."
+					raise ValueError("Size must be a single dimension or a list of 2 dimensions with a Time one.")
+			assert isinstance(size, (int, Dimension)), "Size must be an int or Dimension."
 			size = Dimension.from_int_or_dimension(size)
 		return size
 
@@ -227,6 +221,7 @@ class BaseNeuronsLayer(BaseLayer):
 				self.rec_mask = torch.ones(
 					(int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32
 				)
+		self.initialize_weights_()
 
 
 class LIFLayer(BaseNeuronsLayer):
@@ -259,7 +254,7 @@ class LIFLayer(BaseNeuronsLayer):
 		self.alpha = torch.tensor(np.exp(-dt / self.kwargs["tau_m"]), dtype=torch.float32, device=self.device)
 		self.threshold = torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device)
 		self.gamma = torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device)
-		self.initialize_weights_()
+		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_m", 10.0 * self.dt)
@@ -293,22 +288,176 @@ class LIFLayer(BaseNeuronsLayer):
 		) for _ in range(2)])
 		return state
 
+	def get_regularization_loss(self):
+		"""
+		Get and reset the regularization loss for this layer. The regularization loss will be zeroed after it is
+		returned.
+		:return: The regularization loss.
+		"""
+		loss = self._regularization_loss
+		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		return loss
+
+	def _update_regularization_loss(self, state):
+		"""
+		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
+		the regularization loss will be the sum of all calls to this function.
+		:param state: The current state of the layer.
+		:return: The updated regularization loss.
+		"""
+		next_V, next_Z = state
+		self._regularization_loss += 2e-6*torch.sum(next_Z)
+		# self._regularization_loss += 2e-6*torch.mean(torch.sum(next_Z, dim=-1)**2)
+		return self._regularization_loss
+
 	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape
-		# state = self._init_forward_state(state, batch_size)
-		# next_state = self.create_empty_state(batch_size)
 		V, Z = self._init_forward_state(state, batch_size)
-		# next_V, next_Z = self.create_empty_state(batch_size)
 		input_current = torch.matmul(inputs, self.forward_weights)
 		if self.use_recurrent_connection:
 			rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
 		else:
 			rec_current = 0.0
-		# next_V = self.alpha * V + input_current + rec_current - Z.detach() * self.threshold
 		next_V = (self.alpha * V + input_current + rec_current) * (1.0 - Z.detach())
 		next_Z = self.spike_func.apply(next_V, self.threshold, self.gamma)
+
+		self._update_regularization_loss((next_V, next_Z))
 		return next_Z, (next_V, next_Z)
+
+
+class SpyLIFLayer(BaseNeuronsLayer):
+	"""
+	The SpyLIF layer is a LIF layer implemented by the SpyTorch library
+	(https://github.com/surrogate-gradient-learning/spytorch) from the
+	paper: https://ieeexplore.ieee.org/document/8891809. In this LIF varient they are using a second differential
+	equation to model the synaptic current. The second hidden state of the layer add more memory to the model since
+	it is not reset every spike like the membrane potential.
+	"""
+	def __init__(
+			self,
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
+			use_recurrent_connection: bool = True,
+			use_rec_eye_mask: bool = False,
+			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
+			learning_type: LearningType = LearningType.BACKPROP,
+			dt: float = 1e-3,
+			device: Optional[torch.device] = None,
+			**kwargs
+	):
+		"""
+		Constructor for the SpyLIF layer.
+		:param input_size:
+		:param output_size:
+		:param name:
+		:param use_recurrent_connection:
+		:param use_rec_eye_mask:
+		:param spike_func:
+		:param learning_type:
+		:param dt:
+		:param device:
+		:param kwargs:
+		"""
+		self.spike_func = spike_func
+		super(SpyLIFLayer, self).__init__(
+			input_size=input_size,
+			output_size=output_size,
+			name=name,
+			use_recurrent_connection=use_recurrent_connection,
+			use_rec_eye_mask=use_rec_eye_mask,
+			learning_type=learning_type,
+			dt=dt,
+			device=device,
+			**kwargs
+			)
+
+		self.alpha = torch.tensor(np.exp(-dt / self.kwargs["tau_syn"]), dtype=torch.float32, device=self.device)
+		self.beta = torch.tensor(np.exp(-dt / self.kwargs["tau_mem"]), dtype=torch.float32, device=self.device)
+		self.threshold = torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device)
+		self.gamma = torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device)
+		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
+		self._total_count = 0
+
+	def _set_default_kwargs(self):
+		self.kwargs.setdefault("tau_syn", 5.0 * self.dt)
+		self.kwargs.setdefault("tau_mem", 10.0 * self.dt)
+		self.kwargs.setdefault("threshold", 1.0)
+		if isinstance(self.spike_func, HeavisideSigmoidApprox):
+			self.kwargs.setdefault("gamma", 100.0)
+		else:
+			self.kwargs.setdefault("gamma", 1.0)
+
+	def initialize_weights_(self):
+		weight_scale = 0.2
+		torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale/np.sqrt(int(self.input_size)))
+		if self.use_recurrent_connection:
+			torch.nn.init.normal_(self.recurrent_weights, mean=0.0, std=weight_scale/np.sqrt(int(self.output_size)))
+
+	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
+		"""
+		Create an empty state in the following form:
+			([membrane potential of shape (batch_size, self.output_size)],
+			[synaptic current of shape (batch_size, self.output_size)],
+			[spikes of shape (batch_size, self.output_size)])
+		:param batch_size: The size of the current batch.
+		:return: The current state.
+		"""
+		state = tuple([torch.zeros(
+			(batch_size, int(self._output_size)),
+			device=self.device,
+			dtype=torch.float32,
+			requires_grad=True,
+		) for _ in range(3)])
+		return state
+
+	def get_regularization_loss(self):
+		"""
+		Get and reset the regularization loss for this layer. The regularization loss will be zeroed after it is
+		returned.
+		:return: The regularization loss.
+		"""
+		loss = self._regularization_loss
+		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
+		self._total_count = 0
+		return loss
+
+	def _update_regularization_loss(self, state):
+		"""
+		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
+		the regularization loss will be the sum of all calls to this function.
+		:param state: The current state of the layer.
+		:return: The updated regularization loss.
+		"""
+		next_V, next_I_syn, next_Z = state
+		self._regularization_l1 += 2e-6*torch.sum(next_Z)
+		# self._n_spike_per_neuron += torch.sum(torch.sum(next_Z, dim=0), dim=0)
+		# self._total_count += next_Z.shape[0]*next_Z.shape[1]
+		# current_l2 = 2e-6*torch.sum(self._n_spike_per_neuron ** 2) / (self._total_count + 1e-6)
+		# self._regularization_loss = self._regularization_l1 + current_l2
+		self._regularization_loss = self._regularization_l1
+		return self._regularization_loss
+
+	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
+		assert inputs.ndim == 2
+		batch_size, nb_features = inputs.shape
+		V, I_syn, Z = self._init_forward_state(state, batch_size)
+		input_current = torch.matmul(inputs, self.forward_weights)
+		if self.use_recurrent_connection:
+			rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+		else:
+			rec_current = 0.0
+		next_I_syn = self.alpha * I_syn + input_current + rec_current
+		next_V = (self.beta * V + next_I_syn) * (1.0 - Z.detach())
+		next_Z = self.spike_func.apply(next_V, self.threshold, self.gamma)
+
+		self._update_regularization_loss((next_V, next_I_syn, next_Z))
+		return next_Z, (next_V, next_I_syn, next_Z)
 
 
 class ALIFLayer(LIFLayer):
@@ -317,12 +466,12 @@ class ALIFLayer(LIFLayer):
 			input_size: Optional[SizeTypes] = None,
 			output_size: Optional[SizeTypes] = None,
 			name: Optional[str] = None,
-			use_recurrent_connection=True,
-			use_rec_eye_mask=True,
+			use_recurrent_connection: bool = True,
+			use_rec_eye_mask: bool = True,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
 			learning_type: LearningType = LearningType.BACKPROP,
-			dt=1e-3,
-			device=None,
+			dt: float = 1e-3,
+			device: Optional[torch.device] = None,
 			**kwargs
 	):
 		super(ALIFLayer, self).__init__(
@@ -512,8 +661,8 @@ class LILayer(BaseNeuronsLayer):
 			output_size: Optional[SizeTypes] = None,
 			name: Optional[str] = None,
 			learning_type: LearningType = LearningType.BACKPROP,
-			dt=1e-3,
-			device=None,
+			dt: float = 1e-3,
+			device: Optional[torch.device] = None,
 			**kwargs
 	):
 		super(LILayer, self).__init__(
@@ -531,13 +680,17 @@ class LILayer(BaseNeuronsLayer):
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_out", 10.0 * self.dt)
+		self.kwargs.setdefault("use_bias", True)
 
 	def build(self):
+		if self.kwargs["use_bias"]:
+			self.bias_weights = nn.Parameter(
+				torch.empty((int(self.output_size),), device=self.device),
+				requires_grad=self.requires_grad,
+			)
+		else:
+			self.bias_weights = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 		super(LILayer, self).build()
-		self.bias_weights = nn.Parameter(
-			torch.empty((int(self.output_size),), device=self.device),
-			requires_grad=self.requires_grad,
-		)
 		self.initialize_weights_()
 
 	def initialize_weights_(self):
@@ -566,6 +719,85 @@ class LILayer(BaseNeuronsLayer):
 		V, = self._init_forward_state(state, batch_size)
 		next_V = self.kappa * V + torch.matmul(inputs, self.forward_weights) + self.bias_weights
 		return next_V, (next_V, )
+
+
+class SpyLILayer(BaseNeuronsLayer):
+	"""
+	The SpyLI layer is a LI layer implemented by the SpyTorch library
+	(https://github.com/surrogate-gradient-learning/spytorch) from the
+	paper: https://ieeexplore.ieee.org/document/8891809. In this LI varient they are using a second differential
+	equation to model the synaptic current.
+	"""
+	def __init__(
+			self,
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
+			learning_type: LearningType = LearningType.BACKPROP,
+			dt: float = 1e-3,
+			device: Optional[torch.device] = None,
+			**kwargs
+	):
+		super(SpyLILayer, self).__init__(
+			input_size=input_size,
+			output_size=output_size,
+			name=name,
+			use_recurrent_connection=False,
+			learning_type=learning_type,
+			dt=dt,
+			device=device,
+			**kwargs
+		)
+		self.bias_weights = None
+		self.alpha = torch.tensor(np.exp(-dt / self.kwargs["tau_syn"]), dtype=torch.float32, device=self.device)
+		self.beta = torch.tensor(np.exp(-dt / self.kwargs["tau_mem"]), dtype=torch.float32, device=self.device)
+
+	def _set_default_kwargs(self):
+		self.kwargs.setdefault("tau_syn", 5.0 * self.dt)
+		self.kwargs.setdefault("tau_mem", 10.0 * self.dt)
+		self.kwargs.setdefault("use_bias", False)
+
+	def build(self):
+		if self.kwargs["use_bias"]:
+			self.bias_weights = nn.Parameter(
+				torch.empty((int(self.output_size),), device=self.device),
+				requires_grad=self.requires_grad,
+			)
+		else:
+			self.bias_weights = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		super(SpyLILayer, self).build()
+		self.initialize_weights_()
+
+	def initialize_weights_(self):
+		super(SpyLILayer, self).initialize_weights_()
+		weight_scale = 0.2
+		torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.input_size)))
+		if self.kwargs["use_bias"]:
+			torch.nn.init.constant_(self.bias_weights, 0.0)
+
+	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
+		"""
+		Create an empty state in the following form:
+			[membrane potential of shape (batch_size, self.output_size),
+			synaptic current of shape (batch_size, self.output_size)]
+		:param batch_size: The size of the current batch.
+		:return: The current state.
+		"""
+		state = [torch.zeros(
+			(batch_size, int(self._output_size)),
+			device=self.device,
+			dtype=torch.float32,
+			requires_grad=True,
+		) for _ in range(2)]
+		return tuple(state)
+
+	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
+		assert inputs.ndim == 2
+		batch_size, nb_features = inputs.shape
+		V, I_syn = self._init_forward_state(state, batch_size)
+		next_I_syn = self.alpha * I_syn + torch.matmul(inputs, self.forward_weights)
+		next_V = self.beta * V + next_I_syn + self.bias_weights
+		return next_V, (next_V, next_I_syn)
 
 
 LayerType2Layer = {

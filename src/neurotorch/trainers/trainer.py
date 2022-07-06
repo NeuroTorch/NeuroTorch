@@ -248,7 +248,12 @@ class Trainer:
 			y_batch,
 	):
 		self.callbacks.on_batch_begin(self)
+		x_batch = self._batch_to_dense(self._batch_to_device(x_batch))
+		y_batch = self._batch_to_dense(self._batch_to_device(y_batch))
 		batch_loss = self.apply_criterion_on_batch(x_batch, y_batch)
+		if hasattr(self.model, "get_regularization_loss") and callable(self.model.get_regularization_loss):
+			regularization_loss = self.model.get_regularization_loss()
+			batch_loss += regularization_loss
 		if self.model.training:
 			self.optimizer.zero_grad()
 			batch_loss.backward()
@@ -279,5 +284,19 @@ class Trainer:
 		else:
 			batch_loss = self.criterion(pred, y_batch.long().to(self.device))
 		return batch_loss
+
+	def _batch_to_dense(self, batch):
+		if isinstance(batch, dict):
+			return {k: self._batch_to_dense(v) for k, v in batch.items()}
+		if isinstance(batch, torch.Tensor):
+			return batch.to_dense()
+		return batch
+
+	def _batch_to_device(self, batch):
+		if isinstance(batch, dict):
+			return {k: self._batch_to_device(v) for k, v in batch.items()}
+		if isinstance(batch, torch.Tensor):
+			return batch.to(self.device)
+		return batch
 
 

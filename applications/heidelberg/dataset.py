@@ -1,5 +1,6 @@
 import os
 import shutil
+import warnings
 from typing import Callable, Optional, Tuple
 
 import h5py as h5py
@@ -21,6 +22,9 @@ from neurotorch.transforms import LinearRateToSpikes, to_tensor
 
 
 class HeidelbergDataset(Dataset):
+	"""
+	Dataset from: https://compneuro.net/posts/2019-spiking-heidelberg-digits/
+	"""
 	ONLINE_DATASET_URL = "https://compneuro.net/datasets"
 	SHD_TRAIN_FILES = "shd_train.h5.gz"
 	SHD_TEST_FILES = "shd_test.h5.gz"
@@ -104,23 +108,31 @@ class HeidelbergDataset(Dataset):
 	def getitem_as_sparse(self, index: int):
 		times = self.data["spikes"]['times'][index]
 		units = self.data["spikes"]['units'][index]
+		labels = self.data['labels'][index]
 		time_bins = np.linspace(0, self.data['max_time'], num=self.n_steps)
 		time_indexes = np.digitize(times, time_bins, right=True)
-		time_series = torch.sparse.FloatTensor(time_indexes, )
-		return NotImplementedError()
+		indexes = torch.LongTensor(np.asarray([time_indexes, units]))
+		sparse_ts = torch.sparse_coo_tensor(indexes, torch.ones(len(times)), torch.Size([self.n_steps, self.n_units]))
+
+		if self.transform is not None:
+			sparse_ts = self.transform(sparse_ts)
+		if self.target_transform is not None:
+			labels = self.target_transform(labels)
+		return sparse_ts, labels
 
 	def getitem_as_dense(self, index: int):
-		time_series = np.zeros((self.n_units, self.n_steps), dtype=np.float32)
+		warnings.warn(
+			"getitem_as_dense is deprecated and not seems to work properly, use getitem_as_sparse instead.",
+			DeprecationWarning
+		)
 		times = self.data["spikes"]['times'][index]
 		units = self.data["spikes"]['units'][index]
 		labels = self.data['labels'][index]
 		time_bins = np.linspace(0, self.data['max_time'], num=self.n_steps)
 		time_indexes = np.digitize(times, time_bins, right=True)
-
+		time_series = np.zeros((self.n_steps, self.n_units), dtype=np.float32)
 		for t, unit in zip(time_indexes, units):
-			time_series[unit, t] = 1
-
-		time_series = time_series.transpose()
+			time_series[t, unit] = 1.0
 
 		if self.transform is not None:
 			time_series = self.transform(time_series)
@@ -289,16 +301,20 @@ def get_dataloaders(
 		batch_size: int = 252,
 		train_val_split_ratio: float = 0.85,
 		n_steps: int = 100,
+		as_sparse: bool = False,
 		nb_workers: int = 0,
 ):
 	"""
-
-	:param batch_size:
-	:param train_val_split_ratio:
-	:param n_steps:
-	:param nb_workers:
-	:return:
+	Get the dataloaders for the dataset.
+	:param batch_size: The batch size.
+	:param train_val_split_ratio: The ratio of the training set to the validation set.
+	:param n_steps: The number of time steps for the network.
+	:param as_sparse: Whether to use sparse or dense matrices.
+	:param nb_workers: The number of workers to use for the dataloaders.
+	:return: The dataloaders.
 	"""
+	if nb_workers != 0:
+		raise NotImplementedError("Multiprocessing with Heidelberg Dataset is not implemented yet.")
 	list_of_transform = [
 		to_tensor,
 	]
@@ -307,11 +323,15 @@ def get_dataloaders(
 		n_steps=n_steps,
 		transform=transform,
 		target_transform=to_tensor,
+		train=True,
+		as_sparse=as_sparse,
 	)
 	test_dataset = HeidelbergDataset(
 		n_steps=n_steps,
 		transform=transform,
 		target_transform=to_tensor,
+		train=False,
+		as_sparse=as_sparse,
 	)
 	train_length = int(len(train_dataset) * train_val_split_ratio)
 	val_length = len(train_dataset) - train_length

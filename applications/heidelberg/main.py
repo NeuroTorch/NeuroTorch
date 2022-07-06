@@ -76,8 +76,8 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		dataloaders["train"],
 		dataloaders["val"],
 		n_iterations=n_iterations,
-		# load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
-		force_overwrite=True,
+		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
+		# force_overwrite=True,
 		verbose=verbose,
 	)
 	training_history.plot(
@@ -92,6 +92,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 	return OrderedDict(dict(
 		network=network,
 		checkpoints_name=checkpoints_name,
+		training_history=training_history,
 		accuracies={
 			k: ClassificationMetrics.accuracy(network, dataloaders[k], verbose=True, desc=f"{k}_accuracy")
 			for k in dataloaders
@@ -117,15 +118,16 @@ if __name__ == '__main__':
 		{
 			"use_recurrent_connection": True,
 			"n_hidden_layers": 0,
-			"n_hidden_neurons": 128,
+			"n_hidden_neurons": 200,
 			# "learn_beta": False,
 			# "use_rec_eye_mask": False,
-			"n_steps": 200,
+			"n_steps": 100,
 			"train_val_split_ratio": 0.95,
 		},
-		n_iterations=100,
+		n_iterations=200,
 		verbose=True,
 	)
 	pprint.pprint(results, indent=4)
+	results["training_history"].plot(show=True)
 
 

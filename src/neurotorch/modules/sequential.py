@@ -363,10 +363,15 @@ class SequentialModel(BaseModel):
 
 	def _init_hidden_states_memory(self) -> Dict[str, List]:
 		return {
-			# layer_name: [None for t in range(self.int_time_steps+1)]
 			layer_name: [None]
 			for layer_name in self.get_all_layers_names()
 		}
+
+	def build_layers(self):
+		for layer in self.get_all_layers():
+			if getattr(layer, "build") and callable(layer.build):
+				if not getattr(layer, "is_built", False):
+					layer.build()
 
 	def build(self):
 		super(SequentialModel, self).build()
@@ -404,6 +409,7 @@ class SequentialModel(BaseModel):
 			else:
 				self.output_sizes[layer_name] = layer.output_size
 
+		self.build_layers()
 		self.initialize_weights_()
 		if self.foresight_time_steps > 0:
 			self._map_outputs_to_inputs()
@@ -619,16 +625,15 @@ class SequentialModel(BaseModel):
 			return log_proba, *outs
 		return log_proba
 
-	def get_spikes_count_per_neuron(self, hidden_states: Dict[str, List[torch.Tensor]]) -> torch.Tensor:
+	def get_regularization_loss(self) -> torch.Tensor:
 		"""
-		Get the spikes count per neuron from the hidden states
-		:return:
+		Get the regularization loss
+		:return: regularization loss
 		"""
-		raise NotImplementedError()
-		counts = []
-		for l_name, traces in hidden_states.items():
-			if isinstance(self.hidden_layers[l_name], LIFLayer):
-				counts.extend(traces[-1].sum(dim=(0, 1)).tolist())
-		return torch.tensor(counts, dtype=torch.float32, device=self.device)
+		regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		for layer in self.get_all_layers():
+			if hasattr(layer, "get_regularization_loss") and callable(layer.get_regularization_loss):
+				regularization_loss += layer.get_regularization_loss()
+		return regularization_loss
 
 

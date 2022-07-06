@@ -302,6 +302,7 @@ def get_dataloaders(
 		train_val_split_ratio: float = 0.85,
 		n_steps: int = 100,
 		as_sparse: bool = False,
+		download: bool = True,
 		nb_workers: int = 0,
 ):
 	"""
@@ -325,6 +326,7 @@ def get_dataloaders(
 		target_transform=to_tensor,
 		train=True,
 		as_sparse=as_sparse,
+		download=download,
 	)
 	test_dataset = HeidelbergDataset(
 		n_steps=n_steps,
@@ -332,6 +334,7 @@ def get_dataloaders(
 		target_transform=to_tensor,
 		train=False,
 		as_sparse=as_sparse,
+		download=download,
 	)
 	train_length = int(len(train_dataset) * train_val_split_ratio)
 	val_length = len(train_dataset) - train_length

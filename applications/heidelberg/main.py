@@ -23,14 +23,20 @@ from neurotorch.trainers import ClassificationTrainer, Trainer
 from neurotorch.utils import hash_params
 
 
-def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_folder="tr_results", verbose=False):
+def train_with_params(
+		params: Dict[str, Any],
+		n_iterations: int = 100,
+		batch_size: int = 256,
+		data_folder="tr_results",
+		verbose=False
+):
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
 	os.makedirs(checkpoint_folder, exist_ok=True)
 	print(f"Checkpoint folder: {checkpoint_folder}")
 
 	dataloaders = get_dataloaders(
-		batch_size=256,
+		batch_size=batch_size,
 		n_steps=params["n_steps"],
 		as_sparse=True,
 		train_val_split_ratio=params.get("train_val_split_ratio", 0.85),
@@ -76,8 +82,8 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		dataloaders["train"],
 		dataloaders["val"],
 		n_iterations=n_iterations,
-		# load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
-		force_overwrite=True,
+		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
+		# force_overwrite=True,
 		verbose=verbose,
 	)
 	training_history.plot(
@@ -92,6 +98,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 	return OrderedDict(dict(
 		network=network,
 		checkpoints_name=checkpoints_name,
+		training_history=training_history,
 		accuracies={
 			k: ClassificationMetrics.accuracy(network, dataloaders[k], verbose=True, desc=f"{k}_accuracy")
 			for k in dataloaders
@@ -117,15 +124,17 @@ if __name__ == '__main__':
 		{
 			"use_recurrent_connection": True,
 			"n_hidden_layers": 0,
-			"n_hidden_neurons": 128,
+			"n_hidden_neurons": 200,
 			# "learn_beta": False,
 			# "use_rec_eye_mask": False,
-			"n_steps": 200,
+			"n_steps": 100,
 			"train_val_split_ratio": 0.95,
 		},
-		n_iterations=100,
+		n_iterations=200,
+		batch_size=256,
 		verbose=True,
 	)
 	pprint.pprint(results, indent=4)
+	results["training_history"].plot(show=True)
 
 

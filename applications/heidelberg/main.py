@@ -89,6 +89,7 @@ def train_with_params(
 	training_history.plot(
 		save_path=os.path.join(checkpoint_folder, "training_history.png"),
 		show=False,
+		close=True,
 	)
 	try:
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.BEST_ITR, verbose=verbose)
@@ -124,14 +125,14 @@ if __name__ == '__main__':
 		{
 			"use_recurrent_connection": True,
 			"n_hidden_layers": 0,
-			"n_hidden_neurons": 200,
+			"n_hidden_neurons": 512,
 			# "learn_beta": False,
 			# "use_rec_eye_mask": False,
 			"n_steps": 100,
 			"train_val_split_ratio": 0.95,
 		},
-		n_iterations=200,
-		batch_size=256,
+		n_iterations=500,
+		batch_size=1024,
 		verbose=True,
 	)
 	pprint.pprint(results, indent=4)

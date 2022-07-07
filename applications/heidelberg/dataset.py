@@ -149,8 +149,8 @@ class HeidelbergDataset(Dataset):
 	def load_hdf5(self):
 		if os.path.exists(self._hdf5_file_path):
 			hdf5_file = h5py.File(self._hdf5_file_path, 'r')
-			self.data['spikes'] = {key: hdf5_file['spikes'][key] for key in ["times", "units"]}
-			self.data['labels'] = hdf5_file['labels']
+			self.data['spikes'] = {key: list(hdf5_file['spikes'][key]) for key in ["times", "units"]}
+			self.data['labels'] = np.asarray(list(hdf5_file['labels']))
 			self.data["unique_labels"] = np.unique(
 				np.concatenate([np.asarray(v).flatten() for v in hdf5_file['labels']])
 			)
@@ -160,6 +160,7 @@ class HeidelbergDataset(Dataset):
 			self.data['max_time'] = np.max(
 				np.concatenate([np.asarray(v).flatten() for v in hdf5_file['spikes']["times"]])
 			)
+			hdf5_file.close()
 		elif os.path.exists(self._gz_file_path):
 			self._unzip_file()
 			self.load_hdf5()
@@ -311,6 +312,7 @@ def get_dataloaders(
 	:param train_val_split_ratio: The ratio of the training set to the validation set.
 	:param n_steps: The number of time steps for the network.
 	:param as_sparse: Whether to use sparse or dense matrices.
+	:param download: Whether to download the dataset.
 	:param nb_workers: The number of workers to use for the dataloaders.
 	:return: The dataloaders.
 	"""
@@ -327,6 +329,7 @@ def get_dataloaders(
 		train=True,
 		as_sparse=as_sparse,
 		download=download,
+		verbose=True,
 	)
 	test_dataset = HeidelbergDataset(
 		n_steps=n_steps,
@@ -335,6 +338,7 @@ def get_dataloaders(
 		train=False,
 		as_sparse=as_sparse,
 		download=download,
+		verbose=True,
 	)
 	train_length = int(len(train_dataset) * train_val_split_ratio)
 	val_length = len(train_dataset) - train_length

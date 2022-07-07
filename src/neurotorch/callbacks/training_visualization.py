@@ -50,12 +50,14 @@ class _VisualizerProcess(mp.Process):
 			self.update_history()
 			time.sleep(self._update_dt)
 
-		self.fig, self.axes, self.lines = self._training_history.create_plot(show=False, close=False)
+		plt.ion()
+		self.fig, self.axes, self.lines = self._training_history.create_plot()
 		plt.pause(self._update_dt)
 		while not self._close_event.is_set():
 			self.update_history()
 			self.fig, self.axes, self.lines = self._training_history.update_fig(self.fig, self.axes, self.lines)
 			plt.pause(self._update_dt)
+		plt.close(self.fig)
 
 	def update_history(self):
 		"""
@@ -75,6 +77,7 @@ class _VisualizerProcess(mp.Process):
 		Join le processus courant.
 		"""
 		self._close_event.set()
+		plt.close(self.fig)
 		return super().join(*args, **kwargs)
 
 
@@ -137,7 +140,8 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
 			self._process.close()
 			self._is_open = False
 			with self._lock:
-				os.remove(self._temp_path)
+				if os.path.exists(self._temp_path):
+					os.remove(self._temp_path)
 
 
 

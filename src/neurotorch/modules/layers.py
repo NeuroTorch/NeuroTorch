@@ -435,7 +435,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		:return: The updated regularization loss.
 		"""
 		next_V, next_I_syn, next_Z = state
-		self._regularization_l1 += 2e-6*torch.sum(next_Z)
+		# self._regularization_l1 += 2e-6*torch.sum(next_Z)
 		# self._n_spike_per_neuron += torch.sum(torch.sum(next_Z, dim=0), dim=0)
 		# self._total_count += next_Z.shape[0]*next_Z.shape[1]
 		# current_l2 = 2e-6*torch.sum(self._n_spike_per_neuron ** 2) / (self._total_count + 1e-6)

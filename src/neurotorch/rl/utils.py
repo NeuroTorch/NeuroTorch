@@ -1,11 +1,13 @@
+import os
+from collections import defaultdict
+from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 
+from .curriculum import Curriculum
 from ..callbacks import TrainingHistory
-
-
-
+from ..utils import legend_without_duplicate_labels_
 
 
 class TrainingHistoriesMap:
@@ -67,16 +69,16 @@ class TrainingHistoriesMap:
 			lessons_start_itr = [0]
 		elif self.curriculum is not None and history_name == TrainingHistoriesMap.REPORT_KEY:
 			lessons = self.curriculum.lessons
-			lessons_lengths = {k: [len(self.histories[lesson.name][k]) for lesson in lessons] for k in history.container}
-			lessons_start_itr = {k: np.cumsum(lessons_lengths[k]) for k in history.container}
+			lessons_lengths = {k: [len(self.histories[lesson.name][k]) for lesson in lessons] for k in history._container}
+			lessons_start_itr = {k: np.cumsum(lessons_lengths[k]) for k in history.keys()}
 		else:
 			lessons = []
 			lessons_start_itr = []
 
 		kwargs = self._set_default_plot_kwargs(kwargs)
-		loss_metrics = [k for k in history.container if 'loss' in k.lower()]
-		rewards_metrics = [k for k in history.container if 'reward' in k.lower()]
-		other_metrics = [k for k in history.container if k not in loss_metrics and k not in rewards_metrics]
+		loss_metrics = [k for k in history.keys() if 'loss' in k.lower()]
+		rewards_metrics = [k for k in history.keys() if 'reward' in k.lower()]
+		other_metrics = [k for k in history.keys() if k not in loss_metrics and k not in rewards_metrics]
 		n_metrics = 2 + len(other_metrics)
 		n_cols = int(np.sqrt(n_metrics))
 		n_rows = int(n_metrics / n_cols)

@@ -114,14 +114,37 @@ class CallbacksList:
 		assert isinstance(callbacks, Iterable), "callbacks must be an Iterable"
 		assert all(isinstance(callback, BaseCallback) for callback in callbacks), \
 			"All callbacks must be instances of BaseCallback"
-		self.callbacks = callbacks
-		self._length = len([_ for _ in self.callbacks])
-		
+		self.callbacks = list(callbacks)
+		self._length = len(self.callbacks)
+
+	def __getitem__(self, item):
+		return self.callbacks[item]
+
 	def __iter__(self):
 		return iter(self.callbacks)
 	
 	def __len__(self):
 		return self._length
+
+	def append(self, callback: BaseCallback):
+		"""
+		Append a callback to the list.
+		:param callback: The callback to append.
+		:return: None
+		"""
+		assert isinstance(callback, BaseCallback), "callback must be an instance of BaseCallback"
+		self.callbacks.append(callback)
+		self._length += 1
+
+	def remove(self, callback: BaseCallback):
+		"""
+		Remove a callback from the list.
+		:param callback: The callback to remove.
+		:return: None
+		"""
+		assert isinstance(callback, BaseCallback), "callback must be an instance of BaseCallback"
+		self.callbacks.remove(callback)
+		self._length -= 1
 	
 	def start(self, trainer):
 		"""

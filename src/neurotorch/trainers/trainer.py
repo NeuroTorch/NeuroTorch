@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from ..callbacks import LoadCheckpointMode, TrainingHistory
+from ..callbacks import CheckpointManager, LoadCheckpointMode, TrainingHistory
 from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..modules import BaseModel
 
@@ -88,9 +88,10 @@ class Trainer:
 		self.optimizer = self._set_default_optimizer(optimizer)
 		self.metrics = self._set_default_metrics(metrics)
 		self.callbacks: CallbacksList = self._set_default_callbacks(callbacks)
+		self.sort_callbacks_()
 		self.device = self._set_default_device(device)
 		self.verbose = verbose
-		self.training_history = list(filter(lambda x: isinstance(x, TrainingHistory), self.callbacks.callbacks))[0]
+		self.training_history: TrainingHistory = self.training_histories[0]
 		self.current_training_state = CurrentTrainingState.get_null_state()
 
 		self._load_checkpoint_mode = None
@@ -103,6 +104,10 @@ class Trainer:
 	@property
 	def force_overwrite(self):
 		return self._force_overwrite
+
+	@property
+	def training_histories(self) -> CallbacksList:
+		return CallbacksList(list(filter(lambda x: isinstance(x, TrainingHistory), self.callbacks)))
 	
 	@staticmethod
 	def _set_default_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -157,6 +162,13 @@ class Trainer:
 			callbacks.append(TrainingHistory())
 		return CallbacksList(callbacks)
 
+	def sort_callbacks_(self) -> CallbacksList:
+		histories = list(filter(lambda c: isinstance(c, TrainingHistory), self.callbacks))
+		checkpoints_mangers = list(filter(lambda c: isinstance(c, CheckpointManager), self.callbacks))
+		others = list(filter(lambda c: not isinstance(c, (TrainingHistory, CheckpointManager)), self.callbacks))
+		self.callbacks = CallbacksList(histories + others + checkpoints_mangers)
+		return self.callbacks
+
 	def train(
 			self,
 			train_dataloader: DataLoader,
@@ -173,11 +185,14 @@ class Trainer:
 		self.kwargs.update(kwargs)
 		if n_iterations is None:
 			n_iterations = self.kwargs["n_epochs"]
+		self.sort_callbacks_()
 		self.callbacks.start(self)
 		if self.current_training_state.iteration is None:
 			self.current_training_state = self.current_training_state.update(iteration=0)
 		p_bar = tqdm(
 			range(self.current_training_state.iteration, n_iterations),
+			initial=self.current_training_state.iteration,
+			total=n_iterations,
 			desc="Training",
 			disable=not self.verbose,
 			position=p_bar_position,
@@ -248,7 +263,12 @@ class Trainer:
 			y_batch,
 	):
 		self.callbacks.on_batch_begin(self)
+		x_batch = self._batch_to_dense(self._batch_to_device(x_batch))
+		y_batch = self._batch_to_dense(self._batch_to_device(y_batch))
 		batch_loss = self.apply_criterion_on_batch(x_batch, y_batch)
+		if hasattr(self.model, "get_regularization_loss") and callable(self.model.get_regularization_loss):
+			regularization_loss = self.model.get_regularization_loss()
+			batch_loss += regularization_loss
 		if self.model.training:
 			self.optimizer.zero_grad()
 			batch_loss.backward()
@@ -279,5 +299,19 @@ class Trainer:
 		else:
 			batch_loss = self.criterion(pred, y_batch.long().to(self.device))
 		return batch_loss
+
+	def _batch_to_dense(self, batch):
+		if isinstance(batch, dict):
+			return {k: self._batch_to_dense(v) for k, v in batch.items()}
+		if isinstance(batch, torch.Tensor):
+			return batch.to_dense()
+		return batch
+
+	def _batch_to_device(self, batch):
+		if isinstance(batch, dict):
+			return {k: self._batch_to_device(v) for k, v in batch.items()}
+		if isinstance(batch, torch.Tensor):
+			return batch.to(self.device)
+		return batch
 
 

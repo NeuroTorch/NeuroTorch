@@ -35,6 +35,13 @@ class CheckpointManager(BaseCallback):
 	}
 	load_mode_to_suffix = {mode: mode.name for mode in list(LoadCheckpointMode)}
 
+	@staticmethod
+	def _replace_trainer_history(trainer, new_history: Any):
+		trainer.callbacks.remove(trainer.training_history)
+		trainer.callbacks.append(new_history)
+		trainer.training_history = new_history
+		trainer.sort_callbacks_()
+
 	def __init__(
 			self,
 			checkpoint_folder: Optional[str] = None,
@@ -68,7 +75,7 @@ class CheckpointManager(BaseCallback):
 
 	def _create_new_checkpoint_meta(self, itr: int, best: bool = False) -> dict:
 		save_name = self._create_checkpoint_filename(itr)
-		new_info = {CheckpointManager.CHECKPOINT_ITRS_KEY: {itr: save_name}}
+		new_info = {CheckpointManager.CHECKPOINT_ITRS_KEY: {str(itr): save_name}}
 		if best:
 			new_info[CheckpointManager.CHECKPOINT_BEST_KEY] = save_name
 		return new_info
@@ -148,7 +155,7 @@ class CheckpointManager(BaseCallback):
 				checkpoint = self.load_checkpoint(trainer.load_checkpoint_mode)
 				trainer.model.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
 				start_itr = int(checkpoint[CheckpointManager.CHECKPOINT_ITR_KEY]) + 1
-				trainer.training_history = checkpoint[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY]
+				self._replace_trainer_history(trainer, checkpoint[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY])
 			except FileNotFoundError as e:
 				if self.verbose:
 					warnings.warn(f"Error: {e}", Warning)
@@ -162,9 +169,9 @@ class CheckpointManager(BaseCallback):
 
 	def on_iteration_end(self, trainer):
 		if self.minimise_metric:
-			is_best = trainer.current_training_state.itr_metrics[self.metric] > self.curr_best_metric
-		else:
 			is_best = trainer.current_training_state.itr_metrics[self.metric] < self.curr_best_metric
+		else:
+			is_best = trainer.current_training_state.itr_metrics[self.metric] > self.curr_best_metric
 		if is_best:
 			self.curr_best_metric = trainer.current_training_state.itr_metrics[self.metric]
 		self.save_checkpoint(
@@ -173,3 +180,8 @@ class CheckpointManager(BaseCallback):
 			optimizer_state_dict=trainer.optimizer.state_dict(),
 			training_history=trainer.training_history,
 		)
+		if trainer.training_history:
+			trainer.training_history.plot(
+				save_path=os.path.join(self.checkpoint_folder, "training_history.png"),
+				show=False
+			)

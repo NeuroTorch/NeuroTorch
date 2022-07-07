@@ -70,12 +70,21 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 	]
 	layers = [
 		ALIFLayer(
-			input_size=Dimension(n_variables, DimensionProperty.NONE),
+			input_size=[
+				Dimension(None, DimensionProperty.TIME),
+				Dimension(None, DimensionProperty.TIME),
+				Dimension(n_variables, DimensionProperty.NONE)
+			],
 			use_recurrent_connection=params["use_recurrent_connection"],
 			learn_beta=params["learn_beta"],
 		),
 		*hidden_layers,
-		LILayer(output_size=n_variables),
+		LILayer(output_size=[
+				Dimension(None, DimensionProperty.TIME),
+				Dimension(None, DimensionProperty.TIME),
+				Dimension(n_variables, DimensionProperty.NONE)
+			]
+		),
 	]
 	if params["use_to_spikes"]:
 		layers.append(ReduceSum(axis=2))
@@ -97,8 +106,8 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		dataloaders["train"],
 		dataloaders["val"],
 		n_iterations=n_iterations,
-		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
-		# force_overwrite=True,
+		# load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
+		force_overwrite=True,
 		verbose=verbose,
 	)
 	try:

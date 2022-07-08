@@ -4,6 +4,7 @@ import numpy
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
+from torchvision.transforms import ToTensor
 
 import matplotlib.pyplot as plt
 from matplotlib import animation
@@ -94,7 +95,6 @@ class WilsonCowanTimeSeries:
         plt.ylim([0, 1])
         plt.show()
 
-    # TODO : add documentation and adapt variable's name
     def animate_timeseries(self, step: int = 4, time_interval: float = 1.0, node_size: float = 50, alpha: float = 0.01):
         """
         Animate the time series. The position of the nodes are obtained using the spring layout.
@@ -131,7 +131,7 @@ class WilsonCowanTimeSeries:
 
 
 # Example
-i = 2  # Num of neurons
+i = 200  # Num of neurons
 num_step = 5000
 dt = 0.1
 t_0 = np.random.rand(i, )
@@ -140,34 +140,37 @@ mu = 0
 r = np.random.rand(i, ) * 2
 tau = 1
 
-dynamic = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
 
-# dynamic.plot_timeseries(show_matrix=True)
-# dynamic.animate_timeseries(time_interval=0.1)
+#dynamic = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
+#
+#dynamic.plot_timeseries(show_matrix=True)
+#dynamic.animate_timeseries(time_interval=0.1)
+
+# plt.imshow(dynamic.compute_timeseries(), cmap="RdBu_r")
+# plt.show()
 
 
 class WilsonCowanDataset(Dataset):
     """
     Dataset for the Wilson-Cowan model.
     """
+
     def __init__(self,
-                 dynamic: object,
+                 time_series: numpy.array,
                  chunk_size: int,
                  ratio: float = 0.5,
                  transform: Optional[Callable] = to_tensor
                  ):
         """
-        :param dynamic: The dynamic of the Wilson-Cowan model. This object must have a compute_timeseries() method.
+        :param time_series: The time series of the Wilson-Cowan model.
         :param chunk_size: A chunk is a sequence of time series of length chunk_size.
         :param ratio: Ratio of the number of training and testing data. Always between 0 and 1 (non-inclusive).
         :param transform: Transform the data before returning it.
         """
         super().__init__()
-        self.dynamic = dynamic
-        self.timeseries = self.dynamic.compute_timeseries()
+        self.timeseries = time_series
         self.timeseries = transform(self.timeseries)
-        print(self.timeseries.shape)
-        self.num_step = dynamic.num_step
+        self.num_step = time_series.shape[1]
         self.chunk_size = chunk_size
         if ratio <= 0 or ratio >= 1:
             raise ValueError("ratio should be between 0 and 1 (non-inclusive)")
@@ -193,3 +196,53 @@ class WilsonCowanDataset(Dataset):
         x = chunk[:, : int(self.ratio * self.chunk_size)]
         y = chunk[:, int(self.ratio * self.chunk_size):]
         return x, y
+
+
+def get_dataloaders(
+        time_series: numpy.array,
+        *,
+        batch_size: int = 32,
+        train_val_split_ratio: float = 0.85,
+        chunk_size: int = 200,
+        ratio: float = 0.5,
+        nb_workers: int = 0
+):
+    """
+    Get a dataloader for the Wilson-Cowan model.
+    :param time_series: The time series of the Wilson-Cowan model.
+    :param batch_size: The size of the batch
+    :param train_val_split_ratio: Ratio of the number of training and testing data.
+    :param chunk_size: A chunk is a sequence of time series of length
+    :param ratio: Ratio of the number of training and testing data. Always between 0 and 1 (non-inclusive).
+    :param nb_workers: Number of workers.
+    :return:
+    """
+    list_of_transform = [
+        ToTensor(),
+        torch.flatten
+    ]
+    train_dataset = WilsonCowanDataset(
+        time_series=time_series,
+        chunk_size=chunk_size,
+        ratio=ratio,
+    )
+    test_dataset = WilsonCowanDataset(
+        time_series=time_series,
+        chunk_size=chunk_size,
+        ratio=ratio,
+    )
+    train_length = int(len(train_dataset) * train_val_split_ratio)
+    val_length = len(train_dataset) - train_length
+    train_set, val_set = torch.utils.data.random_split(train_dataset, [train_length, val_length])  # shuffle?
+
+    train_dataloader = DataLoader(
+        train_set, batch_size=batch_size, shuffle=True, num_workers=nb_workers
+    )
+    val_dataloader = DataLoader(
+        val_set, batch_size=batch_size, shuffle=True, num_workers=nb_workers
+    )
+    test_dataloader = DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=True, num_workers=nb_workers
+    )
+    return dict(train=train_dataloader, val=val_dataloader, test=test_dataloader)
+

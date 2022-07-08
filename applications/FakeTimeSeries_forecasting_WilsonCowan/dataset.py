@@ -169,7 +169,6 @@ class WilsonCowanDataset(Dataset):
         """
         super().__init__()
         self.timeseries = time_series
-        self.timeseries = transform(self.timeseries)
         self.num_step = time_series.shape[1]
         self.chunk_size = chunk_size
         if ratio <= 0 or ratio >= 1:
@@ -179,6 +178,7 @@ class WilsonCowanDataset(Dataset):
         if chunk_size > self.num_step:
             raise ValueError("chunk_size should be less than or equal to the number of time steps")
         self.ratio = ratio
+        self.transform = transform
 
     def __len__(self) -> int:
         """
@@ -191,11 +191,11 @@ class WilsonCowanDataset(Dataset):
         Separate the data that will be use for training (x) and testing (y)
         :param index: index of the first time step of the chunk
         """
-        print(self.timeseries.shape)
+        self.timeseries = self.transform(self.timeseries)
         chunk = self.timeseries[:, index:index + self.chunk_size]
         x = chunk[:, : int(self.ratio * self.chunk_size)]
         y = chunk[:, int(self.ratio * self.chunk_size):]
-        return x, y
+        return torch.transpose(x, 0, 1), torch.transpose(y, 0, 1)
 
 
 def get_dataloaders(

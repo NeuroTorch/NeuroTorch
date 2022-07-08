@@ -634,7 +634,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		"""
 		return None
 
-	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, None]:
+	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Tuple[None]]:
 		"""
 		Forward pass
 		With Euler discretisation, Wilson-Cowan equation becomes:
@@ -650,10 +650,10 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		ratio_dt_tau = self.dt / self.tau
 		if inputs.device != self.device:
 			inputs = inputs.to(self.device)
-		transition_rate = (1 - self.r * inputs)
-		sigmoid = torch.sigmoid(torch.matmul(self.forward_weights, inputs) - self.mu)
+		transition_rate = (1 - inputs * self.r)
+		sigmoid = torch.sigmoid(torch.matmul(inputs, self.forward_weights) - self.mu)
 		output = inputs * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
-		return output, None
+		return output, (None, )
 
 
 class LILayer(BaseNeuronsLayer):

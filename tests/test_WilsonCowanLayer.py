@@ -5,6 +5,7 @@ import numpy as np
 
 from src.neurotorch.modules.layers import WilsonCowanLayer
 
+# TODO : correct unit test by transposing the input
 
 class WilsonCowanLayerTest(unittest.TestCase):
 

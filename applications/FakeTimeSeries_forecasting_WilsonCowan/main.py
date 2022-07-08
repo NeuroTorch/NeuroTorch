@@ -27,6 +27,7 @@ r = np.random.rand(i, ) * 2
 tau = 1
 time_series = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau).compute_timeseries()
 
+
 def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_folder="tr_results", verbose=True):
     checkpoints_name = str(hash_params(params))
     checkpoint_folder = f"{data_folder}/{checkpoints_name}"

@@ -47,6 +47,10 @@ class BaseModel(torch.nn.Module):
 		# 	raise ValueError("Input sizes can only be set once.")
 		if input_sizes is not None:
 			self._input_sizes = self._format_sizes(input_sizes)
+
+			# TODO: mettre ces lignes dans le build et checker si le modèle possède seulement une layer, dans ce cas
+			# TODO: gérer les inputs transforms avec les keys des outputs. À mettre dans le build du séquentiel et
+			# TODO: laisser une note dans la doc de BaseModel que les child doivent caller la construction des transforms
 			self.input_transform: Dict[str, Callable] = self._make_input_transform(self._given_input_transform)
 			self._add_to_device_transform_()
 

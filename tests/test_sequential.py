@@ -1,5 +1,6 @@
 import unittest
 
+import numpy as np
 import torch
 
 from neurotorch.modules import ALIFLayer, LIFLayer, LILayer
@@ -288,4 +289,51 @@ class TestSequential(unittest.TestCase):
 		for k, v in model.output_layers.items():
 			self.assertEqual(int(v.input_size), model._default_n_hidden_neurons)
 
+	def test_format_hidden_outputs_traces(self):
+		data = torch.ones((32, 2))
+		time_steps = 10
+		hh_states = {
+			'0': [(0 * data, 1 * data, 2 * data) for _ in range(time_steps)]
+		}
+		hh_states_transposed = {
+			'0': tuple([torch.stack(e, dim=1) for e in list(zip(*hh_states['0']))])
+		}
+		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
+		self.assertTrue(all(torch.allclose(x, y) for x, y in zip(hh_states_transposed['0'], hh_pred['0'])))
+
+		hh_states = {
+			'0': [(data, ) for _ in range(time_steps)]
+		}
+		hh_states_transposed = {
+			'0': torch.stack([data for _ in range(time_steps)], dim=1)
+		}
+		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
+		self.assertTrue(all(torch.allclose(x, y) for x, y in zip(hh_states_transposed['0'], hh_pred['0'])))
+
+		hh_states = {
+			'0': [data for _ in range(time_steps)]
+		}
+		hh_states_transposed = {
+			'0': torch.stack([data for _ in range(time_steps)], dim=1)
+		}
+		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
+		self.assertTrue(all(torch.allclose(x, y) for x, y in zip(hh_states_transposed['0'], hh_pred['0'])))
+
+		hh_states = {
+			'0': [(None, ) for _ in range(time_steps)]
+		}
+		hh_states_transposed = {
+			'0': [None for _ in range(time_steps)]
+		}
+		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
+		self.assertTrue(np.allclose(hh_states_transposed['0'], hh_pred['0']))
+
+		hh_states = {
+			'0': [None for _ in range(time_steps)]
+		}
+		hh_states_transposed = {
+			'0': [None for _ in range(time_steps)]
+		}
+		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
+		self.assertTrue(np.allclose(hh_states_transposed['0'], hh_pred['0']))
 

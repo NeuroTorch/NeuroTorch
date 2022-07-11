@@ -5,7 +5,6 @@ import numpy as np
 
 from src.neurotorch.modules.layers import WilsonCowanLayer
 
-# TODO : correct unit test by transposing the input
 
 class WilsonCowanLayerTest(unittest.TestCase):
 
@@ -107,38 +106,38 @@ class WilsonCowanLayerTest(unittest.TestCase):
         Test if the layer is working on the correct device. The input is being place on the wrong device.
         The device indicated in the __init__ will be used.
         """
-        mu = torch.rand(3, 1, device='cpu')
-        r = torch.rand(3, 1, device='cpu')
+        mu = torch.rand(1, 3, device='cpu')
+        r = torch.rand(1, 3, device='cpu')
         layer = WilsonCowanLayer(input_size=3, output_size=3, mu=mu, r=r)
-        input_ = torch.rand(3, 1, device="cpu")
+        input_ = torch.rand(1, 3, device="cpu")
         output = layer(input_)
         self.assertIsInstance(output[0], torch.Tensor)
-        self.assertEqual(output[1], None)
-        self.assertEqual(output[0].shape, (3, 1))
+        self.assertEqual(output[1], (None, ))
+        self.assertEqual(output[0].shape, (1, 3))
         self.assertEqual(output[0].device.type, layer.device.type)
         self.assertEqual(layer.mu.device.type, layer.device.type)
         self.assertEqual(layer.r.device.type, layer.device.type)
 
-        mu = torch.rand(3, 1, device='cpu')
-        r = torch.rand(3, 1, device='cpu')
+        mu = torch.rand(1, 3, device='cpu')
+        r = torch.rand(1, 3, device='cpu')
         layer = WilsonCowanLayer(input_size=3, output_size=3, device=torch.device(type="cuda", index=0), mu=mu, r=r)
-        input_ = torch.rand(3, 1, device="cpu")
+        input_ = torch.rand(1, 3, device="cpu")
         output = layer(input_)
         self.assertIsInstance(output[0], torch.Tensor)
-        self.assertEqual(output[1], None)
-        self.assertEqual(output[0].shape, (3, 1))
+        self.assertEqual(output[1], (None, ))
+        self.assertEqual(output[0].shape, (1, 3))
         self.assertEqual(output[0].device, layer.device)
         self.assertEqual(layer.mu.device, layer.device)
         self.assertEqual(layer.r.device, layer.device)
 
-        mu = torch.rand(3, 1, device=torch.device(type="cuda", index=0))
-        r = torch.rand(3, 1, device=torch.device(type="cuda", index=0))
+        mu = torch.rand(1, 3, device=torch.device(type="cuda", index=0))
+        r = torch.rand(1, 3, device=torch.device(type="cuda", index=0))
         layer = WilsonCowanLayer(input_size=3, output_size=3, device=torch.device("cpu"), mu=mu, r=r)
-        input_ = torch.rand(3, 1, device=torch.device(type="cuda", index=0))
+        input_ = torch.rand(1, 3, device=torch.device(type="cuda", index=0))
         output = layer(input_)
         self.assertIsInstance(output[0], torch.Tensor)
-        self.assertEqual(output[1], None)
-        self.assertEqual(output[0].shape, (3, 1))
+        self.assertEqual(output[1], (None, ))
+        self.assertEqual(output[0].shape, (1, 3))
         self.assertEqual(output[0].device, layer.device)
         self.assertEqual(layer.mu.device, layer.device)
         self.assertEqual(layer.r.device, layer.device)
@@ -147,14 +146,14 @@ class WilsonCowanLayerTest(unittest.TestCase):
         """
         Test if the forward method works correctly by returning a coherent output
         """
-        mu = torch.rand(3, 1)
-        r = torch.rand(3, 1)
+        mu = torch.rand(1, 3)
+        r = torch.rand(1, 3)
         layer = WilsonCowanLayer(input_size=3, output_size=3, mu=mu, r=r)
-        input_ = torch.rand(3, 1)
+        input_ = torch.rand(1, 3)
         output = layer(input_)
         self.assertIsInstance(output[0], torch.Tensor)
-        self.assertEqual(output[1], None)
-        self.assertEqual(output[0].shape, (3, 1))
+        self.assertEqual(output[1], (None, ))
+        self.assertEqual(output[0].shape, (1, 3))
 
     def test_intialize_weights(self):
         """
@@ -186,7 +185,7 @@ class WilsonCowanLayerTest(unittest.TestCase):
         Test if the backward method works correctly
         """
         layer = WilsonCowanLayer(input_size=3, output_size=3, device=torch.device("cpu"))
-        input_ = torch.rand(3, 1)
+        input_ = torch.rand(1, 3)
         output = layer(input_)[0]
         output.mean().backward()
         self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
@@ -195,11 +194,11 @@ class WilsonCowanLayerTest(unittest.TestCase):
         self.assertEqual(layer.mu.grad, None)
         self.assertEqual(layer.r.grad, None)
 
-        mu = torch.rand(3, 1)
-        r = torch.rand(3, 1)
+        mu = torch.rand(1, 3)
+        r = torch.rand(1, 3)
         layer = WilsonCowanLayer(input_size=3, output_size=3, device=torch.device(type="cuda", index=0), mu=mu, r=r,
                                  learn_mu=True, learn_r=True)
-        input_ = torch.rand(3, 1)
+        input_ = torch.rand(1, 3)
         output = layer(input_)[0]
         output.mean().backward()
         self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
@@ -213,35 +212,35 @@ class WilsonCowanLayerTest(unittest.TestCase):
         Test if the output result match the true data
         """
         layer = WilsonCowanLayer(input_size=60, output_size=60)
-        input_ = torch.rand(60, 1, device=layer.device)
+        input_ = torch.rand(1, 60, device=layer.device)
         output = layer(input_)[0]
         ratio_dt_tau = layer.dt / layer.tau
         transition_rate = (1 - layer.r * input_)
-        sigmoid = (torch.sigmoid(torch.matmul(layer.forward_weights, input_) - layer.mu))
+        sigmoid = (torch.sigmoid(torch.matmul(input_, layer.forward_weights) - layer.mu))
         true_output = input_ * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
         self.assertEqual(output.all(), true_output.all())
 
         # If mu and r have a default value
-        mu = torch.rand(60, 1, device="cpu")
-        r = torch.rand(60, 1, device="cpu")
+        mu = torch.rand(1, 60, device="cpu")
+        r = torch.rand(1, 60, device="cpu")
         layer = WilsonCowanLayer(input_size=60, output_size=60, mu=mu)
-        input_ = torch.rand(60, 1, device=layer.device)
+        input_ = torch.rand(1, 60, device=layer.device)
         output = layer(input_)[0]
         ratio_dt_tau = layer.dt / layer.tau
         transition_rate = (1 - layer.r * input_)
-        sigmoid = (torch.sigmoid(torch.matmul(layer.forward_weights, input_) - layer.mu))
+        sigmoid = (torch.sigmoid(torch.matmul(input_, layer.forward_weights) - layer.mu))
         true_output = input_ * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
         self.assertEqual(output.all(), true_output.all())
 
         # If input_ has multiple time steps
-        mu = torch.rand(60, 1, device="cpu")
-        r = torch.rand(60, 1, device="cpu")
+        mu = torch.rand(1, 60, device="cpu")
+        r = torch.rand(1, 60, device="cpu")
         layer = WilsonCowanLayer(input_size=60, output_size=60, mu=mu)
-        input_ = torch.rand(60, 10, device=layer.device)
+        input_ = torch.rand(10, 60, device=layer.device)
         output = layer(input_)[0]
         ratio_dt_tau = layer.dt / layer.tau
         transition_rate = (1 - layer.r * input_)
-        sigmoid = (torch.sigmoid(torch.matmul(layer.forward_weights, input_) - layer.mu))
+        sigmoid = (torch.sigmoid(torch.matmul(input_, layer.forward_weights) - layer.mu))
         true_output = input_ * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
         self.assertEqual(output.all(), true_output.all())
 

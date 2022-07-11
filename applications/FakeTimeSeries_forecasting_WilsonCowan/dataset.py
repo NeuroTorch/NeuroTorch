@@ -61,10 +61,12 @@ class WilsonCowanTimeSeries:
         """
         return (-input + (1 - self.r * input) * self._sigmoid(self.forward_weights @ input - self.mu)) / self.tau
 
-    def compute_timeseries(self) -> numpy.array:
+    def compute_timeseries(self, transpose: bool = False) -> numpy.array:
         """
         Compute a time series using Runge-Kutta of fourth order. The time series is compute
         from the initial condition t_0 and the forward weights.
+        :param transpose: If True, the time series is returned in a column vector. Needs to be if you want to use
+        the time series directly in the WilsonCowanLayer. It is automatically transpose in the get_dataset.
         """
         num_neurons = self.t_0.shape[0]
         timeseries = np.zeros((num_neurons, self.num_step))
@@ -77,6 +79,8 @@ class WilsonCowanTimeSeries:
             k4 = self.dt * self._dydx(input + k3)
             timeseries[:, i] = input + (k1 + 2 * k2 + 2 * k3 + k4) / 6
 
+        if transpose:
+            return timeseries.T
         return timeseries
 
     def plot_timeseries(self, show_matrix: bool = False):
@@ -131,23 +135,19 @@ class WilsonCowanTimeSeries:
 
 
 # Example
-i = 200  # Num of neurons
-num_step = 5000
-dt = 0.1
-t_0 = np.random.rand(i, )
-forward_weights = 8 * np.random.randn(i, i)
-mu = 0
-r = np.random.rand(i, ) * 2
-tau = 1
-
-
-#dynamic = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
+# i = 200  # Num of neurons
+# num_step = 5000
+# dt = 0.1
+# t_0 = np.random.rand(i, )
+# forward_weights = 8 * np.random.randn(i, i)
+# mu = 0
+# r = np.random.rand(i, ) * 2
+# tau = 1
 #
-#dynamic.plot_timeseries(show_matrix=True)
-#dynamic.animate_timeseries(time_interval=0.1)
-
-# plt.imshow(dynamic.compute_timeseries(), cmap="RdBu_r")
-# plt.show()
+# dynamic = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
+#
+# dynamic.plot_timeseries(show_matrix=True)
+# dynamic.animate_timeseries(time_interval=0.1)
 
 
 class WilsonCowanDataset(Dataset):
@@ -162,7 +162,7 @@ class WilsonCowanDataset(Dataset):
                  transform: Optional[Callable] = to_tensor
                  ):
         """
-        :param time_series: The time series of the Wilson-Cowan model.
+        :param time_series: The time series of the Wilson-Cowan model. Must use shape (num_neuron, step)
         :param chunk_size: A chunk is a sequence of time series of length chunk_size.
         :param ratio: Ratio of the number of training and testing data. Always between 0 and 1 (non-inclusive).
         :param transform: Transform the data before returning it.
@@ -190,6 +190,7 @@ class WilsonCowanDataset(Dataset):
         """
         Separate the data that will be use for training (x) and testing (y)
         :param index: index of the first time step of the chunk
+        :returns The transpose of x and y. We need the transpose for the WilsonCowanLayer (to include the batch_size)
         """
         self.timeseries = self.transform(self.timeseries)
         chunk = self.timeseries[:, index:index + self.chunk_size]

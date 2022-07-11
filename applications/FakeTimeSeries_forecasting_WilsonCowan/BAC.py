@@ -1,6 +1,8 @@
 # File for test. Will not be added to the repository.
 
 import numpy as np
+import torch.cuda
+
 from dataset import WilsonCowanTimeSeries
 import matplotlib.pyplot as plt
 

@@ -95,14 +95,14 @@ if __name__ == '__main__':
     results = train_with_params(
         {
             "time_series": time_series,
-            "batch_size": 32,
+            "batch_size": 256,
             "train_val_split_ratio": 0.8,
             "chunk_size": 100,
             "ratio": 0.5,
             "num_hidden_layers": 1,
             "hidden_layer_size": 2
         },
-        n_iterations=100,
+        n_iterations=5,
         verbose=True
     )
     pprint.pprint(results, indent=4)

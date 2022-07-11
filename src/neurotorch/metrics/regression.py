@@ -20,6 +20,7 @@ class RegressionMetrics(BaseMetrics):
 			f"mse{sep}mean_squared_error": RegressionMetrics.mean_squared_error,
 			f"r2": RegressionMetrics.r2,
 			f"d2{sep}d2_tweedie": RegressionMetrics.d2_tweedie,
+			f"p_var": RegressionMetrics.p_var,
 		}
 
 	@staticmethod
@@ -151,6 +152,48 @@ class RegressionMetrics(BaseMetrics):
 		if isinstance(y_true, dict):
 			return {k: sk_metrics.d2_tweedie_score(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
 		return sk_metrics.d2_tweedie_score(y_true.flatten(), y_pred.flatten())
+
+	@staticmethod
+	def p_var(
+			model: Optional[BaseModel] = None,
+			dataloader: Optional[DataLoader] = None,
+			y_true: Optional[np.ndarray] = None,
+			y_pred: Optional[np.ndarray] = None,
+			device: Optional[torch.device] = None,
+			verbose: bool = False,
+			desc: Optional[str] = None,
+			p_bar_position: int = 0,
+	) -> Union[float, Dict[str, float]]:
+		"""
+		Compute the p-value of the variance of the prediction.
+		:param model: The model to use for computing the p-value.
+		:param dataloader: The dataloader to use for computing the p-value.
+		:param y_true: The true values.
+		:param y_pred: The predicted values.
+		:param device: The device to use for computing the p-value.
+		:param verbose: Whether to print progress.
+		:param desc: The description to use for the progress bar.
+		:param p_bar_position: The position of the progress bar.
+		:return: The p-value of the variance of the prediction.
+		"""
+		if y_true is None:
+			assert y_pred is None
+			assert model is not None, "Either model or y_pred and y_true must be supplied."
+			assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
+			y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
+				model=model, dataloader=dataloader, device=device,
+				verbose=verbose, desc=desc, p_bar_position=p_bar_position
+			)
+
+		# TODO: clean up this code
+		def _p_var(_y_true, _y_pred):
+			_y_true, _y_pred = torch.from_numpy(_y_true).to(device), torch.from_numpy(_y_pred).to(device)
+			m = 1 - (torch.norm(_y_pred - _y_true) / torch.norm(_y_true - torch.mean(_y_true)))**2
+			return m.detach().cpu().numpy()
+
+		if isinstance(y_true, dict):
+			return {k: _p_var(y_true[k], y_pred[k]) for k in y_true}
+		return _p_var(y_true, y_pred)
 
 	def __call__(
 			self,

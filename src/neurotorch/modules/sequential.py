@@ -168,6 +168,8 @@ class SequentialModel(BaseModel):
 		assert self._memory_size is None or self._memory_size > 0, "The memory size must be greater than 0 or None."
 		self._outputs_to_inputs_names_map: Optional[Dict[str, str]] = None
 
+		# TODO: change the devices of the layers to be the same as the model.
+
 	def get_all_layers(self) -> List[nn.Module]:
 		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
 

@@ -95,7 +95,7 @@ if __name__ == '__main__':
     results = train_with_params(
         {
             "time_series": time_series,
-            "batch_size": 256,
+            "batch_size": 64,
             "train_val_split_ratio": 0.8,
             "chunk_size": 100,
             "ratio": 0.5,

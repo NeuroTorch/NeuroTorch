@@ -702,11 +702,13 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		:keyword Arguments:
 			* <std_weight>: float -> Instability of the initial random matrix
 			* <mu>: float or torch.Tensor -> Activation threshold
+				If torch.Tensor -> shape (1, number of neurons)
 			* <tau>: float -> Decay constant of RNN unit
 			* <learn_mu>: bool -> Whether to train the activation threshold
 			* <mean_mu>: float -> Mean of the activation threshold (if learn_mu is True)
 			* <std_mu>: float -> Standard deviation of the activation threshold (if learn_mu is True)
 			* <r>: float or torch.Tensor -> Transition rate of the RNN unit
+				If torch.Tensor -> shape (1, number of neurons)
 			* <learn_r>: bool -> Whether to train the transition rate
 			* <mean_r>: float -> Mean of the transition rate (if learn_r is True)
 			* <std_r>: float -> Standard deviation of the transition rate (if learn_r is True)
@@ -769,12 +771,12 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		# unless stated otherwise by user.
 		if self.learn_mu:
 			if self.mu.dim() == 0:  # if mu is a scalar and a parameter -> convert it to a vector
-				self.mu = torch.empty((self.forward_weights.shape[0], 1), dtype=torch.float32, device=self.device)
+				self.mu = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
 			self.mu = torch.nn.Parameter(self.mu, requires_grad=True)
 			torch.nn.init.normal_(self.mu, mean=self.mean_mu, std=self.std_mu)
 		if self.learn_r:
 			if self.r.dim() == 0:
-				self.r = torch.empty((self.forward_weights.shape[0], 1), dtype=torch.float32, device=self.device)
+				self.r = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
 			self.r = torch.nn.Parameter(self.r, requires_grad=True)
 			torch.nn.init.normal_(self.r, mean=self.mean_r, std=self.std_r)
 
@@ -786,12 +788,13 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		"""
 		return None
 
-	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, None]:
+	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Tuple[None]]:
 		"""
 		Forward pass
 		With Euler discretisation, Wilson-Cowan equation becomes:
 		output = input * (1 - dt/tau) + dt/tau * (1 - r @ input) * sigmoid(forward_weights @ input - mu)
-		:param inputs: time series at a time t
+		:param inputs: time series at a time t of shape (batch_size, number of neurons)
+			Remark: if use to compute a time series, use batch_size = 1
 		:param state: State of the layer (only for SNN -> not use for RNN)
 		:return: (time series at a time t+1, State of the layer -> None)
 		"""
@@ -802,10 +805,10 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		ratio_dt_tau = self.dt / self.tau
 		if inputs.device != self.device:
 			inputs = inputs.to(self.device)
-		transition_rate = (1 - self.r * inputs)
-		sigmoid = torch.sigmoid(torch.matmul(self.forward_weights, inputs) - self.mu)
+		transition_rate = (1 - inputs * self.r)
+		sigmoid = torch.sigmoid(torch.matmul(inputs, self.forward_weights) - self.mu)
 		output = inputs * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
-		return output, None
+		return output, (None, )
 
 
 class LILayer(BaseNeuronsLayer):

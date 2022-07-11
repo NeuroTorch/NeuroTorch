@@ -20,6 +20,58 @@ IntDimension = Union[int, Dimension]
 
 
 class SequentialModel(BaseModel):
+
+	@staticmethod
+	def _format_hidden_outputs_traces(
+			hidden_states: Dict[str, List[Tuple[torch.Tensor, ...]]]
+	) -> Dict[str, Tuple[torch.Tensor, ...]]:
+		"""
+		Permute the hidden states to have a dictionary of shape {layer_name: (tensor, ...)}
+		trace can be a list of :
+			- Tensor -> list[torch.Tensor]
+			- Tuple or list of Tensor or None -> Iterable[torch.Tensor] or Iterable[None]
+		If the list has those format, it will be converted to a dictionary of shape {layer_name: (tensor, ...)}
+		However, if you decide to format trace differently (empty list, numpy array ...) it won't be reshape into
+		a dict. The new hidden states will therefore stay the same as the hidden_state.
+		Also, please note that if all the element of your list are not the same type, it will raise an error. However,
+		if you use a list of iterable, it will NOT check if all the element of the iterable are the same type. This
+		decision was done to reduce the computation time. Make sure all the element of your list are the same type to
+		avoid error.
+		:param hidden_states: Dictionary of hidden states
+		:return: Dictionary of hidden states with the shape {layer_name: (tensor, ...)}
+		"""
+		new_hidden_states = {}
+		for layer_name, trace in hidden_states.items():
+			if len(trace) == 0:
+				new_hidden_states[layer_name] = trace
+				continue
+			trace_element_type = type(trace[0])
+			if not all(isinstance(e, trace_element_type) for e in trace):
+				raise ValueError("The hidden states returned by the layers must always have the same type")
+			# if trace is a list of tensors :
+			if issubclass(trace_element_type, torch.Tensor):
+				new_hidden_states[layer_name] = torch.stack(trace, dim=1)
+
+			# if trace is a list of iterable: :
+			elif issubclass(trace_element_type, Iterable):
+				internal_trace_element_type = type(trace[0][0])
+				# if the iterable is a list of None:
+				if issubclass(internal_trace_element_type, type(None)):
+					new_hidden_states[layer_name] = [None] * len(trace)
+				# if the iterable is a list of tensors:
+				elif issubclass(internal_trace_element_type, torch.Tensor):
+					new_hidden_states[layer_name] = tuple([torch.stack(e, dim=1) for e in list(zip(*trace))])
+				# If the iterable has an other format, it will be kept as it is
+				else:
+					new_hidden_states[layer_name] = trace
+			# If the list has another format, it will be kept as it is
+			else:
+				new_hidden_states[layer_name] = trace
+			# else (if trace is a list of scalar or a list of None):
+			# new_hidden_states[layer_name] = trace
+			#
+		return new_hidden_states
+
 	def __new__(
 			cls,
 			*,
@@ -115,6 +167,8 @@ class SequentialModel(BaseModel):
 		self._memory_size: Optional[int] = self.kwargs.get("memory_size", None)
 		assert self._memory_size is None or self._memory_size > 0, "The memory size must be greater than 0 or None."
 		self._outputs_to_inputs_names_map: Optional[Dict[str, str]] = None
+
+		# TODO: change the devices of the layers to be the same as the model.
 
 	def get_all_layers(self) -> List[nn.Module]:
 		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
@@ -330,25 +384,26 @@ class SequentialModel(BaseModel):
 			self._memory_size = max_time_steps
 		return {k: self._format_single_inputs(in_tensor, max_time_steps) for k, in_tensor in inputs.items()}
 
+	def _inputs_to_dict(self, inputs: Union[Dict[str, Any], torch.Tensor]):
+		"""
+		Transform the inputs tensor into dictionnary of tensors.
+		:param inputs: The inputs of the network.
+		:return: The transformed inputs.
+		"""
+		keys = list(self.input_layers.keys())
+		if len(keys) == 0 and len(list(self.output_layers.keys())) > 0:
+			keys = self.output_layers.keys()
+		if isinstance(inputs, torch.Tensor):
+			inputs = {k: inputs for k in keys}
+		else:
+			if set(inputs.keys()) != set(keys):
+				raise ValueError("inputs must have the same keys as the input layers")
+		return inputs
+
 	def _get_time_steps_from_inputs(self, inputs: Dict[str, torch.Tensor]) -> int:
 		time_steps_entries = [in_tensor.shape[1] for in_tensor in inputs.values()]
 		assert len(set(time_steps_entries)) == 1, "inputs must have the same time steps"
 		return time_steps_entries[0]
-
-	def _format_hidden_outputs_traces(
-			self,
-			hidden_states: Dict[str, List[Tuple[torch.Tensor, ...]]]
-	) -> Dict[str, Tuple[torch.Tensor, ...]]:
-		"""
-		Permute the hidden states to have a dictionary of shape {layer_name: (tensor, ...)}
-		:param hidden_states: Dictionary of hidden states
-		:return: Dictionary of hidden states with the shape {layer_name: (tensor, ...)}
-		"""
-		hidden_states = {
-			layer_name: tuple([torch.stack(e, dim=1) for e in list(zip(*trace))])
-			for layer_name, trace in hidden_states.items()
-		}
-		return hidden_states
 
 	def _pop_memory_(self, memory: List[Any]) -> List[Any]:
 		"""
@@ -496,12 +551,8 @@ class SequentialModel(BaseModel):
 						names of the layers. The values of the dictionaries are lists of tensors. The length of the
 						lists is the number of time steps.
 		"""
-		if isinstance(inputs, torch.Tensor):
-			inputs = {k: inputs for k in self.input_layers.keys()}
-		else:
-			if set(inputs.keys()) != set(self.input_layers.keys()):
-				raise ValueError("inputs must have the same keys as the input layers")
-		inputs = self.apply_transform(inputs)
+		inputs = self._inputs_to_dict(inputs)
+		# inputs = self.apply_transform(inputs)
 		inputs = self._format_inputs(inputs)
 		time_steps = self._get_time_steps_from_inputs(inputs)
 		hidden_states = self._init_hidden_states_memory()

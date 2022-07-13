@@ -147,7 +147,7 @@ class Trainer:
 	
 	def _set_default_device(self, device: Optional[torch.device]) -> torch.device:
 		if device is None:
-			device = self.model.device
+			device = self.model._device
 		return device
 	
 	@staticmethod
@@ -303,7 +303,7 @@ class Trainer:
 	def _batch_to_dense(self, batch):
 		if isinstance(batch, dict):
 			return {k: self._batch_to_dense(v) for k, v in batch.items()}
-		if isinstance(batch, torch.Tensor):
+		if isinstance(batch, torch.Tensor) and batch.is_sparse:
 			return batch.to_dense()
 		return batch
 

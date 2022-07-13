@@ -27,7 +27,7 @@ class Visualise:
         :param timeseries: Time series of shape (num_sample, num_variable). Make sure the time series is a numpy array
         """
         self.timeseries = timeseries
-        sel, self.num_sample = self.timeseries.shape
+        self.num_sample, self.num_variable = self.timeseries.shape
         if apply_zscore:
             for i in range(self.num_sample):
                 self.timeseries[i] = (self.timeseries[i] - np.mean(self.timeseries[i])) / np.std(self.timeseries[i])
@@ -48,7 +48,7 @@ class Visualise:
         :param node_size: Size of the nodes
         :param alpha: Density of the connections. Small network should have a higher alpha value.
         """
-        num_frames = self.num_sample // step
+        num_frames = self.num_variable // step
         connectome = nx.from_numpy_array(forward_weights)
         pos = nx.spring_layout(connectome)
         fig, ax = plt.subplots(figsize=(7, 7))
@@ -57,13 +57,13 @@ class Visualise:
         nx.draw_networkx_edges(connectome, pos, ax=ax, width=1.0, alpha=alpha)
         x, y = ax.get_xlim()[0], ax.get_ylim()[1]
         plt.axis("off")
-        text = ax.text(0, 1.15, rf"$t = 0 / {self.num_sample * dt}$", ha="center")
+        text = ax.text(0, 1.15, rf"$t = 0 / {self.num_variable * dt}$", ha="center")
         plt.tight_layout(pad=0)
 
         def _animation(i):
             nodes = nx.draw_networkx_nodes(connectome, pos, ax=ax, node_size=node_size,
                                            node_color=self.timeseries[:, i * step], cmap="hot")
-            text.set_text(rf"$t = {i * step * dt:.3f} / {self.num_sample * dt}$")
+            text.set_text(rf"$t = {i * step * dt:.3f} / {self.num_variable * dt}$")
             return nodes, text
 
         anim = animation.FuncAnimation(fig, _animation, frames=num_frames, interval=time_interval, blit=True)
@@ -75,10 +75,10 @@ class Visualise:
         :param dt: Time step
         """
         if dt is not None:
-            time = np.linspace(0, self.num_sample * dt, self.num_sample)
+            time = np.linspace(0, self.num_variable * dt, self.num_variable)
             plt.xlabel("Time [s]")
         else:
-            time = np.linspace(0, self.num_sample, self.num_sample)
+            time = np.linspace(0, self.num_variable, self.num_variable)
             plt.xlabel("Time step [-]")
 
         plt.plot(time.T, self.timeseries.T)
@@ -159,12 +159,13 @@ class VisualiseKMeans(Visualise):
                 if labels[i] == cluster:
                     permuted_timeseries[position] = self.timeseries[i]
                     position += 1
+        print(permuted_timeseries)
         return permuted_timeseries
 
 
 class VisualisePCA(Visualise):
     """
-    Visualise the time series using PCA algorithm of dimensionality reduction
+    Visualise the time series using PCA algorithm of dimensionality reduction. PCA is apply on the variable
     """
     def __init__(self, timeseries: np.array,
                  apply_zscore: bool = False,
@@ -288,6 +289,7 @@ class VisualiseUMAP(Visualise):
         self.n_neighbors = n_neighbors
         self.min_dist = min_dist
         self.n_components = n_components
+        self.reduced_timeseries = self._compute_umap()
 
     def _compute_umap(self):
         umap = UMAP(
@@ -296,34 +298,50 @@ class VisualiseUMAP(Visualise):
             n_components=self.n_components,
             metric="euclidian"
         )
+        reduced_timeseries = umap.fit_transform(self.timeseries)
+        return reduced_timeseries
 
+    def with_kmeans(self, n_clusters: int = 13, random_state: int = 0):
+        """
+        Apply K-means clustering to the PCA space as coloring.
+        :param n_clusters: Number of clusters.
+        :param random_state: Determines random number generation for centroid initialization.
+            Example: VisualisePCA(data).with_kmeans(n_clusters=13, random_state=0).scatter_umap()
+        """
+        kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(self.reduced_timeseries)
+        self.kmean_label = kmeans.labels_
+        return self
 
+    def scatter_umap(self):
+        pass
 
-
+    def trajectory_umap(self):
+        pass
 
 
 if __name__ == '__main__':
-    # large dataset
-    ts = np.load('timeSeries_2020_12_16_cr3_df.npy')
-    n_neurons, n_steps = ts.shape
-    # z-scored data
-    ts_z = np.zeros((n_neurons, n_steps))
-    for i in range(n_neurons):
-        ts_z[i, :] = (ts[i, :] - np.mean(ts[i, :])) / np.std(ts[i, :])
-    # small sample
-    sample_size = 500
-    sample = np.random.randint(n_neurons, size=sample_size)
-    data = ts_z[sample, :]
-    VisualisePCA(data.T, n_PC=2).trajectory_pca(PCs=[1, 2], with_smooth=True, reduction=4)
+    # # large dataset
+    # ts = np.load('timeSeries_2020_12_16_cr3_df.npy')
+    # n_neurons, n_steps = ts.shape
+    # # z-scored data
+    # ts_z = np.zeros((n_neurons, n_steps))
+    # for i in range(n_neurons):
+    #     ts_z[i, :] = (ts[i, :] - np.mean(ts[i, :])) / np.std(ts[i, :])
+    # # small sample
+    # sample_size = 500
+    # sample = np.random.randint(n_neurons, size=sample_size)
+    # data = ts_z[sample, :]
+    # VisualisePCA(data.T).trajectory_pca([1, 2], with_smooth=True, reduction=5)
 
-    # i = 350  # Num of neurons
-    # num_step = 5000
-    # dt = 0.1
-    # t_0 = np.random.rand(i, )
-    # forward_weights = 8 * np.random.randn(i, i)
-    # mu = 0
-    # r = np.random.rand(i, ) * 2
-    # tau = 1
-    #
-    # dynamic = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
-    # VisualiseKMeans(dynamic.compute_timeseries()).heatmap()
+
+    i = 350  # Num of neurons
+    num_step = 5000
+    dt = 0.1
+    t_0 = np.random.rand(i, )
+    forward_weights = 8 * np.random.randn(i, i)
+    mu = 0
+    r = np.random.rand(i, ) * 2
+    tau = 1
+
+    dynamic = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
+    VisualisePCA(dynamic.compute_timeseries()).animate(forward_weights, dt, time_interval=0.1)

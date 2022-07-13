@@ -113,13 +113,14 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 			use_recurrent_connection=params["use_recurrent_connection"],
 			learn_beta=params["learn_beta"],
 			input_size=n_hidden_neurons[i],
-			output_size=n
+			output_size=n,
+			spike_func=SpikeFuncType2Func[params["spike_func"]],
 		)
 		for i, n in enumerate(n_hidden_neurons[1:])
 	] if len(n_hidden_neurons) > 1 else []
 	network = SequentialModel(
 		layers=[
-			ALIFLayer(
+			LayerType2Layer[params["hidden_layer_type"]](
 				input_size=Dimension(28*28, DimensionProperty.NONE),
 				use_recurrent_connection=params["use_recurrent_connection"],
 				learn_beta=params["learn_beta"],

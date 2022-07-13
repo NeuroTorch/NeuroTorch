@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans, DBSCAN
+from scipy import interpolate
+from umap import UMAP
 
 
 class Visualise:
@@ -17,14 +19,17 @@ class Visualise:
         3. Rigid plot of the time series
         4. Plot all the neuronal activity in one figure
     """
-    def __init__(self, timeseries: np.array, apply_zscore: bool = False):
+    def __init__(self,
+                 timeseries: np.array,
+                 apply_zscore: bool = False
+                 ):
         """
-        :param timeseries: Time series of shape (num_neuron, num_step). Make sure the time series is a numpy array
+        :param timeseries: Time series of shape (num_sample, num_variable). Make sure the time series is a numpy array
         """
         self.timeseries = timeseries
-        self.num_neuron, self.num_step = timeseries.shape
+        sel, self.num_sample = self.timeseries.shape
         if apply_zscore:
-            for i in range(self.num_neuron):
+            for i in range(self.num_sample):
                 self.timeseries[i] = (self.timeseries[i] - np.mean(self.timeseries[i])) / np.std(self.timeseries[i])
 
     def animate(self, forward_weights, dt, step: int = 4, time_interval: float = 1.0,
@@ -43,7 +48,7 @@ class Visualise:
         :param node_size: Size of the nodes
         :param alpha: Density of the connections. Small network should have a higher alpha value.
         """
-        num_frames = self.num_step // step
+        num_frames = self.num_sample // step
         connectome = nx.from_numpy_array(forward_weights)
         pos = nx.spring_layout(connectome)
         fig, ax = plt.subplots(figsize=(7, 7))
@@ -52,13 +57,13 @@ class Visualise:
         nx.draw_networkx_edges(connectome, pos, ax=ax, width=1.0, alpha=alpha)
         x, y = ax.get_xlim()[0], ax.get_ylim()[1]
         plt.axis("off")
-        text = ax.text(0, 1.15, rf"$t = 0 / {self.num_step * dt}$", ha="center")
+        text = ax.text(0, 1.15, rf"$t = 0 / {self.num_sample * dt}$", ha="center")
         plt.tight_layout(pad=0)
 
         def _animation(i):
             nodes = nx.draw_networkx_nodes(connectome, pos, ax=ax, node_size=node_size,
                                            node_color=self.timeseries[:, i * step], cmap="hot")
-            text.set_text(rf"$t = {i * step * dt:.3f} / {self.num_step * dt}$")
+            text.set_text(rf"$t = {i * step * dt:.3f} / {self.num_sample * dt}$")
             return nodes, text
 
         anim = animation.FuncAnimation(fig, _animation, frames=num_frames, interval=time_interval, blit=True)
@@ -70,10 +75,10 @@ class Visualise:
         :param dt: Time step
         """
         if dt is not None:
-            time = np.linspace(0, self.num_step * dt, self.num_step)
+            time = np.linspace(0, self.num_sample * dt, self.num_sample)
             plt.xlabel("Time [s]")
         else:
-            time = np.linspace(0, self.num_step, self.num_step)
+            time = np.linspace(0, self.num_sample, self.num_sample)
             plt.xlabel("Time step [-]")
 
         plt.plot(time.T, self.timeseries.T)
@@ -108,34 +113,40 @@ class Visualise:
         ax.set_ylabel("Neuron ID [-]")
         if not show_axis:
             ax.axis("off")
-        for i in range(self.num_neuron):
+        for i in range(self.num_sample):
             shifted_timeseries = self.timeseries[i] - np.min(self.timeseries[i])
             shifted_timeseries = shifted_timeseries / np.max(shifted_timeseries) + 0.8 * i
             ax.plot(shifted_timeseries, c="k", alpha=0.9, linewidth=1.0)
         plt.show()
 
 
-class VisualisePCA(Visualise):
-
-    def __init__(self, timeseries: np.array, apply_zscore: bool = False):
-        super().__init__(
-            timeseries=timeseries,
-            apply_zscore=apply_zscore
-        )
-
 class VisualiseKMeans(Visualise):
-
-    def __init__(self, timeseries: np.array, apply_zscore: bool = False, n_cluster: int = 13, random_state: int = 0):
+    """
+    Visualise the time series using only a K-means algorithm of clustering
+    """
+    def __init__(self,
+                 timeseries: np.array,
+                 apply_zscore: bool = False,
+                 n_clusters: int = 13,
+                 random_state: int = 0
+                 ):
+        """
+        :param timeseries: Time series of shape (num_sample, num_sample). Make sure the time series is a numpy array
+        :param apply_zscore: Whether to apply z-score or not.
+        :param n_clusters: Number of clusters.
+        :param random_state: Determines random number generation for centroid initialization.
+        Use an int to make the randomness deterministic
+        """
         super().__init__(
             timeseries=timeseries,
             apply_zscore=apply_zscore
         )
-        self.n_cluster = n_cluster
+        self.n_clusters = n_clusters
         self.random_state = random_state
         self.timeseries = self._permute_timeseries()
 
     def _compute_kmeans_labels(self):
-        kmeans = KMeans(n_clusters=self.n_cluster, random_state=self.random_state).fit(self.timeseries)
+        kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(self.timeseries)
         return kmeans.labels_
 
     def _permute_timeseries(self):
@@ -144,32 +155,149 @@ class VisualiseKMeans(Visualise):
         permuted_timeseries = np.zeros_like(self.timeseries)
         position = 0
         for cluster in cluster_labels:
-            for i in range(self.num_neuron):
+            for i in range(self.num_sample):
                 if labels[i] == cluster:
                     permuted_timeseries[position] = self.timeseries[i]
                     position += 1
         return permuted_timeseries
 
-    def _permutedV2(self):
-        pass
 
-    def heatmap(self, show_axis: bool = True, interpolation: str = "nearest", cmap: str = "RdBu_r",
-                v: list[float, float] = [0.0, 1.0]):
+class VisualisePCA(Visualise):
+    """
+    Visualise the time series using PCA algorithm of dimensionality reduction
+    """
+    def __init__(self, timeseries: np.array,
+                 apply_zscore: bool = False,
+                 n_PC: int = 5
+                 ):
         """
-        Plot the heatmap of the time series.
-        :param show_axis: Whether to show the axis or not.
-        :param interpolation: Type of interpolation between the time step.
-        :param cmap: Colormap of the heatmap.
-        :param v: Range of the colorbar.
+        :param timeseries: Time series of shape (num_sample, num_sample). Make sure the time series is a numpy array
+        :param apply_zscore: Whether to apply z-score or not.
+        :param n_PC: Number of principal components.
         """
-        plt.figure(figsize=(16, 8))
-        plt.imshow(self.timeseries, interpolation=interpolation, aspect="auto", cmap=cmap, vmin=v[0], vmax=v[1])
-        plt.xlabel("Time step [-]")
-        plt.ylabel("Neuron ID [-]")
-        if not show_axis:
-            plt.axis("off")
-        plt.colorbar()
+        super().__init__(
+            timeseries=timeseries,
+            apply_zscore=apply_zscore
+        )
+        self.n_PC = n_PC
+        self.params = {}
+        self.reduced_timeseries, self.params["var_ratio"], self.params["var_ratio_cumsum"] = self._compute_pca(n_PC)
+        self.kmean_label = None
+
+    def _compute_pca(self, n_PC: int):
+        """
+        Compute PCA of the time series.
+        :return: timeseries in PCA space, variance ratio, variance ratio cumulative sum
+        """
+        pca = PCA(n_components=n_PC).fit(self.timeseries)
+        reduced_timeseries = pca.transform(self.timeseries)
+        return reduced_timeseries, pca.explained_variance_ratio_, pca.explained_variance_ratio_.cumsum()
+
+    def with_kmeans(self, n_clusters: int = 13, random_state: int = 0):
+        """
+        Apply K-means clustering to the PCA space as coloring.
+        :param n_clusters: Number of clusters.
+        :param random_state: Determines random number generation for centroid initialization.
+            Example: VisualisePCA(data).with_kmeans(n_clusters=13, random_state=0).scatter_pca()
+        """
+        kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(self.reduced_timeseries)
+        self.kmean_label = kmeans.labels_
+        return self
+
+    def scatter_pca(self, PCs : list = [1, 2], color_sample: bool = False):
+        """
+        Plot the scatter plot of the PCA space in 2D or 3D.
+        :param PCs: List of PCs to plot. Always a list of length 2.
+        :param color_sample: Whether to color the sample or not.
+        """
+        dimension = len(PCs)
+        if dimension < 2 or dimension > 3:
+            raise ValueError("PCs must be a list of 2 or 3 elements. Can only plot PCs in 2D or 3D")
+        if self.kmean_label is not None and color_sample:
+            raise ValueError("You can only apply color based on k-mean or the sample, not both")
+        if max(PCs) > self.n_PC:
+            raise ValueError("PCs must be less than or equal to the number of PC")
+        color = None
+        if self.kmean_label is not None:
+            color = self.kmean_label
+        if color_sample:
+            color = range(self.num_sample)
+
+        if dimension == 2:
+            plt.title("Two-dimensional PCA embedding")
+            plt.xlabel(f"PC {PCs[0]}")
+            plt.ylabel(f"PC {PCs[1]}")
+            plt.scatter(self.reduced_timeseries[:, PCs[0] - 1], self.reduced_timeseries[:, PCs[1] - 1],
+                       c=color, cmap="RdBu_r")
+            if self.kmean_label is not None or color_sample:
+                plt.colorbar()
+        if dimension == 3:
+            fig, ax = plt.subplots(figsize=(16, 8))
+            ax = fig.add_subplot(projection="3d")
+            ax.set_title("Three-dimensional PCA embedding")
+            ax.set_xlabel(f"PC {PCs[0]}")
+            ax.set_ylabel(f"PC {PCs[1]}")
+            ax.set_zlabel(f"PC {PCs[2]}")
+            ax.scatter(self.reduced_timeseries[:, PCs[0] - 1], self.reduced_timeseries[:, PCs[1] - 1],
+                       self.reduced_timeseries[:, PCs[2] - 1], c=color, cmap="RdBu_r")
         plt.show()
+
+    def trajectory_pca(self, PCs: list = [1, 2], with_smooth: bool = True, degree: int = 5, condition: float = 5,
+                       reduction: int = 1):
+        """
+        Plot the trajectory of the PCA space in 2D.
+        :param PCs: List of PCs to plot. Always a list of length 2.
+        :param with_smooth: Whether to smooth the trajectory or not.
+        :param degree: Degree of the polynomial used for smoothing.
+        :param condition: Smoothing condition.
+        :param reduction: Number by which we divide the number of samples.
+        """
+        if len(PCs) != 2:
+            raise ValueError("Can only plot the trajectory in PCA space in 2D. PCs must have a length of 2")
+        if max(PCs) > self.n_PC:
+            raise ValueError("PCs must be less than or equal to the number of PC")
+        plt.figure(figsize=(16, 8))
+        x = self.reduced_timeseries[:, PCs[0] - 1]
+        x = x[::reduction]
+        y = self.reduced_timeseries[:, PCs[1] - 1]
+        y = y[::reduction]
+        if with_smooth:
+            smoothed_timeseries = interpolate.splprep([x, y], s=condition, k=degree, per=False)[0]
+            x, y = interpolate.splev(np.linspace(0, 1, 1000), smoothed_timeseries)
+        plt.plot(x, y)
+        plt.title("Two-dimensional trajectory in PCA space")
+        if with_smooth:
+            plt.title("Two-dimensional trajectory in PCA space with smoothing")
+        plt.xlabel(f"PC {PCs[0]}")
+        plt.ylabel(f"PC {PCs[1]}")
+        plt.show()
+
+
+class VisualiseUMAP(Visualise):
+
+    def __init__(self, timeseries: np.array,
+                 apply_zscore: bool = False,
+                 n_neighbors: int = 10,
+                 min_dist: float = 0.5,
+                 n_components: int = 2
+                 ):
+        super().__init__(
+            timeseries=timeseries,
+            apply_zscore=apply_zscore
+        )
+        self.n_neighbors = n_neighbors
+        self.min_dist = min_dist
+        self.n_components = n_components
+
+    def _compute_umap(self):
+        umap = UMAP(
+            n_neighbors=self.n_neighbors,
+            min_dist=self.min_dist,
+            n_components=self.n_components,
+            metric="euclidian"
+        )
+
+
 
 
 
@@ -183,14 +311,12 @@ if __name__ == '__main__':
     for i in range(n_neurons):
         ts_z[i, :] = (ts[i, :] - np.mean(ts[i, :])) / np.std(ts[i, :])
     # small sample
-    sample_size = 350
+    sample_size = 500
     sample = np.random.randint(n_neurons, size=sample_size)
     data = ts_z[sample, :]
-    print(data.shape)
-    # Visualise(ts, apply_zscore=True).heatmap(v=[-3, 3], show_axis=False)
-    VisualiseKMeans(data, apply_zscore=False, n_cluster=13, random_state=0).heatmap(v=[-3, 3], show_axis=False)
+    VisualisePCA(data.T, n_PC=2).trajectory_pca(PCs=[1, 2], with_smooth=True, reduction=4)
 
-    # i = 200  # Num of neurons
+    # i = 350  # Num of neurons
     # num_step = 5000
     # dt = 0.1
     # t_0 = np.random.rand(i, )
@@ -200,3 +326,4 @@ if __name__ == '__main__':
     # tau = 1
     #
     # dynamic = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
+    # VisualiseKMeans(dynamic.compute_timeseries()).heatmap()

@@ -3,10 +3,11 @@ import enum
 import hashlib
 import os
 from collections import defaultdict
-from typing import Dict, List, NamedTuple, Any
+from typing import Callable, Dict, List, NamedTuple, Any, Tuple, Union
 import torch
 
 import numpy as np
+import torchvision
 from matplotlib import pyplot as plt
 
 
@@ -93,4 +94,21 @@ def hash_params(params: Dict[str, Any]):
 	:return:
 	"""
 	return int(hashlib.md5(get_meta_name(params).encode('utf-8')).hexdigest(), 16)
+
+
+def ravel_compose_transforms(
+		transform: Union[List, Tuple, torchvision.transforms.Compose, Callable]
+) -> List[Callable]:
+	transforms = []
+	if isinstance(transform, torchvision.transforms.Compose):
+		for t in transform.transforms:
+			transforms.extend(ravel_compose_transforms(t))
+	elif isinstance(transform, (List, Tuple)):
+		for t in transform:
+			transforms.extend(ravel_compose_transforms(t))
+	elif callable(transform):
+		transforms.append(transform)
+	else:
+		raise ValueError(f"Unsupported transform type: {type(transform)}")
+	return transforms
 

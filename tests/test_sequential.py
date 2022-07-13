@@ -1,11 +1,14 @@
 import unittest
+from typing import Iterable
 
 import numpy as np
 import torch
+from torchvision.transforms import Compose
 
 from neurotorch.modules import ALIFLayer, LIFLayer, LILayer
 from neurotorch.modules import SequentialModel, BaseLayer
 from neurotorch import Dimension, DimensionProperty
+from neurotorch.utils import ravel_compose_transforms
 
 
 class TestSequential(unittest.TestCase):
@@ -289,6 +292,59 @@ class TestSequential(unittest.TestCase):
 		for k, v in model.output_layers.items():
 			self.assertEqual(int(v.input_size), model._default_n_hidden_neurons)
 
+	def test_init_device_specified(self):
+		# Test that the model is initialized with the specified device
+		model = SequentialModel(
+			layers=[
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input"),
+			],
+			device=torch.device("cpu"),
+		)
+		model.build()
+		self.assertEqual(model.device, torch.device("cpu"))
+		for layer in model.get_all_layers():
+			self.assertEqual(layer.device, torch.device("cpu"))
+
+		# Test that the model is initialized with the specified device if it is specified in the layer
+		model = SequentialModel(
+			layers=[
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input", device=torch.device("cpu")),
+			],
+			device=torch.device("cuda"),
+		)
+		model.build()
+		self.assertEqual(model.device, torch.device("cuda"))
+		for layer in model.get_all_layers():
+			self.assertEqual(layer.device, torch.device("cuda"))
+
+		# Test that the model is initialized with the specified device if it is specified in the layer
+		model = SequentialModel(
+			layers=[
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input", device=torch.device("cuda")),
+			],
+			device=torch.device("cpu"),
+		)
+		model.build()
+		self.assertEqual(model.device, torch.device("cpu"))
+		for layer in model.get_all_layers():
+			self.assertEqual(layer.device, torch.device("cpu"))
+
+		# Test that the model is initialized with the specified device if it is specified in the layer
+		model = SequentialModel(
+			layers=[
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
+			],
+			device=torch.device("cpu"),
+		)
+		model.build()
+		self.assertEqual(model.device, torch.device("cpu"))
+		for layer in model.get_all_layers():
+			self.assertEqual(layer.device, torch.device("cpu"))
+
 	def test_format_hidden_outputs_traces(self):
 		data = torch.ones((32, 2))
 		time_steps = 10
@@ -317,7 +373,7 @@ class TestSequential(unittest.TestCase):
 			'0': torch.stack([data for _ in range(time_steps)], dim=1)
 		}
 		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
-		self.assertTrue(all(torch.allclose(x, y) for x, y in zip(hh_states_transposed['0'], hh_pred['0'])))
+		self.assertTrue(torch.allclose(hh_states_transposed['0'], hh_pred['0']))
 
 		hh_states = {
 			'0': [(None, ) for _ in range(time_steps)]
@@ -326,7 +382,7 @@ class TestSequential(unittest.TestCase):
 			'0': [None for _ in range(time_steps)]
 		}
 		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
-		self.assertTrue(np.allclose(hh_states_transposed['0'], hh_pred['0']))
+		self.assertEqual(hh_states_transposed['0'],  hh_pred['0'])
 
 		hh_states = {
 			'0': [None for _ in range(time_steps)]
@@ -335,5 +391,217 @@ class TestSequential(unittest.TestCase):
 			'0': [None for _ in range(time_steps)]
 		}
 		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
-		self.assertTrue(np.allclose(hh_states_transposed['0'], hh_pred['0']))
+		self.assertEqual(hh_states_transposed['0'], hh_pred['0'])
+
+	def test_init_transforms(self):
+		# Test that the model is initialized with the default transforms with one layer
+		model = SequentialModel(
+			layers=[
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input"),
+			],
+		)
+		model.build()
+		self.assertGreater(len(model.input_transform), 0)
+		for key, value in model.input_transform.items():
+			self.assertIn(
+				key, model.output_layers.keys(),
+				f"{key} is not in the output layers {model.output_layers.keys()}"
+			)
+
+		# Test that the model is initialized with the default transforms with multiple layers
+		model = SequentialModel(
+			layers=[
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
+			],
+		)
+		model.build()
+		self.assertGreater(len(model.input_transform), 0)
+		for key, value in model.input_transform.items():
+			self.assertIn(
+				key, model.input_layers.keys(),
+				f"{key} is not in the output layers {model.input_layers.keys()}"
+			)
+
+		def _dummy_transform(x):
+			return x
+
+		# Test that the model is initialized with the specified transforms
+		model = SequentialModel(
+			layers=[
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
+				BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
+			],
+			input_transform=[_dummy_transform]
+		)
+		model.build()
+		self.assertEqual(len(model.input_transform), 1)
+		for key, value in model.input_transform.items():
+			self.assertIn(
+				key, model.input_layers.keys(),
+				f"{key} is not in the output layers {model.input_layers.keys()}"
+			)
+			self.assertIn(_dummy_transform, ravel_compose_transforms(value))
+
+	def test_if_grad(self):
+		model = SequentialModel(
+			layers=[
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 2),
+			],
+		)
+		model.build()
+		for layer in model.get_all_layers():
+			self.assertTrue(layer.forward_weights.requires_grad)
+			self.assertTrue(layer.bias_weights.requires_grad)
+
+	def test_call_backward(self):
+		model = SequentialModel(
+			layers=[
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 2),
+			],
+		)
+		model.build()
+		for layer in model.get_all_layers():
+			self.assertTrue(layer.forward_weights.requires_grad)
+			self.assertTrue(layer.bias_weights.requires_grad)
+
+		x = torch.randn(1, 100, 10)
+		y, hh = model(x)
+		for key, value in y.items():
+			self.assertTrue(value.requires_grad)
+			self.assertEqual(value.shape, torch.Size([1, 100, 2]))
+			value.mean().backward()
+
+		for layer in model.get_all_layers():
+			self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
+			self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
+			self.assertEqual(layer.forward_weights.grad.device.type, layer.device.type)
+			self.assertIsInstance(layer.bias_weights.grad, torch.Tensor)
+			self.assertEqual(layer.bias_weights.grad.shape, layer.bias_weights.shape)
+			self.assertEqual(layer.bias_weights.grad.device.type, layer.device.type)
+
+	def test_get_prediction_trace_backward(self):
+		model = SequentialModel(
+			layers=[
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+			],
+			foresight_time_steps=100,
+		)
+		model.build()
+		for layer in model.get_all_layers():
+			self.assertTrue(layer.forward_weights.requires_grad)
+			self.assertTrue(layer.bias_weights.requires_grad)
+
+		x = torch.randn(1, 100, 10)
+		y = model.get_prediction_trace(x)
+		self.assertTrue(y.requires_grad)
+		self.assertEqual(y.shape, torch.Size([1, 100, 10]))
+		y.mean().backward()
+
+		for layer in model.get_all_layers():
+			self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
+			self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
+			self.assertEqual(layer.forward_weights.grad.device.type, layer.device.type)
+			self.assertIsInstance(layer.bias_weights.grad, torch.Tensor)
+			self.assertEqual(layer.bias_weights.grad.shape, layer.bias_weights.shape)
+			self.assertEqual(layer.bias_weights.grad.device.type, layer.device.type)
+
+	def test_get_raw_prediction_backward(self):
+		model = SequentialModel(
+			layers=[
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 2),
+			],
+		)
+		model.build()
+		for layer in model.get_all_layers():
+			self.assertTrue(layer.forward_weights.requires_grad)
+			self.assertTrue(layer.bias_weights.requires_grad)
+
+		x = torch.randn(1, 100, 10)
+		y, o, hh = model.get_raw_prediction(x)
+		for key, value in y.items():
+			self.assertTrue(value.requires_grad)
+			self.assertEqual(value.shape, torch.Size([1, 2]))
+			value.mean().backward()
+
+		for layer in model.get_all_layers():
+			self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
+			self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
+			self.assertEqual(layer.forward_weights.grad.device.type, layer.device.type)
+			self.assertIsInstance(layer.bias_weights.grad, torch.Tensor)
+			self.assertEqual(layer.bias_weights.grad.shape, layer.bias_weights.shape)
+			self.assertEqual(layer.bias_weights.grad.device.type, layer.device.type)
+
+	def test_get_prediction_proba_backward(self):
+		model = SequentialModel(
+			layers=[
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 2),
+			],
+		)
+		model.build()
+		for layer in model.get_all_layers():
+			self.assertTrue(layer.forward_weights.requires_grad)
+			self.assertTrue(layer.bias_weights.requires_grad)
+
+		x = torch.randn(1, 100, 10)
+		y, o, hh = model.get_prediction_proba(x)
+		for key, value in y.items():
+			self.assertTrue(value.requires_grad)
+			self.assertEqual(value.shape, torch.Size([1, 2]))
+			value.mean().backward()
+
+		for layer in model.get_all_layers():
+			self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
+			self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
+			self.assertEqual(layer.forward_weights.grad.device.type, layer.device.type)
+			self.assertIsInstance(layer.bias_weights.grad, torch.Tensor)
+			self.assertEqual(layer.bias_weights.grad.shape, layer.bias_weights.shape)
+			self.assertEqual(layer.bias_weights.grad.device.type, layer.device.type)
+
+	def test_get_prediction_log_proba_backward(self):
+		model = SequentialModel(
+			layers=[
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 2),
+			],
+		)
+		model.build()
+		for layer in model.get_all_layers():
+			self.assertTrue(layer.forward_weights.requires_grad)
+			self.assertTrue(layer.bias_weights.requires_grad)
+
+		x = torch.randn(1, 100, 10)
+		y, o, hh = model.get_prediction_log_proba(x)
+		for key, value in y.items():
+			self.assertTrue(value.requires_grad)
+			self.assertEqual(value.shape, torch.Size([1, 2]))
+			value.mean().backward()
+
+		for layer in model.get_all_layers():
+			self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
+			self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
+			self.assertEqual(layer.forward_weights.grad.device.type, layer.device.type)
+			self.assertIsInstance(layer.bias_weights.grad, torch.Tensor)
+			self.assertEqual(layer.bias_weights.grad.shape, layer.bias_weights.shape)
+			self.assertEqual(layer.bias_weights.grad.device.type, layer.device.type)
 

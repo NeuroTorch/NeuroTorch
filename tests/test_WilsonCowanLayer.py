@@ -3,7 +3,7 @@ import unittest
 import torch
 import numpy as np
 
-from src.neurotorch.modules.layers import WilsonCowanLayer
+from neurotorch.modules.layers import WilsonCowanLayer
 
 
 class WilsonCowanLayerTest(unittest.TestCase):
@@ -212,7 +212,7 @@ class WilsonCowanLayerTest(unittest.TestCase):
         Test if the output result match the true data
         """
         layer = WilsonCowanLayer(input_size=60, output_size=60)
-        input_ = torch.rand(1, 60, device=layer.device)
+        input_ = torch.rand(1, 60, device=layer._device)
         output = layer(input_)[0]
         ratio_dt_tau = layer.dt / layer.tau
         transition_rate = (1 - layer.r * input_)
@@ -224,7 +224,7 @@ class WilsonCowanLayerTest(unittest.TestCase):
         mu = torch.rand(1, 60, device="cpu")
         r = torch.rand(1, 60, device="cpu")
         layer = WilsonCowanLayer(input_size=60, output_size=60, mu=mu)
-        input_ = torch.rand(1, 60, device=layer.device)
+        input_ = torch.rand(1, 60, device=layer._device)
         output = layer(input_)[0]
         ratio_dt_tau = layer.dt / layer.tau
         transition_rate = (1 - layer.r * input_)
@@ -236,7 +236,7 @@ class WilsonCowanLayerTest(unittest.TestCase):
         mu = torch.rand(1, 60, device="cpu")
         r = torch.rand(1, 60, device="cpu")
         layer = WilsonCowanLayer(input_size=60, output_size=60, mu=mu)
-        input_ = torch.rand(10, 60, device=layer.device)
+        input_ = torch.rand(10, 60, device=layer._device)
         output = layer(input_)[0]
         ratio_dt_tau = layer.dt / layer.tau
         transition_rate = (1 - layer.r * input_)

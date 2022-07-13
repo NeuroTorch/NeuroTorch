@@ -41,8 +41,12 @@ class ClassificationMetrics(BaseMetrics):
 					enumerate(dataloader), total=len(dataloader),
 					desc=desc, disable=not verbose, position=p_bar_position,
 			):
-				inputs = inputs.to_dense().to(model.device)
-				classes = classes.to_dense().to(model.device)
+				if inputs.is_sparse:
+					inputs = inputs.to_dense()
+				if classes.is_sparse:
+					classes = classes.to_dense()
+				inputs = inputs.to(model.device)
+				classes = classes.to(model.device)
 				outputs = model.get_prediction_proba(inputs, re_outputs_trace=False, re_hidden_states=False)
 				if isinstance(outputs, dict):
 					if not isinstance(classes, dict):

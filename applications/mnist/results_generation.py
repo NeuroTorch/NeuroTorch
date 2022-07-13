@@ -13,6 +13,7 @@ import tqdm
 from applications.mnist.dataset import DatasetId, get_dataloaders
 from neurotorch import Dimension, DimensionProperty
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
+from neurotorch.callbacks.training_visualization import TrainingHistoryVisualizationCallback
 from neurotorch.metrics import ClassificationMetrics
 from neurotorch.modules import SequentialModel, ALIFLayer, LILayer, SpikeFuncType, SpikeFuncType2Func
 from neurotorch.modules.layers import LayerType, LayerType2Layer, LearningType
@@ -87,7 +88,13 @@ def save_params(params: Dict[str, Any], save_path: str):
 	return save_path
 
 
-def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_folder="tr_results", verbose=False):
+def train_with_params(
+		params: Dict[str, Any],
+		n_iterations: int = 100,
+		data_folder: str = "tr_results",
+		verbose: bool = False,
+		show_training: bool = False,
+):
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
 	os.makedirs(checkpoint_folder, exist_ok=True)
@@ -136,9 +143,12 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 	network.build()
 	checkpoint_manager = CheckpointManager(checkpoint_folder)
 	save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
+	callbacks = [checkpoint_manager, ]
+	if show_training:
+		callbacks.append(TrainingHistoryVisualizationCallback("./temp/"))
 	trainer = ClassificationTrainer(
 		model=network,
-		callbacks=checkpoint_manager,
+		callbacks=callbacks,
 		verbose=verbose,
 	)
 	trainer.train(

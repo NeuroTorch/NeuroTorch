@@ -4,6 +4,8 @@ from typing import Any, Dict
 from collections import OrderedDict
 
 import psutil
+from pythonbasictools.device import log_device_setup, DeepLib
+from pythonbasictools.logging import logs_file_setup
 
 from applications.mnist.dataset import get_dataloaders, DatasetId
 from applications.mnist.results_generation import train_with_params
@@ -94,6 +96,8 @@ from neurotorch.utils import hash_params
 
 
 if __name__ == '__main__':
+	logs_file_setup(__file__)
+	log_device_setup(deepLib=DeepLib.Pytorch)
 	results = train_with_params(
 		{
 			"dataset_id": DatasetId.MNIST,
@@ -106,9 +110,10 @@ if __name__ == '__main__':
 			"n_steps": 100,
 			"train_val_split_ratio": 0.95,
 			"spike_func": SpikeFuncType.FastSigmoid,
-			"hidden_layer_type": LayerType.LIF,
+			"hidden_layer_type": LayerType.ALIF,
 		},
-		n_iterations=30,
+		n_iterations=100,
 		verbose=True,
+		show_training=True,
 	)
 	pprint.pprint(results, indent=4)

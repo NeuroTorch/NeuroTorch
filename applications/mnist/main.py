@@ -100,19 +100,19 @@ if __name__ == '__main__':
 	log_device_setup(deepLib=DeepLib.Pytorch)
 	results = train_with_params(
 		{
-			"dataset_id": DatasetId.MNIST,
+			"dataset_id": DatasetId.FASHION_MNIST,
 			"to_spikes_use_periods": True,
-			"inputs_linear": True,
+			"inputs_linear": False,
 			"use_recurrent_connection": True,
 			"n_hidden_layers": 0,
 			"n_hidden_neurons": 128,
-			"learn_beta": True,
+			"learn_beta": False,
 			"n_steps": 100,
 			"train_val_split_ratio": 0.95,
 			"spike_func": SpikeFuncType.FastSigmoid,
 			"hidden_layer_type": LayerType.ALIF,
 		},
-		n_iterations=100,
+		n_iterations=30,
 		verbose=True,
 		show_training=True,
 	)

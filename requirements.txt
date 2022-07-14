@@ -7,3 +7,4 @@ tqdm==4.64.0
 
 scikit-learn~=1.1.1
 psutil~=5.9.1
+pytest~=7.1.2

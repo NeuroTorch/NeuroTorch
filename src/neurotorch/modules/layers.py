@@ -512,7 +512,8 @@ class ALIFLayer(LIFLayer):
 		self.kwargs.setdefault("tau_m", 20.0 * self.dt)
 		self.kwargs.setdefault("tau_a", 200.0 * self.dt)
 		self.kwargs.setdefault("beta", 1.6)
-		self.kwargs.setdefault("threshold", 0.03)
+		# self.kwargs.setdefault("threshold", 0.03)
+		self.kwargs.setdefault("threshold", 1.0)
 		if issubclass(self.spike_func, HeavisideSigmoidApprox):
 			self.kwargs.setdefault("gamma", 100.0)
 		else:

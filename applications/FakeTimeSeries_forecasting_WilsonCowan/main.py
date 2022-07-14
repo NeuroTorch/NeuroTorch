@@ -54,7 +54,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		model=network,
 		callbacks=checkpoint_manager,
 		criterion=p_var,
-		optimizer=torch.optim.Adamax(network.parameters(), lr=1e-3, maximize=True),
+		optimizer=torch.optim.Adam(network.parameters(), lr=1e-3, maximize=True),
 		device=torch.device("cpu"),
 	)
 	trainer.train(

@@ -54,7 +54,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		model=network,
 		callbacks=checkpoint_manager,
 		criterion=p_var,
-		optimizer=torch.optim.Adamax(network.parameters(), lr=1e-3, maximize=True),
+		optimizer=torch.optim.Adam(network.parameters(), lr=1e-3, maximize=True),
 		device=torch.device("cpu"),
 	)
 	trainer.train(
@@ -130,15 +130,15 @@ if __name__ == '__main__':
 	pred_time_series = pred_WCTS.compute_timeseries()
 	# pred_WCTS.plot_timeseries(False)
 
-	for i in range(n_neurons):
-		time = np.linspace(0, pred_WCTS.num_step * pred_WCTS.dt, pred_WCTS.num_step)
-		plt.plot(time.T, pred_time_series[i].T, "r", label="pred")
-		plt.plot(time.T, time_series[i].T, "b", label="true")
-		plt.xlabel('Time')
-		plt.ylabel(f'Neuronal activity {i}')
-		plt.ylim([0, 1])
-		plt.legend()
-		plt.show()
+	# for i in range(n_neurons):
+	# 	time = np.linspace(0, pred_WCTS.num_step * pred_WCTS.dt, pred_WCTS.num_step)
+	# 	plt.plot(time.T, pred_time_series[i].T, "r", label="pred")
+	# 	plt.plot(time.T, time_series[i].T, "b", label="true")
+	# 	plt.xlabel('Time')
+	# 	plt.ylabel(f'Neuronal activity {i}')
+	# 	plt.ylim([0, 1])
+	# 	plt.legend()
+	# 	plt.show()
 	# print(f"{forward_weights = }")
 	# print(f"{pred_forward_weights = }")
 

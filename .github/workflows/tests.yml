@@ -64,7 +64,7 @@ jobs:
         pytest 
 
   Run-tests-on-Self-Host:
-    name: Run tests on Windows-latest
+    name: Run tests on self-host
     runs-on: self-hosted
 
     steps:

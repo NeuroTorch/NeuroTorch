@@ -1,4 +1,5 @@
 import unittest
+import warnings
 from typing import Iterable
 
 import numpy as np
@@ -305,45 +306,52 @@ class TestSequential(unittest.TestCase):
 		for layer in model.get_all_layers():
 			self.assertEqual(layer.device, torch.device("cpu"))
 
-		# Test that the model is initialized with the specified device if it is specified in the layer
-		model = SequentialModel(
-			layers=[
-				BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input", device=torch.device("cpu")),
-			],
-			device=torch.device("cuda"),
-		)
-		model.build()
-		self.assertEqual(model.device, torch.device("cuda"))
-		for layer in model.get_all_layers():
-			self.assertEqual(layer.device, torch.device("cuda"))
+		if torch.cuda.is_available():
+			# Test that the model is initialized with the specified device if it is specified in the layer
+			model = SequentialModel(
+				layers=[
+					BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input", device=torch.device("cpu")),
+				],
+				device=torch.device("cuda"),
+			)
+			model.build()
+			self.assertEqual(model.device, torch.device("cuda"))
+			for layer in model.get_all_layers():
+				self.assertEqual(layer.device, torch.device("cuda"))
 
-		# Test that the model is initialized with the specified device if it is specified in the layer
-		model = SequentialModel(
-			layers=[
-				BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input", device=torch.device("cuda")),
-			],
-			device=torch.device("cpu"),
-		)
-		model.build()
-		self.assertEqual(model.device, torch.device("cpu"))
-		for layer in model.get_all_layers():
-			self.assertEqual(layer.device, torch.device("cpu"))
+			# Test that the model is initialized with the specified device if it is specified in the layer
+			model = SequentialModel(
+				layers=[
+					BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input", device=torch.device("cuda")),
+				],
+				device=torch.device("cpu"),
+			)
+			model.build()
+			self.assertEqual(model.device, torch.device("cpu"))
+			for layer in model.get_all_layers():
+				self.assertEqual(layer.device, torch.device("cpu"))
 
-		# Test that the model is initialized with the specified device if it is specified in the layer
-		model = SequentialModel(
-			layers=[
-				BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
-				BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
-				BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
-				BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
-				BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
-			],
-			device=torch.device("cpu"),
-		)
-		model.build()
-		self.assertEqual(model.device, torch.device("cpu"))
-		for layer in model.get_all_layers():
-			self.assertEqual(layer.device, torch.device("cpu"))
+			# Test that the model is initialized with the specified device if it is specified in the layer
+			model = SequentialModel(
+				layers=[
+					BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
+					BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
+					BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
+					BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
+					BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
+				],
+				device=torch.device("cpu"),
+			)
+			model.build()
+			self.assertEqual(model.device, torch.device("cpu"))
+			for layer in model.get_all_layers():
+				self.assertEqual(layer.device, torch.device("cpu"))
+		else:
+			warnings.warn(
+				"No CUDA available. Skipping test_init_device_specified. Please consider running the tests on a machine "
+				"with CUDA.",
+				UserWarning,
+			)
 
 	def test_format_hidden_outputs_traces(self):
 		data = torch.ones((32, 2))

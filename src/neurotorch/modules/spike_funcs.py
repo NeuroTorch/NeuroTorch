@@ -36,7 +36,7 @@ class SpikeFunction(torch.autograd.Function):
 		Here we use the normalized negative part of a fast sigmoid
 		as this was done in Zenke & Ganguli (2018).
 		"""
-		raise NotImplementedError
+		raise NotImplementedError()
 
 	# @staticmethod
 	# def symbolic(g, inputs: torch._C.Value) -> torch._C.Value:
@@ -45,7 +45,7 @@ class SpikeFunction(torch.autograd.Function):
 
 class HeavisideSigmoidApprox(SpikeFunction):
 	@staticmethod
-	def backward(ctx: Any, grad_outputs):
+	def backward(ctx: Any, grad_outputs: torch.Tensor) -> Any:
 		"""
 		In the backward pass we receive a Tensor we need to compute the
 		surrogate gradient of the loss with respect to the input.
@@ -57,9 +57,13 @@ class HeavisideSigmoidApprox(SpikeFunction):
 		f(x) = x / (1 + abs(x))
 		"""
 		inputs, threshold, scale = ctx.saved_tensors
-		grad_inputs = grad_outputs.clone()
-		grad = grad_inputs / (scale * torch.abs(inputs - threshold) + 1.0) ** 2
-		return grad, None, None
+		grad_outputs_clone = grad_outputs.clone()
+		inputs_grad = grad_outputs_clone / (scale * torch.abs(inputs - threshold) + 1.0) ** 2
+		if ctx.needs_input_grad[1]:
+			threshold_grad = -inputs_grad.clone()
+		else:
+			threshold_grad = None
+		return inputs_grad, threshold_grad, None
 
 
 class HeavisidePhiApprox(SpikeFunction):
@@ -73,10 +77,14 @@ class HeavisidePhiApprox(SpikeFunction):
 		with respect to the input.
 		"""
 		inputs, threshold, gamma = ctx.saved_tensors
-		grad = grad_outputs.clone() * (gamma/(threshold + HeavisidePhiApprox.epsilon)) * torch.max(
+		inputs_grad = grad_outputs.clone() * (gamma/(threshold + HeavisidePhiApprox.epsilon)) * torch.max(
 			torch.zeros_like(inputs),  1 - torch.abs((inputs - threshold) / (threshold + HeavisidePhiApprox.epsilon))
 		)
-		return grad, None, None
+		if ctx.needs_input_grad[1]:
+			threshold_grad = -inputs_grad.clone()
+		else:
+			threshold_grad = None
+		return inputs_grad, threshold_grad, None
 
 
 SpikeFuncType2Func = {

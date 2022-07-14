@@ -11,9 +11,24 @@ import torch.nn.functional as F
 from ..callbacks import CheckpointManager, LoadCheckpointMode
 from ..dimension import DimensionLike, SizeTypes
 from ..transforms import to_tensor
+from ..utils import ravel_compose_transforms
 
 
 class BaseModel(torch.nn.Module):
+	@staticmethod
+	def _format_sizes(sizes: Union[Dict[str, DimensionLike], SizeTypes]) -> Dict[str, int]:
+		if isinstance(sizes, dict):
+			return sizes
+		elif isinstance(sizes, list):
+			return {
+				f"{i}": s
+				for i, s in enumerate(sizes)
+			}
+		else:
+			return {
+				"0": sizes
+			}
+
 	def __init__(
 			self,
 			input_sizes: Optional[Union[Dict[str, DimensionLike], SizeTypes]] = None,
@@ -24,6 +39,16 @@ class BaseModel(torch.nn.Module):
 			input_transform: Union[Dict[str, Callable], List[Callable]] = None,
 			**kwargs
 	):
+		"""
+		Constructor of the BaseModel class. This class is the base class of all models.
+		:param input_sizes: The input sizes of the model.
+		:param output_size: The output size of the model.
+		:param name: The name of the model.
+		:param checkpoint_folder: The folder where the checkpoints are saved.
+		:param device: The device of the model. If None, the default device is used.
+		:param input_transform: The transforms to apply to the inputs.
+		:keyword kwargs: Additional arguments.
+		"""
 		super(BaseModel, self).__init__()
 		self._is_built = False
 		self._given_input_transform = input_transform
@@ -33,9 +58,10 @@ class BaseModel(torch.nn.Module):
 		self.name = name
 		self.checkpoint_folder = checkpoint_folder
 		self.kwargs = kwargs
-		self.device = device
-		if self.device is None:
+		self._device = device
+		if self._device is None:
 			self._set_default_device_()
+		self._to_device_transform = Lambda(lambda t: t.to(self._device))
 
 	@property
 	def input_sizes(self) -> Dict[str, int]:
@@ -47,12 +73,6 @@ class BaseModel(torch.nn.Module):
 		# 	raise ValueError("Input sizes can only be set once.")
 		if input_sizes is not None:
 			self._input_sizes = self._format_sizes(input_sizes)
-
-			# TODO: mettre ces lignes dans le build et checker si le modèle possède seulement une layer, dans ce cas
-			# TODO: gérer les inputs transforms avec les keys des outputs. À mettre dans le build du séquentiel et
-			# TODO: laisser une note dans la doc de BaseModel que les child doivent caller la construction des transforms
-			self.input_transform: Dict[str, Callable] = self._make_input_transform(self._given_input_transform)
-			self._add_to_device_transform_()
 
 	@property
 	def output_sizes(self) -> Dict[str, int]:
@@ -85,32 +105,55 @@ class BaseModel(torch.nn.Module):
 		)
 		return f"{self.checkpoint_folder}/{full_filename}.json"
 
-	@staticmethod
-	def _format_sizes(sizes: Union[Dict[str, DimensionLike], SizeTypes]) -> Dict[str, int]:
-		if isinstance(sizes, dict):
-			return sizes
-		elif isinstance(sizes, list):
-			return {
-				f"{i}": s
-				for i, s in enumerate(sizes)
-			}
-		else:
-			return {
-				"0": sizes
-			}
+	@property
+	def device(self) -> torch.device:
+		"""
+		:return: The device of the model.
+		"""
+		return self._device
 
-	def _make_input_transform(self, input_transform: Union[Dict[str, Callable], List[Callable]]) -> Dict[str, Callable]:
+	@device.setter
+	def device(self, device: torch.device):
+		"""
+		Set the device of the network.
+		:param device: The device to set.
+		:return: None
+		"""
+		self._device = device
+		self._remove_to_device_transform_()
+		self._add_to_device_transform_()
+
+	def _make_input_transform(
+			self,
+			input_transform: Union[Dict[str, Callable], List[Callable]]
+	) -> Dict[str, Callable]:
+		"""
+		Make the input transform containing the transforms to apply to the inputs. If the input_transform is None,
+		the default transform is used. If the input_transform is a list, it is converted to a dict. If the
+		input_transform is a dict, it is copied. The keys of the input_transform are the names of the inputs if the
+		network has inputs else the outputs if the network has outputs.
+
+		:param input_transform: The input transform to use.
+		:return: The input transform.
+		"""
+		if len(self.input_sizes) > 0:
+			transform_keys = list(self.input_sizes.keys())
+		elif len(self.output_sizes) > 0:
+			transform_keys = list(self.output_sizes.keys())
+		else:
+			transform_keys = []
+
 		if input_transform is None:
 			input_transform = self.get_default_transform()
 		if isinstance(input_transform, list):
 			default_transform = self.get_default_transform()
-			if len(input_transform) < len(self.input_sizes):
-				for i in range(len(input_transform), len(self.input_sizes)):
-					input_transform.append(default_transform[list(self.input_sizes.keys())[i]])
-			input_transform = {in_name: t for in_name, t in zip(self.input_sizes, input_transform)}
+			if len(input_transform) < len(transform_keys):
+				for i in range(len(input_transform), len(transform_keys)):
+					input_transform.append(default_transform[transform_keys[i]])
+			input_transform = {in_name: t for in_name, t in zip(transform_keys, input_transform)}
 		if isinstance(input_transform, dict):
-			assert all([in_name in input_transform for in_name in self.input_sizes]), \
-				f"Input transform must contain all input names: {self.input_sizes.keys()}"
+			assert all([in_name in input_transform for in_name in transform_keys]), \
+				f"Input transform must contain all input names: {transform_keys}"
 		return input_transform
 
 	def load_checkpoint(
@@ -127,16 +170,22 @@ class BaseModel(torch.nn.Module):
 		checkpoint_path = f"{self.checkpoint_folder}/{save_name}"
 		if verbose:
 			logging.info(f"Loading checkpoint from {checkpoint_path}")
-		checkpoint = torch.load(checkpoint_path, map_location=self.device)
+		checkpoint = torch.load(checkpoint_path, map_location=self._device)
 		self.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
 		return checkpoint
 
 	def get_default_transform(self) -> Dict[str, nn.Module]:
+		if len(self.input_sizes) > 0:
+			transform_keys = list(self.input_sizes.keys())
+		elif len(self.output_sizes) > 0:
+			transform_keys = list(self.output_sizes.keys())
+		else:
+			transform_keys = []
 		return {
 			in_name: Compose([
 				Lambda(lambda a: to_tensor(a, dtype=torch.float32)),
 			])
-			for in_name in self.input_sizes
+			for in_name in transform_keys
 		}
 
 	def apply_transform(self, inputs: Dict[str, Any]) -> Dict[str, torch.Tensor]:
@@ -156,11 +205,32 @@ class BaseModel(torch.nn.Module):
 		return inputs
 
 	def _add_to_device_transform_(self):
+		"""
+		Add the to_device_transform to the input transforms.
+		:return: None
+		"""
 		for in_name, trans in self.input_transform.items():
-			self.input_transform[in_name] = Compose([trans, Lambda(lambda t: t.to(self.device))])
+			list_of_transforms = ravel_compose_transforms(self.input_transform[in_name])
+			list_of_transforms.append(self._to_device_transform)
+			self.input_transform[in_name] = Compose(list_of_transforms)
+
+	def _remove_to_device_transform_(self):
+		"""
+		Remove the to_device transform from the transforms.
+		:return: None
+		"""
+		for in_name, trans in self.input_transform.items():
+			if self._to_device_transform:
+				list_of_transforms = ravel_compose_transforms(self.input_transform[in_name])
+				list_of_transforms.remove(self._to_device_transform)
+				self.input_transform[in_name] = Compose(list_of_transforms)
 
 	def _set_default_device_(self):
-		self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+		"""
+		Set the default device of the network. The default device will be cuda if available and cpu otherwise.
+		:return: None
+		"""
+		self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 	def infer_sizes_from_inputs(self, inputs: Union[Dict[str, Any], torch.Tensor]):
 		if isinstance(inputs, torch.Tensor):
@@ -177,6 +247,12 @@ class BaseModel(torch.nn.Module):
 		:return:
 		"""
 		self._is_built = True
+
+		# TODO: mettre ces lignes dans le build et checker si le modèle possède seulement une layer, dans ce cas
+		# TODO: gérer les inputs transforms avec les keys des outputs. À mettre dans le build du séquentiel et
+		# TODO: laisser une note dans la doc de BaseModel que les child doivent caller la construction des transforms
+		self.input_transform: Dict[str, Callable] = self._make_input_transform(self._given_input_transform)
+		self._add_to_device_transform_()
 
 	def __call__(self, inputs: Union[Dict[str, Any], torch.Tensor], *args, **kwargs):
 		if not self._is_built:
@@ -259,7 +335,7 @@ class BaseModel(torch.nn.Module):
 
 	def to_onnx(self, in_viz=None):
 		if in_viz is None:
-			in_viz = torch.randn((1, self.input_sizes), device=self.device)
+			in_viz = torch.randn((1, self.input_sizes), device=self._device)
 		torch.onnx.export(
 			self,
 			in_viz,

@@ -8,8 +8,16 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from . import (BaseLayer, BaseModel, LIFLayer, LayerType, LayerType2Layer, SpikeFuncType, SpikeFuncType2Func,
-               SpikeFunction)
+from . import (
+	BaseLayer,
+	BaseModel,
+	LIFLayer,
+	LayerType,
+	LayerType2Layer,
+	SpikeFuncType,
+	SpikeFuncType2Func,
+	SpikeFunction
+)
 from ..dimension import Dimension
 
 Acceptable_Spike_Func = Union[Type[SpikeFunction], SpikeFuncType]
@@ -71,6 +79,132 @@ class SequentialModel(BaseModel):
 			# new_hidden_states[layer_name] = trace
 			#
 		return new_hidden_states
+
+	@staticmethod
+	def _format_input_output_layers(
+			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
+			default_prefix_layer_name: str = "layer",
+	) -> OrderedDict[str, BaseLayer]:
+		"""
+		Format the input or output layers. The format is an ordered dictionary of the form {layer_name: layer}.
+		:param layers: The input or output layers.
+		:param default_prefix_layer_name: The default prefix of the layer name. The prefix is used when the name of
+		the layer is not specified.
+		:return: The formatted input or output layers.
+		"""
+		layers: Iterable[BaseLayer] = [layers] if not isinstance(layers, Iterable) else layers
+		if isinstance(layers, Mapping):
+			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for _, layer in layers.items())
+
+			for layer_key, layer in layers.items():
+				if not layer.name_is_set:
+					layer.name = layer_key
+			assert all(layer_key == layer.name for layer_key, layer in layers.items()), \
+				"The layer names must be the same as the keys."
+		else:
+			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for layer in layers)
+		assert all_base_layer, "All layers must be of type BaseLayer"
+		if not isinstance(layers, dict):
+			for layer_idx, layer in enumerate(layers):
+				if not layer.name_is_set:
+					layer.name = f"{default_prefix_layer_name}_{layer_idx}"
+			assert len([layer.name for layer in layers]) == len(set([layer.name for layer in layers])), \
+				"There are layers with the same name."
+			layers = OrderedDict((layer.name, layer) for layer in layers)
+		return layers
+
+	@staticmethod
+	def _format_hidden_layers(
+			layers: Iterable[BaseLayer],
+			default_prefix_layer_name: str = "hidden",
+	) -> List[BaseLayer]:
+		"""
+		Format the hidden layers. The format is a list of the form [layer, ...].
+		:param layers: The hidden layers.
+		:param default_prefix_layer_name: The default prefix of the layer name. The prefix is used when the name of
+		the layer is not specified.
+		:return: The formatted hidden layers.
+		"""
+		assert all([isinstance(layer, BaseLayer) for layer in layers]), \
+			"All hidden layers must be of type BaseLayer"
+		for i, layer in enumerate(layers):
+			if not layer.name_is_set:
+				layer.name = f"{default_prefix_layer_name}_{i}"
+		return list(layers)
+
+	@staticmethod
+	def _format_layers(
+			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
+	) -> Tuple[OrderedDict, List, OrderedDict]:
+		"""
+		Format the given layers. The format is a tuple of the form
+		(
+			OrderedDict({input_layer_name: input_layer}),
+			List(hidden_layers),
+			OrderedDict({output_layer_name: output_layer}),
+		).
+		:param layers: The layers.
+		:return: The formatted layers.
+		"""
+		if not isinstance(layers, Iterable):
+			layers = [layers]
+		if len(layers) > 1:
+			input_layers = SequentialModel._format_input_output_layers(layers[0], "input")
+		else:
+			input_layers = nn.ModuleDict()
+
+		if len(layers) > 2:
+			hidden_layers = layers[1:-1]
+			if not isinstance(hidden_layers, Iterable):
+				hidden_layers = [hidden_layers]
+		else:
+			hidden_layers = []
+		hidden_layers = SequentialModel._format_hidden_layers(hidden_layers)
+
+		output_layers = SequentialModel._format_input_output_layers(layers[-1], "output")
+		return input_layers, hidden_layers, output_layers
+
+	@staticmethod
+	def _layers_containers_to_modules(
+			inputs_layers: OrderedDict,
+			hidden_layers: List,
+			outputs_layers: OrderedDict
+	) -> Tuple[nn.ModuleDict, nn.ModuleList, nn.ModuleDict]:
+		"""
+		Convert the input, hidden and output layers containers to modules.
+		:param inputs_layers: The input layers.
+		:param hidden_layers: The hidden layers.
+		:param outputs_layers: The output layers.
+		:return: The input, hidden and output layers modules.
+		"""
+		input_layers = nn.ModuleDict(inputs_layers)
+		hidden_layers = nn.ModuleList(hidden_layers)
+		output_layers = nn.ModuleDict(outputs_layers)
+		return input_layers, hidden_layers, output_layers
+
+	@staticmethod
+	def _format_layer_type_(
+			layer_type: Optional[Acceptable_Layer_Type]
+	) -> Optional[Type[BaseLayer]]:
+		warnings.warn(
+			"This function is not used anymore in the SequentialModel.",
+			DeprecationWarning
+		)
+		if isinstance(layer_type, LayerType):
+			layer_type = LayerType2Layer[layer_type]
+		return layer_type
+
+	@staticmethod
+	def _format_hidden_neurons_(n_hidden_neurons: Optional[Union[int, Iterable[int]]]) -> List[int]:
+		warnings.warn(
+			"This function is not used anymore in the SequentialModel.",
+			DeprecationWarning
+		)
+		if n_hidden_neurons is None:
+			return []
+		if not isinstance(n_hidden_neurons, Iterable):
+			n_hidden_neurons = [n_hidden_neurons]
+		return n_hidden_neurons
 
 	def __new__(
 			cls,
@@ -168,15 +302,40 @@ class SequentialModel(BaseModel):
 		assert self._memory_size is None or self._memory_size > 0, "The memory size must be greater than 0 or None."
 		self._outputs_to_inputs_names_map: Optional[Dict[str, str]] = None
 
-		# TODO: change the devices of the layers to be the same as the model.
+	@BaseModel.device.setter
+	def device(self, device: torch.device):
+		"""
+		Set the device of the model and all its layers.
+		:param device: The device to use.
+		:return: None
+		"""
+		BaseModel.device.fset(self, device)
+		for layer in self.get_all_layers():
+			layer.device = device
 
 	def get_all_layers(self) -> List[nn.Module]:
+		"""
+		Get all the layers of the model as a list. The order of the layers is the same as the order of the layers in the
+		model.
+		:return: A list of all the layers of the model.
+		"""
 		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
 
 	def get_all_layers_names(self) -> List[str]:
+		"""
+		Get all the names of the layers of the model. The order of the layers is the same as the order of the layers in
+		the model.
+		:return: A list of all the names of the layers of the model.
+		"""
 		return [layer.name for layer in self.get_all_layers()]
 
 	def infer_sizes_from_inputs(self, inputs: Union[Dict[str, Any], torch.Tensor]):
+		"""
+		Infer the sizes of the inputs layers from the inputs of the network. The sizes of the inputs layers are set to
+		the size of the inputs without the batch dimension.
+		:param inputs: The inputs of the network.
+		:return: None
+		"""
 		if isinstance(inputs, torch.Tensor):
 			inputs = {
 				layer_name: inputs
@@ -184,78 +343,14 @@ class SequentialModel(BaseModel):
 			}
 		self.input_sizes = {k: v.shape[1:] for k, v in inputs.items()}
 
-	@staticmethod
-	def _format_input_output_layers(
-			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
-			default_prefix_layer_name: str = "layer",
-	) -> OrderedDict[str, BaseLayer]:
-		layers: Iterable[BaseLayer] = [layers] if not isinstance(layers, Iterable) else layers
-		if isinstance(layers, Mapping):
-			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for _, layer in layers.items())
-
-			for layer_key, layer in layers.items():
-				if not layer.name_is_set:
-					layer.name = layer_key
-			assert all(layer_key == layer.name for layer_key, layer in layers.items()), \
-				"The layer names must be the same as the keys."
-		else:
-			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for layer in layers)
-		assert all_base_layer, "All layers must be of type BaseLayer"
-		if not isinstance(layers, dict):
-			for layer_idx, layer in enumerate(layers):
-				if not layer.name_is_set:
-					layer.name = f"{default_prefix_layer_name}_{layer_idx}"
-			assert len([layer.name for layer in layers]) == len(set([layer.name for layer in layers])), \
-				"There are layers with the same name."
-			layers = OrderedDict((layer.name, layer) for layer in layers)
-		return layers
-
-	@staticmethod
-	def _format_hidden_layers(layers: Iterable[BaseLayer]) -> List[BaseLayer]:
-		assert all([isinstance(layer, BaseLayer) for layer in layers]), \
-			"All hidden layers must be of type BaseLayer"
-		for i, layer in enumerate(layers):
-			if not layer.name_is_set:
-				layer.name = f"hidden_{i}"
-		return list(layers)
-
-	@staticmethod
-	def _format_layers(
-			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
-	) -> Tuple[OrderedDict, List, OrderedDict]:
-		if not isinstance(layers, Iterable):
-			layers = [layers]
-		if len(layers) > 1:
-			input_layers = SequentialModel._format_input_output_layers(layers[0], "input")
-		else:
-			input_layers = nn.ModuleDict()
-
-		if len(layers) > 2:
-			hidden_layers = layers[1:-1]
-			if not isinstance(hidden_layers, Iterable):
-				hidden_layers = [hidden_layers]
-		else:
-			hidden_layers = []
-		hidden_layers = SequentialModel._format_hidden_layers(hidden_layers)
-
-		output_layers = SequentialModel._format_input_output_layers(layers[-1], "output")
-		return input_layers, hidden_layers, output_layers
-
-	@staticmethod
-	def _layers_containers_to_modules(
-			inputs_layers: OrderedDict,
-			hidden_layers: List,
-			outputs_layers: OrderedDict
-	) -> Tuple[nn.ModuleDict, nn.ModuleList, nn.ModuleDict]:
-		input_layers = nn.ModuleDict(inputs_layers)
-		hidden_layers = nn.ModuleList(hidden_layers)
-		output_layers = nn.ModuleDict(outputs_layers)
-		return input_layers, hidden_layers, output_layers
-
 	def _format_spike_funcs_(
 			self,
 			spike_funcs: Union[Acceptable_Spike_Func, Iterable[Acceptable_Spike_Func]]
 	) -> List[SpikeFunction]:
+		warnings.warn(
+			"The spike functions are not used anymore in the SequentialModel.",
+			DeprecationWarning
+		)
 		if not isinstance(spike_funcs, Iterable):
 			spike_funcs = [spike_funcs]
 		for i, spike_func in enumerate(spike_funcs):
@@ -269,6 +364,10 @@ class SequentialModel(BaseModel):
 			self,
 			layer_types: Union[Acceptable_Layer_Type, Iterable[Acceptable_Layer_Type]]
 	) -> List[Type[BaseLayer]]:
+		warnings.warn(
+			"This function is not used anymore in the SequentialModel.",
+			DeprecationWarning
+		)
 		if not isinstance(layer_types, Iterable):
 			layer_types = [layer_types]
 		for i, layer_type in enumerate(layer_types):
@@ -277,23 +376,11 @@ class SequentialModel(BaseModel):
 			"Number of layer types must match number of hidden neurons"
 		return layer_types
 
-	@staticmethod
-	def _format_layer_type_(
-			layer_type: Optional[Acceptable_Layer_Type]
-	) -> Optional[Type[BaseLayer]]:
-		if isinstance(layer_type, LayerType):
-			layer_type = LayerType2Layer[layer_type]
-		return layer_type
-
-	@staticmethod
-	def _format_hidden_neurons_(n_hidden_neurons: Optional[Union[int, Iterable[int]]]) -> List[int]:
-		if n_hidden_neurons is None:
-			return []
-		if not isinstance(n_hidden_neurons, Iterable):
-			n_hidden_neurons = [n_hidden_neurons]
-		return n_hidden_neurons
-
 	def _add_input_layer_(self):
+		warnings.warn(
+			"This function is not used anymore in the SequentialModel.",
+			DeprecationWarning
+		)
 		if not self.n_hidden_neurons:
 			return
 		for l_name, in_size in self.input_sizes.items():
@@ -302,11 +389,15 @@ class SequentialModel(BaseModel):
 				output_size=self.n_hidden_neurons[0],
 				use_recurrent_connection=self.use_recurrent_connection,
 				spike_func=self.spike_funcs[0],
-				device=self.device,
+				device=self._device,
 				**self.kwargs
 			)
 
 	def _add_hidden_layers_(self):
+		warnings.warn(
+			"This function is not used anymore in the SequentialModel.",
+			DeprecationWarning
+		)
 		if not self.n_hidden_neurons:
 			return
 		n_hidden_neurons = deepcopy(self.n_hidden_neurons)
@@ -317,11 +408,15 @@ class SequentialModel(BaseModel):
 				output_size=n_hidden_neurons[i + 1],
 				use_recurrent_connection=self.use_recurrent_connection,
 				spike_func=self.spike_funcs[i + 1],
-				device=self.device,
+				device=self._device,
 				**self.kwargs
 			)
 
 	def _add_readout_layer(self):
+		warnings.warn(
+			"This function is not used anymore in the SequentialModel.",
+			DeprecationWarning
+		)
 		if self.n_hidden_neurons:
 			in_size = self.n_hidden_neurons[-1]
 		else:
@@ -331,16 +426,24 @@ class SequentialModel(BaseModel):
 				input_size=in_size,
 				output_size=out_size,
 				spike_func=self.spike_func,
-				device=self.device,
+				device=self._device,
 				**self.kwargs
 			)
 
 	def _add_layers_(self):
+		warnings.warn(
+			"This function is not used anymore in the SequentialModel.",
+			DeprecationWarning
+		)
 		self._add_input_layer_()
 		self._add_hidden_layers_()
 		self._add_readout_layer()
 
 	def initialize_weights_(self):
+		"""
+		Initialize the weights of the layers of the model.
+		:return: None
+		"""
 		for param in self.parameters():
 			if param.ndim > 2:
 				torch.nn.init.xavier_normal_(param)
@@ -373,12 +476,18 @@ class SequentialModel(BaseModel):
 				zero_inputs = torch.zeros(
 					(inputs.shape[0], t_diff, *inputs.shape[2:]),
 					dtype=torch.float32,
-					device=self.device
+					device=self._device
 				)
 				inputs = torch.cat([inputs, zero_inputs], dim=1)
 		return inputs.float()
 
 	def _format_inputs(self, inputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+		"""
+		Set the memory size of the sequential model if not already set. The default memory size is the number of
+		time steps of the inputs. Return the formatted inputs formatted by self._format_single_inputs.
+		:param inputs: Inputs dictionary.
+		:return: Formatted inputs dictionary.
+		"""
 		max_time_steps = max([v.shape[1] for v in inputs.values()])
 		if self._memory_size is None:
 			self._memory_size = max_time_steps
@@ -386,7 +495,7 @@ class SequentialModel(BaseModel):
 
 	def _inputs_to_dict(self, inputs: Union[Dict[str, Any], torch.Tensor]):
 		"""
-		Transform the inputs tensor into dictionnary of tensors.
+		Transform the inputs tensor into dictionary of tensors.
 		:param inputs: The inputs of the network.
 		:return: The transformed inputs.
 		"""
@@ -401,6 +510,11 @@ class SequentialModel(BaseModel):
 		return inputs
 
 	def _get_time_steps_from_inputs(self, inputs: Dict[str, torch.Tensor]) -> int:
+		"""
+		Get the number of time steps from the inputs. Make sure that all inputs have the same number of time steps.
+		:param inputs: The inputs of the network.
+		:return: The number of time steps.
+		"""
 		time_steps_entries = [in_tensor.shape[1] for in_tensor in inputs.values()]
 		assert len(set(time_steps_entries)) == 1, "inputs must have the same time steps"
 		return time_steps_entries[0]
@@ -417,19 +531,43 @@ class SequentialModel(BaseModel):
 		return memory
 
 	def _init_hidden_states_memory(self) -> Dict[str, List]:
+		"""
+		Initialize the hidden states memory of the model.
+		:return: The hidden states memory.
+		"""
 		return {
 			layer_name: [None]
 			for layer_name in self.get_all_layers_names()
 		}
 
 	def build_layers(self):
+		"""
+		Build the layers of the model.
+		:return: None
+		"""
 		for layer in self.get_all_layers():
 			if getattr(layer, "build") and callable(layer.build):
 				if not getattr(layer, "is_built", False):
 					layer.build()
 
 	def build(self):
+		"""
+		Build the network and all its layers.
+		:return: None
+		"""
 		super(SequentialModel, self).build()
+		self._infer_and_set_sizes_of_all_layers()
+		self.build_layers()
+		self.initialize_weights_()
+		if self.foresight_time_steps > 0:
+			self._map_outputs_to_inputs()
+		self.device = self._device
+
+	def _infer_and_set_sizes_of_all_layers(self):
+		"""
+		Infer the sizes of all layers and set them.
+		:return: None
+		"""
 		inputs_layers_out_sum = 0
 		for layer_name, layer in self.input_layers.items():
 			if layer.input_size is None:
@@ -463,11 +601,6 @@ class SequentialModel(BaseModel):
 				self.output_sizes = {layer_name: layer.output_size}
 			else:
 				self.output_sizes[layer_name] = layer.output_size
-
-		self.build_layers()
-		self.initialize_weights_()
-		if self.foresight_time_steps > 0:
-			self._map_outputs_to_inputs()
 
 	def _map_outputs_to_inputs(self) -> Dict[str, str]:
 		"""
@@ -552,7 +685,7 @@ class SequentialModel(BaseModel):
 						lists is the number of time steps.
 		"""
 		inputs = self._inputs_to_dict(inputs)
-		# inputs = self.apply_transform(inputs)
+		inputs = self.apply_transform(inputs)
 		inputs = self._format_inputs(inputs)
 		time_steps = self._get_time_steps_from_inputs(inputs)
 		hidden_states = self._init_hidden_states_memory()
@@ -594,7 +727,7 @@ class SequentialModel(BaseModel):
 		:param kwargs: kwargs to be passed to the forward method.
 		:return: the prediction trace.
 		"""
-		outputs_trace, hidden_states = self(inputs.to(self.device), **kwargs)
+		outputs_trace, hidden_states = self(inputs.to(self._device), **kwargs)
 		if isinstance(outputs_trace, dict):
 			outputs_trace = {
 				layer_name: trace[:, -self.foresight_time_steps:]
@@ -612,7 +745,7 @@ class SequentialModel(BaseModel):
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
 	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
-		outputs_trace, hidden_states = self(inputs.to(self.device))
+		outputs_trace, hidden_states = self(inputs.to(self._device))
 		if isinstance(outputs_trace, torch.Tensor):
 			logits, _ = torch.max(outputs_trace, dim=1)
 		elif isinstance(outputs_trace, dict):
@@ -653,7 +786,7 @@ class SequentialModel(BaseModel):
 		else:
 			raise ValueError("m must be a torch.Tensor or a dictionary")
 		if re_outputs_trace or re_hidden_states:
-			return proba, outs[1:]
+			return proba, *outs[1:]
 		return proba
 
 	def get_prediction_log_proba(
@@ -662,7 +795,11 @@ class SequentialModel(BaseModel):
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
 	) -> Union[tuple[Tensor, Any, Any], tuple[Tensor, Any], Tensor]:
-		m, *outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
+		outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
+		if isinstance(outs, (list, tuple)):
+			m = outs[0]
+		else:
+			m = outs
 		if isinstance(m, torch.Tensor):
 			log_proba = F.log_softmax(m, dim=-1)
 		elif isinstance(m, dict):
@@ -673,15 +810,15 @@ class SequentialModel(BaseModel):
 		else:
 			raise ValueError("m must be a torch.Tensor or a dictionary")
 		if re_outputs_trace or re_hidden_states:
-			return log_proba, *outs
+			return log_proba, *outs[1:]
 		return log_proba
 
 	def get_regularization_loss(self) -> torch.Tensor:
 		"""
-		Get the regularization loss
-		:return: regularization loss
+		Get the regularization loss as a sum of all the regularization losses of the layers.
+		:return: the regularization loss.
 		"""
-		regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self._device)
 		for layer in self.get_all_layers():
 			if hasattr(layer, "get_regularization_loss") and callable(layer.get_regularization_loss):
 				regularization_loss += layer.get_regularization_loss()

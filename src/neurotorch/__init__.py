@@ -5,3 +5,7 @@ from .dimension import (
 	Dimension,
 	DimensionProperty,
 )
+
+from .modules.layers import (
+	LearningType,
+)

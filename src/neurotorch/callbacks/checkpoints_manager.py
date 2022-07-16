@@ -105,6 +105,7 @@ class CheckpointManager(BaseCallback):
 			checkpoints_meta: Dict[str, Union[str, Dict[Any, str]]],
 			load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR
 	) -> str:
+		# TODO: add the possibility to load from a specific itr
 		if load_checkpoint_mode == load_checkpoint_mode.BEST_ITR:
 			if CheckpointManager.CHECKPOINT_BEST_KEY in checkpoints_meta:
 				return checkpoints_meta[CheckpointManager.CHECKPOINT_BEST_KEY]

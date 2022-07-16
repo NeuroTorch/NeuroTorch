@@ -23,6 +23,7 @@ class LayerType(enum.Enum):
 	Izhikevich = 2
 	LI = 3
 	SpyLIF = 4
+	SpyLI = 5
 
 
 class BaseLayer(torch.nn.Module):
@@ -975,5 +976,6 @@ LayerType2Layer = {
 	LayerType.Izhikevich: IzhikevichLayer,
 	LayerType.LI: LILayer,
 	LayerType.SpyLIF: SpyLIFLayer,
+	LayerType.SpyLI: SpyLILayer,
 }
 

@@ -6,9 +6,12 @@ import warnings
 from collections import OrderedDict
 from typing import Any, Dict, Iterable, List
 
+import norse
 import pandas as pd
 import psutil
+import torch
 import tqdm
+from torchvision.transforms import Compose
 
 from applications.mnist.dataset import DatasetId, get_dataloaders
 from neurotorch import Dimension, DimensionProperty
@@ -18,6 +21,8 @@ from neurotorch.metrics import ClassificationMetrics
 from neurotorch.modules import SequentialModel, ALIFLayer, LILayer, SpikeFuncType, SpikeFuncType2Func
 from neurotorch.modules.layers import LayerType, LayerType2Layer, LearningType
 from neurotorch.trainers import ClassificationTrainer
+from neurotorch.transforms import LinearRateToSpikes
+from neurotorch.transforms.vision import ImgToSpikes
 from neurotorch.utils import hash_params
 
 
@@ -31,13 +36,10 @@ def get_training_params_space() -> Dict[str, Any]:
 			DatasetId.MNIST,
 			DatasetId.FASHION_MNIST
 		],
-		"to_spikes_use_periods": [
-			True,
-			# False,
-		],
-		"inputs_linear": [
-			True,
-			# False,
+		"input_transform": [
+			# "linear",
+			"NorseConstCurrLIF",
+			# "ImgToSpikes",
 		],
 		"n_steps": [
 			2,
@@ -58,6 +60,11 @@ def get_training_params_space() -> Dict[str, Any]:
 		"hidden_layer_type": [
 			LayerType.LIF,
 			LayerType.ALIF,
+			LayerType.SpyLIF,
+		],
+		"readout_layer_type": [
+			LayerType.LI,
+			LayerType.SpyLI,
 		],
 		"use_recurrent_connection": [
 			False,
@@ -88,12 +95,27 @@ def save_params(params: Dict[str, Any], save_path: str):
 	return save_path
 
 
+def get_transform_from_str(transform_name: str, **kwargs):
+	name_to_transform = {
+		"none": None,
+		"linear": Compose([torch.flatten, LinearRateToSpikes(n_steps=kwargs["n_steps"])]),
+		"NorseConstCurrLIF": Compose([
+			torch.flatten, norse.torch.ConstantCurrentLIFEncoder(seq_length=kwargs["n_steps"], dt=kwargs["dt"])
+		]),
+		"ImgToSpikes": Compose([torch.flatten, ImgToSpikes(n_steps=kwargs["n_steps"], use_periods=True)]),
+	}
+	name_to_transform = {k.lower(): v for k, v in name_to_transform.items()}
+	return name_to_transform[transform_name.lower()]
+
+
 def train_with_params(
 		params: Dict[str, Any],
 		n_iterations: int = 100,
+		batch_size: int = 256,
 		data_folder: str = "tr_results",
 		verbose: bool = False,
 		show_training: bool = False,
+		force_overwrite: bool = False,
 ):
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
@@ -103,11 +125,8 @@ def train_with_params(
 
 	dataloaders = get_dataloaders(
 		dataset_id=params["dataset_id"],
-		batch_size=256,
-		as_timeseries=True,
-		inputs_linear=params["inputs_linear"],
-		n_steps=params["n_steps"],
-		to_spikes_use_periods=params["to_spikes_use_periods"],
+		batch_size=batch_size,
+		input_transform=get_transform_from_str(params["input_transform"], **params),
 		train_val_split_ratio=params.get("train_val_split_ratio", 0.85),
 		nb_workers=psutil.cpu_count(logical=False),
 	)
@@ -117,11 +136,10 @@ def train_with_params(
 
 	hidden_layers = [
 		LayerType2Layer[params["hidden_layer_type"]](
-			use_recurrent_connection=params["use_recurrent_connection"],
-			learn_beta=params["learn_beta"],
 			input_size=n_hidden_neurons[i],
 			output_size=n,
 			spike_func=SpikeFuncType2Func[params["spike_func"]],
+			**params
 		)
 		for i, n in enumerate(n_hidden_neurons[1:])
 	] if len(n_hidden_neurons) > 1 else []
@@ -129,13 +147,12 @@ def train_with_params(
 		layers=[
 			LayerType2Layer[params["hidden_layer_type"]](
 				input_size=Dimension(28*28, DimensionProperty.NONE),
-				use_recurrent_connection=params["use_recurrent_connection"],
-				learn_beta=params["learn_beta"],
 				spike_func=SpikeFuncType2Func[params["spike_func"]],
 				output_size=n_hidden_neurons[0],
+				**params
 			),
 			*hidden_layers,
-			LILayer(output_size=10),
+			LayerType2Layer[params["readout_layer_type"]](output_size=10),
 		],
 		name=f"mnist_network_{checkpoints_name}",
 		checkpoint_folder=checkpoint_folder,
@@ -156,7 +173,7 @@ def train_with_params(
 		dataloaders["val"],
 		n_iterations=n_iterations,
 		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
-		# force_overwrite=True,
+		force_overwrite=force_overwrite,
 	)
 	try:
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.BEST_ITR, verbose=verbose)

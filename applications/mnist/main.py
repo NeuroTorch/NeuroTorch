@@ -4,6 +4,7 @@ from typing import Any, Dict
 from collections import OrderedDict
 
 import psutil
+import torch
 from pythonbasictools.device import log_device_setup, DeepLib
 from pythonbasictools.logging import logs_file_setup
 
@@ -98,21 +99,22 @@ from neurotorch.utils import hash_params
 if __name__ == '__main__':
 	logs_file_setup(__file__)
 	log_device_setup(deepLib=DeepLib.Pytorch)
+	torch.autograd.set_detect_anomaly(True)
 	results = train_with_params(
 		{
-			"dataset_id": DatasetId.FASHION_MNIST,
+			"dataset_id": DatasetId.MNIST,
 			"to_spikes_use_periods": True,
 			"inputs_linear": False,
 			"use_recurrent_connection": True,
 			"n_hidden_layers": 0,
-			"n_hidden_neurons": 128,
+			"n_hidden_neurons": 100,
 			"learn_beta": False,
 			"n_steps": 100,
 			"train_val_split_ratio": 0.95,
 			"spike_func": SpikeFuncType.FastSigmoid,
-			"hidden_layer_type": LayerType.ALIF,
+			"hidden_layer_type": LayerType.LIF,
 		},
-		n_iterations=30,
+		n_iterations=5,
 		verbose=True,
 		show_training=True,
 	)

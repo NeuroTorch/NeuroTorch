@@ -1,8 +1,10 @@
 import enum
 import os
+from typing import Callable
 
 import numpy as np
 import torch
+import torchvision
 from torchvision.datasets import MNIST, FashionMNIST
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import Compose, ToTensor
@@ -20,10 +22,11 @@ def get_dataloaders(
 		dataset_id: DatasetId,
 		batch_size: int = 64,
 		train_val_split_ratio: float = 0.85,
-		as_timeseries: bool = True,
-		n_steps: int = 100,
-		to_spikes_use_periods: bool = False,
-		inputs_linear: bool = False,
+		# as_timeseries: bool = True,
+		# n_steps: int = 100,
+		# to_spikes_use_periods: bool = False,
+		# inputs_linear: bool = False,
+		input_transform: Callable = None,
 		nb_workers: int = 0,
 ):
 	"""
@@ -39,13 +42,15 @@ def get_dataloaders(
 	"""
 	list_of_transform = [
 		ToTensor(),
-		torch.flatten,
+		torchvision.transforms.Normalize((0.1307,), (0.3081,)),
 	]
-	if as_timeseries:
-		list_of_transform.append(
-			LinearRateToSpikes(n_steps=n_steps)
-			if inputs_linear else ImgToSpikes(n_steps=n_steps, use_periods=to_spikes_use_periods)
-		)
+	# if as_timeseries:
+	# 	list_of_transform.append(
+	# 		LinearRateToSpikes(n_steps=n_steps)
+	# 		if inputs_linear else ImgToSpikes(n_steps=n_steps, use_periods=to_spikes_use_periods)
+	# 	)
+	if input_transform is not None:
+		list_of_transform.append(input_transform)
 	transform = Compose(list_of_transform)
 
 	if dataset_id == DatasetId.MNIST:

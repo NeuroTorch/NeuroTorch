@@ -240,10 +240,10 @@ def get_dataloaders(
         train_set, batch_size=batch_size, shuffle=True, num_workers=nb_workers
     )
     val_dataloader = DataLoader(
-        val_set, batch_size=batch_size, shuffle=True, num_workers=nb_workers
+        val_set, batch_size=batch_size, shuffle=False, num_workers=nb_workers
     )
     test_dataloader = DataLoader(
-        test_dataset, batch_size=batch_size, shuffle=True, num_workers=nb_workers
+        test_dataset, batch_size=batch_size, shuffle=False, num_workers=nb_workers
     )
     return dict(train=train_dataloader, val=val_dataloader, test=test_dataloader)
 

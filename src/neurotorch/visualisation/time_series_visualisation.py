@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -20,15 +20,16 @@ class Visualise:
 		2. Heatmap of the time series
 		3. Rigid plot of the time series
 		4. Plot all the neuronal activity in one figure
-	Further Visualisation are already added. You can visualise the time series with clustering methods. You can
+	Further visualisation are already added. You can visualise the time series with clustering methods. You can
 	then visualise those clustered time series in scatter/trajectory in their clustered space.
 	"""
 
-	def __init__(self,
-				 timeseries: np.array,
-				 shape: Optional[Dimension] = None,
-				 apply_zscore: bool = False
-				 ):
+	def __init__(
+			self,
+			timeseries: np.array,
+			shape: Optional[Dimension] = None,
+			apply_zscore: bool = False
+		):
 		"""
 		:param timeseries: Time series of shape (num_sample, num_variable). Make sure the time series is a numpy array
 		:param shape: Shape of the time series. If shape is None, the shape is inferred from the time series. Useful
@@ -67,8 +68,16 @@ class Visualise:
 				x_axis_title = "Variable"
 		return num_sample, num_variable, x_axis_title, y_axis_title
 
-	def animate(self, forward_weights, dt, step: int = 4, time_interval: float = 1.0,
-				node_size: float = 50, alpha: float = 0.01, anim_title: str = None):
+	def animate(
+			self,
+			forward_weights: np.ndarray,
+			dt: float,
+			step: int = 4,
+			time_interval: float = 1.0,
+			node_size: float = 50,
+			alpha: float = 0.01,
+			anim_title: str = None
+	):
 		"""
 		Animate the time series. The position of the nodes are obtained using the spring layout.
 		Spring-Layout use the Fruchterman-Reingold force-directed algorithm. For more information,
@@ -88,8 +97,14 @@ class Visualise:
 		connectome = nx.from_numpy_array(forward_weights)
 		pos = nx.spring_layout(connectome)
 		fig, ax = plt.subplots(figsize=(7, 7))
-		nx.draw_networkx_nodes(connectome, pos, ax=ax, node_size=node_size, node_color=self.timeseries[:, 0],
-							   cmap="hot")
+		nx.draw_networkx_nodes(
+			connectome,
+			pos,
+			ax=ax,
+			node_size=node_size,
+			node_color=self.timeseries[:, 0],
+			cmap="hot"
+		)
 		nx.draw_networkx_edges(connectome, pos, ax=ax, width=1.0, alpha=alpha)
 		x, y = ax.get_xlim()[0], ax.get_ylim()[1]
 		plt.axis("off")
@@ -97,8 +112,13 @@ class Visualise:
 		plt.tight_layout(pad=0)
 
 		def _animation(i):
-			nodes = nx.draw_networkx_nodes(connectome, pos, ax=ax, node_size=node_size,
-										   node_color=self.timeseries[:, i * step], cmap="hot")
+			nodes = nx.draw_networkx_nodes(
+				connectome,
+				pos,
+				ax=ax, node_size=node_size,
+				node_color=self.timeseries[:, i * step],
+				cmap="hot"
+			)
 			text.set_text(rf"$t = {i * step * dt:.3f} / {self.num_variable * dt}$")
 			return nodes, text
 
@@ -117,8 +137,13 @@ class Visualise:
 		plt.ylabel(self.y_axis_title)
 		plt.show()
 
-	def heatmap(self, show_axis: bool = True, interpolation: str = "nearest", cmap: str = "RdBu_r",
-				v: tuple[float, float] = (0.0, 1.0)):
+	def heatmap(
+			self,
+			show_axis: bool = True,
+			interpolation: str = "nearest",
+			cmap: str = "RdBu_r",
+			v: Tuple[float, float] = (0.0, 1.0)
+	):
 		"""
 		Plot the heatmap of the time series.
 		:param show_axis: Whether to show the axis or not.
@@ -157,12 +182,13 @@ class VisualiseKMeans(Visualise):
 	Visualise the time series using only a K-means algorithm of clustering
 	"""
 
-	def __init__(self,
-				 timeseries: np.array,
-				 apply_zscore: bool = False,
-				 n_clusters: int = 13,
-				 random_state: int = 0
-				 ):
+	def __init__(
+			self,
+			timeseries: np.array,
+			apply_zscore: bool = False,
+			n_clusters: int = 13,
+			random_state: int = 0
+		):
 		"""
 		:param timeseries: Time series of shape (num_sample, num_sample). Make sure the time series is a numpy array
 		:param apply_zscore: Whether to apply z-score or not.
@@ -200,11 +226,12 @@ class VisualisePCA(Visualise):
 	Visualise the time series using PCA algorithm of dimensionality reduction. PCA is apply on the variable
 	"""
 
-	def __init__(self,
-				 timeseries: np.array,
-				 apply_zscore: bool = False,
-				 n_PC: int = 5
-				 ):
+	def __init__(
+			self,
+			timeseries: np.ndarray,
+			apply_zscore: bool = False,
+			n_PC: int = 5
+		):
 		"""
 		:param timeseries: Time series of shape (num_sample, num_variable). Make sure the time series is a numpy array
 		:param apply_zscore: Whether to apply z-score or not.
@@ -239,7 +266,7 @@ class VisualisePCA(Visualise):
 		self.kmean_label = kmeans.labels_
 		return self
 
-	def scatter_pca(self, PCs: tuple = (1, 2), color_sample: bool = False):
+	def scatter_pca(self, PCs: Tuple[int, ...] = (1, 2), color_sample: bool = False):
 		"""
 		Plot the scatter plot of the PCA space in 2D or 3D.
 		:param PCs: List of PCs to plot. Always a list of length 2 or 3
@@ -273,12 +300,22 @@ class VisualisePCA(Visualise):
 			ax.set_xlabel(f"PC {PCs[0]}")
 			ax.set_ylabel(f"PC {PCs[1]}")
 			ax.set_zlabel(f"PC {PCs[2]}")
-			ax.scatter(self.reduced_timeseries[:, PCs[0] - 1], self.reduced_timeseries[:, PCs[1] - 1],
-					   self.reduced_timeseries[:, PCs[2] - 1], c=color, cmap="RdBu_r")
+			ax.scatter(
+				self.reduced_timeseries[:, PCs[0] - 1],
+				self.reduced_timeseries[:, PCs[1] - 1],
+				self.reduced_timeseries[:, PCs[2] - 1],
+				c=color, cmap="RdBu_r"
+			)
 		plt.show()
 
-	def trajectory_pca(self, PCs: tuple = (1, 2), with_smooth: bool = True, degree: int = 5, condition: float = 5,
-					   reduction: int = 1):
+	def trajectory_pca(
+			self,
+			PCs: Tuple[int, int] = (1, 2),
+			with_smooth: bool = True,
+			degree: int = 5,
+			condition: float = 5,
+			reduction: int = 1
+	):
 		"""
 		Plot the trajectory of the PCA space in 2D.
 		:param PCs: List of PCs to plot. Always a list of length 2.
@@ -310,12 +347,14 @@ class VisualisePCA(Visualise):
 
 class VisualiseUMAP(Visualise):
 
-	def __init__(self, timeseries: np.array,
-				 apply_zscore: bool = False,
-				 n_neighbors: int = 10,
-				 min_dist: float = 0.5,
-				 n_components: int = 3
-				 ):
+	def __init__(
+			self,
+			timeseries: np.ndarray,
+			apply_zscore: bool = False,
+			n_neighbors: int = 10,
+			min_dist: float = 0.5,
+			n_components: int = 3
+		):
 		super().__init__(
 			timeseries=timeseries,
 			apply_zscore=apply_zscore
@@ -347,7 +386,7 @@ class VisualiseUMAP(Visualise):
 		self.kmeans_label = kmeans.labels_
 		return self
 
-	def scatter_umap(self, UMAPs: tuple = (1, 2), color_sample: bool = False):
+	def scatter_umap(self, UMAPs: Tuple[int, ...] = (1, 2), color_sample: bool = False):
 		"""
 		Plot the scatter plot of the UMAP space in 2D or 3D.
 		:param UMAPs: List of UMAPs to plot. Always a list of length 2 or 3
@@ -381,12 +420,22 @@ class VisualiseUMAP(Visualise):
 			ax.set_xlabel(f"UMAP {UMAPs[0]}")
 			ax.set_ylabel(f"UMAP {UMAPs[1]}")
 			ax.set_zlabel(f"UMAP {UMAPs[2]}")
-			ax.scatter(self.reduced_timeseries[:, UMAPs[0] - 1], self.reduced_timeseries[:, UMAPs[1] - 1],
-					   self.reduced_timeseries[:, UMAPs[2] - 1], c=color, cmap="RdBu_r")
+			ax.scatter(
+				self.reduced_timeseries[:, UMAPs[0] - 1],
+				self.reduced_timeseries[:, UMAPs[1] - 1],
+				self.reduced_timeseries[:, UMAPs[2] - 1],
+				c=color, cmap="RdBu_r"
+			)
 		plt.show()
 
-	def trajectory_umap(self, UMAPs: tuple = (1, 2), with_smooth: bool = True, degree: int = 5, condition: float = 5,
-						reduction: int = 1):
+	def trajectory_umap(
+			self,
+			UMAPs: Tuple[int, int] = (1, 2),
+			with_smooth: bool = True,
+			degree: int = 5,
+			condition: float = 5,
+			reduction: int = 1
+	):
 		"""
 		Plot the trajectory of the UMAP space in 2D.
 		:param UMAPs: List of UMAPs to plot. Always a list of length 2.
@@ -418,12 +467,13 @@ class VisualiseUMAP(Visualise):
 
 class VisualiseDBSCAN(Visualise):
 
-	def __init__(self,
-				 timeseries: np.ndarray,
-				 apply_zscore: bool = True,
-				 eps: float = 25,
-				 min_samples: int = 3,
-				 ):
+	def __init__(
+			self,
+			timeseries: np.ndarray,
+			apply_zscore: bool = True,
+			eps: float = 25,
+			min_samples: int = 3,
+			):
 		super().__init__(
 			timeseries=timeseries,
 			apply_zscore=apply_zscore

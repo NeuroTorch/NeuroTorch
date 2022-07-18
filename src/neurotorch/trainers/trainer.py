@@ -147,7 +147,7 @@ class Trainer:
 	
 	def _set_default_device(self, device: Optional[torch.device]) -> torch.device:
 		if device is None:
-			device = self.model._device
+			device = self.model.device
 		return device
 	
 	@staticmethod

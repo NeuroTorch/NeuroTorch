@@ -6,6 +6,7 @@ from .version import __version__
 from .dimension import (
 	Dimension,
 	DimensionProperty,
+	Size,
 )
 
 from .modules.layers import (

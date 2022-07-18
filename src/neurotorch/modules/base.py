@@ -151,9 +151,13 @@ class BaseModel(torch.nn.Module):
 				for i in range(len(input_transform), len(transform_keys)):
 					input_transform.append(default_transform[transform_keys[i]])
 			input_transform = {in_name: t for in_name, t in zip(transform_keys, input_transform)}
+		elif callable(input_transform):
+			input_transform = {in_name: input_transform for in_name in transform_keys}
 		if isinstance(input_transform, dict):
 			assert all([in_name in input_transform for in_name in transform_keys]), \
 				f"Input transform must contain all input names: {transform_keys}"
+		else:
+			raise TypeError(f"Input transform must be a dict or a list of callables. Got {type(input_transform)}.")
 		return input_transform
 
 	def load_checkpoint(

@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 import numpy as np
 import torch.onnx
+import torch
 from matplotlib import pyplot as plt
 
 from dataset import WilsonCowanTimeSeries, get_dataloaders
@@ -14,10 +15,14 @@ from neurotorch.modules import SequentialModel
 from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.trainers import RegressionTrainer
 from neurotorch.utils import hash_params
+from neurotorch.visualisation.time_series_visualisation import Visualise, VisualiseKMeans
 
+# TODO : calculate pVar on each neurons instead of calculating it on batch wise
+# TODO : Problem when ratio != 0.5
 
 def p_var(output, target):
-	loss = 1 - (torch.norm(output - target) / torch.norm(target - torch.mean(target)))**2
+	MSE = torch.nn.MSELoss(reduction="none")
+	loss = torch.mean((1 - MSE(output, target) / torch.var(target.flatten(), dim=-1)))
 	return loss
 
 
@@ -39,14 +44,16 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 			input_size=params["hidden_layer_size"],
 			output_size=params["hidden_layer_size"],
 			dt=params["dt"],
-			device=torch.device("cpu"),
+			std_weight=params["std_weight"],
+			learn_r=params["learn_r"],
+			std_r=params["std_r"],
 		)
 		for _ in range(params["num_hidden_layers"])
 	]
 	network = SequentialModel(
 		layers=hidden_layer,
 		checkpoint_folder=checkpoint_folder,
-		device=torch.device("cpu"),
+		device=torch.device("cuda"),
 	)
 	network.build()
 	checkpoint_manager = CheckpointManager(checkpoint_folder, minimise_metric=False)
@@ -54,8 +61,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		model=network,
 		callbacks=checkpoint_manager,
 		criterion=p_var,
-		optimizer=torch.optim.Adam(network.parameters(), lr=1e-3, maximize=True),
-		device=torch.device("cpu"),
+		optimizer=torch.optim.Adam(network.parameters(), lr=3e-4, maximize=True),
 	)
 	trainer.train(
 		dataloaders["train"],
@@ -97,13 +103,13 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 
 
 if __name__ == '__main__':
-	n_neurons = 128  # Num of neurons
-	num_step = 1_000
+	n_neurons = 172  # Num of neurons
+	num_step = 2_000
 	dt = 0.1
 	t_0 = np.random.rand(n_neurons, )
-	forward_weights = 8 * np.random.randn(n_neurons, n_neurons)
+	forward_weights = 2 * np.random.randn(n_neurons, n_neurons)
 	mu = 0
-	r = np.random.rand(n_neurons, ) * 2
+	r = 0
 	tau = 1
 	WCTS = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
 	time_series = WCTS.compute_timeseries()
@@ -113,13 +119,16 @@ if __name__ == '__main__':
 			"time_series": time_series,
 			"batch_size": 1024,
 			"train_val_split_ratio": 0.8,
-			"chunk_size": 100,
+			"chunk_size": 1000,
 			"ratio": 0.5,
 			"num_hidden_layers": 1,
 			"dt": dt,
+			"std_weight": 1.2,
+			"learn_r": False,
+			"std_r": 0,
 			"hidden_layer_size": n_neurons,
 		},
-		n_iterations=100,
+		n_iterations=50,
 		verbose=True
 	)
 	pprint.pprint(results, indent=4)
@@ -128,6 +137,14 @@ if __name__ == '__main__':
 	pred_forward_weights = list(results['network'].output_layers.values())[0].forward_weights.detach().cpu().numpy()
 	pred_WCTS = WilsonCowanTimeSeries(num_step, dt, t_0, pred_forward_weights, mu, r, tau)
 	pred_time_series = pred_WCTS.compute_timeseries()
+	VisualiseKMeans(time_series).heatmap()
+	VisualiseKMeans(pred_time_series).heatmap()
+	for idx in range(n_neurons):
+		plt.plot(time_series[idx], label='true')
+		plt.plot(pred_time_series[idx], label='pred')
+		plt.legend()
+		plt.show()
+
 	# pred_WCTS.plot_timeseries(False)
 
 	# for i in range(n_neurons):

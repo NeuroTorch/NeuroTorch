@@ -193,8 +193,8 @@ class BaseModel(torch.nn.Module):
 		:param inputs: dict of inputs of shape (batch_size, *input_size)
 		:return: The input of the network with the same shape as the input.
 		"""
-		assert all([in_name in self.input_sizes for in_name in inputs]), \
-			f"Inputs must be all in input names: {self.input_sizes.keys()}"
+		assert all([in_name in self.input_transform for in_name in inputs]), \
+			f"Inputs must be all in input names: {self.input_transform.keys()}"
 		inputs = {
 			in_name: torch.stack(
 				[self.input_transform[in_name](obs_i) for obs_i in in_batch],

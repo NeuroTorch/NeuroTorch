@@ -2,15 +2,11 @@ import enum
 import os
 from typing import Callable
 
-import numpy as np
 import torch
 import torchvision
 from torchvision.datasets import MNIST, FashionMNIST
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, ToTensor
-
-from neurotorch.transforms import LinearRateToSpikes
-from neurotorch.transforms.vision import ImgToSpikes
 
 
 class DatasetId(enum.Enum):
@@ -22,10 +18,6 @@ def get_dataloaders(
 		dataset_id: DatasetId,
 		batch_size: int = 64,
 		train_val_split_ratio: float = 0.85,
-		# as_timeseries: bool = True,
-		# n_steps: int = 100,
-		# to_spikes_use_periods: bool = False,
-		# inputs_linear: bool = False,
 		input_transform: Callable = None,
 		nb_workers: int = 0,
 ):
@@ -34,9 +26,7 @@ def get_dataloaders(
 	:param dataset_id: The dataset to use.
 	:param batch_size: The batch size.
 	:param train_val_split_ratio: The ratio of train data (i.e. train_length/data_length).
-	:param as_timeseries: Whether to use the data as time series.
-	:param n_steps: The number of steps to use.
-	:param to_spikes_use_periods: Whether to use the periods in the ImgToSpikes transform.
+	:param input_transform: The transform to apply to the input.
 	:param nb_workers: The number of workers to use.
 	:return: The dataloaders.
 	"""
@@ -44,11 +34,6 @@ def get_dataloaders(
 		ToTensor(),
 		torchvision.transforms.Normalize((0.1307,), (0.3081,)),
 	]
-	# if as_timeseries:
-	# 	list_of_transform.append(
-	# 		LinearRateToSpikes(n_steps=n_steps)
-	# 		if inputs_linear else ImgToSpikes(n_steps=n_steps, use_periods=to_spikes_use_periods)
-	# 	)
 	if input_transform is not None:
 		list_of_transform.append(input_transform)
 	transform = Compose(list_of_transform)
@@ -62,7 +47,7 @@ def get_dataloaders(
 		train_dataset = FashionMNIST(root, train=True, transform=transform, download=True)
 		test_dataset = FashionMNIST(root, train=False, transform=transform, download=True)
 	else:
-		raise ValueError()
+		raise ValueError(f"Unknown dataset id: {dataset_id}.")
 
 	train_length = int(len(train_dataset) * train_val_split_ratio)
 	val_length = len(train_dataset) - train_length

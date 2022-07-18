@@ -103,19 +103,19 @@ if __name__ == '__main__':
 	results = train_with_params(
 		{
 			"dataset_id": DatasetId.MNIST,
-			"to_spikes_use_periods": True,
-			"inputs_linear": False,
 			"use_recurrent_connection": True,
-			"n_hidden_layers": 0,
-			"n_hidden_neurons": 100,
-			"learn_beta": False,
-			"n_steps": 100,
+			"input_transform": "NorseConstCurrLIF",
+			'n_hidden_neurons': 128,
+			"n_steps": 10,
 			"train_val_split_ratio": 0.95,
-			"spike_func": SpikeFuncType.FastSigmoid,
+			# "spike_func": SpikeFuncType.FastSigmoid,
 			"hidden_layer_type": LayerType.LIF,
+			"readout_layer_type": LayerType.LI,
+			"n_hidden_neurons": 128,
 		},
 		n_iterations=5,
+		batch_size=4096,
 		verbose=True,
-		show_training=True,
+		show_training=False,
 	)
 	pprint.pprint(results, indent=4)

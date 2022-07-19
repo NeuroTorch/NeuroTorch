@@ -3,15 +3,19 @@ from typing import Any, Optional, Dict, Callable, Tuple, Union
 
 import numpy as np
 import torch
+from torch.nn.functional import mse_loss
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 from sklearn import metrics as sk_metrics
 
 from neurotorch.metrics.base import BaseMetrics
 from neurotorch.modules import BaseModel
+from neurotorch.transforms import to_tensor
 
 
 class RegressionMetrics(BaseMetrics):
+	EPSILON = 1e-12
+
 	@staticmethod
 	def get_all_metrics_names_to_func() -> Dict[str, Callable]:
 		sep = RegressionMetrics.METRICS_NAMES_SEP
@@ -154,6 +158,31 @@ class RegressionMetrics(BaseMetrics):
 		return sk_metrics.d2_tweedie_score(y_true.flatten(), y_pred.flatten())
 
 	@staticmethod
+	def compute_p_var(
+			y_true,
+			y_pred,
+			device: Optional[torch.device] = None,
+			reduction: str = 'mean',
+	) -> torch.Tensor:
+		y_true, y_pred = to_tensor(y_true), to_tensor(y_pred)
+		if device is None:
+			device = y_pred.device
+		y_true, y_pred = y_true.to(device), y_pred.to(device)
+		dims = list(range(y_pred.ndim))[1:]
+		mse = torch.mean(mse_loss(y_true, y_pred, reduction='none'), dim=dims)
+		var = torch.var(y_true, dim=dims)
+		p_var_values = 1 - mse / (var + RegressionMetrics.EPSILON)
+		if reduction.lower() == 'none':
+			p_var_value = p_var_values
+		elif reduction.lower() == 'mean':
+			p_var_value = torch.mean(p_var_values)
+		elif reduction.lower() == 'sum':
+			p_var_value = torch.sum(p_var_values)
+		else:
+			raise ValueError(f"Reduction {reduction} not recognized. Try 'none'|'sum'|'mean'.")
+		return p_var_value
+
+	@staticmethod
 	def p_var(
 			model: Optional[BaseModel] = None,
 			dataloader: Optional[DataLoader] = None,
@@ -185,15 +214,12 @@ class RegressionMetrics(BaseMetrics):
 				verbose=verbose, desc=desc, p_bar_position=p_bar_position
 			)
 
-		# TODO: clean up this code
-		def _p_var(_y_true, _y_pred):
-			_y_true, _y_pred = torch.from_numpy(_y_true).to(device), torch.from_numpy(_y_pred).to(device)
-			m = 1 - (torch.norm(_y_pred - _y_true) / torch.norm(_y_true - torch.mean(_y_true)))**2
-			return m.detach().cpu().numpy()
-
 		if isinstance(y_true, dict):
-			return {k: _p_var(y_true[k], y_pred[k]) for k in y_true}
-		return _p_var(y_true, y_pred)
+			return {
+				k: RegressionMetrics.compute_p_var(y_true[k], y_pred[k], device).detach().cpu().numpy()
+				for k in y_true
+			}
+		return RegressionMetrics.compute_p_var(y_true, y_pred, device).detach().cpu().numpy()
 
 	def __call__(
 			self,

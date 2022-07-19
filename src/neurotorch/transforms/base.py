@@ -14,6 +14,16 @@ def to_tensor(x: Any, dtype=torch.float32):
 	raise ValueError(f"Unsupported type {type(x)}")
 
 
+def to_numpy(x: Any, dtype=torch.float32):
+	if isinstance(x, np.ndarray):
+		return np.asarray(x, dtype=dtype)
+	elif isinstance(x, torch.Tensor):
+		return x.detach().cpu().numpy()
+	elif not isinstance(x, torch.Tensor):
+		return np.asarray(x, dtype=dtype)
+	raise ValueError(f"Unsupported type {type(x)}")
+
+
 class LinearRateToSpikes(torch.nn.Module):
 	def __init__(
 			self,

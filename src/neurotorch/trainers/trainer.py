@@ -73,7 +73,7 @@ class Trainer:
 	def __init__(
 			self,
 			model: BaseModel,
-			criterion: Optional[Union[Dict[str, torch.nn.Module], torch.nn.Module]] = None,
+			criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
 			optimizer: Optional[torch.optim.Optimizer] = None,
 			metrics: Optional[List[Callable]] = None,
 			callbacks: Optional[Union[List[BaseCallback], CallbacksList, BaseCallback]] = None,

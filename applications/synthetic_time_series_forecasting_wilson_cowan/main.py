@@ -20,11 +20,6 @@ from neurotorch.visualisation.time_series_visualisation import Visualise, Visual
 # TODO : calculate pVar on each neurons instead of calculating it on batch wise
 # TODO : Problem when ratio != 0.5
 
-def p_var(output, target):
-	MSE = torch.nn.MSELoss(reduction="none")
-	loss = torch.mean((1 - MSE(output, target) / torch.var(target.flatten(), dim=-1)))
-	return loss
-
 
 def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_folder="tr_results", verbose=True):
 	checkpoints_name = str(hash_params(params))
@@ -54,13 +49,14 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		layers=hidden_layer,
 		checkpoint_folder=checkpoint_folder,
 		device=torch.device("cuda"),
+		foresight_time_steps=int(params["chunk_size"] * params["ratio"])
 	)
 	network.build()
 	checkpoint_manager = CheckpointManager(checkpoint_folder, minimise_metric=False)
 	trainer = RegressionTrainer(
 		model=network,
 		callbacks=checkpoint_manager,
-		criterion=p_var,
+		criterion=lambda x, y: RegressionMetrics.compute_p_var(y, x),
 		optimizer=torch.optim.Adam(network.parameters(), lr=1e-3, maximize=True),
 	)
 	trainer.train(
@@ -104,7 +100,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 
 if __name__ == '__main__':
 	n_neurons = 2  # Num of neurons
-	num_step = 1_000
+	num_step = 100
 	dt = 0.1
 	t_0 = np.random.rand(n_neurons, )
 	forward_weights = 2 * np.random.randn(n_neurons, n_neurons)
@@ -117,9 +113,9 @@ if __name__ == '__main__':
 	results = train_with_params(
 		{
 			"time_series": time_series,
-			"batch_size": 64,
+			"batch_size": 1,
 			"train_val_split_ratio": 0.8,
-			"chunk_size": 500,
+			"chunk_size": 50,
 			"ratio": 0.5,
 			"num_hidden_layers": 1,
 			"dt": dt,

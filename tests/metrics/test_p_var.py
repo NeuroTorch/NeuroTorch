@@ -18,7 +18,7 @@ class TestpVar(unittest.TestCase):
 		MSE = 1/20 * torch.sum((y_true - y_pred) ** 2)
 		Var = torch.var(y_true)
 		p_var = 1 - MSE / Var
-		self.assertAlmostEqual(p_var.numpy(), RegressionMetrics.compute_p_var(y_true, y_pred, torch.device('cpu')).numpy())
+		self.assertTrue(torch.isclose(p_var, RegressionMetrics.compute_p_var(y_true, y_pred, torch.device('cpu'))))
 
 	def test_result_one_batch_built_in_MSE(self):
 		y_true = torch.rand(1, 2, 10)
@@ -27,7 +27,7 @@ class TestpVar(unittest.TestCase):
 		MSE = MSE(y_true, y_pred)
 		Var = torch.var(y_true)
 		p_var = 1 - MSE / Var
-		self.assertAlmostEqual(p_var.numpy(), RegressionMetrics.compute_p_var(y_true, y_pred, torch.device('cpu')).numpy())
+		self.assertTrue(torch.isclose(p_var, RegressionMetrics.compute_p_var(y_true, y_pred, torch.device('cpu'))))
 
 	def test_result_multiple_batch_mean(self):
 		y_true_1 = torch.rand(1, 2, 10)
@@ -39,10 +39,13 @@ class TestpVar(unittest.TestCase):
 		p_var_2 = RegressionMetrics.compute_p_var(y_true_2, y_pred_2, torch.device('cpu'))
 
 		p_var_mean = (p_var_1 + p_var_2) / 2
-		self.assertAlmostEqual(
-			p_var_mean.numpy(),
-			RegressionMetrics.compute_p_var(torch.cat((y_true_1, y_true_2)), torch.cat((y_pred_1, y_pred_2)), torch.device('cpu')).numpy()
-		)
+		self.assertTrue(torch.isclose(
+			p_var_mean,
+			RegressionMetrics.compute_p_var(
+				torch.cat((y_true_1, y_true_2)), torch.cat((y_pred_1, y_pred_2)),
+				torch.device('cpu'), reduction="mean",
+			)
+		))
 
 	def test_result_multiple_batch_built_in_sum(self):
 		y_true_1 = torch.rand(1, 2, 10)
@@ -53,13 +56,13 @@ class TestpVar(unittest.TestCase):
 		p_var_1 = RegressionMetrics.compute_p_var(y_true_1, y_pred_1, torch.device('cpu'))
 		p_var_2 = RegressionMetrics.compute_p_var(y_true_2, y_pred_2, torch.device('cpu'))
 		p_var_sum = torch.sum(p_var_1 + p_var_2)
-		self.assertAlmostEqual(
-			p_var_sum.numpy(),
+		self.assertTrue(torch.isclose(
+			p_var_sum,
 			RegressionMetrics.compute_p_var(
 				torch.cat((y_true_1, y_true_2)), torch.cat((y_pred_1, y_pred_2)),
-				torch.device('cpu'), reduction="sum"
-			).numpy()
-		)
+				torch.device('cpu'), reduction="sum",
+			)
+		))
 
 	def test_result_multiple_batch_built_in_none(self):
 		y_true_1 = torch.rand(1, 2, 10)

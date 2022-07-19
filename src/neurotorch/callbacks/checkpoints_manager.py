@@ -206,6 +206,12 @@ class CheckpointManager(BaseCallback):
 			json.dump(info, jsonFile, indent=4)
 
 	def start(self, trainer):
+		"""
+		Call at the beginning of the training by the Trainer. Load the checkpoint base on the load_checpoint_mode of the
+		trainer and update the current_training_state of the trainer.
+		:param trainer: The trainer.
+		:return: None
+		"""
 		start_itr = 0
 		if trainer.load_checkpoint_mode is None:
 			if os.path.exists(self.checkpoints_meta_path):
@@ -220,6 +226,7 @@ class CheckpointManager(BaseCallback):
 			try:
 				checkpoint = self.load_checkpoint(trainer.load_checkpoint_mode)
 				trainer.model.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
+				trainer.optimizer.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY])
 				start_itr = int(checkpoint[CheckpointManager.CHECKPOINT_ITR_KEY]) + 1
 				self._replace_trainer_history(trainer, checkpoint[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY])
 			except FileNotFoundError as e:

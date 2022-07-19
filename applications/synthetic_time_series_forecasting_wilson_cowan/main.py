@@ -61,7 +61,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		model=network,
 		callbacks=checkpoint_manager,
 		criterion=p_var,
-		optimizer=torch.optim.Adam(network.parameters(), lr=3e-4, maximize=True),
+		optimizer=torch.optim.Adam(network.parameters(), lr=1e-3, maximize=True),
 	)
 	trainer.train(
 		dataloaders["train"],
@@ -103,8 +103,8 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 
 
 if __name__ == '__main__':
-	n_neurons = 172  # Num of neurons
-	num_step = 2_000
+	n_neurons = 2  # Num of neurons
+	num_step = 1_000
 	dt = 0.1
 	t_0 = np.random.rand(n_neurons, )
 	forward_weights = 2 * np.random.randn(n_neurons, n_neurons)
@@ -117,9 +117,9 @@ if __name__ == '__main__':
 	results = train_with_params(
 		{
 			"time_series": time_series,
-			"batch_size": 1024,
+			"batch_size": 64,
 			"train_val_split_ratio": 0.8,
-			"chunk_size": 1000,
+			"chunk_size": 500,
 			"ratio": 0.5,
 			"num_hidden_layers": 1,
 			"dt": dt,
@@ -137,8 +137,8 @@ if __name__ == '__main__':
 	pred_forward_weights = list(results['network'].output_layers.values())[0].forward_weights.detach().cpu().numpy()
 	pred_WCTS = WilsonCowanTimeSeries(num_step, dt, t_0, pred_forward_weights, mu, r, tau)
 	pred_time_series = pred_WCTS.compute_timeseries()
-	VisualiseKMeans(time_series).heatmap()
-	VisualiseKMeans(pred_time_series).heatmap()
+	#VisualiseKMeans(time_series).heatmap()
+	#VisualiseKMeans(pred_time_series).heatmap()
 	for idx in range(n_neurons):
 		plt.plot(time_series[idx], label='true')
 		plt.plot(pred_time_series[idx], label='pred')

@@ -188,6 +188,7 @@ class CheckpointManager(BaseCallback):
 		:param load_checkpoint_mode:
 		:return:
 		"""
+		# TODO: add the possibility to load a specific itr
 		with open(self.checkpoints_meta_path, "r+") as jsonFile:
 			info: dict = json.load(jsonFile)
 		filename = CheckpointManager.get_save_name_from_checkpoints(info, load_checkpoint_mode)

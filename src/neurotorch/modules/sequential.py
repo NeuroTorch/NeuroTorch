@@ -605,6 +605,7 @@ class SequentialModel(BaseModel):
 	def _map_outputs_to_inputs(self) -> Dict[str, str]:
 		"""
 		Map the outputs of the model to the inputs of the model for forcasting purposes.
+		TODO: fix when there is no inputs_layers and just outputs_layers
 		:return:
 		"""
 		self._outputs_to_inputs_names_map = {}

@@ -66,7 +66,7 @@ class TestBaseNeuronLayer(unittest.TestCase):
 		self.assertEqual(layer.forward_weights.device.type, "cpu")
 		self.assertIsInstance(layer.rec_mask, torch.Tensor)
 		self.assertEqual(layer.rec_mask.device.type, "cpu")
-		self.assertAlmostEqual(torch.diag(layer.rec_mask, 0).sum(), 0.0)
+		self.assertTrue(torch.isclose(torch.diag(layer.rec_mask, 0).sum(), torch.tensor(0.0)))
 		self.assertIsInstance(layer.recurrent_weights, torch.Tensor)
 		self.assertEqual(layer.recurrent_weights.device.type, "cpu")
 		self.assertEqual(layer.recurrent_weights.requires_grad, True)

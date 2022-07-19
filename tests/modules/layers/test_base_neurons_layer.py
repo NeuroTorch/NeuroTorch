@@ -96,7 +96,7 @@ class TestBaseNeuronLayer(unittest.TestCase):
 			self.assertEqual(layer.recurrent_weights.device.type, "cuda")
 		else:
 			warnings.warn(
-				"No CUDA available. Skipping TestBaseNeuronLayer."
+				"No CUDA available. Skipping test_build."
 				"Please consider running the tests on a machine with CUDA.",
 				UserWarning
 			)

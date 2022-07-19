@@ -7,7 +7,7 @@ from neurotorch.dimension import Dimension
 from neurotorch.modules.layers import BaseLayer
 
 
-class BaseLayerTest(unittest.TestCase):
+class TestBaseLayer(unittest.TestCase):
 
 	def test_property(self):
 		"""

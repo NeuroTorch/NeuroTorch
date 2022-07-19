@@ -1,10 +1,11 @@
 import unittest
+import warnings
 
 from neurotorch.modules.layers import BaseNeuronsLayer, LearningType
 import torch
 
 
-class BaseNeuronLayerTest(unittest.TestCase):
+class TestBaseNeuronLayer(unittest.TestCase):
 
 	def test_initalize_parameter(self):
 		"""
@@ -80,18 +81,25 @@ class BaseNeuronLayerTest(unittest.TestCase):
 		self.assertEqual(layer.rec_mask, None)
 		self.assertEqual(layer.recurrent_weights, None)
 
-		layer = BaseNeuronsLayer(100, 200, use_rec_eye_mask=False, use_recurrent_connection=True, device="cuda")
-		layer.build()
-		self.assertIsInstance(layer.forward_weights, torch.Tensor)
-		self.assertEqual(layer.forward_weights.shape, (100, 200))
-		self.assertEqual(torch.round(layer.forward_weights.detach().mean()), 0)
-		self.assertEqual(layer.forward_weights.requires_grad, True)
-		self.assertEqual(layer.forward_weights.device.type, "cuda")
-		self.assertIsInstance(layer.rec_mask, torch.Tensor)
-		self.assertEqual(layer.rec_mask.device.type, "cuda")
-		self.assertNotEqual(torch.diag(layer.rec_mask, 0).sum(), 0.0)
-		self.assertIsInstance(layer.recurrent_weights, torch.Tensor)
-		self.assertEqual(layer.recurrent_weights.device.type, "cuda")
+		if torch.cuda.is_available():
+			layer = BaseNeuronsLayer(100, 200, use_rec_eye_mask=False, use_recurrent_connection=True, device="cuda")
+			layer.build()
+			self.assertIsInstance(layer.forward_weights, torch.Tensor)
+			self.assertEqual(layer.forward_weights.shape, (100, 200))
+			self.assertEqual(torch.round(layer.forward_weights.detach().mean()), 0)
+			self.assertEqual(layer.forward_weights.requires_grad, True)
+			self.assertEqual(layer.forward_weights.device.type, "cuda")
+			self.assertIsInstance(layer.rec_mask, torch.Tensor)
+			self.assertEqual(layer.rec_mask.device.type, "cuda")
+			self.assertNotEqual(torch.diag(layer.rec_mask, 0).sum(), 0.0)
+			self.assertIsInstance(layer.recurrent_weights, torch.Tensor)
+			self.assertEqual(layer.recurrent_weights.device.type, "cuda")
+		else:
+			warnings.warn(
+				"No CUDA available. Skipping test_build."
+				"Please consider running the tests on a machine with CUDA.",
+				UserWarning
+			)
 
 
 if __name__ == '__main__':

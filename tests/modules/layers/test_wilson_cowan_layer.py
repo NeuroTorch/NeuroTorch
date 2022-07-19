@@ -7,7 +7,7 @@ import torch
 from neurotorch.modules.layers import WilsonCowanLayer
 
 
-class WilsonCowanLayerTest(unittest.TestCase):
+class TestWilsonCowanLayer(unittest.TestCase):
 
 	def test_kwargs_default_parameter(self):
 		"""

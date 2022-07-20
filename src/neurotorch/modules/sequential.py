@@ -605,7 +605,6 @@ class SequentialModel(BaseModel):
 	def _map_outputs_to_inputs(self) -> Dict[str, str]:
 		"""
 		Map the outputs of the model to the inputs of the model for forcasting purposes.
-		TODO: fix when there is no inputs_layers and just outputs_layers
 		:return:
 		"""
 		self._outputs_to_inputs_names_map = {}
@@ -616,6 +615,9 @@ class SequentialModel(BaseModel):
 			assert self.input_sizes[in_name] == self.output_sizes[out_name], \
 				f"input ({self.input_sizes[in_name]}) and output ({self.output_sizes[out_name]}) sizes must be the " \
 				f"same when foresight_time_steps > 0."
+		elif len(self.input_layers) == 0 and len(self.output_layers) >= 1:
+			for out_layer_name in self._ordered_outputs_names:
+				self._outputs_to_inputs_names_map[out_layer_name] = out_layer_name
 		else:
 			self._outputs_to_inputs_names_map: Dict[str, str] = {
 				out_layer_name: in_layer_name

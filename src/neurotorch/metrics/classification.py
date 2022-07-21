@@ -79,6 +79,7 @@ class ClassificationMetrics(BaseMetrics):
 			p_bar_position: int = 0,
 	) -> Union[float, Dict[str, float]]:
 		from sklearn.metrics import accuracy_score
+		assert (y_true is None) == (y_pred is None)
 
 		if y_true is None:
 			assert y_pred is None
@@ -104,6 +105,7 @@ class ClassificationMetrics(BaseMetrics):
 			p_bar_position: int = 0,
 	) -> Union[float, Dict[str, float]]:
 		from sklearn.metrics import precision_score
+		assert (y_true is None) == (y_pred is None)
 
 		if y_true is None:
 			assert y_pred is None
@@ -132,6 +134,7 @@ class ClassificationMetrics(BaseMetrics):
 			p_bar_position: int = 0,
 	) -> Union[Dict[str, np.ndarray], np.ndarray]:
 		from sklearn.metrics import confusion_matrix
+		assert (y_true is None) == (y_pred is None)
 
 		if y_true is None:
 			assert y_pred is None
@@ -157,6 +160,7 @@ class ClassificationMetrics(BaseMetrics):
 			p_bar_position: int = 0,
 	) -> Union[float, Dict[str, float]]:
 		from sklearn.metrics import f1_score
+		assert (y_true is None) == (y_pred is None)
 
 		if y_true is None:
 			assert y_pred is None
@@ -187,6 +191,7 @@ class ClassificationMetrics(BaseMetrics):
 			p_bar_position: int = 0,
 	) -> Union[float, Dict[str, float]]:
 		from sklearn import metrics as sk_metrics
+		assert (y_true is None) == (y_pred is None)
 
 		if y_true is None:
 			assert y_pred is None
@@ -217,6 +222,7 @@ class ClassificationMetrics(BaseMetrics):
 			p_bar_position: int = 0,
 	) -> Union[float, Dict[str, float]]:
 		from sklearn import metrics as sk_metrics
+		assert (y_true is None) == (y_pred is None)
 
 		if y_true is None:
 			assert y_pred is None

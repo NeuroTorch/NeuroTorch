@@ -7,12 +7,12 @@ from applications.mnist.results_generation import get_training_params_space, tra
 
 if __name__ == '__main__':
 	logs_file_setup(__file__)
-	torch.cuda.set_per_process_memory_fraction(0.9)
+	torch.cuda.set_per_process_memory_fraction(0.8)
 	log_device_setup(deepLib=DeepLib.Pytorch)
 	df = train_all_params(
 		training_params=get_training_params_space(),
 		n_iterations=30,
-		batch_size=4096,
+		batch_size=1024,
 		data_folder="tr_data",
 		verbose=False,
 	)

@@ -42,6 +42,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 			dt=params["dt"],
 			std_weight=params["std_weight"],
 			learn_r=params["learn_r"],
+			learn_mu=params["learn_mu"],
 			std_r=params["std_r"],
 		)
 		for _ in range(params["num_hidden_layers"])
@@ -54,22 +55,22 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 		foresight_time_steps=params["num_step"]-1,
 	)
 	network.build()
-	checkpoint_manager = CheckpointManager(checkpoint_folder, minimise_metric=True)
-	# checkpoint_manager = CheckpointManager(checkpoint_folder, minimise_metric=False)
+	#checkpoint_manager = CheckpointManager(checkpoint_folder, minimise_metric=True)
+	checkpoint_manager = CheckpointManager(checkpoint_folder, minimise_metric=False)
 	reg_metrics = RegressionMetrics(network, metrics_names=["mse", "p_var"])
 	trainer = RegressionTrainer(
 		model=network,
 		callbacks=checkpoint_manager,
-		# criterion=lambda pred, y: RegressionMetrics.compute_p_var(y_true=y, y_pred=pred, reduction='mean'),
-		# optimizer=torch.optim.Adam(network.parameters(), lr=1e-2, maximize=True),
-		optimizer=torch.optim.Adam(network.parameters(), lr=1e-2),
+		criterion=lambda pred, y: RegressionMetrics.compute_p_var(y_true=y, y_pred=pred, reduction='mean'),
+		optimizer=torch.optim.Adam(network.parameters(), lr=1e-2, maximize=True),
+		#optimizer=torch.optim.Adam(network.parameters(), lr=1e-2),
 		metrics=[reg_metrics]
 	)
 	history = trainer.train(
 		dataloaders["train"],
 		dataloaders["val"],
 		n_iterations=n_iterations,
-		# load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
+		#load_checkpoint_mode=LoadCheckpointMode.LAST_ITR,
 		force_overwrite=True,
 		verbose=verbose
 	)
@@ -107,7 +108,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 
 if __name__ == '__main__':
 	n_neurons = 20  # Num of neurons
-	num_step = 1000
+	num_step = 150
 	dt = 0.1
 	t_0 = np.random.rand(n_neurons, )
 	forward_weights = 2 * np.random.randn(n_neurons, n_neurons)
@@ -116,7 +117,9 @@ if __name__ == '__main__':
 	tau = 1
 	WCTS = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
 	time_series = WCTS.compute()
-	print(time_series.shape)
+	Visualise(time_series).plot_timeseries()
+
+
 
 	results = train_with_params(
 		{
@@ -124,12 +127,13 @@ if __name__ == '__main__':
 			"batch_size": 1,
 			"train_val_split_ratio": 0.9,
 			"num_step": num_step,
-			"chunk_size": 1000,
+			"chunk_size": 150,
 			"ratio": 0.5,
 			"num_hidden_layers": 1,
 			"dt": dt,
-			"std_weight": 1,
+			"std_weight": 2,
 			"learn_r": False,
+			"learn_mu": False,
 			"std_r": 0,
 			"hidden_layer_size": n_neurons,
 		},

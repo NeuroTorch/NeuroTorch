@@ -56,4 +56,12 @@ class LinearRateToSpikes(torch.nn.Module):
 		return spikes.to(device)
 
 
+class ConstantValuesTransform(torch.nn.Module):
+	def __init__(self, n_steps: int):
+		super().__init__()
+		self.n_steps = n_steps
+
+	def forward(self, x: Any):
+		x = to_tensor(x)
+		return x.repeat(self.n_steps, 1)
 

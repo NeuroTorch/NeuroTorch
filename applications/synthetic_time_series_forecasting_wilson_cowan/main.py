@@ -8,7 +8,7 @@ import torch.onnx
 import torch
 from matplotlib import pyplot as plt
 
-from dataset import WilsonCowanTimeSeries, get_dataloaders, get_dataloaders_CURBD
+from dataset import WilsonCowanTimeSeries, get_dataloaders, get_dataloaders_reproduction
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
 from neurotorch.metrics import RegressionMetrics
 from neurotorch.modules import SequentialModel
@@ -17,8 +17,8 @@ from neurotorch.trainers import RegressionTrainer
 from neurotorch.utils import hash_params
 from neurotorch.visualisation.time_series_visualisation import Visualise, VisualiseKMeans
 
-# TODO : calculate pVar on each neurons instead of calculating it on batch wise
 # TODO : Problem when ratio != 0.5
+# TODO : bug when r or mu != 0
 
 
 def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_folder="tr_results", verbose=True):
@@ -27,7 +27,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
 	os.makedirs(checkpoint_folder, exist_ok=True)
 	print(f"Checkpoint folder: {checkpoint_folder}")
-	dataloaders = get_dataloaders_CURBD(
+	dataloaders = get_dataloaders_reproduction(
 		time_series=params["time_series"],
 		# batch_size=params["batch_size"],
 		# train_val_split_ratio=params["train_val_split_ratio"],
@@ -107,16 +107,16 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 
 
 if __name__ == '__main__':
-	n_neurons = 20  # Num of neurons
-	num_step = 150
+	n_neurons = 10  # Num of neurons
+	num_step = 100
 	dt = 0.1
 	t_0 = np.random.rand(n_neurons, )
-	forward_weights = 2 * np.random.randn(n_neurons, n_neurons)
+	forward_weights = 3 * np.random.randn(n_neurons, n_neurons)
 	mu = 0
 	r = 0
 	tau = 1
 	WCTS = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
-	time_series = WCTS.compute()
+	time_series = WCTS.compute_timeseries()
 	Visualise(time_series).plot_timeseries()
 
 
@@ -131,7 +131,7 @@ if __name__ == '__main__':
 			"ratio": 0.5,
 			"num_hidden_layers": 1,
 			"dt": dt,
-			"std_weight": 2,
+			"std_weight": 1,
 			"learn_r": False,
 			"learn_mu": False,
 			"std_r": 0,
@@ -157,7 +157,12 @@ if __name__ == '__main__':
 		pred_time_series[np.newaxis, :],
 		reduction='mean'
 	)
-	print(f"{p_var = }")
+	p_var_permutted = RegressionMetrics.compute_p_var(
+		time_series[np.newaxis, :],
+		np.random.permutation(pred_time_series)[np.newaxis, :],
+		reduction='mean'
+	)
+	print(f"p_var = {p_var}, p_var_permutted = {p_var_permutted}")
 	for idx in range(n_neurons):
 		plt.plot(time_series[idx], label='true')
 		plt.plot(pred_time_series[idx], label='pred')

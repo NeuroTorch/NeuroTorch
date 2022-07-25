@@ -159,22 +159,6 @@ class WilsonCowanTimeSeries:
 		plt.show()
 
 
-# Example
-# i = 200  # Num of neurons
-# num_step = 5000
-# dt = 0.1
-# t_0 = np.random.rand(i, )
-# forward_weights = 8 * np.random.randn(i, i)
-# mu = 0
-# r = np.random.rand(i, ) * 2
-# tau = 1
-#
-# dynamic = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
-#
-# dynamic.plot_timeseries(show_matrix=True)
-# dynamic.animate_timeseries(time_interval=0.1)
-
-
 class WilsonCowanDataset(Dataset):
 	"""
 	Dataset for the Wilson-Cowan model.
@@ -224,7 +208,7 @@ class WilsonCowanDataset(Dataset):
 		return torch.transpose(x, 0, 1), torch.transpose(y, 0, 1)
 
 
-class WilsonCowanDataset_CURBD(Dataset):
+class WilsonCowanDataset_reproduction(Dataset):
 	"""
 	Dataset for the Wilson-Cowan model.
 	"""
@@ -265,7 +249,7 @@ class WilsonCowanDataset_CURBD(Dataset):
 		return torch.transpose(x, 0, 1), torch.transpose(y, 0, 1)
 
 
-def get_dataloaders_CURBD(
+def get_dataloaders_reproduction(
 		time_series: numpy.array,
 ):
 	"""
@@ -273,7 +257,7 @@ def get_dataloaders_CURBD(
 	:param time_series: The time series of the Wilson-Cowan model.
 	:return:
 	"""
-	train_dataset = WilsonCowanDataset_CURBD(
+	train_dataset = WilsonCowanDataset_reproduction(
 		time_series=time_series,
 	)
 	train_dataloader = DataLoader(

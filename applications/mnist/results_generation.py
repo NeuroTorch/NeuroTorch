@@ -26,7 +26,7 @@ from neurotorch.modules.layers import LayerType, LayerType2Layer, LearningType
 from neurotorch.trainers import ClassificationTrainer
 from neurotorch.transforms import ConstantValuesTransform, LinearRateToSpikes
 from neurotorch.transforms.vision import ImgToSpikes
-from neurotorch.utils import hash_params
+from neurotorch.utils import get_all_params_combinations, get_transform_from_str, hash_params, save_params
 
 
 def get_training_params_space() -> Dict[str, Any]:
@@ -90,41 +90,6 @@ def get_training_params_space() -> Dict[str, Any]:
 		# 	False
 		# ],
 	}
-
-
-def get_meta_name(params: Dict[str, Any]):
-	meta_name = f""
-	for k, v in params.items():
-		meta_name += f"{k}-{v}_"
-	return meta_name[:-1]
-
-
-def save_params(params: Dict[str, Any], save_path: str):
-	"""
-	Save the parameters in a file.
-	:param save_path: The path to save the parameters.
-	:param params: The parameters to save.
-	:return: The path to the saved parameters.
-	"""
-	pickle.dump(params, open(save_path, "wb"))
-	return save_path
-
-
-def get_transform_from_str(transform_name: str, **kwargs):
-	kwargs.setdefault("dt", 1e-3)
-	kwargs.setdefault("n_steps", 10)
-	name_to_transform = {
-		"none": None,
-		"linear": Compose([torch.flatten, LinearRateToSpikes(n_steps=kwargs["n_steps"])]),
-		"NorseConstCurrLIF": Compose([
-			torch.flatten, norse.torch.ConstantCurrentLIFEncoder(seq_length=kwargs["n_steps"], dt=kwargs["dt"])
-		]),
-		"ImgToSpikes": Compose([torch.flatten, ImgToSpikes(n_steps=kwargs["n_steps"], use_periods=True)]),
-		"flatten": Compose([torch.flatten, Lambda(lambda x: x[np.newaxis, :])]),
-		"const": Compose([torch.flatten, ConstantValuesTransform(n_steps=kwargs["n_steps"])]),
-	}
-	name_to_transform = {k.lower(): v for k, v in name_to_transform.items()}
-	return name_to_transform[transform_name.lower()]
 
 
 def train_with_params(
@@ -240,19 +205,6 @@ def train_with_params(
 			for k, (y_true, y_pred) in predictions.items()
 		},
 	))
-
-
-def get_all_params_combinations(params_space: Dict[str, Any] = None) -> List[Dict[str, Any]]:
-	if params_space is None:
-		params_space = get_training_params_space()
-	# get all the combinaison of the parameters
-	all_params = list(params_space.keys())
-	all_params_values = list(params_space.values())
-	all_params_combinaison = list(map(lambda x: list(x), list(itertools.product(*all_params_values))))
-
-	# create a list of dict of all the combinaison
-	all_params_combinaison_dict = list(map(lambda x: dict(zip(all_params, x)), all_params_combinaison))
-	return all_params_combinaison_dict
 
 
 def train_all_params(

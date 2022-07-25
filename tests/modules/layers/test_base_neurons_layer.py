@@ -16,7 +16,7 @@ class TestBaseNeuronLayer(unittest.TestCase):
 		self.assertEqual(layer.output_size, None)
 		self.assertEqual(layer.name, "BaseNeuronsLayer")
 		self.assertEqual(layer.use_recurrent_connection, True)
-		self.assertEqual(layer.use_rec_eye_mask, True)
+		self.assertEqual(layer.use_rec_eye_mask, False)
 		self.assertEqual(layer.learning_type, LearningType.BPTT)
 		self.assertEqual(layer.dt, 1e-3)
 
@@ -56,7 +56,7 @@ class TestBaseNeuronLayer(unittest.TestCase):
 		2. recurrent_weights
 		3. recurrent_eye_mask
 		"""
-		layer = BaseNeuronsLayer(100, 200, device="cpu", use_recurrent_connection=True)
+		layer = BaseNeuronsLayer(100, 200, device="cpu", use_recurrent_connection=True, use_rec_eye_mask=True)
 		self.assertEqual(layer.forward_weights, None)
 		layer.build()
 		self.assertIsInstance(layer.forward_weights, torch.Tensor)

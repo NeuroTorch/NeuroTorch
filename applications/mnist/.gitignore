@@ -2,6 +2,7 @@
 *results
 *.pth
 tr_data
+*tr_data*
 mnist_venv
 checkpoints
 tr_test

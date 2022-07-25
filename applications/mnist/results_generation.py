@@ -41,14 +41,16 @@ def get_training_params_space() -> Dict[str, Any]:
 		],
 		"input_transform": [
 			# "linear",
-			"NorseConstCurrLIF",
+			# "NorseConstCurrLIF",
 			# "ImgToSpikes",
+			"const",
 		],
 		"n_steps": [
-			# 2,
-			10,
+			8,
+			# 16,
 			32,
-			100,
+			# 64
+			# 100,
 			# 1_000
 		],
 		"n_hidden_neurons": [
@@ -62,6 +64,14 @@ def get_training_params_space() -> Dict[str, Any]:
 			# 32
 		],
 		# "spike_func": [SpikeFuncType.FastSigmoid, ],
+		"input_learning_type": [
+			LearningType.NONE,
+			# LearningType.BPTT,
+		],
+		"input_layer_type": [
+			LayerType.LIF,
+			LayerType.SpyLIF,
+		],
 		"hidden_layer_type": [
 			LayerType.LIF,
 			LayerType.ALIF,
@@ -76,7 +86,7 @@ def get_training_params_space() -> Dict[str, Any]:
 			True
 		],
 		# "learn_beta": [
-		# 	# True,
+		# 	True,
 		# 	False
 		# ],
 	}
@@ -180,7 +190,7 @@ def train_with_params(
 	network.build()
 	if verbose:
 		logging.info(f"\nNetwork:\n{network}")
-	checkpoint_manager = CheckpointManager(checkpoint_folder)
+	checkpoint_manager = CheckpointManager(checkpoint_folder, metric="val_accuracy", minimise_metric=False)
 	save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
 	callbacks = [checkpoint_manager, ]
 	if show_training:
@@ -190,12 +200,13 @@ def train_with_params(
 		callbacks=callbacks,
 		verbose=verbose,
 	)
-	trainer.train(
+	history = trainer.train(
 		dataloaders["train"],
 		dataloaders["val"],
 		n_iterations=n_iterations,
 		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR if not force_overwrite else None,
 		force_overwrite=force_overwrite,
+		exec_metrics_on_train=False,
 	)
 	try:
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.BEST_ITR, verbose=verbose)
@@ -211,6 +222,7 @@ def train_with_params(
 	return OrderedDict(dict(
 		network=network,
 		checkpoints_name=checkpoints_name,
+		history=history,
 		accuracies={
 			k: ClassificationMetrics.accuracy(network, y_true=y_true, y_pred=y_pred)
 			for k, (y_true, y_pred) in predictions.items()

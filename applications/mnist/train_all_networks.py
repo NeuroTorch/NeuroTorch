@@ -11,10 +11,11 @@ if __name__ == '__main__':
 	log_device_setup(deepLib=DeepLib.Pytorch)
 	df = train_all_params(
 		training_params=get_training_params_space(),
-		n_iterations=30,
-		batch_size=1024,
-		data_folder="tr_data",
+		n_iterations=10,
+		batch_size=256,
+		data_folder="tr_data_001",
 		verbose=False,
+		rm_data_folder_and_restart_all_training=False,
 	)
 	logging.info(df)
 

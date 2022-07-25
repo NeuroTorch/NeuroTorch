@@ -444,8 +444,14 @@ class SpyLIFLayer(BaseNeuronsLayer):
 
 	def initialize_weights_(self):
 		weight_scale = 0.2
-		torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale/np.sqrt(int(self.input_size)))
-		if self.use_recurrent_connection:
+		if "forward_weights" in self.kwargs:
+			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+		else:
+			torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale/np.sqrt(int(self.input_size)))
+
+		if "recurrent_weights" in self.kwargs and self.use_recurrent_connection:
+			self.recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
+		elif self.use_recurrent_connection:
 			torch.nn.init.normal_(self.recurrent_weights, mean=0.0, std=weight_scale/np.sqrt(int(self.output_size)))
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
@@ -898,7 +904,10 @@ class LILayer(BaseNeuronsLayer):
 
 	def initialize_weights_(self):
 		super(LILayer, self).initialize_weights_()
-		torch.nn.init.constant_(self.bias_weights, 0.0)
+		if "bias_weights" in self.kwargs:
+			self.forward_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
+		else:
+			torch.nn.init.constant_(self.bias_weights, 0.0)
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
 		"""
@@ -974,9 +983,15 @@ class SpyLILayer(BaseNeuronsLayer):
 	def initialize_weights_(self):
 		super(SpyLILayer, self).initialize_weights_()
 		weight_scale = 0.2
-		torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.input_size)))
+		if "forward_weights" in self.kwargs:
+			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+		else:
+			torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale/np.sqrt(int(self.input_size)))
 		if self.kwargs["use_bias"]:
-			torch.nn.init.constant_(self.bias_weights, 0.0)
+			if "bias_weights" in self.kwargs:
+				self.forward_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
+			else:
+				torch.nn.init.constant_(self.bias_weights, 0.0)
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
 		"""

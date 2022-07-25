@@ -329,6 +329,30 @@ class SequentialModel(BaseModel):
 		"""
 		return [layer.name for layer in self.get_all_layers()]
 
+	def get_dict_of_layers(self):
+		return {layer.name: layer for layer in self.get_all_layers()}
+
+	def get_layer(self, name: Optional[str] = None) -> nn.Module:
+		"""
+		Get a layer of the model. If the name is None, the first layer is returned which is useful when the model has
+		only one layer.
+		:param name: The name of the layer.
+		:return: The layer with the given name. If the name is None, the first layer is returned.
+		"""
+		if name is None:
+			return self.get_all_layers()[0]
+		else:
+			return self.get_dict_of_layers()[name]
+
+	def __getitem__(self, name: Optional[str]) -> nn.Module:
+		"""
+		Get a layer of the model. If the name is None, the first layer is returned which is useful when the model has
+		only one layer.
+		:param name: The name of the layer.
+		:return: The layer with the given name. If the name is None, the first layer is returned.
+		"""
+		return self.get_layer(name)
+
 	def infer_sizes_from_inputs(self, inputs: Union[Dict[str, Any], torch.Tensor]):
 		"""
 		Infer the sizes of the inputs layers from the inputs of the network. The sizes of the inputs layers are set to

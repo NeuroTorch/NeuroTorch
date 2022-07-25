@@ -5,14 +5,16 @@ import pickle
 import shutil
 import warnings
 from collections import OrderedDict
+from copy import deepcopy
 from typing import Any, Dict, Iterable, List
 
 import norse
+import numpy as np
 import pandas as pd
 import psutil
 import torch
 import tqdm
-from torchvision.transforms import Compose
+from torchvision.transforms import Compose, Lambda
 
 from applications.mnist.dataset import DatasetId, get_dataloaders
 from neurotorch import Dimension, DimensionProperty
@@ -22,7 +24,7 @@ from neurotorch.metrics import ClassificationMetrics
 from neurotorch.modules import SequentialModel, ALIFLayer, LILayer, SpikeFuncType, SpikeFuncType2Func
 from neurotorch.modules.layers import LayerType, LayerType2Layer, LearningType
 from neurotorch.trainers import ClassificationTrainer
-from neurotorch.transforms import LinearRateToSpikes
+from neurotorch.transforms import ConstantValuesTransform, LinearRateToSpikes
 from neurotorch.transforms.vision import ImgToSpikes
 from neurotorch.utils import hash_params
 
@@ -108,6 +110,8 @@ def get_transform_from_str(transform_name: str, **kwargs):
 			torch.flatten, norse.torch.ConstantCurrentLIFEncoder(seq_length=kwargs["n_steps"], dt=kwargs["dt"])
 		]),
 		"ImgToSpikes": Compose([torch.flatten, ImgToSpikes(n_steps=kwargs["n_steps"], use_periods=True)]),
+		"flatten": Compose([torch.flatten, Lambda(lambda x: x[np.newaxis, :])]),
+		"const": Compose([torch.flatten, ConstantValuesTransform(n_steps=kwargs["n_steps"])]),
 	}
 	name_to_transform = {k.lower(): v for k, v in name_to_transform.items()}
 	return name_to_transform[transform_name.lower()]
@@ -128,16 +132,19 @@ def train_with_params(
 	if verbose:
 		logging.info(f"Checkpoint folder: {checkpoint_folder}")
 
+	n_features = 28 * 28
+
 	dataloaders = get_dataloaders(
 		dataset_id=params["dataset_id"],
 		batch_size=batch_size,
 		input_transform=get_transform_from_str(params["input_transform"], **params),
 		train_val_split_ratio=params.get("train_val_split_ratio", 0.85),
-		# nb_workers=psutil.cpu_count(logical=False),
+		nb_workers=psutil.cpu_count(logical=False),
 	)
 	n_hidden_neurons = params["n_hidden_neurons"]
 	if not isinstance(n_hidden_neurons, Iterable):
 		n_hidden_neurons = [n_hidden_neurons]
+	n_hidden_neurons.insert(0, n_features)
 
 	hidden_layers = [
 		LayerType2Layer[params["hidden_layer_type"]](
@@ -148,21 +155,31 @@ def train_with_params(
 		)
 		for i, n in enumerate(n_hidden_neurons[1:])
 	] if len(n_hidden_neurons) > 1 else []
+	input_params = deepcopy(params)
+	input_params.pop("forward_weights", None)
+	input_params.pop("use_recurrent_connection", None)
+	input_params.pop("learning_type", None)
 	network = SequentialModel(
 		layers=[
-			LayerType2Layer[params["hidden_layer_type"]](
-				input_size=Dimension(28*28, DimensionProperty.NONE),
+			LayerType2Layer[params["input_layer_type"]](
+				input_size=Dimension(n_features, DimensionProperty.NONE),
 				# spike_func=SpikeFuncType2Func[params["spike_func"]],
 				output_size=n_hidden_neurons[0],
-				**params
+				forward_weights=torch.eye(n_features),
+				use_recurrent_connection=False,
+				learning_type=input_params.get("input_learning_type", LearningType.NONE),
+				**input_params
 			),
 			*hidden_layers,
 			LayerType2Layer[params["readout_layer_type"]](output_size=10),
 		],
 		name=f"{params['dataset_id'].name}_network_{checkpoints_name}",
 		checkpoint_folder=checkpoint_folder,
+		foresight_time_steps=params.get("foresight_time_steps", 0),
 	)
 	network.build()
+	if verbose:
+		logging.info(f"\nNetwork:\n{network}")
 	checkpoint_manager = CheckpointManager(checkpoint_folder)
 	save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
 	callbacks = [checkpoint_manager, ]
@@ -186,24 +203,29 @@ def train_with_params(
 		if verbose:
 			logging.info("No best checkpoint found. Loading last checkpoint instead.")
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.LAST_ITR, verbose=verbose)
+
+	predictions = {
+		k: ClassificationMetrics.compute_y_true_y_pred(network, dataloader, verbose=verbose, desc=f"{k} predictions")
+		for k, dataloader in dataloaders.items()
+	}
 	return OrderedDict(dict(
 		network=network,
 		checkpoints_name=checkpoints_name,
 		accuracies={
-			k: ClassificationMetrics.accuracy(network, dataloaders[k], verbose=verbose, desc=f"{k}_accuracy")
-			for k in dataloaders
+			k: ClassificationMetrics.accuracy(network, y_true=y_true, y_pred=y_pred)
+			for k, (y_true, y_pred) in predictions.items()
 		},
 		precisions={
-			k: ClassificationMetrics.precision(network, dataloaders[k], verbose=verbose, desc=f"{k}_precision")
-			for k in dataloaders
+			k: ClassificationMetrics.precision(network, y_true=y_true, y_pred=y_pred)
+			for k, (y_true, y_pred) in predictions.items()
 		},
 		recalls={
-			k: ClassificationMetrics.recall(network, dataloaders[k], verbose=verbose, desc=f"{k}_recall")
-			for k in dataloaders
+			k: ClassificationMetrics.recall(network, y_true=y_true, y_pred=y_pred)
+			for k, (y_true, y_pred) in predictions.items()
 		},
 		f1s={
-			k: ClassificationMetrics.f1(network, dataloaders[k], verbose=verbose, desc=f"{k}_f1")
-			for k in dataloaders
+			k: ClassificationMetrics.f1(network, y_true=y_true, y_pred=y_pred)
+			for k, (y_true, y_pred) in predictions.items()
 		},
 	))
 

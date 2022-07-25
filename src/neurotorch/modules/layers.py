@@ -9,6 +9,7 @@ from torch import nn
 
 from . import HeavisideSigmoidApprox, SpikeFunction
 from ..dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
+from ..transforms import to_tensor
 
 
 class LearningType(enum.Enum):
@@ -40,6 +41,7 @@ class BaseLayer(torch.nn.Module):
 		self._is_built = False
 		self._name_is_set = False
 		self.name = name
+		self._name_is_default = name is None
 
 		self.learning_type = learning_type
 		self._device = device
@@ -121,6 +123,14 @@ class BaseLayer(torch.nn.Module):
 		self._device = device
 		self.to(device)
 
+	def __repr__(self):
+		_repr = f"{self.__class__.__name__}"
+		if self.name_is_set:
+			_repr += f"<{self.name}>"
+		_repr += f"({int(self.input_size)}->{int(self.output_size)})"
+		_repr += f"[{self.learning_type}]"
+		return _repr
+
 	def _format_size(self, size: Optional[SizeTypes]) -> Optional[DimensionsLike]:
 		# TODO: must accept multiple time dimensions
 		if size is not None:
@@ -200,7 +210,7 @@ class BaseNeuronsLayer(BaseLayer):
 			output_size: Optional[SizeTypes] = None,
 			name: Optional[str] = None,
 			use_recurrent_connection: bool = True,
-			use_rec_eye_mask: bool = True,
+			use_rec_eye_mask: bool = False,
 			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,
 			device: Optional[torch.device] = None,
@@ -226,6 +236,18 @@ class BaseNeuronsLayer(BaseLayer):
 
 	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
 		raise NotImplementedError()
+
+	def initialize_weights_(self):
+		super().initialize_weights_()
+		if "forward_weights" in self.kwargs:
+			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+		else:
+			torch.nn.init.xavier_normal_(self.forward_weights)
+
+		if "recurrent_weights" in self.kwargs and self.use_recurrent_connection:
+			self.recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
+		elif self.use_recurrent_connection:
+			torch.nn.init.xavier_normal_(self.recurrent_weights)
 
 	def build(self):
 		super().build()
@@ -253,12 +275,12 @@ class LIFLayer(BaseNeuronsLayer):
 			input_size: Optional[SizeTypes] = None,
 			output_size: Optional[SizeTypes] = None,
 			name: Optional[str] = None,
-			use_recurrent_connection=True,
-			use_rec_eye_mask=True,
+			use_recurrent_connection: bool = True,
+			use_rec_eye_mask: bool = False,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
 			learning_type: LearningType = LearningType.BPTT,
-			dt=1e-3,
-			device=None,
+			dt: float = 1e-3,
+			device: Optional[torch.device] = None,
 			**kwargs
 	):
 		self.spike_func = spike_func
@@ -294,6 +316,16 @@ class LIFLayer(BaseNeuronsLayer):
 				torch.nn.init.xavier_normal_(param, gain=gain)
 			else:
 				torch.nn.init.normal_(param, std=gain)
+
+		if "forward_weights" in self.kwargs:
+			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+		else:
+			torch.nn.init.xavier_normal_(self.forward_weights)
+
+		if "recurrent_weights" in self.kwargs and self.use_recurrent_connection:
+			self.recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
+		elif self.use_recurrent_connection:
+			torch.nn.init.xavier_normal_(self.recurrent_weights)
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
 		"""
@@ -486,7 +518,7 @@ class ALIFLayer(LIFLayer):
 			output_size: Optional[SizeTypes] = None,
 			name: Optional[str] = None,
 			use_recurrent_connection: bool = True,
-			use_rec_eye_mask: bool = True,
+			use_rec_eye_mask: bool = False,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
 			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,

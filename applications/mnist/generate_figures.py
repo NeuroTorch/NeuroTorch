@@ -250,23 +250,25 @@ def box_plot_accuracy(results: pd.DataFrame, dataset_name: str):
 
 if __name__ == '__main__':
 	result = load_results('tr_data/results.csv')
-	for _dataset_name_ in ['MNIST', 'FASHION_MNIST']:
-		box_plot_accuracy(result, _dataset_name_).show()
-		plot_bar_result(
-			result,
-			_dataset_name_,
-			[
-				'test_accuracy',
-				'test_f1',
-				# 'test_precision',
-				# 'test_recall'
-			],
-			list_col_names_xaxis=[
-				'hidden_layer_type',
-				'use_recurrent_connection',
-				'n_steps',
-			]
-		).show()
+	best_result = result.sort_values(by='test_accuracy', ascending=False).iloc[0]
+	print(f"f{best_result = }")
+	# for _dataset_name_ in ['MNIST', 'FASHION_MNIST']:
+	# 	box_plot_accuracy(result, _dataset_name_).show()
+	# 	plot_bar_result(
+	# 		result,
+	# 		_dataset_name_,
+	# 		[
+	# 			'test_accuracy',
+	# 			'test_f1',
+	# 			# 'test_precision',
+	# 			# 'test_recall'
+	# 		],
+	# 		list_col_names_xaxis=[
+	# 			'hidden_layer_type',
+	# 			'use_recurrent_connection',
+	# 			'n_steps',
+	# 		]
+	# 	).show()
 
 
 

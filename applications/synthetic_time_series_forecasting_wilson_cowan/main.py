@@ -112,8 +112,8 @@ if __name__ == '__main__':
 	dt = 0.1
 	t_0 = np.random.rand(n_neurons, )
 	forward_weights = 3 * np.random.randn(n_neurons, n_neurons)
-	mu = 0
-	r = 0
+	mu = np.random.randn(n_neurons, )
+	r = np.random.rand(n_neurons, )
 	tau = 1
 	WCTS = WilsonCowanTimeSeries(num_step, dt, t_0, forward_weights, mu, r, tau)
 	time_series = WCTS.compute_timeseries()
@@ -132,19 +132,21 @@ if __name__ == '__main__':
 			"num_hidden_layers": 1,
 			"dt": dt,
 			"std_weight": 1,
-			"learn_r": False,
-			"learn_mu": False,
+			"learn_r": True,
+			"learn_mu": True,
 			"std_r": 0,
 			"hidden_layer_size": n_neurons,
 		},
-		n_iterations=50,
+		n_iterations=80,
 		verbose=True
 	)
 	pprint.pprint(results, indent=4)
 	# WCTS.plot_timeseries(False)
-
-	pred_forward_weights = list(results['network'].output_layers.values())[0].forward_weights.detach().cpu().numpy()
-	pred_WCTS = WilsonCowanTimeSeries(num_step, dt, t_0, pred_forward_weights, mu, r, tau)
+	wc_layer = results["network"].get_layer()
+	pred_forward_weights = wc_layer.forward_weights.detach().cpu().numpy()
+	pred_mu = wc_layer.mu.detach().cpu().numpy()
+	pred_r = wc_layer.r.detach().cpu().numpy()
+	pred_WCTS = WilsonCowanTimeSeries(num_step, dt, t_0, pred_forward_weights, pred_mu, pred_r, tau)
 	pred_seq = results['network'].get_prediction_trace(torch.from_numpy(t_0[np.newaxis, np.newaxis, :])).detach().cpu().numpy()
 	pred_seq = np.transpose(pred_seq[0])
 	pred_seq = np.concatenate([t_0[:, np.newaxis], pred_seq], axis=1)

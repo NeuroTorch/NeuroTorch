@@ -51,13 +51,15 @@ class WilsonCowanTimeSeries:
 			input_size=self.forward_weights.shape[0],
 			output_size=self.forward_weights.shape[1],
 			learning_type=LearningType.NONE,
-			dt=self.dt
+			dt=self.dt,
+			forward_weights=self.forward_weights,
+			mu=self.mu,
+			r=self.r,
 		)
-		self.layer._is_built = True
-		#self.layer.build()
-		self.layer.forward_weights = to_tensor(self.forward_weights)
-		self.layer.mu = to_tensor(self.mu)
-		self.layer.r = to_tensor(self.r)
+		self.layer.build()
+		# self.layer.forward_weights = to_tensor(self.forward_weights)
+		# self.layer.mu = to_tensor(self.mu)
+		# self.layer.r = to_tensor(self.r)
 
 	@staticmethod
 	def _sigmoid(x: numpy.array) -> numpy.array:

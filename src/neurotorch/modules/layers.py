@@ -758,6 +758,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			* <learn_r>: bool -> Whether to train the transition rate
 			* <mean_r>: float -> Mean of the transition rate (if learn_r is True)
 			* <std_r>: float -> Standard deviation of the transition rate (if learn_r is True)
+			* <forward_weights>: torch.Tensor or np.ndarray -> set custom forward weights
 
 		Remarks: Parameter mu and r can only be a parameter as a vector.
 		"""
@@ -811,7 +812,10 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		"""
 		Initialize the parameters (wights) that will be trained.
 		"""
-		torch.nn.init.normal_(self.forward_weights, mean=0.0, std=self.std_weight)
+		if "forward_weights" in self.kwargs:
+			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+		else:
+			torch.nn.init.normal_(self.forward_weights, mean=0.0, std=self.std_weight)
 		# If mu is not a parameter, it takes the value 0.0 unless stated otherwise by user
 		# If mu is a parameter, it is initialized as a vector with the correct mean and std
 		# unless stated otherwise by user.
@@ -844,13 +848,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		:param state: State of the layer (only for SNN -> not use for RNN)
 		:return: (time series at a time t+1, State of the layer -> None)
 		"""
-		if inputs.device != self._device:
-			inputs = inputs.to(self._device)
-		if self.forward_weights.device != self._device:
-			self.forward_weights = self.forward_weights.to(self._device)
 		ratio_dt_tau = self.dt / self.tau
-		if inputs.device != self._device:
-			inputs = inputs.to(self._device)
 		transition_rate = (1 - inputs * self.r)
 		sigmoid = torch.sigmoid(torch.matmul(inputs, self.forward_weights) - self.mu)
 		output = inputs * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau

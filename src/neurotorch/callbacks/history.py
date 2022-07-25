@@ -8,6 +8,19 @@ from ..callbacks.base_callback import BaseCallback
 
 
 class TrainingHistory(BaseCallback):
+
+	@staticmethod
+	def _set_default_plot_kwargs(kwargs: dict):
+		kwargs.setdefault('fontsize', 18)
+		kwargs.setdefault('linewidth', 4)
+		kwargs.setdefault('figsize', (16, 12))
+		kwargs.setdefault('dpi', 300)
+		return kwargs
+
+	@staticmethod
+	def _remove_prefix_from_metrics(metrics: List[str]):
+		return [metric.split('_')[-1] for metric in metrics]
+
 	def __init__(self, container: Dict[str, List[float]] = None, default_value=np.NAN):
 		"""
 		Initialize the container with the given container.
@@ -113,25 +126,25 @@ class TrainingHistory(BaseCallback):
 			return {k: v[argmax] for k, v in self.items()}
 		raise ValueError("key not in container")
 
-	@staticmethod
-	def _set_default_plot_kwargs(kwargs: dict):
-		kwargs.setdefault('fontsize', 18)
-		kwargs.setdefault('linewidth', 4)
-		kwargs.setdefault('figsize', (16, 12))
-		kwargs.setdefault('dpi', 300)
-		return kwargs
-
 	def create_plot(self, **kwargs) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
 		kwargs = self._set_default_plot_kwargs(kwargs)
-		loss_metrics = [k for k in self._container if 'loss' in k.lower()]
-		other_metrics = [k for k in self._container if k not in loss_metrics]
-		n_cols = int(np.sqrt(1 + len(other_metrics)))
-		n_rows = int(np.ceil((1 + len(other_metrics)) / n_cols))
+		keys_lower = [key.lower() for key in self.keys()]
+		loss_metrics = [k for k in keys_lower if 'loss' in k]
+		keys_lower = list(set(keys_lower) - set(loss_metrics))
+		val_metrics = [k for k in keys_lower if 'val' in k]
+		train_metrics = [k for k in keys_lower if 'train' in k]
+		test_metrics = [k for k in keys_lower if 'test' in k]
+		n_set_metrics = max(len(val_metrics), len(train_metrics), len(test_metrics))
+		max_set_metrics_container = [c for c in [val_metrics, train_metrics, test_metrics] if len(c) == n_set_metrics][0]
+		other_metrics = list(set(keys_lower) - set(val_metrics) - set(train_metrics) - set(test_metrics))
+		n_graphs = 1 + n_set_metrics + len(other_metrics)
+		n_cols = int(np.sqrt(n_graphs))
+		n_rows = int(np.ceil(n_graphs / n_cols))
 		axes_dict, lines = {}, {}
 		fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=kwargs["figsize"], sharex='all')
 		axes = np.ravel(axes)
 		for i, ax in enumerate(axes):
-			if i >= 1 + len(other_metrics):
+			if i >= n_graphs:
 				ax.axis('off')
 				continue
 			if i == 0:
@@ -141,8 +154,17 @@ class TrainingHistory(BaseCallback):
 				ax.set_ylabel("Loss [-]", fontsize=kwargs["fontsize"])
 				ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
 				ax.legend(fontsize=kwargs["fontsize"])
+			elif 0 < i <= n_set_metrics:
+				metric_basename = '_'.join(max_set_metrics_container[i-1].split('_')[1:])
+				for prefix in ['val', 'train', 'test']:
+					k = prefix + '_' + metric_basename
+					if k in self:
+						lines[k] = ax.plot(self[k], label=k, linewidth=kwargs['linewidth'])[0]
+						axes_dict[k] = ax
+				ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
+				ax.legend(fontsize=kwargs["fontsize"])
 			else:
-				k = other_metrics[i - 1]
+				k = other_metrics[i - 1 - n_set_metrics]
 				lines[k] = ax.plot(self[k], label=k, linewidth=kwargs['linewidth'])[0]
 				axes_dict[k] = ax
 				ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])

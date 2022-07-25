@@ -735,7 +735,8 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,
 			device=None,
-			**kwargs):
+			**kwargs
+	):
 		"""
 		:param input_size: size of the input
 		:param output_size: size of the output

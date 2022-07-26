@@ -216,7 +216,7 @@ class Trainer:
 				train_loss=f"{itr_loss['train_loss']:.5e}",
 				val_loss=f"{itr_loss['val_loss']:.5e}",
 			)
-			postfix.update({f"val_{k}": f"{v:.5e}" for k, v in itr_val_metrics.items()})
+			postfix.update({f"{k}": f"{v:.5e}" for k, v in itr_val_metrics.items()})
 			self.current_training_state = self.current_training_state.update(itr_metrics=itr_metrics)
 			self.callbacks.on_iteration_end(self)
 			p_bar.set_postfix(postfix)

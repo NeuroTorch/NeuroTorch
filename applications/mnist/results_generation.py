@@ -36,8 +36,8 @@ def get_training_params_space() -> Dict[str, Any]:
 	"""
 	return {
 		"dataset_id": [
-			DatasetId.MNIST,
-			# DatasetId.FASHION_MNIST
+			# DatasetId.MNIST,
+			DatasetId.FASHION_MNIST
 		],
 		"input_transform": [
 			# "linear",

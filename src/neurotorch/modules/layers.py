@@ -26,6 +26,21 @@ class LayerType(enum.Enum):
 	SpyLIF = 4
 	SpyLI = 5
 
+	@classmethod
+	def from_str(cls, name: str) -> Optional['LayerType']:
+		"""
+		Get the LayerType from a string.
+		:param name: The name of the LayerType.
+		:return: The LayerType.
+		"""
+		if isinstance(name, LayerType):
+			return name
+		if name.startswith(cls.__name__):
+			name = name.removeprefix(f"{cls.__name__}.")
+		if name not in cls.__members__:
+			return None
+		return cls[name]
+
 
 class BaseLayer(torch.nn.Module):
 	def __init__(

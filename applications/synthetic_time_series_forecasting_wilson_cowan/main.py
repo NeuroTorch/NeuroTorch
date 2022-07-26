@@ -8,7 +8,7 @@ import torch.onnx
 import torch
 from matplotlib import pyplot as plt
 
-from dataset import WilsonCowanTimeSeries, get_dataloaders, get_dataloaders_reproduction
+from applications.synthetic_time_series_forecasting_wilson_cowan.dataset import WilsonCowanTimeSeries, get_dataloaders, get_dataloaders_reproduction
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
 from neurotorch.metrics import RegressionMetrics
 from neurotorch.modules import SequentialModel
@@ -16,9 +16,7 @@ from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.trainers import RegressionTrainer
 from neurotorch.utils import hash_params
 from neurotorch.visualisation.time_series_visualisation import Visualise, VisualiseKMeans
-
-# TODO : Problem when ratio != 0.5
-# TODO : bug when r or mu != 0
+from neurotorch.metrics.losses import RMSELoss
 
 
 def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_folder="tr_results", verbose=True):
@@ -61,9 +59,10 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 	trainer = RegressionTrainer(
 		model=network,
 		callbacks=checkpoint_manager,
-		criterion=lambda pred, y: RegressionMetrics.compute_p_var(y_true=y, y_pred=pred, reduction='mean'),
-		optimizer=torch.optim.Adam(network.parameters(), lr=1e-2, maximize=True),
-		#optimizer=torch.optim.Adam(network.parameters(), lr=1e-2),
+		#criterion=lambda pred, y: RegressionMetrics.compute_p_var(y_true=y, y_pred=pred, reduction='mean'),
+		criterion=RMSELoss(),
+		optimizer=torch.optim.Adam(network.parameters(), lr=1e-2, maximize=False),
+		#optimizer=torch.optim.SGD(network.parameters(), lr=1e-3, momentum=0.9, weight_decay=0.001, maximize=True),
 		metrics=[reg_metrics]
 	)
 	history = trainer.train(

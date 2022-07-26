@@ -13,7 +13,7 @@ if __name__ == '__main__':
 		training_params=get_training_params_space(),
 		n_iterations=10,
 		batch_size=256,
-		data_folder="tr_data_001",
+		data_folder="tr_data_fashion_mnist_001",
 		verbose=False,
 		rm_data_folder_and_restart_all_training=False,
 	)

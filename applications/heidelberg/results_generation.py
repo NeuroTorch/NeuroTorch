@@ -41,20 +41,11 @@ def get_training_params_space() -> Dict[str, Any]:
 			# 32,
 			# 64,
 			# [64, 64],
-			128,
+			# 128,
 			256,
 			# [32, 32],
 			# 32
 		],
-		# "spike_func": [SpikeFuncType.FastSigmoid, ],
-		# "input_learning_type": [
-		# 	LearningType.NONE,
-		# 	# LearningType.BPTT,
-		# ],
-		# "input_layer_type": [
-		# 	LayerType.LIF,
-		# 	LayerType.SpyLIF,
-		# ],
 		"hidden_layer_type": [
 			LayerType.LIF,
 			LayerType.ALIF,
@@ -75,16 +66,16 @@ def get_training_params_space() -> Dict[str, Any]:
 		"optimizer": [
 			# "SGD",
 			"Adam",
-			"Adamax",
+			# "Adamax",
 			# "RMSprop",
 			# "Adagrad",
 			# "Adadelta",
-			"AdamW",
+			# "AdamW",
 		],
 		"learning_rate": [
 			# 1e-2,
-			1e-3,
-			# 2e-4,
+			# 1e-3,
+			2e-4,
 		],
 	}
 
@@ -110,7 +101,9 @@ def train_with_params(
 		verbose: bool = False,
 		show_training: bool = False,
 		force_overwrite: bool = False,
+		seed: int = 42,
 ):
+	torch.manual_seed(seed)
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
 	os.makedirs(checkpoint_folder, exist_ok=True)
@@ -119,7 +112,7 @@ def train_with_params(
 
 	dataloaders = get_dataloaders(
 		batch_size=batch_size,
-		train_val_split_ratio=params.get("train_val_split_ratio", 0.85),
+		train_val_split_ratio=params.get("train_val_split_ratio", 0.95),
 	)
 	n_features = dataloaders["test"].dataset.n_units
 	n_hidden_neurons = params["n_hidden_neurons"]
@@ -162,7 +155,7 @@ def train_with_params(
 		model=network,
 		callbacks=callbacks,
 		optimizer=get_optimizer(params.get("optimizer", "adam"))(
-			network.parameters(), lr=params.get("learning_rate", 1e-3), **params.get("optimizer_params", {})
+			network.parameters(), lr=params.get("learning_rate", 2e-4), **params.get("optimizer_params", {})
 		),
 		verbose=verbose,
 	)

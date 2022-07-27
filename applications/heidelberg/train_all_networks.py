@@ -11,7 +11,7 @@ if __name__ == '__main__':
 	log_device_setup(deepLib=DeepLib.Pytorch)
 	df = train_all_params(
 		training_params=get_training_params_space(),
-		n_iterations=10,
+		n_iterations=30,
 		batch_size=256,
 		data_folder="tr_data_heidelberg_001",
 		verbose=False,

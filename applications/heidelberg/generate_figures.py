@@ -13,7 +13,7 @@ plot_layout = dict(
 	plot_bgcolor='rgb(243, 243, 243)',
 	legend=dict(font_size=35, borderwidth=3, ),
 	xaxis=dict(
-		tickfont_size=32,
+		tickfont_size=21,
 		zeroline=False,
 		showgrid=False,
 		title_font_size=24,
@@ -65,7 +65,6 @@ def load_results(file_path='tr_data/results.csv') -> pd.DataFrame:
 def _plot_bar_result(
 		figure: go.Figure,
 		results: pd.DataFrame,
-		dataset: str,
 		y_axis: str,
 		data_mask: tuple = None,
 		list_col_names=None,
@@ -82,7 +81,6 @@ def _plot_bar_result(
 			'n_hidden_neurons',
 			'learn_beta'
 		]
-	dataset_results = results[results['dataset_id'] == 'DatasetId.' + dataset]
 	col_names = list(dict_param_name.keys())
 	torem = list(set(col_names) - set(list_col_names))
 	for elem in torem:
@@ -93,7 +91,7 @@ def _plot_bar_result(
 	# 			col_names.remove(col)
 	# 	else:
 	# 		col_names.remove(hide_col)
-	dataset_results = dataset_results.sort_values(
+	dataset_results = results.sort_values(
 		by=col_names,
 		ignore_index=True
 	)
@@ -137,7 +135,6 @@ def _plot_bar_result(
 
 def plot_bar_result(
 		results: pd.DataFrame,
-		dataset_name: str,
 		list_col_names: list,
 		data_mask: tuple = None,
 		list_col_names_xaxis=None,
@@ -160,7 +157,6 @@ def plot_bar_result(
 		figure = _plot_bar_result(
 			figure,
 			results,
-			dataset_name,
 			y_axis,
 			data_mask,
 			list_col_names_xaxis,
@@ -185,25 +181,24 @@ def plot_bar_result(
 		tickcolor='black'
 	)
 	figure.update_yaxes(
-		title=dict(text='Performance [%]'),
+		title=dict(text='Accuracy [%]'),
 		range=[0, 100],
 	)
 	return figure
 
 
-def make_data_for_box_plot(results: pd.DataFrame, dataset_name: str, ydata: str) -> dict:
+def make_data_for_box_plot(results: pd.DataFrame, ydata: str) -> dict:
 	"""
 	Returns the data for the box plot.
 	"""
-	dataset_results = results[results['dataset_id'] == 'DatasetId.' + dataset_name]
-	y_data = dataset_results[ydata] * 100
+	y_data = results[ydata] * 100
 	box_plot_data = {}
 	for param in dict_param_name.keys():
-		if param not in dataset_results.columns:
+		if param not in results.columns:
 			continue
-		if len(dataset_results[param].unique()) <= 1:
+		if len(results[param].unique()) <= 1:
 			continue
-		for param_value in dataset_results[param].unique():
+		for param_value in results[param].unique():
 			surname = dict_param_surname.get(param, '')
 			if isinstance(param_value, bool):
 				param_value_name = f"{surname}[✓]" if param_value else f"{surname}[X]"
@@ -212,15 +207,15 @@ def make_data_for_box_plot(results: pd.DataFrame, dataset_name: str, ydata: str)
 			else:
 				param_value_name = f"{surname}{param_value}"
 			try:
-				box_plot_data[f'{param_value_name}'] = y_data[dataset_results[param] == param_value].tolist()
+				box_plot_data[f'{param_value_name}'] = y_data[results[param] == param_value].tolist()
 			except ValueError as err:
 				print(f'{param} {param_value} {err}')
 				continue
 	return box_plot_data
 
 
-def box_plot_accuracy(results: pd.DataFrame, dataset_name: str):
-	box_plot_data = make_data_for_box_plot(results, dataset_name, 'test_accuracy')
+def box_plot_accuracy(results: pd.DataFrame):
+	box_plot_data = make_data_for_box_plot(results, 'test_accuracy')
 	figure = go.Figure()
 	palette = sns.color_palette("tab10", 999)
 	Legendg = ['Dynamique', 'Recurrence', 'Période', 'N neurones']
@@ -300,14 +295,12 @@ def format_table_metric_value(
 
 
 if __name__ == '__main__':
-	result = load_results('tr_data_fashion_mnist_001/results.csv')
+	result = load_results('tr_data_heidelberg_001/results.csv')
 	best_result = result.sort_values(by='test_accuracy', ascending=False).iloc[:3]
 	cols_oi = [
-		'input_layer_type',
 		'hidden_layer_type',
 		'readout_layer_type',
 		'use_recurrent_connection',
-		'n_steps',
 		"test_accuracy",
 		'test_f1',
 		'test_precision',
@@ -320,7 +313,6 @@ if __name__ == '__main__':
 		'test_recall'
 	]
 	cols_rename = {
-		'input_layer_type': 'Input layer',
 		'hidden_layer_type': 'Hidden layer',
 		'readout_layer_type': 'Readout layer',
 		'use_recurrent_connection': 'Recurrent connection',
@@ -336,28 +328,21 @@ if __name__ == '__main__':
 		print(f"result:\n{filtered_result.to_latex(index=False, escape=False)}")
 	with pd.option_context('display.max_rows', None, 'display.max_columns', None):
 		print(f"best_result:\n{filtered_best_result.to_latex(index=False, escape=False)}")
-	for _dataset_name_ in [
-		# 'MNIST',
-		'FASHION_MNIST'
-	]:
-		box_plot_accuracy(result, _dataset_name_).show()
-		plot_bar_result(
-			result,
-			_dataset_name_,
-			[
-				'test_accuracy',
-				# 'test_f1',
-				# 'test_precision',
-				# 'test_recall'
-			],
-			list_col_names_xaxis=[
-				'input_layer_type',
-				'hidden_layer_type',
-				'readout_layer_type',
-				'use_recurrent_connection',
-				'n_steps',
-			]
-		).show()
+	box_plot_accuracy(result).show()
+	plot_bar_result(
+		result,
+		[
+			'test_accuracy',
+			# 'test_f1',
+			# 'test_precision',
+			# 'test_recall'
+		],
+		list_col_names_xaxis=[
+			'hidden_layer_type',
+			'readout_layer_type',
+			'use_recurrent_connection',
+		]
+	).show()
 
 
 

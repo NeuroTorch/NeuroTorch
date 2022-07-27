@@ -135,6 +135,7 @@ def train_with_params(
 					Dimension(n_features, DimensionProperty.NONE)
 				]),
 				output_size=n_hidden_neurons[0],
+				**params
 			),
 			*hidden_layers,
 			LayerType2Layer[params["readout_layer_type"]](output_size=dataloaders["test"].dataset.n_classes),
@@ -209,6 +210,7 @@ def train_all_params(
 		verbose: bool = False,
 		rm_data_folder_and_restart_all_training: bool = False,
 		force_overwrite: bool = False,
+		skip_if_exists: bool = False,
 ):
 	"""
 	Train the network with all the parameters.
@@ -219,6 +221,7 @@ def train_all_params(
 	:param training_params: The parameters to use for the training.
 	:param rm_data_folder_and_restart_all_training: If True, remove the data folder and restart all the training.
 	:param force_overwrite: If True, overwrite and restart non-completed training.
+	:param skip_if_exists: If True, skip the training if the results already in the results dataframe.
 	:return: The results of the training.
 	"""
 	warnings.filterwarnings("ignore", category=UserWarning)
@@ -247,7 +250,7 @@ def train_all_params(
 
 	with tqdm.tqdm(all_params_combinaison_dict, desc="Training all the parameters", position=0) as p_bar:
 		for i, params in enumerate(p_bar):
-			if str(hash_params(params)) in df["checkpoints"].values:
+			if str(hash_params(params)) in df["checkpoints"].values and skip_if_exists:
 				continue
 			# p_bar.set_description(f"Training {params}")
 			try:
@@ -260,6 +263,9 @@ def train_all_params(
 					show_training=False,
 					force_overwrite=force_overwrite,
 				)
+				if str(hash_params(params)) in df["checkpoints"].values:
+					# remove from df if already exists
+					df = df[df["checkpoints"] != result["checkpoints_name"]]
 				df = pd.concat([df, pd.DataFrame(
 					dict(
 						checkpoints=[result["checkpoints_name"]],

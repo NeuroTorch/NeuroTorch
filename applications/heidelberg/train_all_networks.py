@@ -7,11 +7,11 @@ from applications.heidelberg.results_generation import get_training_params_space
 
 if __name__ == '__main__':
 	logs_file_setup(__file__)
-	torch.cuda.set_per_process_memory_fraction(0.8)
+	torch.cuda.set_per_process_memory_fraction(0.5)
 	log_device_setup(deepLib=DeepLib.Pytorch)
 	df = train_all_params(
 		training_params=get_training_params_space(),
-		n_iterations=30,
+		n_iterations=50,
 		batch_size=256,
 		data_folder="tr_data_heidelberg_001",
 		verbose=False,

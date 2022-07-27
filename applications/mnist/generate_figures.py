@@ -300,7 +300,7 @@ def format_table_metric_value(
 
 
 if __name__ == '__main__':
-	result = load_results('tr_data_mnist_001/results.csv')
+	result = load_results('tr_data_fashion_mnist_001/results.csv')
 	best_result = result.sort_values(by='test_accuracy', ascending=False).iloc[:3]
 	cols_oi = [
 		'input_layer_type',
@@ -337,8 +337,8 @@ if __name__ == '__main__':
 	with pd.option_context('display.max_rows', None, 'display.max_columns', None):
 		print(f"best_result:\n{filtered_best_result.to_latex(index=False, escape=False)}")
 	for _dataset_name_ in [
-		'MNIST',
-		# 'FASHION_MNIST'
+		# 'MNIST',
+		'FASHION_MNIST'
 	]:
 		box_plot_accuracy(result, _dataset_name_).show()
 		plot_bar_result(

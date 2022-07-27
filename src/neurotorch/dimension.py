@@ -101,7 +101,7 @@ class Size:
 		Constructor for Size.
 		:param dimensions: The dimensions of the space.
 		"""
-		if isinstance(dimensions, DimensionLike):
+		if isinstance(dimensions, (int, Dimension)):
 			dimensions = [dimensions]
 		else:
 			dimensions = list(dimensions)

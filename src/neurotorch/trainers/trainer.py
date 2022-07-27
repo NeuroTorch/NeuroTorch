@@ -115,6 +115,7 @@ class Trainer:
 		kwargs.setdefault("lr", 1e-3)
 		kwargs.setdefault("weight_decay", 1e-5)
 		kwargs.setdefault("batch_size", 256)
+		kwargs.setdefault("exec_metrics_on_train", True)
 		
 		assert kwargs["batch_size"] > 0, "batch_size must be positive"
 		return kwargs
@@ -172,7 +173,7 @@ class Trainer:
 	def train(
 			self,
 			train_dataloader: DataLoader,
-			val_dataloader: DataLoader,
+			val_dataloader: Optional[DataLoader] = None,
 			n_iterations: Optional[int] = None,
 			load_checkpoint_mode: LoadCheckpointMode = None,
 			force_overwrite: bool = False,
@@ -202,13 +203,20 @@ class Trainer:
 		for i in p_bar:
 			self.current_training_state = self.current_training_state.update(iteration=i)
 			itr_loss = self._exec_iteration(train_dataloader, val_dataloader)
-			itr_val_metrics = self._exec_metrics(val_dataloader)
-			itr_metrics = dict(**itr_loss, **itr_val_metrics)
+			if self.kwargs["exec_metrics_on_train"]:
+				itr_train_metrics = self._exec_metrics(train_dataloader, prefix="train")
+			else:
+				itr_train_metrics = {}
+			if val_dataloader is not None:
+				itr_val_metrics = self._exec_metrics(val_dataloader, prefix="val")
+			else:
+				itr_val_metrics = {}
+			itr_metrics = dict(**itr_loss, **itr_train_metrics, **itr_val_metrics)
 			postfix = dict(
 				train_loss=f"{itr_loss['train_loss']:.5e}",
 				val_loss=f"{itr_loss['val_loss']:.5e}",
 			)
-			postfix.update({f"val_{k}": f"{v:.5e}" for k, v in itr_val_metrics.items()})
+			postfix.update({f"{k}": f"{v:.5e}" for k, v in itr_val_metrics.items()})
 			self.current_training_state = self.current_training_state.update(itr_metrics=itr_metrics)
 			self.callbacks.on_iteration_end(self)
 			p_bar.set_postfix(postfix)
@@ -217,36 +225,45 @@ class Trainer:
 		# self.plot_loss_history(show=False)
 		return self.training_history
 
-	def _exec_iteration(self, train_dataloader, val_dataloader):
+	def _exec_iteration(
+			self,
+			train_dataloader: DataLoader,
+			val_dataloader: Optional[DataLoader] = None
+	) -> Dict[str, float]:
+		losses = {}
+
 		self.callbacks.on_train_begin(self)
 		self.model.train()
 		self.current_training_state = self.current_training_state.update(batch_is_train=True)
 		train_loss = self._exec_epoch(train_dataloader)
 		self.current_training_state = self.current_training_state.update(train_loss=train_loss)
 		self.callbacks.on_train_end(self)
-		
-		self.callbacks.on_validation_begin(self)
-		self.model.eval()
-		self.current_training_state = self.current_training_state.update(batch_is_train=False)
-		val_loss = self._exec_epoch(val_dataloader)
-		self.current_training_state = self.current_training_state.update(val_loss=val_loss)
-		self.callbacks.on_validation_end(self)
-		return dict(train_loss=train_loss, val_loss=val_loss)
+		losses["train_loss"] = train_loss
 
-	def _exec_metrics(self, dataloader) -> Dict:
+		if val_dataloader is not None:
+			self.callbacks.on_validation_begin(self)
+			self.model.eval()
+			self.current_training_state = self.current_training_state.update(batch_is_train=False)
+			val_loss = self._exec_epoch(val_dataloader)
+			self.current_training_state = self.current_training_state.update(val_loss=val_loss)
+			self.callbacks.on_validation_end(self)
+			losses["val_loss"] = val_loss
+		return losses
+
+	def _exec_metrics(self, dataloader: torch.utils.data.DataLoader, prefix: str) -> Dict:
 		metrics_dict = {}
 		for metric in self.metrics:
 			m_out = metric(dataloader)
 			if isinstance(m_out, dict):
-				metrics_dict.update(m_out)
+				metrics_dict.update({f"{prefix}_{k}": v for k, v in m_out.items()})
 			else:
-				metrics_dict[metric.__name__] = m_out
+				metrics_dict[f"{prefix}_{metric.__name__}"] = m_out
 		return metrics_dict
 
 	def _exec_epoch(
 			self,
-			dataloader,
-	):
+			dataloader: DataLoader,
+	) -> float:
 		self.callbacks.on_epoch_begin(self)
 		batch_losses = []
 		for i, (x_batch, y_batch) in enumerate(dataloader):

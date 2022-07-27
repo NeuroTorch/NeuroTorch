@@ -1,32 +1,25 @@
-import itertools
 import logging
 import os
-import pickle
 import shutil
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, Type
 
-import norse
-import numpy as np
 import pandas as pd
-import psutil
 import torch
 import tqdm
-from torchvision.transforms import Compose, Lambda
 
-from applications.mnist.dataset import DatasetId, get_dataloaders
+from applications.heidelberg.dataset import get_dataloaders
+import neurotorch as nt
 from neurotorch import Dimension, DimensionProperty
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
 from neurotorch.callbacks.training_visualization import TrainingHistoryVisualizationCallback
 from neurotorch.metrics import ClassificationMetrics
-from neurotorch.modules import SequentialModel, ALIFLayer, LILayer, SpikeFuncType, SpikeFuncType2Func
+from neurotorch.modules import SequentialModel
 from neurotorch.modules.layers import LayerType, LayerType2Layer, LearningType
 from neurotorch.trainers import ClassificationTrainer
-from neurotorch.transforms import ConstantValuesTransform, LinearRateToSpikes
-from neurotorch.transforms.vision import ImgToSpikes
-from neurotorch.utils import get_all_params_combinations, get_transform_from_str, hash_params, save_params
+from neurotorch.utils import get_all_params_combinations, hash_params, save_params
 
 
 def get_training_params_space() -> Dict[str, Any]:
@@ -35,22 +28,12 @@ def get_training_params_space() -> Dict[str, Any]:
 	:return: The parameters space.
 	"""
 	return {
-		"dataset_id": [
-			# DatasetId.MNIST,
-			DatasetId.FASHION_MNIST
-		],
-		"input_transform": [
-			# "linear",
-			# "NorseConstCurrLIF",
-			# "ImgToSpikes",
-			"const",
-		],
 		"n_steps": [
-			8,
+			# 8,
 			# 16,
-			32,
+			# 32,
 			# 64
-			# 100,
+			100,
 			# 1_000
 		],
 		"n_hidden_neurons": [
@@ -59,19 +42,19 @@ def get_training_params_space() -> Dict[str, Any]:
 			# 64,
 			# [64, 64],
 			128,
-			# 256,
+			256,
 			# [32, 32],
 			# 32
 		],
 		# "spike_func": [SpikeFuncType.FastSigmoid, ],
-		"input_learning_type": [
-			LearningType.NONE,
-			# LearningType.BPTT,
-		],
-		"input_layer_type": [
-			LayerType.LIF,
-			LayerType.SpyLIF,
-		],
+		# "input_learning_type": [
+		# 	LearningType.NONE,
+		# 	# LearningType.BPTT,
+		# ],
+		# "input_layer_type": [
+		# 	LayerType.LIF,
+		# 	LayerType.SpyLIF,
+		# ],
 		"hidden_layer_type": [
 			LayerType.LIF,
 			LayerType.ALIF,
@@ -89,7 +72,34 @@ def get_training_params_space() -> Dict[str, Any]:
 		# 	True,
 		# 	False
 		# ],
+		"optimizer": [
+			# "SGD",
+			"Adam",
+			"Adamax",
+			# "RMSprop",
+			# "Adagrad",
+			# "Adadelta",
+			"AdamW",
+		],
+		"learning_rate": [
+			# 1e-2,
+			1e-3,
+			# 2e-4,
+		],
 	}
+
+
+def get_optimizer(optimizer_name: str) -> Type[torch.optim.Optimizer]:
+	name_to_opt = {
+		"sgd": torch.optim.SGD,
+		"adam": torch.optim.Adam,
+		"adamax": torch.optim.Adamax,
+		"rmsprop": torch.optim.RMSprop,
+		"adagrad": torch.optim.Adagrad,
+		"adadelta": torch.optim.Adadelta,
+		"adamw": torch.optim.AdamW,
+	}
+	return name_to_opt[optimizer_name.lower()]
 
 
 def train_with_params(
@@ -107,48 +117,36 @@ def train_with_params(
 	if verbose:
 		logging.info(f"Checkpoint folder: {checkpoint_folder}")
 
-	n_features = 28 * 28
-
 	dataloaders = get_dataloaders(
-		dataset_id=params["dataset_id"],
 		batch_size=batch_size,
-		input_transform=get_transform_from_str(params["input_transform"], **params),
 		train_val_split_ratio=params.get("train_val_split_ratio", 0.85),
-		nb_workers=psutil.cpu_count(logical=False),
 	)
+	n_features = dataloaders["test"].dataset.n_units
 	n_hidden_neurons = params["n_hidden_neurons"]
 	if not isinstance(n_hidden_neurons, Iterable):
 		n_hidden_neurons = [n_hidden_neurons]
-	n_hidden_neurons.insert(0, n_features)
 
 	hidden_layers = [
 		LayerType2Layer[params["hidden_layer_type"]](
 			input_size=n_hidden_neurons[i],
 			output_size=n,
-			# spike_func=SpikeFuncType2Func[params["spike_func"]],
 			**params
 		)
 		for i, n in enumerate(n_hidden_neurons[1:])
 	] if len(n_hidden_neurons) > 1 else []
-	input_params = deepcopy(params)
-	input_params.pop("forward_weights", None)
-	input_params.pop("use_recurrent_connection", None)
-	input_params.pop("learning_type", None)
 	network = SequentialModel(
 		layers=[
-			LayerType2Layer[params["input_layer_type"]](
-				input_size=Dimension(n_features, DimensionProperty.NONE),
-				# spike_func=SpikeFuncType2Func[params["spike_func"]],
+			LayerType2Layer[params["hidden_layer_type"]](
+				input_size=nt.Size([
+					Dimension(None, DimensionProperty.TIME),
+					Dimension(n_features, DimensionProperty.NONE)
+				]),
 				output_size=n_hidden_neurons[0],
-				forward_weights=torch.eye(n_features),
-				use_recurrent_connection=False,
-				learning_type=input_params.get("input_learning_type", LearningType.NONE),
-				**input_params
 			),
 			*hidden_layers,
-			LayerType2Layer[params["readout_layer_type"]](output_size=10),
+			LayerType2Layer[params["readout_layer_type"]](output_size=dataloaders["test"].dataset.n_classes),
 		],
-		name=f"{params['dataset_id'].name}_network_{checkpoints_name}",
+		name=f"heidelberg_network_{checkpoints_name}",
 		checkpoint_folder=checkpoint_folder,
 		foresight_time_steps=params.get("foresight_time_steps", 0),
 	)
@@ -163,6 +161,9 @@ def train_with_params(
 	trainer = ClassificationTrainer(
 		model=network,
 		callbacks=callbacks,
+		optimizer=get_optimizer(params.get("optimizer", "adam"))(
+			network.parameters(), lr=params.get("learning_rate", 1e-3), **params.get("optimizer_params", {})
+		),
 		verbose=verbose,
 	)
 	history = trainer.train(

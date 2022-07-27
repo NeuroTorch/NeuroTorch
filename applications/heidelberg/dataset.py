@@ -299,7 +299,7 @@ class HeidelbergDataset(Dataset):
 
 def get_dataloaders(
 		*,
-		batch_size: int = 252,
+		batch_size: int = 256,
 		train_val_split_ratio: float = 0.85,
 		n_steps: int = 100,
 		as_sparse: bool = False,

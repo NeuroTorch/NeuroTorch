@@ -2,6 +2,7 @@ import collections.abc
 import enum
 import hashlib
 import os
+import pickle
 from collections import defaultdict
 from typing import Callable, Dict, List, NamedTuple, Any, Tuple, Union
 import torch
@@ -112,3 +113,71 @@ def ravel_compose_transforms(
 		raise ValueError(f"Unsupported transform type: {type(transform)}")
 	return transforms
 
+
+def save_params(params: Dict[str, Any], save_path: str):
+	"""
+	Save the parameters in a file.
+	:param save_path: The path to save the parameters.
+	:param params: The parameters to save.
+	:return: The path to the saved parameters.
+	"""
+	pickle.dump(params, open(save_path, "wb"))
+	return save_path
+
+
+def get_transform_from_str(transform_name: str, **kwargs):
+	"""
+	Get a transform from a string. The string should be one of the following:
+	- "none": No transform.
+	- "linear": Linear transform.
+	- "ImgToSpikes": Image to spikes transform.
+	- "NorseConstCurrLIF": Norse constant current LIF transform.
+	- "flatten": Flatten transform.
+	- "constant": Constant transform.
+
+	:param transform_name: The name of the transform.
+	:param kwargs: The arguments for the transform.
+	:keyword Arguments:
+		* <dt>: float -> The time step of the transform.
+		* <n_steps>: float -> The number of times steps of the transform.
+	:return: The transform.
+	"""
+	from torchvision.transforms import Compose
+	from neurotorch.transforms import LinearRateToSpikes
+	import norse
+	from neurotorch.transforms.vision import ImgToSpikes
+	from torchvision.transforms import Lambda
+	from neurotorch.transforms import ConstantValuesTransform
+
+	kwargs.setdefault("dt", 1e-3)
+	kwargs.setdefault("n_steps", 10)
+
+	name_to_transform = {
+		"none": None,
+		"linear": Compose([torch.flatten, LinearRateToSpikes(n_steps=kwargs["n_steps"])]),
+		"NorseConstCurrLIF": Compose([
+			torch.flatten, norse.torch.ConstantCurrentLIFEncoder(seq_length=kwargs["n_steps"], dt=kwargs["dt"])
+		]),
+		"ImgToSpikes": Compose([torch.flatten, ImgToSpikes(n_steps=kwargs["n_steps"], use_periods=True)]),
+		"flatten": Compose([torch.flatten, Lambda(lambda x: x[np.newaxis, :])]),
+		"const": Compose([torch.flatten, ConstantValuesTransform(n_steps=kwargs["n_steps"])]),
+	}
+	name_to_transform = {k.lower(): v for k, v in name_to_transform.items()}
+	return name_to_transform[transform_name.lower()]
+
+
+def get_all_params_combinations(params_space: Dict[str, Any]) -> List[Dict[str, Any]]:
+	"""
+	Get all possible combinations of parameters.
+	:param params_space: Dictionary of parameters.
+	:return: List of dictionaries of parameters.
+	"""
+	import itertools
+	# get all the combinaison of the parameters
+	all_params = list(params_space.keys())
+	all_params_values = list(params_space.values())
+	all_params_combinaison = list(map(lambda x: list(x), list(itertools.product(*all_params_values))))
+
+	# create a list of dict of all the combinaison
+	all_params_combinaison_dict = list(map(lambda x: dict(zip(all_params, x)), all_params_combinaison))
+	return all_params_combinaison_dict

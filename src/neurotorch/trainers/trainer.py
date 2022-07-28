@@ -283,8 +283,8 @@ class Trainer:
 		x_batch = self._batch_to_dense(self._batch_to_device(x_batch))
 		y_batch = self._batch_to_dense(self._batch_to_device(y_batch))
 		batch_loss = self.apply_criterion_on_batch(x_batch, y_batch)
-		if hasattr(self.model, "get_regularization_loss") and callable(self.model.get_regularization_loss):
-			regularization_loss = self.model.get_regularization_loss()
+		if hasattr(self.model, "get_and_reset_regularization_loss") and callable(self.model.get_and_reset_regularization_loss):
+			regularization_loss = self.model.get_and_reset_regularization_loss()
 			batch_loss += regularization_loss
 		if self.model.training:
 			self.optimizer.zero_grad()

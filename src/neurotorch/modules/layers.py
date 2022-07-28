@@ -1,7 +1,7 @@
 import enum
 import warnings
 from copy import deepcopy
-from typing import Optional, Sized, Tuple, Type, Union, Iterable
+from typing import Any, List, Optional, Sized, Tuple, Type, Union, Iterable
 
 import numpy as np
 import torch
@@ -68,6 +68,9 @@ class BaseLayer(torch.nn.Module):
 
 		self.input_size = input_size
 		self.output_size = output_size
+
+		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		self.reset_regularization_loss()
 
 	@property
 	def input_size(self):
@@ -205,10 +208,22 @@ class BaseLayer(torch.nn.Module):
 			if not self.is_ready_to_build:
 				self.infer_sizes_from_inputs(inputs)
 			self.build()
-		return super(BaseLayer, self).__call__(inputs, *args, **kwargs)
+		call_output = super(BaseLayer, self).__call__(inputs, *args, **kwargs)
+
+		if isinstance(call_output, torch.Tensor):
+			hidden_state = None
+		elif isinstance(call_output, (List, Tuple)) and len(call_output) == 2:
+			hidden_state = call_output[1]
+		else:
+			raise ValueError(
+				"The forward method must return a torch.Tensor (the output of the layer) "
+				"or a tuple of torch.Tensor (the output of the layer and the hidden state)."
+			)
+		self.update_regularization_loss(hidden_state)
+		return call_output
 
 	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-		raise NotImplementedError
+		raise NotImplementedError()
 
 	def initialize_weights_(self):
 		for param in self.parameters():
@@ -216,6 +231,42 @@ class BaseLayer(torch.nn.Module):
 				torch.nn.init.xavier_normal_(param)
 			else:
 				torch.nn.init.normal_(param)
+
+	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
+		"""
+		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
+		the regularization loss will be the sum of all calls to this function. This method is called at the end of each
+		forward call automatically by the BaseLayer class.
+		:param state: The current state of the layer.
+		:param args: Other positional arguments.
+		:param kwargs: Other keyword arguments.
+		:return: The updated regularization loss.
+		"""
+		return self._regularization_loss
+
+	def reset_regularization_loss(self):
+		"""
+		Reset the regularization loss to zero.
+		:return: None
+		"""
+		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+
+	def get_and_reset_regularization_loss(self):
+		"""
+		Get and reset the regularization loss for this layer. The regularization loss will be reset by the
+		reset_regularization_loss method after it is returned.
+		:return: The regularization loss.
+		"""
+		loss = self.get_regularization_loss()
+		self.reset_regularization_loss()
+		return loss
+
+	def get_regularization_loss(self):
+		"""
+		Get the regularization loss for this layer.
+		:return: The regularization loss.
+		"""
+		return self._regularization_loss
 
 
 class BaseNeuronsLayer(BaseLayer):
@@ -309,12 +360,11 @@ class LIFLayer(BaseNeuronsLayer):
 			dt=dt,
 			device=device,
 			**kwargs
-			)
+		)
 
 		self.alpha = torch.tensor(np.exp(-dt / self.kwargs["tau_m"]), dtype=torch.float32, device=self.device)
 		self.threshold = torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device)
 		self.gamma = torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device)
-		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_m", 10.0 * self.dt)
@@ -358,17 +408,7 @@ class LIFLayer(BaseNeuronsLayer):
 		) for _ in range(2)])
 		return state
 
-	def get_regularization_loss(self):
-		"""
-		Get and reset the regularization loss for this layer. The regularization loss will be zeroed after it is
-		returned.
-		:return: The regularization loss.
-		"""
-		loss = self._regularization_loss
-		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self._device)
-		return loss
-
-	def _update_regularization_loss(self, state):
+	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
 		"""
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function.
@@ -391,8 +431,6 @@ class LIFLayer(BaseNeuronsLayer):
 			rec_current = 0.0
 		next_V = (self.alpha * V + input_current + rec_current) * (1.0 - Z.detach())
 		next_Z = self.spike_func.apply(next_V, self.threshold, self.gamma)
-
-		self._update_regularization_loss((next_V, next_Z))
 		return next_Z, (next_V, next_Z)
 
 
@@ -446,7 +484,6 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		self.beta = torch.tensor(np.exp(-dt / self.kwargs["tau_mem"]), dtype=torch.float32, device=self.device)
 		self.threshold = torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device)
 		self.gamma = torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device)
-		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 		self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
 		self._total_count = 0
@@ -486,20 +523,14 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		) for _ in range(3)])
 		return state
 
-	def get_regularization_loss(self):
-		"""
-		Get and reset the regularization loss for this layer. The regularization loss will be zeroed after it is
-		returned.
-		:return: The regularization loss.
-		"""
-		loss = self._regularization_loss
-		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self._device)
-		self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self._device)
-		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self._device)
+	def reset_regularization_loss(self):
+		super(SpyLIFLayer, self).reset_regularization_loss()
+		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
 		self._total_count = 0
-		return loss
 
-	def _update_regularization_loss(self, state):
+	def update_regularization_loss(self, state: Any, *args, **kwargs) -> torch.Tensor:
 		"""
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function.
@@ -527,8 +558,6 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		next_I_syn = self.alpha * I_syn + input_current + rec_current
 		next_V = (self.beta * V + next_I_syn) * (1.0 - Z.detach())
 		next_Z = self.spike_func.apply(next_V, self.threshold, self.gamma)
-
-		self._update_regularization_loss((next_V, next_I_syn, next_Z))
 		return next_Z, (next_V, next_I_syn, next_Z)
 
 
@@ -607,6 +636,18 @@ class ALIFLayer(LIFLayer):
 		A = self.threshold + self.beta * next_a  # A_j^t = v_{th} + \beta * a_j^t
 		next_Z = self.spike_func.apply(next_V, A, self.gamma)  # z_j^t = H(v_j^t - A_j^t)
 		return next_Z, (next_V, next_a, next_Z)
+
+	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
+		"""
+		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
+		the regularization loss will be the sum of all calls to this function.
+		:param state: The current state of the layer.
+		:return: The updated regularization loss.
+		"""
+		next_V, next_a, next_Z = state
+		self._regularization_loss += 2e-6*torch.sum(next_Z)
+		# self._regularization_loss += 2e-6*torch.mean(torch.sum(next_Z, dim=-1)**2)
+		return self._regularization_loss
 
 
 class IzhikevichLayer(BaseNeuronsLayer):

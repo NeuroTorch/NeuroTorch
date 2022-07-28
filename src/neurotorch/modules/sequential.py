@@ -840,15 +840,16 @@ class SequentialModel(BaseModel):
 			return log_proba, *outs[1:]
 		return log_proba
 
-	def get_regularization_loss(self) -> torch.Tensor:
+	def get_and_reset_regularization_loss(self) -> torch.Tensor:
 		"""
-		Get the regularization loss as a sum of all the regularization losses of the layers.
+		Get the regularization loss as a sum of all the regularization losses of the layers. Then reset the
+		regularization losses.
 		:return: the regularization loss.
 		"""
-		regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self._device)
+		regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 		for layer in self.get_all_layers():
-			if hasattr(layer, "get_regularization_loss") and callable(layer.get_regularization_loss):
-				regularization_loss += layer.get_regularization_loss()
+			if hasattr(layer, "get_and_reset_regularization_loss") and callable(layer.get_and_reset_regularization_loss):
+				regularization_loss += layer.get_and_reset_regularization_loss()
 		return regularization_loss
 
 

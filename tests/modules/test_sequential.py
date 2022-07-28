@@ -1,6 +1,7 @@
 import unittest
 import warnings
 from typing import Iterable
+from functools import partial
 
 import numpy as np
 import torch
@@ -612,4 +613,28 @@ class TestSequential(unittest.TestCase):
 			self.assertIsInstance(layer.bias_weights.grad, torch.Tensor)
 			self.assertEqual(layer.bias_weights.grad.shape, layer.bias_weights.shape)
 			self.assertEqual(layer.bias_weights.grad.device.type, layer.device.type)
+
+	def test_get_and_reset_regularization_loss(self):
+		layers = [
+			BaseLayer(10, 10) for _ in range(3)
+		]
+
+		def _update(layer_self, x):
+			layer_self._regularization_loss = torch.tensor(x)
+			return layer_self._regularization_loss
+
+		for layer in layers:
+			layer.update_regularization_loss = partial(_update, layer)
+
+		model = SequentialModel(
+			layers=layers
+		)
+		model.build()
+		self.assertTrue(torch.isclose(model.get_and_reset_regularization_loss(), torch.tensor(0.0)))
+		for layer in layers:
+			layer.update_regularization_loss(0.1)
+		self.assertTrue(torch.isclose(model.get_and_reset_regularization_loss(), torch.tensor(0.1)*len(layers)))
+		for layer in layers:
+			self.assertTrue(torch.isclose(layer.get_regularization_loss(), torch.tensor(0.0)))
+
 

@@ -79,6 +79,66 @@ class TestBaseLayer(unittest.TestCase):
 		with self.assertRaises(ValueError) as context:
 			layer.build()
 
+	def test_update_regularization(self):
+		"""
+		Test if the update of regularization is correct.
+		"""
+		layer = BaseLayer(10, 10, device=torch.device("cpu"))
+		layer.build()
+
+		def _update(x):
+			layer._regularization_loss = torch.tensor(x)
+			return layer._regularization_loss
+
+		layer.update_regularization_loss = _update
+		layer.update_regularization_loss(0.1)
+		self.assertTrue(
+			torch.isclose(layer._regularization_loss, torch.tensor(0.1)),
+			f"{layer._regularization_loss = } != {torch.tensor(0.1)}"
+		)
+
+	def test_reset_regularization(self):
+		layer = BaseLayer(10, 10, device=torch.device("cpu"))
+		layer.build()
+
+		def _update(x):
+			layer._regularization_loss = torch.tensor(x)
+			return layer._regularization_loss
+
+		layer.update_regularization_loss = _update
+		layer.update_regularization_loss(0.1)
+		self.assertTrue(torch.isclose(layer._regularization_loss, torch.tensor(0.1)))
+		layer.reset_regularization_loss()
+		self.assertTrue(torch.isclose(layer._regularization_loss, torch.tensor(0.0)))
+
+	def test_get_regularization(self):
+		layer = BaseLayer(10, 10, device=torch.device("cpu"))
+		layer.build()
+
+		def _update(x):
+			layer._regularization_loss = torch.tensor(x)
+			return layer._regularization_loss
+
+		layer.update_regularization_loss = _update
+		layer.update_regularization_loss(0.1)
+		self.assertTrue(torch.isclose(layer._regularization_loss, layer.get_regularization_loss()))
+
+	def test_get_and_reset_regularization(self):
+		layer = BaseLayer(10, 10, device=torch.device("cpu"))
+		layer.build()
+
+		def _update(x):
+			layer._regularization_loss = torch.tensor(x)
+			return layer._regularization_loss
+
+		layer.update_regularization_loss = _update
+		layer.update_regularization_loss(0.1)
+		self.assertTrue(torch.isclose(layer._regularization_loss, torch.tensor(0.1)))
+		get_tensor = layer.get_regularization_loss()
+		self.assertTrue(torch.isclose(layer._regularization_loss, get_tensor))
+		self.assertTrue(torch.isclose(get_tensor, layer.get_and_reset_regularization_loss()))
+		self.assertTrue(torch.isclose(layer._regularization_loss, torch.tensor(0.0)))
+
 
 if __name__ == '__main__':
 	unittest.main()

@@ -212,8 +212,8 @@ class BaseLayer(torch.nn.Module):
 
 		if isinstance(call_output, torch.Tensor):
 			hidden_state = None
-		elif isinstance(call_output, (List, Tuple)) and len(call_output) > 1:
-			hidden_state = call_output[1:]
+		elif isinstance(call_output, (List, Tuple)) and len(call_output) == 2:
+			hidden_state = call_output[1]
 		else:
 			raise ValueError(
 				"The forward method must return a torch.Tensor (the output of the layer) "
@@ -408,7 +408,7 @@ class LIFLayer(BaseNeuronsLayer):
 		) for _ in range(2)])
 		return state
 
-	def update_regularization_loss(self, state: Any, *args, **kwargs) -> torch.Tensor:
+	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
 		"""
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function.
@@ -636,6 +636,18 @@ class ALIFLayer(LIFLayer):
 		A = self.threshold + self.beta * next_a  # A_j^t = v_{th} + \beta * a_j^t
 		next_Z = self.spike_func.apply(next_V, A, self.gamma)  # z_j^t = H(v_j^t - A_j^t)
 		return next_Z, (next_V, next_a, next_Z)
+
+	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
+		"""
+		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
+		the regularization loss will be the sum of all calls to this function.
+		:param state: The current state of the layer.
+		:return: The updated regularization loss.
+		"""
+		next_V, next_a, next_Z = state
+		self._regularization_loss += 2e-6*torch.sum(next_Z)
+		# self._regularization_loss += 2e-6*torch.mean(torch.sum(next_Z, dim=-1)**2)
+		return self._regularization_loss
 
 
 class IzhikevichLayer(BaseNeuronsLayer):

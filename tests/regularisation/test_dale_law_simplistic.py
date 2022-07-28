@@ -1,5 +1,7 @@
 import unittest
+
 import torch
+
 from neurotorch.regularisation.connectome import DaleLawSimplistic
 
 
@@ -7,6 +9,7 @@ class TestDaleLawSimplistic(unittest.TestCase):
 	"""
 	Test if the Dale's law is well implemented.
 	"""
+
 	def test_size_output(self):
 		"""
 		Assert that the output is a 1D tensor.
@@ -62,7 +65,6 @@ class TestDaleLawSimplistic(unittest.TestCase):
 		dale_law = DaleLawSimplistic()
 		loss = dale_law(weights)
 		self.assertEqual(loss.item(), 0.5)
-
 
 		weights = torch.rand(10, 10) * -1
 		weights.fill_diagonal_(0)

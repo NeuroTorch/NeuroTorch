@@ -39,6 +39,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 			output_size=params["hidden_layer_size"],
 			dt=params["dt"],
 			std_weight=params["std_weight"],
+			forward_weights=params["forward_weights"],
 			learn_r=params["learn_r"],
 			learn_mu=params["learn_mu"],
 			std_r=params["std_r"],
@@ -59,9 +60,9 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 	trainer = RegressionTrainer(
 		model=network,
 		callbacks=checkpoint_manager,
-		#criterion=lambda pred, y: RegressionMetrics.compute_p_var(y_true=y, y_pred=pred, reduction='mean'),
-		criterion=RMSELoss(),
-		optimizer=torch.optim.Adam(network.parameters(), lr=1e-2, maximize=False),
+		criterion=lambda pred, y: RegressionMetrics.compute_p_var(y_true=y, y_pred=pred, reduction='mean'),
+		#criterion=RMSELoss(),
+		optimizer=torch.optim.SGD(network.parameters(), lr=1, maximize=True, momentum=0.9, dampening=0.5),
 		#optimizer=torch.optim.SGD(network.parameters(), lr=1e-3, momentum=0.9, weight_decay=0.001, maximize=True),
 		metrics=[reg_metrics]
 	)

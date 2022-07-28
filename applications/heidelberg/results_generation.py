@@ -41,20 +41,11 @@ def get_training_params_space() -> Dict[str, Any]:
 			# 32,
 			# 64,
 			# [64, 64],
-			128,
+			# 128,
 			256,
 			# [32, 32],
 			# 32
 		],
-		# "spike_func": [SpikeFuncType.FastSigmoid, ],
-		# "input_learning_type": [
-		# 	LearningType.NONE,
-		# 	# LearningType.BPTT,
-		# ],
-		# "input_layer_type": [
-		# 	LayerType.LIF,
-		# 	LayerType.SpyLIF,
-		# ],
 		"hidden_layer_type": [
 			LayerType.LIF,
 			LayerType.ALIF,
@@ -75,16 +66,16 @@ def get_training_params_space() -> Dict[str, Any]:
 		"optimizer": [
 			# "SGD",
 			"Adam",
-			"Adamax",
+			# "Adamax",
 			# "RMSprop",
 			# "Adagrad",
 			# "Adadelta",
-			"AdamW",
+			# "AdamW",
 		],
 		"learning_rate": [
 			# 1e-2,
-			1e-3,
-			# 2e-4,
+			# 1e-3,
+			2e-4,
 		],
 	}
 
@@ -110,7 +101,9 @@ def train_with_params(
 		verbose: bool = False,
 		show_training: bool = False,
 		force_overwrite: bool = False,
+		seed: int = 42,
 ):
+	torch.manual_seed(seed)
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
 	os.makedirs(checkpoint_folder, exist_ok=True)
@@ -119,7 +112,7 @@ def train_with_params(
 
 	dataloaders = get_dataloaders(
 		batch_size=batch_size,
-		train_val_split_ratio=params.get("train_val_split_ratio", 0.85),
+		train_val_split_ratio=params.get("train_val_split_ratio", 0.95),
 	)
 	n_features = dataloaders["test"].dataset.n_units
 	n_hidden_neurons = params["n_hidden_neurons"]
@@ -142,6 +135,7 @@ def train_with_params(
 					Dimension(n_features, DimensionProperty.NONE)
 				]),
 				output_size=n_hidden_neurons[0],
+				**params
 			),
 			*hidden_layers,
 			LayerType2Layer[params["readout_layer_type"]](output_size=dataloaders["test"].dataset.n_classes),
@@ -162,7 +156,7 @@ def train_with_params(
 		model=network,
 		callbacks=callbacks,
 		optimizer=get_optimizer(params.get("optimizer", "adam"))(
-			network.parameters(), lr=params.get("learning_rate", 1e-3), **params.get("optimizer_params", {})
+			network.parameters(), lr=params.get("learning_rate", 2e-4), **params.get("optimizer_params", {})
 		),
 		verbose=verbose,
 	)
@@ -216,6 +210,7 @@ def train_all_params(
 		verbose: bool = False,
 		rm_data_folder_and_restart_all_training: bool = False,
 		force_overwrite: bool = False,
+		skip_if_exists: bool = False,
 ):
 	"""
 	Train the network with all the parameters.
@@ -226,6 +221,7 @@ def train_all_params(
 	:param training_params: The parameters to use for the training.
 	:param rm_data_folder_and_restart_all_training: If True, remove the data folder and restart all the training.
 	:param force_overwrite: If True, overwrite and restart non-completed training.
+	:param skip_if_exists: If True, skip the training if the results already in the results dataframe.
 	:return: The results of the training.
 	"""
 	warnings.filterwarnings("ignore", category=UserWarning)
@@ -254,7 +250,7 @@ def train_all_params(
 
 	with tqdm.tqdm(all_params_combinaison_dict, desc="Training all the parameters", position=0) as p_bar:
 		for i, params in enumerate(p_bar):
-			if str(hash_params(params)) in df["checkpoints"].values:
+			if str(hash_params(params)) in df["checkpoints"].values and skip_if_exists:
 				continue
 			# p_bar.set_description(f"Training {params}")
 			try:
@@ -267,6 +263,9 @@ def train_all_params(
 					show_training=False,
 					force_overwrite=force_overwrite,
 				)
+				if str(hash_params(params)) in df["checkpoints"].values:
+					# remove from df if already exists
+					df = df[df["checkpoints"] != result["checkpoints_name"]]
 				df = pd.concat([df, pd.DataFrame(
 					dict(
 						checkpoints=[result["checkpoints_name"]],

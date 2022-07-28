@@ -12,7 +12,7 @@ if __name__ == '__main__':
 	logs_file_setup(__file__)
 	log_device_setup(deepLib=DeepLib.Pytorch)
 	torch.autograd.set_detect_anomaly(True)
-	torch.cuda.set_per_process_memory_fraction(0.8)
+	torch.cuda.set_per_process_memory_fraction(0.1)
 	results = train_with_params(
 		{
 			"dataset_id": DatasetId.MNIST,

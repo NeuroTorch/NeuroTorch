@@ -300,8 +300,8 @@ def format_table_metric_value(
 
 
 if __name__ == '__main__':
-	result = load_results('tr_data_fashion_mnist_001/results.csv')
-	best_result = result.sort_values(by='test_accuracy', ascending=False).iloc[:3]
+	result = load_results('tr_data_fashion_mnist_001/results.csv').sort_values(by='test_accuracy', ascending=False)
+	best_result = result.iloc[:3]
 	cols_oi = [
 		'input_layer_type',
 		'hidden_layer_type',

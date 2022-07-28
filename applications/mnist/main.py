@@ -19,7 +19,7 @@ if __name__ == '__main__':
 			"use_recurrent_connection": False,
 			"input_transform": "const",
 			'n_hidden_neurons': 128,
-			"n_steps": 2,
+			"n_steps": 8,
 			"train_val_split_ratio": 0.95,
 			# "spike_func": SpikeFuncType.FastSigmoid,
 			"input_layer_type": LayerType.SpyLIF,

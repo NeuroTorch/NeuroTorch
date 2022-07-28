@@ -232,7 +232,7 @@ class BaseLayer(torch.nn.Module):
 			else:
 				torch.nn.init.normal_(param)
 
-	def update_regularization_loss(self, state: Any, *args, **kwargs) -> torch.Tensor:
+	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
 		"""
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function. This method is called at the end of each

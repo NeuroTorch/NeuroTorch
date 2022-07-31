@@ -18,6 +18,7 @@ from neurotorch.callbacks.training_visualization import TrainingHistoryVisualiza
 from neurotorch.metrics import ClassificationMetrics
 from neurotorch.modules import SequentialModel
 from neurotorch.modules.layers import LayerType, LayerType2Layer, LearningType
+from neurotorch.regularization import L1, L2, RegularizationList
 from neurotorch.trainers import ClassificationTrainer
 from neurotorch.utils import get_all_params_combinations, hash_params, save_params
 
@@ -152,12 +153,19 @@ def train_with_params(
 	callbacks = [checkpoint_manager, ]
 	if show_training:
 		callbacks.append(TrainingHistoryVisualizationCallback("./temp/"))
+	regularization = RegularizationList([
+		L2(network.parameters()),
+		L1(network.parameters()),
+	])
 	trainer = ClassificationTrainer(
 		model=network,
 		callbacks=callbacks,
+		regularization=regularization,
 		optimizer=get_optimizer(params.get("optimizer", "adam"))(
 			network.parameters(), lr=params.get("learning_rate", 2e-4), **params.get("optimizer_params", {})
 		),
+		regularization_optimizer=torch.optim.Adam(regularization.parameters(), lr=params.get("learning_rate", 2e-4)),
+		lr=params.get("learning_rate", 2e-4),
 		verbose=verbose,
 	)
 	history = trainer.train(

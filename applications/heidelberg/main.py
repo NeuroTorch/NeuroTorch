@@ -21,12 +21,12 @@ if __name__ == '__main__':
 			"hidden_layer_type": LayerType.SpyLIF,
 			"readout_layer_type": LayerType.SpyLI,
 		},
-		n_iterations=200,
+		n_iterations=50,
 		batch_size=256,
 		verbose=True,
 		show_training=False,
 		force_overwrite=False,
-		data_folder="tr_test",
+		data_folder="tr_test_reg",
 	)
 	pprint.pprint(results, indent=4)
 	results["history"].plot(show=True)

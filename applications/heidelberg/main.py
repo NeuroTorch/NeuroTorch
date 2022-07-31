@@ -25,8 +25,8 @@ if __name__ == '__main__':
 		batch_size=256,
 		verbose=True,
 		show_training=False,
-		force_overwrite=False,
-		data_folder="tr_test_reg",
+		force_overwrite=True,
+		data_folder="tr_test",
 	)
 	pprint.pprint(results, indent=4)
 	results["history"].plot(show=True)

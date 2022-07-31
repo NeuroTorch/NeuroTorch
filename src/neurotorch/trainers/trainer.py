@@ -135,7 +135,7 @@ class Trainer:
 		return optimizer
 
 	def _set_default_reg_optimizer(self, optimizer: Optional[torch.optim.Optimizer]) -> torch.optim.Optimizer:
-		if optimizer is None:
+		if optimizer is None and self.regularization is not None:
 			optimizer = torch.optim.Adam(
 				self.regularization.parameters(),
 				lr=self.kwargs["lr"],
@@ -163,9 +163,9 @@ class Trainer:
 	def _set_default_regularization(
 			self,
 			regularization: Optional[Union[BaseRegularization, RegularizationList, Iterable[BaseRegularization]]]
-	) -> RegularizationList:
+	) -> Optional[RegularizationList]:
 		if regularization is None:
-			regularization = RegularizationList()
+			pass
 		elif isinstance(regularization, BaseRegularization):
 			regularization = RegularizationList([regularization])
 		elif isinstance(regularization, RegularizationList):
@@ -311,17 +311,18 @@ class Trainer:
 		x_batch = self._batch_to_dense(self._batch_to_device(x_batch))
 		y_batch = self._batch_to_dense(self._batch_to_device(y_batch))
 		batch_loss = self.apply_criterion_on_batch(x_batch, y_batch)
-		regularization_loss = self.regularization()
 		# if hasattr(self.model, "get_and_reset_regularization_loss") and callable(self.model.get_and_reset_regularization_loss):
 		# 	regularization_loss = self.model.get_and_reset_regularization_loss()
 		# 	batch_loss += regularization_loss
-		if self.regularization_optimizer is None:
+		if self.regularization_optimizer is None and self.regularization is not None:
+			regularization_loss = self.regularization()
 			batch_loss += regularization_loss
 		if self.model.training:
 			self.optimizer.zero_grad()
 			batch_loss.backward()
 			self.optimizer.step()
-		if self.regularization_optimizer is not None:
+		if self.regularization_optimizer is not None and self.regularization is not None:
+			regularization_loss = self.regularization()
 			self.regularization_optimizer.zero_grad()
 			regularization_loss.backward()
 			self.regularization_optimizer.step()

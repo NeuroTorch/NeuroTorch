@@ -43,6 +43,7 @@ def train_with_params(params: Dict[str, Any], n_iterations: int = 100, data_fold
 			learn_r=params["learn_r"],
 			learn_mu=params["learn_mu"],
 			std_r=params["std_r"],
+			tau=params["tau"],
 		)
 		for _ in range(params["num_hidden_layers"])
 	]
@@ -135,6 +136,7 @@ if __name__ == '__main__':
 			"learn_r": True,
 			"learn_mu": True,
 			"std_r": 0,
+			"tau": tau,
 			"hidden_layer_size": n_neurons,
 		},
 		n_iterations=80,

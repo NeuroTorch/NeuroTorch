@@ -55,6 +55,7 @@ class WilsonCowanTimeSeries:
 			forward_weights=self.forward_weights,
 			mu=self.mu,
 			r=self.r,
+			tau=self.tau
 		)
 		self.layer.build()
 		# self.layer.forward_weights = to_tensor(self.forward_weights)

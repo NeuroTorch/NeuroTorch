@@ -153,19 +153,20 @@ def train_with_params(
 	callbacks = [checkpoint_manager, ]
 	if show_training:
 		callbacks.append(TrainingHistoryVisualizationCallback("./temp/"))
-	# regularization = RegularizationList([
-	# 	L2(network.parameters()),
-	# 	L1(network.parameters()),
-	# ])
+	regularization = RegularizationList([
+		L2(network.parameters()),
+		L1(network.parameters()),
+	])
 	trainer = ClassificationTrainer(
 		model=network,
 		callbacks=callbacks,
-		# regularization=regularization,
+		regularization=regularization,
 		optimizer=get_optimizer(params.get("optimizer", "adam"))(
 			network.parameters(), lr=params.get("learning_rate", 2e-4), **params.get("optimizer_params", {})
 		),
 		# regularization_optimizer=torch.optim.Adam(regularization.parameters(), lr=params.get("learning_rate", 2e-4)),
 		lr=params.get("learning_rate", 2e-4),
+		reg_lr=params.get("reg_lr", 2e-4),
 		verbose=verbose,
 	)
 	history = trainer.train(

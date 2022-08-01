@@ -1,5 +1,7 @@
 __author__ = "Jérémie Gince"
-# repository: https://github.com/JeremieGince/NeuroTorch
+__copyright__ = "Copyright 2022, Jérémie Gince"
+__url__ = "https://github.com/JeremieGince/NeuroTorch"
+
 
 from .version import __version__
 
@@ -9,6 +11,32 @@ from .dimension import (
 	Size,
 )
 
+from .modules.sequential import (
+	SequentialModel,
+)
+
 from .modules.layers import (
 	LearningType,
+	LayerType,
+	LILayer,
+	LIFLayer,
+	SpyLILayer,
+	SpyLIFLayer,
+	ALIFLayer,
+	WilsonCowanLayer,
 )
+
+from .regularization import (
+	RegularizationList,
+	L1,
+	L2,
+)
+
+
+from .trainers import (
+	ClassificationTrainer,
+	RegressionTrainer,
+)
+
+
+

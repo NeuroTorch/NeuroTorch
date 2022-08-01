@@ -105,7 +105,7 @@ class Lp(BaseRegularization):
 		"""
 		loss = torch.tensor(0.0, requires_grad=True).to(self.params[0].device)
 		for param in self.params:
-			loss += torch.linalg.norm(param.data, self.p)
+			loss += torch.linalg.norm(param, self.p)
 		return loss
 
 

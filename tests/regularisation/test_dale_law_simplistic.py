@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from neurotorch.regularisation.connectome import DaleLawSimplistic
+from neurotorch.regularization.connectome import DaleLawSimplistic
 
 
 class TestDaleLawSimplistic(unittest.TestCase):

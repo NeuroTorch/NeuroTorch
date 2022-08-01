@@ -3,7 +3,7 @@ import unittest
 
 import torch
 
-from neurotorch.regularisation.connectome import DaleLaw
+from neurotorch.regularization.connectome import DaleLaw
 
 
 class TestDaleLaw(unittest.TestCase):

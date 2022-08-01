@@ -1,4 +1,4 @@
-from typing import Optional, List, Callable, Dict, Any, Union, NamedTuple
+from typing import Iterable, Optional, List, Callable, Dict, Any, Union, NamedTuple
 
 import numpy as np
 import torch
@@ -8,6 +8,7 @@ from tqdm.auto import tqdm
 from ..callbacks import CheckpointManager, LoadCheckpointMode, TrainingHistory
 from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..modules import BaseModel
+from ..regularization import BaseRegularization, RegularizationList
 
 
 class CurrentTrainingState(NamedTuple):
@@ -74,18 +75,60 @@ class Trainer:
 			self,
 			model: BaseModel,
 			criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
+			regularization: Optional[Union[BaseRegularization, RegularizationList, Iterable[BaseRegularization]]] = None,
 			optimizer: Optional[torch.optim.Optimizer] = None,
+			regularization_optimizer: Optional[torch.optim.Optimizer] = None,
 			metrics: Optional[List[Callable]] = None,
 			callbacks: Optional[Union[List[BaseCallback], CallbacksList, BaseCallback]] = None,
 			device: Optional[torch.device] = None,
 			verbose: bool = True,
 			**kwargs
 	):
+		"""
+		Constructor for Trainer.
+
+		:param model: Model to train.
+		:param criterion: Loss function(s) to use.
+		:param regularization: Regularization(s) to use. In NeuroTorch, there are two ways to do regularization:
+			1. Regularization can be specified in the layers with the 'update_regularization_loss' method. This
+			regularization will be performed by the same optimizer as the main loss. This way is useful when you
+			want a regularization that depends on the model output or hidden state.
+			2. Regularization can be specified in the trainer with the 'regularization' parameter. This regularization
+			will be performed by a separate optimizer named 'regularization_optimizer'. This way is useful when you
+			want a regularization that depends only on the model parameters and when you want to control the
+			learning rate of the regularization independently of the main loss.
+		:param optimizer: Optimizer to use for the main loss.
+		:param regularization_optimizer: Optimizer to use for the regularization loss.
+		:param metrics: Metrics to compute during training.
+		:param callbacks: Callbacks to use during training. Each callback will be called at the following moments:
+			1. At the beginning of the train call.
+			2. At the beginning of each iteration. An iteration is defined as one full pass through the training
+			dataset and the validation dataset.
+			3. At the beginning of each epoch. An epoch is defined as one full pass through a dataset (train or valid).
+			4. At the beginning of each batch. The batch is defined as one forward pass through the network.
+			5. At the end of each batch.
+			6. At the end of each epoch.
+			7. At the end of each iteration.
+			8. At the end of the train call.
+		:param device: Device to use for the training. Default is the device of the model.
+		:param verbose: Whether to print information during training.
+		:param kwargs: Additional arguments of the training.
+
+		:Keyword Arguments:
+			* <n_epochs>: int -> The number of epochs to train at each iteration. Default is 1.
+			* <lr>: float -> Learning rate of the main optimizer. Default is 1e-3.
+			* <reg_lr>: float -> Learning rate of the regularization optimizer. Default is 1e-2.
+			* <weight_decay>: float -> Weight decay of the main optimizer. Default is 0.0.
+			* <exec_metrics_on_train>: float -> Whether to compute metrics on the train dataset. This is useful when
+			you want to save time by not computing the metrics on the train dataset. Default is True.
+		"""
 		assert model.is_built, "Model must be built before training"
 		self.kwargs = self._set_default_kwargs(kwargs)
 		self.model = model
 		self.criterion = self._set_default_criterion(criterion)
+		self.regularization = self._set_default_regularization(regularization)
 		self.optimizer = self._set_default_optimizer(optimizer)
+		self.regularization_optimizer = self._set_default_reg_optimizer(regularization_optimizer)
 		self.metrics = self._set_default_metrics(metrics)
 		self.callbacks: CallbacksList = self._set_default_callbacks(callbacks)
 		self.sort_callbacks_()
@@ -111,9 +154,10 @@ class Trainer:
 	
 	@staticmethod
 	def _set_default_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
-		kwargs.setdefault("n_epochs", 3)
+		kwargs.setdefault("n_epochs", 1)
 		kwargs.setdefault("lr", 1e-3)
-		kwargs.setdefault("weight_decay", 1e-5)
+		kwargs.setdefault("reg_lr", 1e-2)
+		kwargs.setdefault("weight_decay", 0.0)
 		kwargs.setdefault("batch_size", 256)
 		kwargs.setdefault("exec_metrics_on_train", True)
 		
@@ -125,7 +169,16 @@ class Trainer:
 			optimizer = torch.optim.Adam(
 				self.model.parameters(),
 				lr=self.kwargs["lr"],
-				weight_decay=self.kwargs["weight_decay"]
+				weight_decay=self.kwargs["weight_decay"],
+			)
+		return optimizer
+
+	def _set_default_reg_optimizer(self, optimizer: Optional[torch.optim.Optimizer]) -> torch.optim.Optimizer:
+		if optimizer is None and self.regularization is not None:
+			optimizer = torch.optim.SGD(
+				self.regularization.parameters(),
+				lr=self.kwargs["reg_lr"],
+				weight_decay=0.0,
 			)
 		return optimizer
 
@@ -145,6 +198,20 @@ class Trainer:
 			else:
 				raise ValueError("Unknown criterion type")
 		return criterion
+
+	def _set_default_regularization(
+			self,
+			regularization: Optional[Union[BaseRegularization, RegularizationList, Iterable[BaseRegularization]]]
+	) -> Optional[RegularizationList]:
+		if regularization is None:
+			pass
+		elif isinstance(regularization, BaseRegularization):
+			regularization = RegularizationList([regularization])
+		elif isinstance(regularization, RegularizationList):
+			pass
+		elif isinstance(regularization, Iterable):
+			regularization = RegularizationList(regularization)
+		return regularization
 	
 	def _set_default_device(self, device: Optional[torch.device]) -> torch.device:
 		if device is None:
@@ -212,17 +279,12 @@ class Trainer:
 			else:
 				itr_val_metrics = {}
 			itr_metrics = dict(**itr_loss, **itr_train_metrics, **itr_val_metrics)
-			postfix = dict(
-				train_loss=f"{itr_loss['train_loss']:.5e}",
-				val_loss=f"{itr_loss['val_loss']:.5e}",
-			)
-			postfix.update({f"{k}": f"{v:.5e}" for k, v in itr_val_metrics.items()})
+			postfix = {f"{k}": f"{v:.5e}" for k, v in itr_metrics.items()}
 			self.current_training_state = self.current_training_state.update(itr_metrics=itr_metrics)
 			self.callbacks.on_iteration_end(self)
 			p_bar.set_postfix(postfix)
 		self.callbacks.close(self)
 		p_bar.close()
-		# self.plot_loss_history(show=False)
 		return self.training_history
 
 	def _exec_iteration(
@@ -283,18 +345,33 @@ class Trainer:
 		x_batch = self._batch_to_dense(self._batch_to_device(x_batch))
 		y_batch = self._batch_to_dense(self._batch_to_device(y_batch))
 		batch_loss = self.apply_criterion_on_batch(x_batch, y_batch)
-		if hasattr(self.model, "get_and_reset_regularization_loss") and callable(self.model.get_and_reset_regularization_loss):
-			regularization_loss = self.model.get_and_reset_regularization_loss()
+		if (
+				hasattr(self.model, "get_and_reset_regularization_loss")
+				and callable(self.model.get_and_reset_regularization_loss)
+		):
+			aux_regularization_loss = self.model.get_and_reset_regularization_loss()
+			batch_loss += aux_regularization_loss
+		if self.regularization_optimizer is None and self.regularization is not None:
+			regularization_loss = self.regularization()
 			batch_loss += regularization_loss
 		if self.model.training:
 			self.optimizer.zero_grad()
 			batch_loss.backward()
 			self.optimizer.step()
+		if self.regularization_optimizer is not None and self.regularization is not None:
+			regularization_loss = self.regularization()
+			self.regularization_optimizer.zero_grad()
+			regularization_loss.backward()
+			self.regularization_optimizer.step()
 		self.current_training_state = self.current_training_state.update(batch_loss=batch_loss.item())
 		self.callbacks.on_batch_end(self)
 		return batch_loss.item()
 
-	def apply_criterion_on_batch(self, x_batch, y_batch):
+	def apply_criterion_on_batch(
+			self,
+			x_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+			y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+	) -> torch.Tensor:
 		if self.model.training:
 			pred, out, h_sates = self.model.get_raw_prediction(
 				x_batch, re_outputs_trace=True, re_hidden_states=True

@@ -373,6 +373,7 @@ class LIFLayer(BaseNeuronsLayer):
 			self.kwargs.setdefault("gamma", 100.0)
 		else:
 			self.kwargs.setdefault("gamma", 1.0)
+		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
 
 	def initialize_weights_(self):
 		gain = self.threshold.data
@@ -416,7 +417,7 @@ class LIFLayer(BaseNeuronsLayer):
 		:return: The updated regularization loss.
 		"""
 		next_V, next_Z = state
-		self._regularization_loss += 2e-6*torch.sum(next_Z)
+		self._regularization_loss += self.kwargs["spikes_regularization_factor"]*torch.sum(next_Z)
 		# self._regularization_loss += 2e-6*torch.mean(torch.sum(next_Z, dim=-1)**2)
 		return self._regularization_loss
 
@@ -456,16 +457,25 @@ class SpyLIFLayer(BaseNeuronsLayer):
 	):
 		"""
 		Constructor for the SpyLIF layer.
-		:param input_size:
-		:param output_size:
-		:param name:
-		:param use_recurrent_connection:
-		:param use_rec_eye_mask:
-		:param spike_func:
-		:param learning_type:
-		:param dt:
-		:param device:
-		:param kwargs:
+
+		:param input_size: The size of the input.
+		:param output_size: The size of the output.
+		:param name: The name of the layer.
+		:param use_recurrent_connection: Whether to use the recurrent connection.
+		:param use_rec_eye_mask: Whether to use the recurrent eye mask.
+		:param spike_func: The spike function to use.
+		:param learning_type: The learning type to use.
+		:param dt: Time step (Euler's discretisation).
+		:param device: The device to use.
+		:param kwargs: The keyword arguments for the layer.
+
+		:Keyword Arguments:
+			* <tau_syn>: float -> The synaptic time constant. Default: 5.0 * dt.
+			* <tau_mem>: float -> The membrane time constant. Default: 10.0 * dt.
+			* <threshold>: float -> The threshold of the layer. Default: 1.0.
+			* <gamma>: float -> The multiplier of the derivative of the spike function. Default: 100.0.
+			* <spikes_regularization_factor>: float -> The regularization factor for the spikes. Higher this factor is,
+			the more the network will tend to spike less. Default: 0.0.
 		"""
 		self.spike_func = HeavisideSigmoidApprox
 		super(SpyLIFLayer, self).__init__(
@@ -493,6 +503,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("tau_mem", 10.0 * self.dt)
 		self.kwargs.setdefault("threshold", 1.0)
 		self.kwargs.setdefault("gamma", 100.0)
+		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
 
 	def initialize_weights_(self):
 		weight_scale = 0.2
@@ -530,7 +541,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
 		self._total_count = 0
 
-	def update_regularization_loss(self, state: Any, *args, **kwargs) -> torch.Tensor:
+	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
 		"""
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function.
@@ -538,10 +549,10 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		:return: The updated regularization loss.
 		"""
 		next_V, next_I_syn, next_Z = state
-		# self._regularization_l1 += 2e-6*torch.sum(next_Z)
+		self._regularization_l1 += self.kwargs["spikes_regularization_factor"]*torch.sum(next_Z)
 		# self._n_spike_per_neuron += torch.sum(torch.sum(next_Z, dim=0), dim=0)
 		# self._total_count += next_Z.shape[0]*next_Z.shape[1]
-		# current_l2 = 2e-6*torch.sum(self._n_spike_per_neuron ** 2) / (self._total_count + 1e-6)
+		# current_l2 = self.kwargs["spikes_regularization_factor"]*torch.sum(self._n_spike_per_neuron ** 2) / (self._total_count + 1e-6)
 		# self._regularization_loss = self._regularization_l1 + current_l2
 		self._regularization_loss = self._regularization_l1
 		return self._regularization_loss
@@ -603,6 +614,7 @@ class ALIFLayer(LIFLayer):
 		else:
 			self.kwargs.setdefault("gamma", 0.3)
 		self.kwargs.setdefault("learn_beta", False)
+		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
 		"""
@@ -645,7 +657,7 @@ class ALIFLayer(LIFLayer):
 		:return: The updated regularization loss.
 		"""
 		next_V, next_a, next_Z = state
-		self._regularization_loss += 2e-6*torch.sum(next_Z)
+		self._regularization_loss += self.kwargs["spikes_regularization_factor"]*torch.sum(next_Z)
 		# self._regularization_loss += 2e-6*torch.mean(torch.sum(next_Z, dim=-1)**2)
 		return self._regularization_loss
 

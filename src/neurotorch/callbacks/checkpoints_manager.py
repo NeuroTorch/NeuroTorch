@@ -36,7 +36,7 @@ class CheckpointManager(BaseCallback):
 	CHECKPOINT_BEST_KEY = "best"
 	CHECKPOINT_ITRS_KEY = "iterations"
 	CHECKPOINT_ITR_KEY = "itr"
-	CHECKPOINT_METRICS_KEY = 'rewards'
+	CHECKPOINT_METRICS_KEY = 'metrics'
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY = "optimizer_state_dict"
 	CHECKPOINT_STATE_DICT_KEY = "model_state_dict"
 	CHECKPOINT_TRAINING_HISTORY_KEY = "training_history"

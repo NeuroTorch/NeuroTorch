@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional, Union
 
 import torch
 
@@ -24,7 +24,11 @@ class ClassificationTrainer(Trainer):
 			metrics = [ClassificationMetrics(self.model)]
 		return metrics
 
-	def apply_criterion_on_batch(self, x_batch, y_batch):
+	def apply_criterion_on_batch(
+			self,
+			x_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+			y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+	) -> torch.Tensor:
 		if self.model.training:
 			pred, out, h_sates = self.model.get_prediction_log_proba(
 				x_batch, re_outputs_trace=True, re_hidden_states=True

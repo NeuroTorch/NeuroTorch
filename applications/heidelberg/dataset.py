@@ -356,9 +356,13 @@ def get_dataloaders(
 	return dict(train=train_dataloader, val=val_dataloader, test=test_dataloader)
 
 
-
-
-
+if __name__ == "__main__":
+	_train_dataset_ = HeidelbergDataset(train=True, download=True, verbose=True)
+	_test_dataset_ = HeidelbergDataset(train=False, download=True, verbose=True)
+	
+	print(f"Train dataset length: {len(_train_dataset_)}")
+	print(f"Test dataset length: {len(_test_dataset_)}")
+	print(f"Total dataset length: {len(_train_dataset_) + len(_test_dataset_)}")
 
 
 

@@ -181,3 +181,17 @@ def get_all_params_combinations(params_space: Dict[str, Any]) -> List[Dict[str, 
 	# create a list of dict of all the combinaison
 	all_params_combinaison_dict = list(map(lambda x: dict(zip(all_params, x)), all_params_combinaison))
 	return all_params_combinaison_dict
+
+
+def set_seed(seed: int):
+	"""
+	Set the seed of the random number generator.
+	:param seed: The seed to set.
+	"""
+	import random
+	import torch
+	random.seed(seed)
+	np.random.seed(seed)
+	torch.manual_seed(seed)
+
+

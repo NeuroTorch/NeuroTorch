@@ -8,7 +8,7 @@ from matplotlib import animation
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import ToTensor
 from neurotorch.modules.layers import WilsonCowanLayer, LearningType
-from neurotorch.transforms.spikes import SpikeEncoder
+from neurotorch.transforms.spikes_encoders import SpikesEncoder, LIFEncoder, ALIFEncoder, SpyLIFEncoder
 
 from src.neurotorch.transforms.base import to_tensor
 
@@ -27,7 +27,7 @@ class WilsonCowanTimeSeries(Dataset):
 			dt: float,
 			t_0: numpy.array,
 			forward_weights: numpy.array,
-			spikes_transform: SpikeEncoder,
+			spikes_transform: SpikesEncoder,
 			mu: numpy.array or float = 0.0,
 			r: numpy.array or float = 0.0,
 			tau: float = 1.0
@@ -63,6 +63,7 @@ class WilsonCowanTimeSeries(Dataset):
 		self.spikes_transform = spikes_transform
 		self.ts = to_tensor(self.compute_ws())
 		self.t0_spikes = self.spikes_transform(torch.unsqueeze(self.ts[0], 0))
+		self.t_space_ms = np.linspace(0, self.n_steps * self.dt, self.n_steps) * 1000
 		
 	def __len__(self):
 		return 1
@@ -77,20 +78,41 @@ class WilsonCowanTimeSeries(Dataset):
 			timeseries[i] = self.layer(to_tensor(timeseries[i - 1]))[0].detach().cpu().numpy()
 		return timeseries
 
-	def plot_timeseries(self, show_matrix: bool = False):
+	def plot_timeseries(self, fig: Optional[plt.Figure] = None, axes: Optional[plt.Axes] = None, show: bool = True):
 		"""
 		Plot the time series.
 		"""
-		if show_matrix:
-			plt.imshow(self.forward_weights, cmap="RdBu_r")
-			plt.colorbar()
-			plt.show()
+		if fig is None or axes is None:
+			fig, axes = plt.subplots(1, 2, figsize=(15, 5))
 		timeseries = self.compute_ws()
-		time = np.linspace(0, self.n_steps * self.dt, self.n_steps)
-		plt.plot(time.T, timeseries.T)
-		plt.xlabel('Time')
-		plt.ylabel('Neuronal activity')
-		plt.ylim([0, 1])
+		self.raster_plot(axes[0])
+		axes[0].set_xlabel("Time [ms]")
+		axes[0].set_ylabel("Neurons [-]")
+		axes[0].set_title(f"{self.spikes_transform.spikes_layer_type.__name__}: Raster plot $t_0$")
+		axes[1].plot(self.t_space_ms, timeseries)
+		axes[1].set_title("Wilson-Cowan Time series")
+		axes[1].set_xlabel("Time [ms]")
+		axes[1].set_ylabel("Neuronal activity [-]")
+		axes[1].set_ylim([0, 1])
+		if show:
+			plt.show()
+	
+	def raster_plot(self, ax):
+		line_length = 1.0
+		pad = 0.5
+		for n_idx, spikes in enumerate(self.t0_spikes.detach().cpu().numpy().T):
+			spikes_idx = self.t_space_ms[np.isclose(spikes, 1.0)]
+			ymin = (self.t0_spikes.shape[-1] - n_idx) * (pad + line_length)
+			ax.vlines(spikes_idx, ymin=ymin, ymax=ymin + line_length, colors=[0, 0, 0])
+		# ax.get_yaxis().set_visible(False)
+		ax.set_yticks([])
+	
+	def plot_forward_weights(self):
+		"""
+		Plot the forward weights.
+		"""
+		plt.imshow(self.forward_weights, cmap="RdBu_r")
+		plt.colorbar()
 		plt.show()
 
 
@@ -100,3 +122,35 @@ def get_dataloader(
 ):
 	data_loader = DataLoader(WilsonCowanTimeSeries(*args, **kwargs), batch_size=1, shuffle=False)
 	return data_loader
+
+
+if __name__ == '__main__':
+	_n_steps_ = 100
+	_n_units_ = 10
+	_dt_ = 2e-2
+	t_0 = np.random.rand(_n_units_)
+	forward_weights = 3 * np.random.randn(_n_units_, _n_units_)
+	mu = np.random.randn(_n_units_, )
+	r = np.random.rand(1).item()
+	
+	fig, axes = plt.subplots(3, 2, figsize=(18, 8))
+	for i, (line_axes, encoder) in enumerate(zip(axes, [LIFEncoder, ALIFEncoder, SpyLIFEncoder])):
+		ws = WilsonCowanTimeSeries(
+			n_steps=_n_steps_,
+			dt=_dt_,
+			t_0=t_0,
+			forward_weights=forward_weights,
+			spikes_transform=encoder(
+				n_steps=_n_steps_,
+				n_units=_n_units_,
+				dt=_dt_,
+			),
+			mu=mu,
+			r=r,
+			tau=1.0,
+		)
+		ws.plot_timeseries(fig=fig, axes=line_axes, show=False)
+	fig.tight_layout()
+	plt.show()
+
+

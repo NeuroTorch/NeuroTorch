@@ -122,6 +122,7 @@ def train_with_params(
 					Dimension(dataloader.dataset.n_units, DimensionProperty.NONE)
 				]),
 				output_size=dataloader.dataset.n_units,
+				use_recurrent_connection=False,
 				**params
 			),
 		],

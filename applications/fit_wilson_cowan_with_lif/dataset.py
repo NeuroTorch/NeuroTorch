@@ -27,7 +27,7 @@ class WilsonCowanTimeSeries(Dataset):
 			dt: float,
 			t_0: numpy.array,
 			forward_weights: numpy.array,
-			spikes_transform: SpikesEncoder,
+			transform: torch.nn.Module,
 			mu: numpy.array or float = 0.0,
 			r: numpy.array or float = 0.0,
 			tau: float = 1.0
@@ -60,9 +60,9 @@ class WilsonCowanTimeSeries(Dataset):
 			tau=self.tau
 		)
 		self.layer.build()
-		self.spikes_transform = spikes_transform
+		self.transform = transform
 		self.ts = to_tensor(self.compute_ws())
-		self.t0_spikes = self.spikes_transform(torch.unsqueeze(self.ts[0], 0))
+		self.t0_spikes = self.transform(torch.unsqueeze(self.ts[0], 0))
 		self.t_space_ms = np.linspace(0, self.n_steps * self.dt, self.n_steps) * 1000
 		
 	def __len__(self):
@@ -89,7 +89,7 @@ class WilsonCowanTimeSeries(Dataset):
 		self.raster_plot(axes[0])
 		axes[0].set_xlabel("Time [ms]")
 		axes[0].set_ylabel("Neurons [-]")
-		axes[0].set_title(f"{self.spikes_transform.spikes_layer_type.__name__}: Raster plot $t_0$")
+		axes[0].set_title(f"{self.transform.__name__}: Raster plot $t_0$")
 		axes[1].plot(self.t_space_ms, timeseries)
 		axes[1].set_title("Wilson-Cowan Time series")
 		axes[1].set_xlabel("Time [ms]")
@@ -102,7 +102,7 @@ class WilsonCowanTimeSeries(Dataset):
 		line_length = 1.0
 		pad = 0.5
 		t_space = np.linspace(
-			0, self.spikes_transform.n_steps * self.spikes_transform.dt, self.spikes_transform.n_steps
+			0, self.transform.n_steps * self.transform.dt, self.transform.n_steps
 		) * 1000
 		for n_idx, spikes in enumerate(self.t0_spikes.detach().cpu().numpy().T):
 			spikes_idx = t_space[np.isclose(spikes, 1.0)]
@@ -143,7 +143,7 @@ if __name__ == '__main__':
 			dt=_dt_,
 			t_0=t_0,
 			forward_weights=forward_weights,
-			spikes_transform=encoder(
+			transform=encoder(
 				n_steps=32,
 				n_units=_n_units_,
 				dt=_dt_,

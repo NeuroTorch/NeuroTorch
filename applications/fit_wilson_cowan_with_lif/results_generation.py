@@ -6,9 +6,12 @@ from collections import OrderedDict
 from copy import deepcopy
 from typing import Any, Dict, Iterable, Type
 
+import numpy as np
 import pandas as pd
 import torch
+import torchvision
 import tqdm
+from torchvision.transforms import Compose
 
 from applications.fit_wilson_cowan_with_lif.dataset import get_dataloader
 import neurotorch as nt
@@ -74,8 +77,12 @@ def get_optimizer(optimizer_name: str) -> Type[torch.optim.Optimizer]:
 
 def train_with_params(
 		params: Dict[str, Any],
+		t_0: np.ndarray,
+		forward_weights: np.ndarray,
+		mu: np.ndarray,
+		r: float,
+		tau: float,
 		n_iterations: int = 100,
-		batch_size: int = 256,
 		data_folder: str = "tr_results",
 		verbose: bool = False,
 		show_training: bool = False,
@@ -88,8 +95,25 @@ def train_with_params(
 	os.makedirs(checkpoint_folder, exist_ok=True)
 	if verbose:
 		logging.info(f"Checkpoint folder: {checkpoint_folder}")
-
-	dataloader = get_dataloader()
+	
+	assert len(t_0) == forward_weights.shape[0] == forward_weights.shape[1] == params["n_units"]
+	
+	dataloader = get_dataloader(
+		n_steps=params["n_steps"],
+		dt=params["dt"],
+		t_0=t_0,
+		forward_weights=forward_weights,
+		spikes_transform=params["encoder"](
+			n_steps=params["n_encoder_steps"],
+			n_units=params["n_units"],
+			dt=params["dt"],
+		),
+		mu=mu,
+		r=r,
+		tau=tau,
+	)
+	spiking_foresight_steps = (params["n_steps"]-1)*params["n_encoder_steps"]
+	spiking_output_trace_steps = params["n_steps"]*params["n_encoder_steps"]
 	network = SequentialModel(
 		layers=[
 			LayerType2Layer[params["hidden_layer_type"]](
@@ -101,14 +125,22 @@ def train_with_params(
 				**params
 			),
 		],
+		output_transform=[torch.nn.Sequential(
+			torchvision.ops.Permute([0, 2, 1]),
+			torch.nn.Conv1d(
+				params["n_units"], params["n_units"], params["n_encoder_steps"],
+				stride=params["n_encoder_steps"]
+			),
+			torchvision.ops.Permute([0, 2, 1]),
+		)],
 		name=f"network_{checkpoints_name}",
 		checkpoint_folder=checkpoint_folder,
-		foresight_time_steps=params.get("foresight_time_steps", dataloader.dataset.n_steps-1),
+		foresight_time_steps=params.get("foresight_time_steps", spiking_foresight_steps),
 	)
 	network.build()
 	if verbose:
 		logging.info(f"\nNetwork:\n{network}")
-	checkpoint_manager = CheckpointManager(checkpoint_folder, metric="val_accuracy", minimise_metric=False)
+	checkpoint_manager = CheckpointManager(checkpoint_folder, metric="train_loss", minimise_metric=True)
 	save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
 	callbacks = [checkpoint_manager, ]
 	if show_training:
@@ -120,13 +152,14 @@ def train_with_params(
 	trainer = RegressionTrainer(
 		model=network,
 		callbacks=callbacks,
-		regularization=regularization,
+		# regularization=regularization,
 		optimizer=get_optimizer(params.get("optimizer", "adam"))(
 			network.parameters(), lr=params.get("learning_rate", 2e-4), **params.get("optimizer_params", {})
 		),
 		# regularization_optimizer=torch.optim.Adam(regularization.parameters(), lr=params.get("learning_rate", 2e-4)),
 		lr=params.get("learning_rate", 2e-4),
-		reg_lr=params.get("reg_lr", 2e-4),
+		# reg_lr=params.get("reg_lr", 2e-4),
+		foresight_time_steps=params["n_steps"],
 		verbose=verbose,
 	)
 	history = trainer.train(

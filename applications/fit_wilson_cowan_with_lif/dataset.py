@@ -69,7 +69,8 @@ class WilsonCowanTimeSeries(Dataset):
 		return 1
 	
 	def __getitem__(self, item):
-		return torch.unsqueeze(self.t0_spikes, 0), self.ts[1:]
+		# return self.t0_spikes, self.ts[1:]
+		return self.t0_spikes, self.ts
 
 	def compute_ws(self) -> numpy.array:
 		timeseries = np.zeros((self.n_steps, self.n_units))
@@ -100,8 +101,11 @@ class WilsonCowanTimeSeries(Dataset):
 	def raster_plot(self, ax):
 		line_length = 1.0
 		pad = 0.5
+		t_space = np.linspace(
+			0, self.spikes_transform.n_steps * self.spikes_transform.dt, self.spikes_transform.n_steps
+		) * 1000
 		for n_idx, spikes in enumerate(self.t0_spikes.detach().cpu().numpy().T):
-			spikes_idx = self.t_space_ms[np.isclose(spikes, 1.0)]
+			spikes_idx = t_space[np.isclose(spikes, 1.0)]
 			ymin = (self.t0_spikes.shape[-1] - n_idx) * (pad + line_length)
 			ax.vlines(spikes_idx, ymin=ymin, ymax=ymin + line_length, colors=[0, 0, 0])
 		# ax.get_yaxis().set_visible(False)
@@ -125,7 +129,6 @@ def get_dataloader(
 
 
 if __name__ == '__main__':
-	_n_steps_ = 100
 	_n_units_ = 10
 	_dt_ = 2e-2
 	t_0 = np.random.rand(_n_units_)
@@ -136,12 +139,12 @@ if __name__ == '__main__':
 	fig, axes = plt.subplots(3, 2, figsize=(18, 8))
 	for i, (line_axes, encoder) in enumerate(zip(axes, [LIFEncoder, ALIFEncoder, SpyLIFEncoder])):
 		ws = WilsonCowanTimeSeries(
-			n_steps=_n_steps_,
+			n_steps=1_000,
 			dt=_dt_,
 			t_0=t_0,
 			forward_weights=forward_weights,
 			spikes_transform=encoder(
-				n_steps=_n_steps_,
+				n_steps=32,
 				n_units=_n_units_,
 				dt=_dt_,
 			),
@@ -149,8 +152,10 @@ if __name__ == '__main__':
 			r=r,
 			tau=1.0,
 		)
+		print(f"shape: {ws[0][0].shape, ws[0][1].shape}")
 		ws.plot_timeseries(fig=fig, axes=line_axes, show=False)
 	fig.tight_layout()
 	plt.show()
+	
 
 

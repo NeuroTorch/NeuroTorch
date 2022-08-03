@@ -4,7 +4,7 @@ import hashlib
 import os
 import pickle
 from collections import defaultdict
-from typing import Callable, Dict, List, NamedTuple, Any, Tuple, Union
+from typing import Callable, Dict, List, NamedTuple, Any, Tuple, Union, Iterable
 import torch
 
 import numpy as np
@@ -98,13 +98,16 @@ def hash_params(params: Dict[str, Any]):
 
 
 def ravel_compose_transforms(
-		transform: Union[List, Tuple, torchvision.transforms.Compose, Callable]
+		transform: Union[List, Tuple, torchvision.transforms.Compose, Callable, torch.nn.ModuleList]
 ) -> List[Callable]:
 	transforms = []
 	if isinstance(transform, torchvision.transforms.Compose):
 		for t in transform.transforms:
 			transforms.extend(ravel_compose_transforms(t))
 	elif isinstance(transform, (List, Tuple)):
+		for t in transform:
+			transforms.extend(ravel_compose_transforms(t))
+	elif isinstance(transform, torch.nn.Module) and isinstance(transform, Iterable):
 		for t in transform:
 			transforms.extend(ravel_compose_transforms(t))
 	elif callable(transform):
@@ -193,5 +196,18 @@ def set_seed(seed: int):
 	random.seed(seed)
 	np.random.seed(seed)
 	torch.manual_seed(seed)
+
+
+def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Sequential:
+	"""
+	Convert a list of callable to a list of modules.
+	:param callable_list: List of callable.
+	:return: List of modules.
+	"""
+	from neurotorch.transforms.wrappers import CallableToModuleWrapper
+	return torch.nn.Sequential(*[
+		c if isinstance(c, torch.nn.Module) else CallableToModuleWrapper(c)
+		for c in callable_list
+	])
 
 

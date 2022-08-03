@@ -11,8 +11,9 @@ import torch.nn.functional as F
 from ..callbacks import CheckpointManager, LoadCheckpointMode
 from ..dimension import DimensionLike, SizeTypes
 from ..transforms import to_tensor
-from ..transforms.base import IdentityTransform
-from ..utils import ravel_compose_transforms
+from ..transforms.wrappers import CallableToModuleWrapper
+from ..transforms.base import IdentityTransform, ToDevice
+from ..utils import ravel_compose_transforms, list_of_callable_to_sequential
 
 
 class BaseModel(torch.nn.Module):
@@ -57,8 +58,8 @@ class BaseModel(torch.nn.Module):
 		self._is_built = False
 		self._given_input_transform = input_transform
 		self._given_output_transform = output_transform
-		self.input_transform: Dict[str, Callable] = None
-		self.output_transform: Dict[str, Callable] = None
+		self.input_transform: torch.nn.ModuleDict = None
+		self.output_transform: torch.nn.ModuleDict = None
 		self.input_sizes = input_sizes
 		self.output_sizes = output_size
 		self.name = name
@@ -67,7 +68,7 @@ class BaseModel(torch.nn.Module):
 		self._device = device
 		if self._device is None:
 			self._set_default_device_()
-		self._to_device_transform = Lambda(lambda t: t.to(self._device))
+		self._to_device_transform = ToDevice(self.device)
 
 	@property
 	def input_sizes(self) -> Dict[str, int]:
@@ -132,7 +133,7 @@ class BaseModel(torch.nn.Module):
 	def _make_input_transform(
 			self,
 			input_transform: Union[Dict[str, Callable], List[Callable]]
-	) -> Dict[str, Callable]:
+	) -> torch.nn.ModuleDict:
 		"""
 		Make the input transform containing the transforms to apply to the inputs. If the input_transform is None,
 		the default transform is used. If the input_transform is a list, it is converted to a dict. If the
@@ -168,12 +169,14 @@ class BaseModel(torch.nn.Module):
 		for in_name, t in input_transform.items():
 			if isinstance(t, torch.nn.Module):
 				input_transform[in_name] = t.to(self.device)
-		return input_transform
+			else:
+				input_transform[in_name] = CallableToModuleWrapper(t).to(self.device)
+		return torch.nn.ModuleDict(input_transform)
 	
 	def _make_output_transform(
 			self,
 			output_transform: Union[Dict[str, Callable], List[Callable]]
-	) -> Dict[str, Callable]:
+	) -> torch.nn.ModuleDict:
 		"""
 		Make the output transform containing the transforms to apply to the outputs. If the output_transform is None,
 		the default transform is used. If the output_transform is a list, it is converted to a dict. If the
@@ -204,11 +207,12 @@ class BaseModel(torch.nn.Module):
 		else:
 			raise TypeError(f"Output transform must be a dict or a list of callables. Got {type(output_transform)}.")
 		
-		# TODO: Properly register Modules.
 		for out_name, t in output_transform.items():
 			if isinstance(t, torch.nn.Module):
 				output_transform[out_name] = t.to(self.device)
-		return output_transform
+			else:
+				output_transform[out_name] = CallableToModuleWrapper(t).to(self.device)
+		return torch.nn.ModuleDict(output_transform)
 
 	def load_checkpoint(
 			self,
@@ -289,7 +293,7 @@ class BaseModel(torch.nn.Module):
 		for in_name, trans in self.input_transform.items():
 			list_of_transforms = ravel_compose_transforms(self.input_transform[in_name])
 			list_of_transforms.append(self._to_device_transform)
-			self.input_transform[in_name] = Compose(list_of_transforms)
+			self.input_transform[in_name] = list_of_callable_to_sequential(list_of_transforms)
 
 	def _remove_to_device_transform_(self):
 		"""
@@ -300,7 +304,7 @@ class BaseModel(torch.nn.Module):
 			if self._to_device_transform:
 				list_of_transforms = ravel_compose_transforms(self.input_transform[in_name])
 				list_of_transforms.remove(self._to_device_transform)
-				self.input_transform[in_name] = Compose(list_of_transforms)
+				self.input_transform[in_name] = list_of_callable_to_sequential(list_of_transforms)
 
 	def _set_default_device_(self):
 		"""

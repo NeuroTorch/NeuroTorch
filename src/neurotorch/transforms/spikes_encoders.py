@@ -21,6 +21,7 @@ class SpikesEncoder(torch.nn.Module):
 		self.n_steps = n_steps
 		self.const_transform = ConstantValuesTransform(n_steps)
 		self.spikes_layer_type = spikes_layer_type
+		self.dt = dt
 		if spikes_layer_kwargs is None:
 			spikes_layer_kwargs = {}
 		

@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union, Any
 
 import torch
 
@@ -7,6 +7,12 @@ from ..metrics import RegressionMetrics
 
 
 class RegressionTrainer(Trainer):
+	@staticmethod
+	def _set_default_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+		kwargs = Trainer._set_default_kwargs(kwargs)
+		kwargs.setdefault("foresight_time_steps", None)
+		return kwargs
+	
 	def _set_default_criterion(self, criterion: Optional[torch.nn.Module]) -> torch.nn.Module:
 		if criterion is None:
 			if isinstance(self.model.output_sizes, dict):
@@ -30,10 +36,10 @@ class RegressionTrainer(Trainer):
 			y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
 	) -> torch.Tensor:
 		if self.model.training:
-			pred = self.model.get_prediction_trace(x_batch)
+			pred = self.model.get_prediction_trace(x_batch, foresight_time_steps=self.kwargs["foresight_time_steps"])
 		else:
 			with torch.no_grad():
-				pred = self.model.get_prediction_trace(x_batch)
+				pred = self.model.get_prediction_trace(x_batch, foresight_time_steps=self.kwargs["foresight_time_steps"])
 		if isinstance(self.criterion, dict):
 			if isinstance(y_batch, torch.Tensor):
 				y_batch = {k: y_batch for k in self.criterion}

@@ -820,20 +820,20 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		:param device: device for computation
 		:param kwargs: Dict -> see below
 		:keyword Arguments:
+			* <forward_weights>: torch.Tensor or np.ndarray -> set custom forward weights
 			* <std_weight>: float -> Instability of the initial random matrix
 			* <mu>: float or torch.Tensor -> Activation threshold
 				If torch.Tensor -> shape (1, number of neurons)
-			* <tau>: float -> Decay constant of RNN unit
-			* <learn_tau> -> bool -> Wheter to train the decay constant
-			* <learn_mu>: bool -> Whether to train the activation threshold
 			* <mean_mu>: float -> Mean of the activation threshold (if learn_mu is True)
 			* <std_mu>: float -> Standard deviation of the activation threshold (if learn_mu is True)
+			* <learn_mu>: bool -> Whether to train the activation threshold
+			* <tau>: float -> Decay constant of RNN unit
+			* <learn_tau> -> bool -> Wheter to train the decay constant
 			* <r>: float or torch.Tensor -> Transition rate of the RNN unit
 				If torch.Tensor -> shape (1, number of neurons)
-			* <learn_r>: bool -> Whether to train the transition rate
 			* <mean_r>: float -> Mean of the transition rate (if learn_r is True)
 			* <std_r>: float -> Standard deviation of the transition rate (if learn_r is True)
-			* <forward_weights>: torch.Tensor or np.ndarray -> set custom forward weights
+			* <learn_r>: bool -> Whether to train the transition rate
 
 		Remarks: Parameter mu and r can only be a parameter as a vector.
 		"""
@@ -847,19 +847,12 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			**kwargs
 		)
 		self.std_weight = self.kwargs["std_weight"]
-		if not torch.is_tensor(self.kwargs["mu"]):
-			self.mu = torch.tensor(self.kwargs["mu"], dtype=torch.float32, device=self.device)
-		else:
-			self.mu = self.kwargs["mu"]
-			if self.mu.device != self._device:
-				self.mu = self.mu.to(self._device)
-			if self.mu.dtype != torch.float32:
-				self.mu = self.mu.to(dtype=torch.float32)
+		self.mu = to_tensor(self.kwargs["mu"]).to(self.device)
 		self.mean_mu = self.kwargs["mean_mu"]
 		self.std_mu = self.kwargs["std_mu"]
-		self.tau = to_tensor(self.kwargs["tau"]).to(self.device)
-		self.learn_tau = self.kwargs["tau"]
 		self.learn_mu = self.kwargs["learn_mu"]
+		self.tau = to_tensor(self.kwargs["tau"]).to(self.device)
+		self.learn_tau = self.kwargs["learn_tau"]
 		self.r_sqrt = torch.sqrt(to_tensor(self.kwargs["r"], dtype=torch.float32)).to(self.device)
 		self.mean_r = self.kwargs["mean_r"]
 		self.std_r = self.kwargs["std_r"]
@@ -878,8 +871,17 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("mean_r", 2.0)
 		self.kwargs.setdefault("std_r", 0.0)
 
+	def _assert_kwargs(self):
+		assert self.std_weight >= 0.0, "std_weight must be greater or equal to 0.0"
+		assert self.std_mu >= 0.0, "std_mu must be greater or equal to 0.0"
+		assert self.tau > 0.0, "tau must be greater than 0.0"
+		assert self.tau > self.dt, "tau must be greater than dt"
+
 	@property
 	def r(self):
+		"""
+		This property is used to ensure that the transition rate will never be negative if trained.
+		"""
 		return self.r_sqrt**2
 
 	def initialize_weights_(self):
@@ -925,7 +927,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		"""
 		ratio_dt_tau = self.dt / self.tau
 		transition_rate = (1 - inputs * self.r)
-		sigmoid = torch.sigmoid(torch.matmul(inputs, self.forward_weights) - self.mu)
+		sigmoid = torch.sigmoid(torch.matmul(inputs, torch.t(self.forward_weights)) - self.mu)
 		output = inputs * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
 		return output, (None, )
 

@@ -14,6 +14,8 @@ from neurotorch.visualisation.time_series_visualisation import *
 from neurotorch.regularization.connectome import DaleLaw
 from neurotorch import WilsonCowanLayer
 
+# TODO: if forward_weight is Transpose, then the connexion change.
+
 def random_matrix(N, rho):
     """Half excitatory, half inhibitory."""
     W = np.zeros((N, N))
@@ -189,9 +191,8 @@ def train_with_params(
 		device=device,
 	)
 	model.build()
-	regularisation = DaleLaw(t=0, reference_weights=random_matrix(x.shape[-1], 0.99))
-	#optimizer_regularisation = torch.optim.Adam(model.parameters(), lr=learning_rate)
-	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.001)
+	regularisation = DaleLaw(t=0.8, reference_weights=random_matrix(x.shape[-1], 0.99))
+	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.1)
 	optimizer_regul = torch.optim.SGD([model.forward_weights], lr=5e-4)
 	#optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, maximize=True)
 	criterion = nn.MSELoss()
@@ -234,7 +235,6 @@ def train_with_params(
 		# Gradient
 		optimizer.zero_grad()
 		loss.backward()
-
 		# update
 		optimizer.step()
 

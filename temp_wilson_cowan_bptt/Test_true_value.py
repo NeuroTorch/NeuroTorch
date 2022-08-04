@@ -1,4 +1,5 @@
-from Library import *
+#from Library_original import *
+from Library_neurotorch import *
 from scipy.ndimage import gaussian_filter1d
 import numpy as np
 import torch
@@ -27,7 +28,7 @@ forward_weights = random_matrix(200, 0.2)
 res = train_with_params(
 	true_time_series=data,
 	learning_rate=1e-2,
-	epochs=1000,
+	epochs=500,
 	forward_weights=forward_weights,
 	std_weights=1,
 	dt=0.02,

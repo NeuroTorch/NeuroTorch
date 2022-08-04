@@ -95,7 +95,8 @@ class WilsonCowanDynamic(nn.Module):
 	def forward(self, inputs: torch.Tensor):
 		ratio_dt_tau = self.dt / self.tau
 		transition_rate = 1 - self.r * inputs
-		sigmoid = torch.sigmoid(self.forward_weights @ inputs - self.mu)
+		# sigmoid = torch.sigmoid(self.forward_weights @ inputs - self.mu)
+		sigmoid = torch.sigmoid((inputs.T @ self.forward_weights).T - self.mu)
 		output = inputs * (1 - ratio_dt_tau) + ratio_dt_tau * transition_rate * sigmoid
 		return output
 
@@ -177,8 +178,7 @@ def train_with_params(
 		device=device,
 	)
 	model.build()
-	regularisation = DaleLaw(t=0.8, reference_weights=random_matrix(x.shape[0], 0.99))
-	#optimizer_regularisation = torch.optim.Adam(model.parameters(), lr=learning_rate)
+	regularisation = DaleLaw(t=0, reference_weights=random_matrix(x.shape[0], 0.99))
 	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.001)
 	optimizer_regul = torch.optim.SGD([model.forward_weights], lr=5e-4)
 	#optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, maximize=True)
@@ -222,9 +222,7 @@ def train_with_params(
 
 		# Gradient
 		optimizer.zero_grad()
-
 		loss.backward()
-
 		# update
 		optimizer.step()
 
@@ -236,6 +234,7 @@ def train_with_params(
 		postfix = dict(
 			pVar=f"{loss.detach().item():.5f}",
 			MSE=f"{mse_loss.detach().item():.5f}",
+			loss_regul=f"{loss_regul.detach().item():.5f}",
 		)
 		progress_bar.set_postfix(postfix)
 

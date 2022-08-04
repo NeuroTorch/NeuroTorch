@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 from scipy.stats import zscore
-from Library import *
+from Library_neurotorch import *
 import matplotlib.pyplot as plt
 from neurotorch.visualisation.time_series_visualisation import *
 import torch

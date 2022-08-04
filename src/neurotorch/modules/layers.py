@@ -824,6 +824,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			* <mu>: float or torch.Tensor -> Activation threshold
 				If torch.Tensor -> shape (1, number of neurons)
 			* <tau>: float -> Decay constant of RNN unit
+			* <learn_tau> -> bool -> Wheter to train the decay constant
 			* <learn_mu>: bool -> Whether to train the activation threshold
 			* <mean_mu>: float -> Mean of the activation threshold (if learn_mu is True)
 			* <std_mu>: float -> Standard deviation of the activation threshold (if learn_mu is True)
@@ -847,7 +848,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		)
 		self.std_weight = self.kwargs["std_weight"]
 		if not torch.is_tensor(self.kwargs["mu"]):
-			self.mu = torch.tensor(self.kwargs["mu"], dtype=torch.float32, device=self._device)
+			self.mu = torch.tensor(self.kwargs["mu"], dtype=torch.float32, device=self.device)
 		else:
 			self.mu = self.kwargs["mu"]
 			if self.mu.device != self._device:
@@ -856,16 +857,10 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 				self.mu = self.mu.to(dtype=torch.float32)
 		self.mean_mu = self.kwargs["mean_mu"]
 		self.std_mu = self.kwargs["std_mu"]
-		self.tau = self.kwargs["tau"]
+		self.tau = to_tensor(self.kwargs["tau"]).to(self.device)
+		self.learn_tau = self.kwargs["tau"]
 		self.learn_mu = self.kwargs["learn_mu"]
-		if not torch.is_tensor(self.kwargs["r"]):
-			self.r = torch.tensor(self.kwargs["r"], dtype=torch.float32, device=self._device)
-		else:
-			self.r = self.kwargs["r"]
-			if self.r.device != self._device:
-				self.r = self.r.to(self._device)
-			if self.r.dtype != torch.float32:
-				self.r = self.r.to(dtype=torch.float32)
+		self.r_sqrt = torch.sqrt(to_tensor(self.kwargs["r"], dtype=torch.float32)).to(self.device)
 		self.mean_r = self.kwargs["mean_r"]
 		self.std_r = self.kwargs["std_r"]
 		self.learn_r = self.kwargs["learn_r"]
@@ -874,6 +869,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("std_weight", 1.0)
 		self.kwargs.setdefault("mu", 0.0)
 		self.kwargs.setdefault("tau", 1.0)
+		self.kwargs.setdefault("learn_tau", False)
 		self.kwargs.setdefault("learn_mu", False)
 		self.kwargs.setdefault("mean_mu", 2.0)
 		self.kwargs.setdefault("std_mu", 0.0)
@@ -881,6 +877,10 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("learn_r", False)
 		self.kwargs.setdefault("mean_r", 2.0)
 		self.kwargs.setdefault("std_r", 0.0)
+
+	@property
+	def r(self):
+		return self.r_sqrt**2
 
 	def initialize_weights_(self):
 		"""
@@ -895,14 +895,15 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		# unless stated otherwise by user.
 		if self.learn_mu:
 			if self.mu.dim() == 0:  # if mu is a scalar and a parameter -> convert it to a vector
-				self.mu = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self._device)
+				self.mu = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
 			self.mu = torch.nn.Parameter(self.mu, requires_grad=True)
 			torch.nn.init.normal_(self.mu, mean=self.mean_mu, std=self.std_mu)
 		if self.learn_r:
-			if self.r.dim() == 0:
-				self.r = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self._device)
-			self.r = torch.nn.Parameter(self.r, requires_grad=True)
-			torch.nn.init.normal_(self.r, mean=self.mean_r, std=self.std_r)
+			_r = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self._device)
+			torch.nn.init.normal_(_r, mean=self.mean_r, std=self.std_r)
+			self.r_sqrt = torch.nn.Parameter(torch.sqrt(torch.abs(_r)), requires_grad=True)
+		if self.learn_tau:
+			self.tau = torch.nn.Parameter(self.tau, requires_grad=True)
 
 	def create_empty_state(self, batch_size: int = 1) -> None:
 		"""

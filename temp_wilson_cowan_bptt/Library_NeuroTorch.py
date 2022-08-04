@@ -8,11 +8,9 @@ import matplotlib.pyplot as plt
 
 from tqdm.auto import tqdm
 
-import neurotorch as nt
 from neurotorch.transforms import to_tensor
 from neurotorch.visualisation.time_series_visualisation import *
 from neurotorch.regularization.connectome import DaleLaw
-from neurotorch import WilsonCowanLayer
 
 def random_matrix(N, rho):
     """Half excitatory, half inhibitory."""
@@ -122,16 +120,7 @@ class WilsonCowanTimeSeries:
 		self.mu = mu
 		self.tau = tau
 		self.device = device
-		# self.dynamic = WilsonCowanDynamic(
-		# 	forward_weights=self.forward_weights,
-		# 	dt=self.dt,
-		# 	r=self.r,
-		# 	mu=self.mu,
-		# 	tau=self.tau,
-		# 	device=self.device
-		# )
-		self.dynamic = WilsonCowanLayer(
-			self.forward_weights.shape[0], self.forward_weights.shape[1],
+		self.dynamic = WilsonCowanDynamic(
 			forward_weights=self.forward_weights,
 			dt=self.dt,
 			r=self.r,
@@ -139,10 +128,9 @@ class WilsonCowanTimeSeries:
 			tau=self.tau,
 			device=self.device
 		)
-		self.dynamic.build()
 
 	def compute(self):
-		time_series = torch.zeros(1, self.time_step, self.forward_weights.shape[0], dtype=torch.float32, device=self.device)
+		time_series = torch.zeros(self.forward_weights.shape[0], self.time_step, dtype=torch.float32, device=self.device)
 		time_series[:, 0] = self.t_0
 		for i in range(1, self.time_step):
 			time_series[:, i] = self.dynamic(time_series[:, i - 1])
@@ -170,9 +158,9 @@ def train_with_params(
 ):
 	if not torch.is_tensor(true_time_series):
 		true_time_series = torch.tensor(true_time_series, dtype=torch.float32, device=device)
-	x = true_time_series.T[np.newaxis, :]
-	model = WilsonCowanLayer(
-		x.shape[-1], x.shape[-1],
+	x = true_time_series
+	model = WilsonCowanDynamic(
+		connectome_size=x.shape[0],
 		forward_weights=forward_weights,
 		std_weights=std_weights,
 		dt=dt,
@@ -189,7 +177,7 @@ def train_with_params(
 		device=device,
 	)
 	model.build()
-	regularisation = DaleLaw(t=0, reference_weights=random_matrix(x.shape[-1], 0.99))
+	regularisation = DaleLaw(t=0.8, reference_weights=random_matrix(x.shape[0], 0.99))
 	#optimizer_regularisation = torch.optim.Adam(model.parameters(), lr=learning_rate)
 	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.001)
 	optimizer_regul = torch.optim.SGD([model.forward_weights], lr=5e-4)
@@ -215,10 +203,10 @@ def train_with_params(
 		x_pred = []
 		x_pred.append(x[:, 0].clone())
 		forward_tensor = x[:, 0].clone()
-		x_pred.append(model(forward_tensor)[0])
+		x_pred.append(model(forward_tensor))
 
 		for i in range(1, x.shape[1] - 1):
-			forward_tensor = model(forward_tensor)[0]
+			forward_tensor = model(forward_tensor)
 			x_pred.append(forward_tensor)
 
 			# if truncated is not None:
@@ -231,8 +219,10 @@ def train_with_params(
 		mse_loss = criterion(x_pred, x)
 		loss = 1 - mse_loss/torch.var(x)
 
+
 		# Gradient
 		optimizer.zero_grad()
+
 		loss.backward()
 
 		# update
@@ -246,7 +236,6 @@ def train_with_params(
 		postfix = dict(
 			pVar=f"{loss.detach().item():.5f}",
 			MSE=f"{mse_loss.detach().item():.5f}",
-			loss_regul=f"{loss_regul.detach().item():.5f}",
 		)
 		progress_bar.set_postfix(postfix)
 

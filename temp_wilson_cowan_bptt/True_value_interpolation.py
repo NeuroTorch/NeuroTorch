@@ -15,7 +15,10 @@ data = data[:, 0:50]
 
 new_data = np.zeros((data.shape[0], data.shape[1] * 50))
 
+sigma = 3
+
 for neuron in range(data.shape[0]):
+	#data[neuron, :] = gaussian_filter1d(data[neuron, :], sigma=3)
 	data[neuron, :] = data[neuron, :] - np.min(data[neuron, :])
 	data[neuron, :] = data[neuron, :] / np.max(data[neuron, :])
 	x = np.linspace(0, data.shape[1], data.shape[1])

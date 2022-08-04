@@ -27,7 +27,7 @@ forward_weights = random_matrix(200, 0.2)
 res = train_with_params(
 	true_time_series=data,
 	learning_rate=1e-2,
-	epochs=300,
+	epochs=1000,
 	forward_weights=forward_weights,
 	std_weights=1,
 	dt=0.02,
@@ -54,6 +54,13 @@ plt.show()
 print(res["r"])
 
 print(res["tau"])
+
+error = (res["x_pred"] - data) ** 2
+plt.plot(error.T)
+plt.xlabel("Time [-]")
+plt.ylabel("Error L2 [-]")
+plt.title(f"pVar: {res['pVar']:.4f}")
+plt.show()
 
 VisualiseKMeans(data).heatmap(show_axis=False)
 VisualiseKMeans(res["x_pred"]).heatmap(show_axis=False)

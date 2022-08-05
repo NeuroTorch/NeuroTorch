@@ -92,14 +92,18 @@ class CheckpointManager(BaseCallback):
 			meta_path_prefix: str = "network",
 			metric: str = "val_loss",
 			minimise_metric: bool = True,
-			verbose: bool = False
+			save_freq: int = 1,
+			verbose: bool = False,
 	):
 		"""
 		Initialises the checkpoint manager.
+		
 		:param checkpoint_folder: The folder to save the checkpoints to.
 		:param meta_path_prefix: The prefix to use for the checkpoint's metadata file.
 		:param metric: The name of the metric to collect the best checkpoint on.
 		:param minimise_metric: Whether to minimise the metric or maximise it.
+		:param save_freq: The frequency at which to save checkpoints. If set to <= 0, will save at the end of the
+							training.
 		:param verbose: Whether to print out the trace of the checkpoint manager.
 		"""
 		self.checkpoint_folder = checkpoint_folder
@@ -108,6 +112,7 @@ class CheckpointManager(BaseCallback):
 
 		self.metric = metric
 		self.minimise_metric = minimise_metric
+		self.save_freq = save_freq
 		self.curr_best_metric = np.inf if self.minimise_metric else -np.inf
 
 	@property
@@ -239,8 +244,11 @@ class CheckpointManager(BaseCallback):
 			self.curr_best_metric = trainer.training_history.min(self.metric)
 		else:
 			self.curr_best_metric = trainer.training_history.max(self.metric)
-
-	def on_iteration_end(self, trainer):
+	
+	def _save_on(self, trainer):
+		if trainer.current_training_state.itr_metrics is None:
+			return False
+		
 		if self.minimise_metric:
 			is_best = trainer.current_training_state.itr_metrics[self.metric] < self.curr_best_metric
 		else:
@@ -258,3 +266,10 @@ class CheckpointManager(BaseCallback):
 				save_path=os.path.join(self.checkpoint_folder, "training_history.png"),
 				show=False
 			)
+
+	def on_iteration_end(self, trainer):
+		if self.save_freq > 0 and trainer.current_training_state.iteration % self.save_freq == 0:
+			self._save_on(trainer)
+	
+	def close(self, trainer):
+		self._save_on(trainer)

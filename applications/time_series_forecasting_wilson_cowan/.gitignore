@@ -1,0 +1,3 @@
+*.npy
+*.pth
+tr_results

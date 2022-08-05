@@ -7,3 +7,4 @@ mnist_venv
 checkpoints*
 *tr_test*
 logs
+*.npy

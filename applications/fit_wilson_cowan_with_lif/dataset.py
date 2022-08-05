@@ -7,10 +7,38 @@ import torch
 from matplotlib import animation
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import ToTensor
+from scipy.ndimage import gaussian_filter1d
+import neurotorch as nt
 from neurotorch.modules.layers import WilsonCowanLayer, LearningType
 from neurotorch.transforms.spikes_encoders import SpikesEncoder, LIFEncoder, ALIFEncoder, SpyLIFEncoder
 
 from src.neurotorch.transforms.base import to_tensor
+
+
+class TimeSeriesDataset(Dataset):
+	def __init__(self, transform: torch.nn.Module, sample_size=128):
+		super().__init__()
+		self.ts = np.load('timeSeries_2020_12_16_cr3_df.npy')
+		self.n_neurons, self.n_time_steps = self.ts.shape
+		self.sample_size = sample_size
+		self.sample_indexes = np.random.randint(self.n_neurons, size=self.sample_size)
+		self.data = self.ts[self.sample_indexes, :]
+		self.sigma = 30
+		
+		for neuron in range(self.data.shape[0]):
+			self.data[neuron, :] = gaussian_filter1d(self.data[neuron, :], sigma=self.sigma)
+			self.data[neuron, :] = self.data[neuron, :] - np.min(self.data[neuron, :])
+			self.data[neuron, :] = self.data[neuron, :] / np.max(self.data[neuron, :])
+		
+		self.data = nt.to_tensor(self.data.T, dtype=torch.float32)
+		self.transform = transform
+		self.t0_spikes = self.transform(torch.unsqueeze(self.data[0], dim=0))
+	
+	def __len__(self):
+		return 1
+	
+	def __getitem__(self, item):
+		return self.t0_spikes, self.data
 
 
 class WilsonCowanTimeSeries(Dataset):

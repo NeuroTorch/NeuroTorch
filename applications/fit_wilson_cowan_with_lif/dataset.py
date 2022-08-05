@@ -16,7 +16,12 @@ from src.neurotorch.transforms.base import to_tensor
 
 
 class TimeSeriesDataset(Dataset):
-	def __init__(self, transform: torch.nn.Module, sample_size=128):
+	def __init__(
+			self,
+			input_transform: Optional[torch.nn.Module] = None,
+			target_transform: Optional[torch.nn.Module] = None,
+			sample_size=128
+	):
 		super().__init__()
 		self.ts = np.load('timeSeries_2020_12_16_cr3_df.npy')
 		self.n_neurons, self.n_time_steps = self.ts.shape
@@ -31,14 +36,22 @@ class TimeSeriesDataset(Dataset):
 			self.data[neuron, :] = self.data[neuron, :] / np.max(self.data[neuron, :])
 		
 		self.data = nt.to_tensor(self.data.T, dtype=torch.float32)
-		self.transform = transform
-		self.t0_spikes = self.transform(torch.unsqueeze(self.data[0], dim=0))
+		self.transform = input_transform
+		self.target_transform = target_transform
+		if self.transform is None:
+			self.t0_transformed = torch.unsqueeze(self.data[0], dim=0)
+		else:
+			self.t0_transformed = self.transform(torch.unsqueeze(self.data[0], dim=0))
+		if self.target_transform is None:
+			self.data_transformed = self.data
+		else:
+			self.data_transformed = self.transform(self.data)
 	
 	def __len__(self):
 		return 1
 	
 	def __getitem__(self, item):
-		return self.t0_spikes, self.data
+		return self.t0_transformed, self.data_transformed
 
 
 class WilsonCowanTimeSeries(Dataset):

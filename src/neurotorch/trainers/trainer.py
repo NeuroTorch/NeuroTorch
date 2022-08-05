@@ -184,7 +184,7 @@ class Trainer:
 
 	def _set_default_metrics(self, metrics: Optional[List[Callable]]):
 		if metrics is None:
-			metrics = [lambda *x: None]
+			metrics = []
 		return metrics
 	
 	def _set_default_criterion(self, criterion: Optional[torch.nn.Module]) -> torch.nn.Module:
@@ -373,17 +373,24 @@ class Trainer:
 			y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
 	) -> torch.Tensor:
 		if self.model.training:
-			pred, out, h_sates = self.model.get_raw_prediction(
-				x_batch, re_outputs_trace=True, re_hidden_states=True
-			)
+			out = self.model(x_batch)
 		else:
 			with torch.no_grad():
-				pred, out, h_sates = self.model.get_raw_prediction(
-					x_batch, re_outputs_trace=True, re_hidden_states=True
-				)
+				out = self.model(x_batch)
+		
+		if isinstance(out, (tuple, list)):
+			pred = out[0]
+		elif isinstance(out, torch.Tensor):
+			pred = out
+		else:
+			raise ValueError(f"Unsupported output type: {type(out)}")
+		
 		if isinstance(self.criterion, dict):
+			if isinstance(pred, dict) and len(pred) == 1 and len(self.criterion) == 1:
+				pred = pred[list(pred.keys())[0]]
+			
 			if len(self.criterion) == 1 and isinstance(pred, torch.Tensor) and isinstance(y_batch, torch.Tensor):
-				return list(self.criterion.values())[0](pred, y_batch.long().to(self.device))
+				return list(self.criterion.values())[0](pred, y_batch.to(self.device))
 			assert isinstance(x_batch, dict) and isinstance(y_batch, dict) and isinstance(pred, dict), \
 				"If criterion is a dict, x_batch, y_batch and pred must be a dict too."
 			batch_loss = sum([
@@ -391,7 +398,9 @@ class Trainer:
 				for k in self.criterion
 			])
 		else:
-			batch_loss = self.criterion(pred, y_batch.long().to(self.device))
+			if isinstance(pred, dict) and len(pred) == 1:
+				pred = pred[list(pred.keys())[0]]
+			batch_loss = self.criterion(pred, y_batch.to(self.device))
 		return batch_loss
 
 	def _batch_to_dense(self, batch):

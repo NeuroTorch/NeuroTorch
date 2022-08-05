@@ -10,7 +10,7 @@ from tqdm.auto import tqdm
 
 from neurotorch.transforms import to_tensor
 from neurotorch.visualisation.time_series_visualisation import *
-from neurotorch.regularization.connectome import DaleLaw
+from neurotorch.regularization.connectome import DaleLawL2
 
 def random_matrix(N, rho):
     """Half excitatory, half inhibitory."""
@@ -96,7 +96,7 @@ class WilsonCowanDynamic(nn.Module):
 		ratio_dt_tau = self.dt / self.tau
 		transition_rate = 1 - self.r * inputs
 		# sigmoid = torch.sigmoid(self.forward_weights @ inputs - self.mu)
-		sigmoid = torch.sigmoid((inputs.T @ self.forward_weights).T - self.mu)
+		sigmoid = torch.sigmoid((self.forward_weights @ inputs) - self.mu)
 		output = inputs * (1 - ratio_dt_tau) + ratio_dt_tau * transition_rate * sigmoid
 		return output
 
@@ -178,7 +178,7 @@ def train_with_params(
 		device=device,
 	)
 	model.build()
-	regularisation = DaleLaw(t=0, reference_weights=random_matrix(x.shape[0], 0.99))
+	regularisation = DaleLawL2([model.forward_weights], alpha=0, reference_weights=random_matrix(x.shape[0], 0.99))
 	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.001)
 	optimizer_regul = torch.optim.SGD([model.forward_weights], lr=5e-4)
 	#optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, maximize=True)
@@ -226,7 +226,7 @@ def train_with_params(
 		# update
 		optimizer.step()
 
-		loss_regul = regularisation(model.forward_weights)
+		loss_regul = regularisation()
 		optimizer_regul.zero_grad()
 		loss_regul.backward()
 		optimizer_regul.step()

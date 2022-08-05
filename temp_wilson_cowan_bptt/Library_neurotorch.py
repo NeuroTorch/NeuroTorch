@@ -11,7 +11,7 @@ from tqdm.auto import tqdm
 import neurotorch as nt
 from neurotorch.transforms import to_tensor
 from neurotorch.visualisation.time_series_visualisation import *
-from neurotorch.regularization.connectome import DaleLaw
+from neurotorch.regularization.connectome import DaleLawL2
 from neurotorch import WilsonCowanLayer
 
 # TODO: if forward_weight is Transpose, then the connexion change.
@@ -191,7 +191,7 @@ def train_with_params(
 		device=device,
 	)
 	model.build()
-	regularisation = DaleLaw(t=0.8, reference_weights=random_matrix(x.shape[-1], 0.99))
+	regularisation = DaleLawL2([model.forward_weights], alpha=0, reference_weights=random_matrix(x.shape[-1], 0.99))
 	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.1)
 	optimizer_regul = torch.optim.SGD([model.forward_weights], lr=5e-4)
 	#optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, maximize=True)
@@ -238,7 +238,7 @@ def train_with_params(
 		# update
 		optimizer.step()
 
-		loss_regul = regularisation(model.forward_weights)
+		loss_regul = regularisation()
 		optimizer_regul.zero_grad()
 		loss_regul.backward()
 		optimizer_regul.step()

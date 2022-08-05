@@ -3,10 +3,10 @@ import unittest
 
 import torch
 
-from neurotorch.regularization.connectome import DaleLaw
+from neurotorch.regularization.connectome import DaleLawL2
 
 
-class TestDaleLaw(unittest.TestCase):
+class TestDaleLawL2(unittest.TestCase):
 	"""
 	Test if the Dale's law is well implemented
 	"""
@@ -16,21 +16,25 @@ class TestDaleLaw(unittest.TestCase):
 		Assert that the output is a 1D tensor
 		"""
 		weights_reference = torch.rand(10, 10)
-		weights = torch.rand(10, 10)
+		weights1 = torch.rand(10, 10)
+		weights1 = torch.nn.Parameter(weights1)
 
-		t = 0.5
-		dale_law = DaleLaw(t, weights_reference)
-		loss = dale_law(weights)
+		weights2 = torch.rand(10, 10)
+		weights2 = torch.nn.Parameter(weights2)
+
+		alpha = 0.5
+		dale_law = DaleLawL2([weights1, weights2], alpha, weights_reference)
+		loss = dale_law()
 		self.assertEqual(loss.numel(), 1)
 
-		t = 0
-		dale_law = DaleLaw(t, weights_reference)
-		loss = dale_law(weights)
+		alpha = 0
+		dale_law = DaleLawL2([weights1], alpha, weights_reference)
+		loss = dale_law()
 		self.assertEqual(loss.numel(), 1)
 
-		t = 1
-		dale_law = DaleLaw(t, weights_reference)
-		loss = dale_law(weights)
+		alpha = 1
+		dale_law = DaleLawL2([weights2], alpha, weights_reference)
+		loss = dale_law()
 		self.assertEqual(loss.numel(), 1)
 
 	def test_raise_error(self):
@@ -40,22 +44,27 @@ class TestDaleLaw(unittest.TestCase):
 		with self.assertRaises(ValueError):
 			weights_reference = torch.rand(10, 10)
 			weights = torch.rand(10, 10)
-			t = -1
-			dale_law = DaleLaw(t, weights_reference)
+			weights = torch.nn.Parameter(weights)
+			alpha = -1
+			dale_law = DaleLawL2([weights], alpha, weights_reference)
 
 		with self.assertRaises(ValueError):
 			weights_reference = torch.rand(10, 10)
 			weights = torch.rand(10, 10)
-			t = 2
-			dale_law = DaleLaw(t, weights_reference)
+			weights = torch.nn.Parameter(weights)
+			alpha = 2
+			dale_law = DaleLawL2([weights], alpha, weights_reference)
 
 		with self.assertRaises(ValueError):
 			weights = torch.rand(10, 10)
-			t = 0
-			dale_law = DaleLaw(t, reference_weights=None)
+			weights = torch.nn.Parameter(weights)
+			alpha = 0
+			dale_law = DaleLawL2([weights], alpha, reference_weights=None)
 
 		try:
-			dale_law = DaleLaw(t=1, reference_weights=None)
+			weights = torch.rand(10, 10)
+			weights = torch.nn.Parameter(weights)
+			dale_law = DaleLawL2([weights], alpha=1, reference_weights=None)
 		except ValueError:
 			self.fail("DaleLaw should not raise an error when weights_reference is None")
 
@@ -65,36 +74,36 @@ class TestDaleLaw(unittest.TestCase):
 		"""
 		weights = torch.rand(10, 10)
 		reference_weights = torch.rand(10, 10)
+		weights = torch.nn.Parameter(weights)
+		alpha = 0.5
+		dale_law = DaleLawL2([weights], alpha, reference_weights)
+		loss = dale_law()
+		loss.backward()
+		self.assertTrue(weights.grad is not None)
+
+		weights = torch.rand(10, 10)
+		reference_weights = torch.rand(10, 10)
+		weights = torch.nn.Parameter(weights)
+		alpha = 0
+		dale_law = DaleLawL2([weights], alpha, reference_weights)
+		loss = dale_law()
+		loss.backward()
+		self.assertTrue(weights.grad is not None)
+
+		weights = torch.rand(10, 10)
 		weights = torch.nn.Parameter(weights, requires_grad=True)
-		t = 0.5
-		dale_law = DaleLaw(t, reference_weights)
-		loss = dale_law(weights)
+		alpha = 1
+		dale_law = DaleLawL2([weights], alpha)
+		loss = dale_law()
 		loss.backward()
 		self.assertTrue(weights.grad is not None)
 
 		weights = torch.rand(10, 10)
 		reference_weights = torch.rand(10, 10)
 		weights = torch.nn.Parameter(weights, requires_grad=True)
-		t = 0
-		dale_law = DaleLaw(t, reference_weights)
-		loss = dale_law(weights)
-		loss.backward()
-		self.assertTrue(weights.grad is not None)
-
-		weights = torch.rand(10, 10)
-		weights = torch.nn.Parameter(weights, requires_grad=True)
-		t = 1
-		dale_law = DaleLaw(t)
-		loss = dale_law(weights)
-		loss.backward()
-		self.assertTrue(weights.grad is not None)
-
-		weights = torch.rand(10, 10)
-		reference_weights = torch.rand(10, 10)
-		weights = torch.nn.Parameter(weights, requires_grad=True)
-		t = 1
-		dale_law = DaleLaw(t, reference_weights)
-		loss = dale_law(weights)
+		t = alpha
+		dale_law = DaleLawL2([weights], alpha, reference_weights)
+		loss = dale_law()
 		loss.backward()
 		self.assertTrue(weights.grad is not None)
 
@@ -109,24 +118,29 @@ class TestDaleLaw(unittest.TestCase):
 		weights = torch.rand(10, 10)
 		weights = torch.nn.Parameter(weights, requires_grad=True)
 		reference_weights = torch.rand(10, 10)
-		dale_law = DaleLaw(t=0, reference_weights=reference_weights)
-		loss = dale_law(weights)
+		dale_law = DaleLawL2([weights], alpha=0, reference_weights=reference_weights)
+		loss = dale_law()
 		self.assertEqual(loss, -torch.trace(weights.detach().T @ torch.sign(reference_weights)))
 
-		weights = torch.rand(10, 10)
+		weights_init = torch.rand(10, 10)
 		weights = torch.nn.Parameter(weights, requires_grad=True)
 		reference_weights = torch.rand(10, 10) * -1
-		dale_law = DaleLaw(t=0, reference_weights=reference_weights)
-		loss = dale_law(weights)
-		self.assertEqual(loss, -torch.trace(weights.detach().T @ torch.sign(reference_weights)))
-		loss_if_good = dale_law(weights * -1)
-		self.assertTrue(loss_if_good < loss)
+		dale_law = DaleLawL2([weights], alpha=0, reference_weights=reference_weights)
+		loss_if_bad = dale_law()
+		self.assertEqual(
+			loss_if_bad,
+			-torch.trace(weights.detach().T @ torch.sign(reference_weights))
+		)
+		weights = torch.nn.Parameter(weights_init * -1, requires_grad=True)
+		dale_law = DaleLawL2([weights], alpha=0, reference_weights=reference_weights)
+		loss_if_good = dale_law()
+		self.assertTrue(loss_if_good < loss_if_bad)
 
 		weights = torch.randn(10, 10)
 		weights = torch.nn.Parameter(weights, requires_grad=True)
 		reference_weights = torch.randn(10, 10)
-		dale_law = DaleLaw(t=0, reference_weights=reference_weights)
-		loss = dale_law(weights)
+		dale_law = DaleLawL2([weights], alpha=0, reference_weights=reference_weights)
+		loss = dale_law()
 		self.assertEqual(loss, -torch.trace(weights.detach().T @ torch.sign(reference_weights)))
 
 	def test_value_loss_t_1(self):
@@ -139,21 +153,21 @@ class TestDaleLaw(unittest.TestCase):
 		"""
 		weights = torch.rand(10, 10)
 		weights = torch.nn.Parameter(weights, requires_grad=True)
-		dale_law = DaleLaw(t=1, reference_weights=None)
-		loss = dale_law(weights)
+		dale_law = DaleLawL2([weights], alpha=1, reference_weights=None)
+		loss = dale_law()
 		self.assertEqual(torch.round(loss.detach()), torch.round(torch.norm(weights.detach(), p="fro") ** 2))
 
 		weights = torch.rand(10, 10)
 		weights = torch.nn.Parameter(weights, requires_grad=True)
 		reference_weights = torch.rand(10, 10)
-		dale_law = DaleLaw(t=1, reference_weights=reference_weights)
-		loss = dale_law(weights)
+		dale_law = DaleLawL2([weights], alpha=1, reference_weights=reference_weights)
+		loss = dale_law()
 		self.assertEqual(torch.round(loss.detach()), torch.round(torch.norm(weights.detach(), p="fro") ** 2))
 
 		weights = torch.randn(10, 10)
 		weights = torch.nn.Parameter(weights, requires_grad=True)
-		dale_law = DaleLaw(t=1, reference_weights=None)
-		loss = dale_law(weights)
+		dale_law = DaleLawL2([weights], alpha=1, reference_weights=None)
+		loss = dale_law()
 		self.assertEqual(torch.round(loss.detach()), torch.round(torch.norm(weights.detach(), p="fro") ** 2))
 
 	def test_value_loss_t_random(self):
@@ -164,13 +178,13 @@ class TestDaleLaw(unittest.TestCase):
 		weights = torch.randn(10, 10)
 		weights = torch.nn.Parameter(weights, requires_grad=True)
 		reference_weights = torch.randn(10, 10)
-		t = random.random()
-		dale_law = DaleLaw(t, reference_weights)
-		loss = dale_law(weights)
+		alpha = random.random()
+		dale_law = DaleLawL2([weights], alpha, reference_weights)
+		loss = dale_law()
 		self.assertEqual(
 			torch.round(loss.detach()),
 			torch.round(
-				torch.trace(weights.detach().T @ (t * weights.detach() - (1 - t) * torch.sign(reference_weights))))
+				torch.trace(weights.detach().T @ (alpha * weights.detach() - (1 - alpha) * torch.sign(reference_weights))))
 		)
 
 

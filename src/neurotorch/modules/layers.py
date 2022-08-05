@@ -898,14 +898,14 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		if self.learn_mu:
 			if self.mu.dim() == 0:  # if mu is a scalar and a parameter -> convert it to a vector
 				self.mu = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
-			self.mu = torch.nn.Parameter(self.mu, requires_grad=True)
+			self.mu = torch.nn.Parameter(self.mu, requires_grad=self.requires_grad)
 			torch.nn.init.normal_(self.mu, mean=self.mean_mu, std=self.std_mu)
 		if self.learn_r:
 			_r = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self._device)
 			torch.nn.init.normal_(_r, mean=self.mean_r, std=self.std_r)
-			self.r_sqrt = torch.nn.Parameter(torch.sqrt(torch.abs(_r)), requires_grad=True)
+			self.r_sqrt = torch.nn.Parameter(torch.sqrt(torch.abs(_r)), requires_grad=self.requires_grad)
 		if self.learn_tau:
-			self.tau = torch.nn.Parameter(self.tau, requires_grad=True)
+			self.tau = torch.nn.Parameter(self.tau, requires_grad=self.requires_grad)
 
 	def create_empty_state(self, batch_size: int = 1) -> None:
 		"""
@@ -921,7 +921,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		With Euler discretisation, Wilson-Cowan equation becomes:
 		output = input * (1 - dt/tau) + dt/tau * (1 - r @ input) * sigmoid(forward_weights @ input - mu)
 		:param inputs: time series at a time t of shape (batch_size, number of neurons)
-			Remark: if use to compute a time series, use batch_size = 1
+			Remark: if you use to compute a time series, use batch_size = 1
 		:param state: State of the layer (only for SNN -> not use for RNN)
 		:return: (time series at a time t+1, State of the layer -> None)
 		"""

@@ -3,14 +3,19 @@ import torch.nn as nn
 from typing import Optional, Union, Iterable, Dict
 from . import BaseRegularization
 
-# TODO : Unit test -> test_value_t_0
 
 class DaleLawL2(BaseRegularization):
 	"""
-	Regularisation of the connectome to apply Dale's law. In a nutshell, the Dale's law
+	Regularisation of the connectome to apply Dale's law and L2. In a nutshell, the Dale's law
 	stipulate that neurons can either have excitatory or inhibitory connections, not both.
-	This regularisation can reduce the energy of the network and/or allow you to follow the
-	Dale's law.
+	The L2 regularisation reduce the energy of the network. This regularisation allow you to follow the
+	Dale's law and/or L2 depending on the factor alpha. The equation used is:
+	*******************************************************************************************
+	loss = Tr(forward_weight.T * (alpha * forward_weight - (1 - alpha) * reference_weights))
+	if alpha = 0:
+		loss = -Tr(forward_weight.T * reference_weights) -> Dale's law
+	if alpha = 1:
+		loss = Tr(forward_weight.T * forward_weight) -> L2
 	"""
 	def __init__(
 			self,
@@ -20,14 +25,17 @@ class DaleLawL2(BaseRegularization):
 			Lambda: float = 1.0,
 	):
 		"""
+		:params: Weights matrix to regularize (can be multiple)
 		:param alpha: Number between 0 and 1 that favors one of the constraints.
 			If alpha = 0 -> Only Dale's law is applied.
 			If alpha = 1 -> Only the reduction of the energy is applied.
-			If alpha < t < 0 -> Both Dale's law and the reduction of the energy are applied with their ratio.
+			If 1 < alpha < 0 -> Both Dale's law and the reduction of the energy are applied with their ratio.
 		:param reference_weights: Reference weights to compare. Must be the same size as the weights. Optional if
-		t = 1.
+		alpha = 1.
+		:Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
 		"""
 		super(DaleLawL2, self).__init__(params, Lambda)
+		self.__name__ = self.__class__.__name__
 		self.alpha = alpha
 		if self.alpha > 1 or self.alpha < 0:
 			raise ValueError("t must be between 0 and 1")
@@ -50,5 +58,8 @@ class DaleLawL2(BaseRegularization):
 		for param in self.params:
 			loss = torch.trace(param.T @ (self.alpha * param - (1 - self.alpha) * self.reference_weights))
 			loss_list.append(loss)
-		loss = torch.sum(torch.stack(loss_list))
+		if len(self.params) == 0:
+			loss = torch.tensor(0.0, dtype=torch.float32)
+		else:
+			loss = torch.sum(torch.stack(loss_list))
 		return loss

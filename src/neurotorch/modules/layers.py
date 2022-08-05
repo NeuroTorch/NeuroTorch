@@ -927,7 +927,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		"""
 		ratio_dt_tau = self.dt / self.tau
 		transition_rate = (1 - inputs * self.r)
-		sigmoid = torch.sigmoid(torch.matmul(inputs, torch.t(self.forward_weights)) - self.mu)
+		sigmoid = torch.sigmoid(torch.matmul(inputs, self.forward_weights) - self.mu)
 		output = inputs * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
 		return output, (None, )
 

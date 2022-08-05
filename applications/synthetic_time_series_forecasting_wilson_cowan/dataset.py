@@ -251,6 +251,16 @@ class WilsonCowanDataset_reproduction(Dataset):
 		y = self.timeseries[:, 1:]
 		return torch.transpose(x, 0, 1), torch.transpose(y, 0, 1)
 
+class WSDataset(Dataset):
+	def __init__(self, x):
+		self.x = x
+
+	def __len__(self):
+		return 1
+
+	def __getitem__(self, item):
+		return torch.unsqueeze(self.x[0], dim=0), self.x[1:]
+
 
 def get_dataloaders_reproduction(
 		time_series: numpy.array,

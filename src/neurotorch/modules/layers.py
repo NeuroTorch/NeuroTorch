@@ -171,12 +171,13 @@ class BaseLayer(torch.nn.Module):
 	def _set_default_device_(self):
 		self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-	def build(self):
+	def build(self) -> 'BaseLayer':
 		if self._is_built:
 			raise ValueError("The layer can't be built multiple times.")
 		if not self.is_ready_to_build:
 			raise ValueError("Input size and output size must be specified before the build call.")
 		self._is_built = True
+		return self
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
 		raise NotImplementedError()
@@ -315,7 +316,7 @@ class BaseNeuronsLayer(BaseLayer):
 		elif self.use_recurrent_connection:
 			torch.nn.init.xavier_normal_(self.recurrent_weights)
 
-	def build(self):
+	def build(self) -> 'BaseNeuronsLayer':
 		super().build()
 		self.forward_weights = nn.Parameter(
 			torch.empty((int(self.input_size), int(self.output_size)), device=self._device, dtype=torch.float32),
@@ -333,6 +334,7 @@ class BaseNeuronsLayer(BaseLayer):
 					(int(self.output_size), int(self.output_size)), device=self._device, dtype=torch.float32
 				)
 		self.initialize_weights_()
+		return self
 
 
 class LIFLayer(BaseNeuronsLayer):
@@ -957,7 +959,7 @@ class LILayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("tau_out", 10.0 * self.dt)
 		self.kwargs.setdefault("use_bias", True)
 
-	def build(self):
+	def build(self) -> 'LILayer':
 		if self.kwargs["use_bias"]:
 			self.bias_weights = nn.Parameter(
 				torch.empty((int(self.output_size),), device=self._device),
@@ -967,6 +969,7 @@ class LILayer(BaseNeuronsLayer):
 			self.bias_weights = torch.zeros((int(self.output_size),), dtype=torch.float32, device=self._device)
 		super(LILayer, self).build()
 		self.initialize_weights_()
+		return self
 
 	def initialize_weights_(self):
 		super(LILayer, self).initialize_weights_()
@@ -1035,7 +1038,7 @@ class SpyLILayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("tau_mem", 10.0 * self.dt)
 		self.kwargs.setdefault("use_bias", False)
 
-	def build(self):
+	def build(self) -> 'SpyLILayer':
 		if self.kwargs["use_bias"]:
 			self.bias_weights = nn.Parameter(
 				torch.empty((int(self.output_size),), device=self._device),
@@ -1045,6 +1048,7 @@ class SpyLILayer(BaseNeuronsLayer):
 			self.bias_weights = torch.tensor(0.0, dtype=torch.float32, device=self._device)
 		super(SpyLILayer, self).build()
 		self.initialize_weights_()
+		return self
 
 	def initialize_weights_(self):
 		super(SpyLILayer, self).initialize_weights_()

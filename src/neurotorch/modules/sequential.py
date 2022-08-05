@@ -577,7 +577,7 @@ class SequentialModel(BaseModel):
 				if not getattr(layer, "is_built", False):
 					layer.build()
 
-	def build(self):
+	def build(self) -> 'SequentialModel':
 		"""
 		Build the network and all its layers.
 		:return: None
@@ -589,6 +589,7 @@ class SequentialModel(BaseModel):
 		if self.foresight_time_steps > 0:
 			self._map_outputs_to_inputs()
 		self.device = self._device
+		return self
 
 	def _infer_and_set_sizes_of_all_layers(self):
 		"""

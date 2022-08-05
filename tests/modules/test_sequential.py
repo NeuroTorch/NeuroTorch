@@ -432,16 +432,18 @@ class TestSequential(unittest.TestCase):
 				f"{key} is not in the output layers {model.input_layers.keys()}"
 			)
 
-		def _dummy_transform(x):
-			return x
-
+		class _DummyTransform(torch.nn.Module):
+			def forward(self, x):
+				return x
+		
+		trans = _DummyTransform()
 		# Test that the model is initialized with the specified transforms
 		model = SequentialModel(
 			layers=[
 				BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
 				BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
 			],
-			input_transform=[_dummy_transform]
+			input_transform=[trans]
 		)
 		model.build()
 		self.assertEqual(len(model.input_transform), 1)
@@ -450,7 +452,7 @@ class TestSequential(unittest.TestCase):
 				key, model.input_layers.keys(),
 				f"{key} is not in the output layers {model.input_layers.keys()}"
 			)
-			self.assertIn(_dummy_transform, ravel_compose_transforms(value))
+			self.assertIn(trans, ravel_compose_transforms(value))
 
 	def test_if_grad(self):
 		model = SequentialModel(

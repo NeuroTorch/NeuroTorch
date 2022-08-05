@@ -24,6 +24,23 @@ def to_numpy(x: Any, dtype=torch.float32):
 	raise ValueError(f"Unsupported type {type(x)}")
 
 
+class ToDevice(torch.nn.Module):
+	def __init__(self, device: torch.device):
+		super().__init__()
+		self.device = device
+
+	def forward(self, x: torch.Tensor):
+		return x.to(self.device)
+
+
+class IdentityTransform(torch.nn.Module):
+	def __init__(self):
+		super().__init__()
+	
+	def forward(self, x: Any):
+		return x
+
+
 class LinearRateToSpikes(torch.nn.Module):
 	def __init__(
 			self,

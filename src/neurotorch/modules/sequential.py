@@ -243,10 +243,12 @@ class SequentialModel(BaseModel):
 			checkpoint_folder: str = "checkpoints",
 			device: Optional[torch.device] = None,
 			input_transform: Optional[Union[Dict[str, Callable], List[Callable]]] = None,
+			output_transform: Optional[Union[Dict[str, Callable], List[Callable]]] = None,
 			**kwargs
 	):
 		"""
 		The SequentialModel is a neural network that is constructed by stacking layers.
+		
 		:param layers: The layers to be used in the model. The following structure is expected:
 			layers = [
 				[*inputs_layers, ],
@@ -267,13 +269,13 @@ class SequentialModel(BaseModel):
 		:param name: The name of the model.
 		:param checkpoint_folder: The folder where the checkpoints are saved.
 		:param device: The device to use.
-		:param input_transform: The transform to apply to the input.
+		:param input_transform: The transform to apply to the input. The input_transform must work on a single datum.
+		:param output_transform: The transform to apply to the output trace. The output_transform must work batch-wise.
 		:param kwargs:
 				memory_size (Optional[int]): The size of the memory buffer. The output of each layer is stored in
 					the memory buffer. If the memory_size is not specified, the memory_size is set to the number
 					of time steps of the inputs.
 		"""
-		# TODO: Add Time dimensions to the sizes of the layers.
 		input_layers, hidden_layers, output_layers = self._format_layers(layers)
 		self._ordered_inputs_names = [layer.name for _, layer in input_layers.items()]
 		self._ordered_outputs_names = [layer.name for _, layer in output_layers.items()]
@@ -284,6 +286,7 @@ class SequentialModel(BaseModel):
 			checkpoint_folder=checkpoint_folder,
 			device=device,
 			input_transform=input_transform,
+			output_transform=output_transform,
 			**kwargs
 		)
 		self._default_n_hidden_neurons = self.kwargs.get("n_hidden_neurons", 128)
@@ -574,7 +577,7 @@ class SequentialModel(BaseModel):
 				if not getattr(layer, "is_built", False):
 					layer.build()
 
-	def build(self):
+	def build(self) -> 'SequentialModel':
 		"""
 		Build the network and all its layers.
 		:return: None
@@ -586,6 +589,7 @@ class SequentialModel(BaseModel):
 		if self.foresight_time_steps > 0:
 			self._map_outputs_to_inputs()
 		self.device = self._device
+		return self
 
 	def _infer_and_set_sizes_of_all_layers(self):
 		"""
@@ -712,7 +716,7 @@ class SequentialModel(BaseModel):
 						lists is the number of time steps.
 		"""
 		inputs = self._inputs_to_dict(inputs)
-		inputs = self.apply_transform(inputs)
+		inputs = self.apply_input_transform(inputs)
 		inputs = self._format_inputs(inputs)
 		time_steps = self._get_time_steps_from_inputs(inputs)
 		hidden_states = self._init_hidden_states_memory()
@@ -741,6 +745,7 @@ class SequentialModel(BaseModel):
 
 		hidden_states = self._format_hidden_outputs_traces(hidden_states)
 		outputs_trace_tensor = {layer_name: torch.stack(trace, dim=1) for layer_name, trace in outputs_trace.items()}
+		outputs_trace_tensor = self.apply_output_transform(outputs_trace_tensor)
 		return outputs_trace_tensor, hidden_states
 
 	def get_prediction_trace(
@@ -750,20 +755,25 @@ class SequentialModel(BaseModel):
 	) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
 		"""
 		Returns the prediction trace for the given inputs. Method used for time series prediction.
+		
 		:param inputs: inputs to the network.
 		:param kwargs: kwargs to be passed to the forward method.
+		
+		:keyword int foresight_time_steps: number of time steps to predict. Default is self.foresight_time_steps.
+		
 		:return: the prediction trace.
 		"""
-		outputs_trace, hidden_states = self(inputs.to(self._device), **kwargs)
+		foresight_time_steps = kwargs.get('foresight_time_steps', self.foresight_time_steps)
+		outputs_trace, hidden_states = self(inputs.to(self.device), **kwargs)
 		if isinstance(outputs_trace, dict):
 			outputs_trace = {
-				layer_name: trace[:, -self.foresight_time_steps:]
+				layer_name: trace[:, -foresight_time_steps:]
 				for layer_name, trace in outputs_trace.items()
 			}
 			if len(outputs_trace) == 1:
 				return outputs_trace[list(outputs_trace.keys())[0]]
 		else:
-			outputs_trace = outputs_trace[:, -self.foresight_time_steps:]
+			outputs_trace = outputs_trace[:, -foresight_time_steps:]
 		return outputs_trace
 
 	def get_raw_prediction(

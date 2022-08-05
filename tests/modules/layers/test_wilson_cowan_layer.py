@@ -51,7 +51,7 @@ class TestWilsonCowanLayer(unittest.TestCase):
 		self.assertIsInstance(layer.mu, torch.Tensor)
 		self.assertIsInstance(layer.mean_mu, float)
 		self.assertIsInstance(layer.std_mu, float)
-		self.assertIsInstance(layer.tau, float)
+		self.assertIsInstance(layer.tau, torch.Tensor)
 		self.assertIsInstance(layer.learn_mu, bool)
 		self.assertIs(layer.input_size, None)
 		self.assertIs(layer.output_size, None)
@@ -208,7 +208,7 @@ class TestWilsonCowanLayer(unittest.TestCase):
 			r = torch.rand(1, 3)
 			layer = WilsonCowanLayer(
 				input_size=3, output_size=3, device=torch.device(type="cuda", index=0), mu=mu, r=r,
-				learn_mu=True, learn_r=True
+				learn_mu=True, learn_r=True, learn_tau=True
 			)
 			input_ = torch.rand(1, 3)
 			output = layer(input_)[0]
@@ -217,7 +217,8 @@ class TestWilsonCowanLayer(unittest.TestCase):
 			self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
 			self.assertEqual(layer.forward_weights.grad.device, layer.device)
 			self.assertIsInstance(layer.mu.grad, torch.Tensor)
-			self.assertIsInstance(layer.r.grad, torch.Tensor)
+			self.assertIsInstance(layer.r_sqrt.grad, torch.Tensor)
+			self.assertIsInstance(layer.tau.grad, torch.Tensor)
 		else:
 			warnings.warn(
 				"No CUDA available. Skipping test_backward. Please consider running the tests on a machine with CUDA.",

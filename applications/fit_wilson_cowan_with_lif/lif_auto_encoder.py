@@ -86,7 +86,7 @@ def show_prediction(time_series, auto_encoder):
 	axes[0].plot(errors.detach().cpu().numpy())
 	axes[0].set_xlabel("Time [-]")
 	axes[0].set_ylabel("Squared Error [-]")
-	axes[0].set_title(f"pVar: {pVar.detach().cpu().item():.4f}")
+	axes[0].set_title(f"pVar: {pVar.detach().cpu().item():.4f}, n encoder steps: {auto_encoder.n_encoder_steps}")
 	
 	mean_errors = torch.mean(errors, dim=0)
 	mean_error_sort, indices = torch.sort(mean_errors)
@@ -131,9 +131,10 @@ def train_auto_encoder(n_units, n_encoder_steps, batch_size, n_iterations, seed:
 
 
 if __name__ == '__main__':
-	auto_encoder_training_output = train_auto_encoder(n_units=128, n_encoder_steps=256, batch_size=256, n_iterations=256)
-	show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
-	auto_encoder_training_output.history.plot(show=True)
+	for n in [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]:
+		auto_encoder_training_output = train_auto_encoder(n_units=128, n_encoder_steps=n, batch_size=256, n_iterations=256)
+		show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
+	# auto_encoder_training_output.history.plot(show=True)
 
 
 

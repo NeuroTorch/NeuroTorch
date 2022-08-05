@@ -269,3 +269,4 @@ pip-selfcheck.json
 
 user/
 *.pth!/applications/time_series_forecasting_wilson_cowan/timeSeries_2020_12_16_cr3_df.npy
+!/applications/time_series_forecasting_wilson_cowan/timeSeries_2020_12_16_cr3_df.npy

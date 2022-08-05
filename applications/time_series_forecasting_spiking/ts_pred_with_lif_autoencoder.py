@@ -3,21 +3,21 @@ import tqdm
 from matplotlib import pyplot as plt
 
 import neurotorch as nt
-from applications.fit_wilson_cowan_with_lif.dataset import TimeSeriesDataset
-from applications.fit_wilson_cowan_with_lif.lif_auto_encoder import train_auto_encoder, show_prediction
+from applications.time_series_forecasting_spiking.dataset import TimeSeriesDataset
+from applications.time_series_forecasting_spiking.lif_auto_encoder import train_auto_encoder, show_prediction
 from neurotorch.transforms import ConstantValuesTransform
 
 n_units = 2
-n_encoder_steps = 8
-n_iterations = 16
+n_encoder_steps = 32
+n_iterations = 300
 
 ws_ts = TimeSeriesDataset(
 	input_transform=ConstantValuesTransform(
 		n_steps=n_encoder_steps,
 	),
-	target_transform=ConstantValuesTransform(
-		n_steps=n_encoder_steps,
-	),
+	# target_transform=ConstantValuesTransform(
+	# 	n_steps=n_encoder_steps,
+	# ),
 	sample_size=n_units,
 )
 

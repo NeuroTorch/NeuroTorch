@@ -471,11 +471,6 @@ class SequentialModel(BaseModel):
 		Initialize the weights of the layers of the model.
 		:return: None
 		"""
-		for param in self.parameters():
-			if param.ndim > 2:
-				torch.nn.init.xavier_normal_(param)
-			else:
-				torch.nn.init.normal_(param)
 		for layer in self.get_all_layers():
 			if getattr(layer, "initialize_weights_") and callable(layer.initialize_weights_):
 				layer.initialize_weights_()
@@ -705,6 +700,15 @@ class SequentialModel(BaseModel):
 	) -> Tuple[Dict[str, torch.Tensor], Dict[str, Tuple[torch.Tensor, ...]]]:
 		"""
 		Forward pass of the model.
+		-> When it comes to integrate a time series:
+			* We integrate the initial conditions <time_step> times.
+			* We predict the remaining <forward_sight_time_steps - 1> time steps from the initial conditions
+			* Please note that the last output of the integration of the initial conditions is the input for
+			the integration of the remaining time steps AND also the first prediction.
+			Example: time_series = [t_0, t_1 ... t_N] if:
+				[t_0, t_1] -> Initial conditions, then t_1 generate the first prediction (t_2) :
+				[t_2, t_3 ... t_N] -> The remaining time steps are predicted from the initial conditions.
+
 		:param inputs: The inputs to the model where the dimensions are
 						{input_name: (batch_size, time_steps, input_size)}. If the inputs have the shape
 						(batch_size, input_size), then the time_steps is 1. All the inputs must have the same
@@ -726,6 +730,7 @@ class SequentialModel(BaseModel):
 		#  shape: (batch_size, time_steps, time_steps, ...). Those inputs are obtained for forecasting a time series of
 		#  real values that were transformed to times series of spikes.
 
+		# integration of the inputs or the initial conditions
 		for t in range(time_steps):
 			forward_tensor = self._inputs_forward_(inputs, hidden_states, t)
 			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
@@ -734,7 +739,8 @@ class SequentialModel(BaseModel):
 			outputs_trace = {layer_name: self._pop_memory_(trace) for layer_name, trace in outputs_trace.items()}
 			hidden_states = {layer_name: self._pop_memory_(trace) for layer_name, trace in hidden_states.items()}
 
-		for t in range(self.foresight_time_steps):
+		# Foresight prediction of the initial conditions
+		for t in range(self.foresight_time_steps-1):
 			foresight_inputs_tensor = {
 				self._outputs_to_inputs_names_map[layer_name]: torch.stack(trace, dim=1)
 				for layer_name, trace in outputs_trace.items()

@@ -66,7 +66,7 @@ def predict(network):
 		t0_spikes.append(x)
 	t0_spikes = torch.stack(t0_spikes, dim=1)
 	t0_decode = spikes_decoder(t0_spikes)
-	# spikes_auto_encoder.encode(t0)
+	# t0_spikes = spikes_auto_encoder.encode(t0)
 	
 	spikes_preds = []
 	hh = None
@@ -83,6 +83,7 @@ def predict(network):
 	ts_decode = spikes_decoder(torch.stack(spikes_preds, dim=1)[:, n_encoder_steps:])
 	preds = torch.concat([t0_decode, ts_decode], dim=1)
 	# preds = spikes_decoder(torch.stack(spikes_preds, dim=1))
+	# preds = spikes_auto_encoder.decode(torch.stack(spikes_preds, dim=1))
 	return preds
 
 
@@ -179,6 +180,7 @@ def train(network):
 
 
 if __name__ == '__main__':
+	# TODO: add t0 to graphs
 	hist, lr_hist = train(lif_layer)
 	fig, axes = plt.subplots(2, 1, figsize=(12, 8))
 	axes[0].plot(hist, label="Loss")

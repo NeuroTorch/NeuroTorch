@@ -10,6 +10,7 @@ from neurotorch.transforms import ConstantValuesTransform
 n_units = 16
 n_encoder_steps = 4
 n_iterations = 100
+encoder_type = nt.LILayer
 
 ws_ts = TimeSeriesDataset(
 	input_transform=ConstantValuesTransform(
@@ -22,19 +23,19 @@ ws_ts = TimeSeriesDataset(
 )
 
 auto_encoder_training_output = train_auto_encoder(
-	n_units=n_units, n_encoder_steps=n_encoder_steps, batch_size=256, n_iterations=256
+	encoder_type=encoder_type, n_units=n_units, n_encoder_steps=n_encoder_steps, batch_size=256, n_iterations=256
 )
-# show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
+show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
 # auto_encoder_training_output.history.plot(show=True)
 
 
 spikes_encoder = auto_encoder_training_output.spikes_auto_encoder.spikes_encoder
-# spikes_encoder.learning_type = nt.LearningType.NONE
-# spikes_encoder.requires_grad_(False)
+spikes_encoder.learning_type = nt.LearningType.NONE
+spikes_encoder.requires_grad_(False)
 spikes_decoder = auto_encoder_training_output.spikes_auto_encoder.spikes_decoder
-# spikes_decoder.requires_grad_(False)
+spikes_decoder.requires_grad_(False)
 
-lif_layer = nt.ALIFLayer(
+lif_layer = encoder_type(
 	input_size=nt.Size(
 		[
 			nt.Dimension(None, nt.DimensionProperty.TIME),

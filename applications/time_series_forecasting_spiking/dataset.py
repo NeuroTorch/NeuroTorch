@@ -42,16 +42,18 @@ class TimeSeriesDataset(Dataset):
 			self.t0_transformed = torch.unsqueeze(self.data[0], dim=0)
 		else:
 			self.t0_transformed = self.transform(torch.unsqueeze(self.data[0], dim=0))
+			
+		self.target = self.data[1:]
 		if self.target_transform is None:
-			self.data_transformed = self.data
+			self.target_transformed = self.target
 		else:
-			self.data_transformed = self.transform(self.data)
+			self.target_transformed = self.transform(self.target)
 	
 	def __len__(self):
 		return 1
 	
 	def __getitem__(self, item):
-		return self.t0_transformed, self.data_transformed
+		return self.t0_transformed, self.target_transformed
 
 
 class WilsonCowanTimeSeries(Dataset):

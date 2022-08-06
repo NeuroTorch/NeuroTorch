@@ -43,7 +43,7 @@ class SpyLIFAutoEncoder(nt.SequentialModel):
 	def __init__(self, n_units, n_encoder_steps, *args, **kwargs):
 		self.n_units = n_units
 		self.n_encoder_steps = n_encoder_steps
-		spikes_encoder = nt.SpyLIFLayer(
+		spikes_encoder = nt.ALIFLayer(
 			n_units, n_units,
 			use_recurrent_connection=False,
 			name='encoder'
@@ -52,7 +52,8 @@ class SpyLIFAutoEncoder(nt.SequentialModel):
 			torchvision.ops.Permute([0, 2, 1]),
 			torch.nn.Conv1d(
 				n_units, n_units, n_encoder_steps,
-				stride=n_encoder_steps
+				stride=n_encoder_steps,
+				bias=False
 			),
 			torchvision.ops.Permute([0, 2, 1]),
 		)

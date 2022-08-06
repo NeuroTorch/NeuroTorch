@@ -220,25 +220,27 @@ def train_auto_encoder(
 if __name__ == '__main__':
 	for s_type in [
 		nt.SpyLIFLayer,
-		# nt.LIFLayer,
-		# nt.ALIFLayer,
+		nt.LIFLayer,
+		nt.ALIFLayer,
 	]:
 		for n_u in [
-			# 2,
-			# 16,
-			# 128,
+			2,
+			16,
+			128,
 			256,
-			# 1024
+			1024
 		]:
 			for n_t in [
-				# 2,
-				# 4,
+				2,
+				4,
 				8,
-				# 16,
-				# 32,
-				# 64,
-				# 128,
-				# 256, 512, 1024
+				16,
+				32,
+				64,
+				128,
+				256,
+				512,
+				1024
 			]:
 				auto_encoder_training_output = train_auto_encoder(
 					encoder_type=s_type,
@@ -248,10 +250,10 @@ if __name__ == '__main__':
 					n_iterations=1024,
 					# load_and_save=False,
 				)
-				show_prediction(
-					auto_encoder_training_output.dataset.data,
-					auto_encoder_training_output.spikes_auto_encoder
-				)
+				# show_prediction(
+				# 	auto_encoder_training_output.dataset.data,
+				# 	auto_encoder_training_output.spikes_auto_encoder
+				# )
 				# auto_encoder_training_output.history.plot(show=True)
 
 

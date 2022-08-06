@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple, Iterable
 
 import matplotlib.pyplot as plt
 import numpy
@@ -20,14 +20,29 @@ class TimeSeriesDataset(Dataset):
 			self,
 			input_transform: Optional[torch.nn.Module] = None,
 			target_transform: Optional[torch.nn.Module] = None,
-			sample_size=128
+			n_units: Optional[int] = None,
+			units: Optional[Iterable[int]] = None,
+			seed : int = 0
 	):
 		super().__init__()
 		self.ts = np.load('timeSeries_2020_12_16_cr3_df.npy')
 		self.n_neurons, self.n_time_steps = self.ts.shape
-		self.sample_size = sample_size
-		self.sample_indexes = np.random.randint(self.n_neurons, size=self.sample_size)
-		self.data = self.ts[self.sample_indexes, :]
+		
+		random_generator = np.random.RandomState(seed)
+		
+		if units is not None:
+			units = list(units)
+			assert n_units is None
+			n_units = len(units)
+		elif n_units is not None:
+			units = random_generator.randint(self.n_neurons, size=n_units)
+		else:
+			n_units = 128
+			units = random_generator.randint(self.n_neurons, size=n_units)
+		
+		self.n_units = n_units
+		self.units_indexes = units
+		self.data = self.ts[self.units_indexes, :]
 		self.sigma = 30
 		
 		for neuron in range(self.data.shape[0]):
@@ -43,7 +58,7 @@ class TimeSeriesDataset(Dataset):
 		else:
 			self.t0_transformed = self.transform(torch.unsqueeze(self.data[0], dim=0))
 			
-		self.target = self.data[1:]
+		self.target = self.data
 		if self.target_transform is None:
 			self.target_transformed = self.target
 		else:

@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import tqdm
 from matplotlib import pyplot as plt
@@ -8,9 +9,15 @@ from applications.time_series_forecasting_spiking.lif_auto_encoder import train_
 from neurotorch.transforms import ConstantValuesTransform
 
 n_units = 128
-n_encoder_steps = 32
-n_iterations = 100
+n_encoder_steps = 8
+n_iterations = 128
 encoder_type = nt.SpyLIFLayer
+
+auto_encoder_training_output = train_auto_encoder(
+	encoder_type=encoder_type, n_units=n_units, n_encoder_steps=n_encoder_steps
+)
+# show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
+# auto_encoder_training_output.history.plot(show=True)
 
 ws_ts = TimeSeriesDataset(
 	input_transform=ConstantValuesTransform(
@@ -19,21 +26,17 @@ ws_ts = TimeSeriesDataset(
 	# target_transform=ConstantValuesTransform(
 	# 	n_steps=n_encoder_steps,
 	# ),
-	sample_size=n_units,
+	# n_units=n_units,
+	units=auto_encoder_training_output.dataset.units_indexes
 )
 
-auto_encoder_training_output = train_auto_encoder(
-	encoder_type=encoder_type, n_units=n_units, n_encoder_steps=n_encoder_steps, batch_size=256, n_iterations=512
-)
-show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
-# auto_encoder_training_output.history.plot(show=True)
 
 spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
 spikes_encoder = auto_encoder_training_output.spikes_auto_encoder.spikes_encoder
-spikes_encoder.learning_type = nt.LearningType.NONE
-spikes_encoder.requires_grad_(False)
+# spikes_encoder.learning_type = nt.LearningType.NONE
+# spikes_encoder.requires_grad_(False)
 spikes_decoder = auto_encoder_training_output.spikes_auto_encoder.spikes_decoder
-spikes_decoder.requires_grad_(False)
+# spikes_decoder.requires_grad_(False)
 
 lif_layer = encoder_type(
 	input_size=nt.Size(
@@ -58,32 +61,33 @@ target = torch.unsqueeze(target, 0)
 
 
 def predict(network):
-	t0_spikes = []
-	hh_encoder = None
-	for t in range(n_encoder_steps):
-		x = t0[:, t]
-		x, hh_encoder = spikes_encoder(x, hh_encoder)
-		t0_spikes.append(x)
-	t0_spikes = torch.stack(t0_spikes, dim=1)
-	t0_decode = spikes_decoder(t0_spikes)
-	# t0_spikes = spikes_auto_encoder.encode(t0)
+	# t0_spikes = []
+	# hh_encoder = None
+	# for t in range(n_encoder_steps):
+	# 	x = t0[:, t]
+	# 	x, hh_encoder = spikes_encoder(x, hh_encoder)
+	# 	t0_spikes.append(x)
+	# t0_spikes = torch.stack(t0_spikes, dim=1)
+	# t0_decode = spikes_decoder(t0_spikes)
+	t0_spikes = spikes_auto_encoder.encode(t0)
 	
 	spikes_preds = []
-	hh = None
+	x, hh = None, None
 	for t in range(n_encoder_steps):
 		x = t0_spikes[:, t]
 		x, hh = network(x, hh)
-		spikes_preds.append(x)
+		# spikes_preds.append(x)
 	
 	for t in range((ws_ts.n_time_steps - 1) * n_encoder_steps):
-		x = spikes_preds[-1]
+		# x = spikes_preds[-1]
 		x, hh = network(x, hh)
 		spikes_preds.append(x)
+	spikes_preds = torch.stack(spikes_preds, dim=1)
 	
-	ts_decode = spikes_decoder(torch.stack(spikes_preds, dim=1)[:, n_encoder_steps:])
-	preds = torch.concat([t0_decode, ts_decode], dim=1)
+	# ts_decode = spikes_decoder(torch.stack(spikes_preds, dim=1)[:, n_encoder_steps:])
+	spikes_preds = torch.concat([t0_spikes, spikes_preds], dim=1)
 	# preds = spikes_decoder(torch.stack(spikes_preds, dim=1))
-	# preds = spikes_auto_encoder.decode(torch.stack(spikes_preds, dim=1))
+	preds = spikes_auto_encoder.decode(spikes_preds)
 	return preds
 
 
@@ -116,13 +120,12 @@ def predict_spikes():
 
 
 def train(network):
-	lr_schedule = [5e-2, 1e-2, 5e-3, 1e-3, 5e-4, 1e-4, 5e-5, 1e-5]
-	loss_schedule = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+	loss_schedule = np.linspace(0.9, 0.99, num=3)
 	curr_stage = 0
-	curr_lr = 1e-1
+	curr_lr = 1e-3
 	lr_history = []
 	history = []
-	optimizer = torch.optim.Adam(all_parameters, lr=curr_lr, maximize=True)
+	optimizer = torch.optim.AdamW(all_parameters, lr=curr_lr, maximize=True)
 	p_bar = tqdm.tqdm(range(n_iterations))
 	for i in p_bar:
 		preds = predict(network)
@@ -136,16 +139,11 @@ def train(network):
 		if loss.detach().cpu().item() > 0.98:
 			p_bar.close()
 			break
-		if loss.detach().cpu().item() > loss_schedule[curr_stage]:
+		if curr_stage < len(loss_schedule) and loss.detach().cpu().item() > loss_schedule[curr_stage]:
 			curr_stage += 1
-			if curr_stage < len(lr_schedule):
-				curr_lr = lr_schedule[curr_stage]
-				for g in optimizer.param_groups:
-					g['lr'] = curr_lr
-			else:
-				curr_lr = lr_schedule[-1]
-				for g in optimizer.param_groups:
-					g['lr'] = curr_lr
+			curr_lr /= 2
+			for g in optimizer.param_groups:
+				g['lr'] = curr_lr
 	return history, lr_history
 
 # predictions = predict().detach().cpu()
@@ -225,3 +223,4 @@ if __name__ == '__main__':
 	
 	fig.set_tight_layout(True)
 	plt.show()
+	plt.close(fig)

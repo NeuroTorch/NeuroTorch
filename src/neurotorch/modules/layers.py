@@ -58,7 +58,7 @@ class BaseLayer(torch.nn.Module):
 		self.name = name
 		self._name_is_default = name is None
 
-		self.learning_type = learning_type
+		self._learning_type = learning_type
 		self._device = device
 		if self._device is None:
 			self._set_default_device_()
@@ -91,6 +91,15 @@ class BaseLayer(torch.nn.Module):
 	@output_size.setter
 	def output_size(self, size: Optional[SizeTypes]):
 		self._output_size = self._format_size(size)
+	
+	@property
+	def learning_type(self):
+		return self._learning_type
+	
+	@learning_type.setter
+	def learning_type(self, learning_type: LearningType):
+		self._learning_type = learning_type
+		self.requires_grad_(self.requires_grad)
 	
 	@property
 	def requires_grad(self):

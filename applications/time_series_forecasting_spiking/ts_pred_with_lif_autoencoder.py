@@ -7,10 +7,10 @@ from applications.time_series_forecasting_spiking.dataset import TimeSeriesDatas
 from applications.time_series_forecasting_spiking.lif_auto_encoder import train_auto_encoder, show_prediction
 from neurotorch.transforms import ConstantValuesTransform
 
-n_units = 16
-n_encoder_steps = 4
+n_units = 128
+n_encoder_steps = 32
 n_iterations = 100
-encoder_type = nt.LILayer
+encoder_type = nt.SpyLIFLayer
 
 ws_ts = TimeSeriesDataset(
 	input_transform=ConstantValuesTransform(
@@ -23,12 +23,12 @@ ws_ts = TimeSeriesDataset(
 )
 
 auto_encoder_training_output = train_auto_encoder(
-	encoder_type=encoder_type, n_units=n_units, n_encoder_steps=n_encoder_steps, batch_size=256, n_iterations=256
+	encoder_type=encoder_type, n_units=n_units, n_encoder_steps=n_encoder_steps, batch_size=256, n_iterations=512
 )
 show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
 # auto_encoder_training_output.history.plot(show=True)
 
-
+spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
 spikes_encoder = auto_encoder_training_output.spikes_auto_encoder.spikes_encoder
 spikes_encoder.learning_type = nt.LearningType.NONE
 spikes_encoder.requires_grad_(False)
@@ -66,6 +66,7 @@ def predict(network):
 		t0_spikes.append(x)
 	t0_spikes = torch.stack(t0_spikes, dim=1)
 	t0_decode = spikes_decoder(t0_spikes)
+	# spikes_auto_encoder.encode(t0)
 	
 	spikes_preds = []
 	hh = None

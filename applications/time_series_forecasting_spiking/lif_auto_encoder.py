@@ -34,7 +34,20 @@ class TimeSeriesAutoEncoderDataset(Dataset):
 	
 	def __getitem__(self, item):
 		return torch.unsqueeze(self.data[item], dim=0), torch.unsqueeze(self.data[item], dim=0)
+
+
+class MeanConv(torch.nn.Module):
+	def __init__(self, kernel_size: int, alpha: float = 1.0):
+		super(MeanConv, self).__init__()
+		self.kernel_size = kernel_size
+		self.alpha = alpha
 	
+	def forward(self, inputs: torch.Tensor):
+		batch_size, time_steps, n_units = inputs.shape
+		inputs_view = torch.reshape(inputs, (batch_size, -1, time_steps//self.kernel_size, n_units))
+		inputs_mean = self.alpha * torch.mean(inputs_view, dim=1)
+		return inputs_mean
+
 
 class SpikesAutoEncoder(nt.SequentialModel):
 	def __new__(cls, *args, **kwargs):
@@ -53,24 +66,25 @@ class SpikesAutoEncoder(nt.SequentialModel):
 		self.n_encoder_steps = n_encoder_steps
 		spikes_encoder = encoder_type(
 			n_units, n_units,
-			forward_weights=np.random.random((n_units, n_units)) * 1.5,
+			# forward_weights=np.random.random((n_units, n_units)) * 1.0,
 			learning_type=nt.LearningType.BPTT,
 			use_recurrent_connection=False,
 			name='encoder'
 		).build()
-		conv = torch.nn.Conv1d(
-			n_units, n_units, n_encoder_steps,
-			stride=n_encoder_steps,
-			bias=False
-		)
-		torch.nn.init.constant_(conv.weight, 1.0/n_encoder_steps)
+		# conv = torch.nn.Conv1d(
+		# 	n_units, n_units, n_encoder_steps,
+		# 	stride=n_encoder_steps,
+		# 	bias=False
+		# )
+		# torch.nn.init.constant_(conv.weight, 1.0/n_encoder_steps)
 		# torch.nn.init.constant_(conv.weight, 1.0)
-		conv.requires_grad_(False)
-		spikes_decoder = torch.nn.Sequential(
-			torchvision.ops.Permute([0, 2, 1]),
-			conv,
-			torchvision.ops.Permute([0, 2, 1]),
-		)
+		# conv.requires_grad_(False)
+		# spikes_decoder = torch.nn.Sequential(
+		# 	torchvision.ops.Permute([0, 2, 1]),
+		# 	conv,
+		# 	torchvision.ops.Permute([0, 2, 1]),
+		# )
+		spikes_decoder = MeanConv(n_encoder_steps, alpha=2.0)
 		super(SpikesAutoEncoder, self).__init__(
 			input_transform=[
 				nt.transforms.ConstantValuesTransform(
@@ -89,7 +103,7 @@ class SpikesAutoEncoder(nt.SequentialModel):
 		x = self.apply_input_transform(x)
 		x = x[self.spikes_encoder.name]
 		out, hh = [], None
-		for t in range(x.shape[1]):
+		for t in range(self.n_encoder_steps):
 			out_t, hh = self.spikes_encoder(x[:, t], hh)
 			out.append(out_t)
 		return torch.stack(out, dim=1)
@@ -193,7 +207,7 @@ def train_auto_encoder(
 	dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=0)
 	trainer = nt.Trainer(
 		spikes_auto_encoder,
-		# callbacks=[checkpoint_manager]
+		callbacks=[checkpoint_manager]
 	)
 	history = trainer.train(dataloader, n_iterations=n_iterations, load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR)
 	return AutoEncoderTrainingOutput(spikes_auto_encoder=spikes_auto_encoder, history=history, dataset=dataset)
@@ -207,18 +221,21 @@ if __name__ == '__main__':
 			# 256, 1024
 		]:
 			for n_t in [
-				# 2, 4,
+				# 2,
+				# 4,
 				# 8,
 				# 16,
-				32,
-				# 64, 128, 256, 512, 1024
+				# 32,
+				64,
+				# 128,
+				# 256, 512, 1024
 			]:
 				auto_encoder_training_output = train_auto_encoder(
 					encoder_type=s_type,
 					n_units=n_u,
 					n_encoder_steps=n_t,
 					batch_size=256,
-					n_iterations=256,
+					n_iterations=512,
 				)
 				show_prediction(
 					auto_encoder_training_output.dataset.data,

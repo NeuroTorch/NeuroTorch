@@ -168,7 +168,6 @@ def _show_single_preds(auto_encoder, ax, predictions, target, spikes, title=""):
 			x_scatter_zeros.append(xs)
 	ax.plot(predictions, label="Prediction")
 	ax.plot(target, label="Target")
-	print(f"{len(x_scatter_spikes) = }, {np.max(spikes) = }, {np.min(spikes) = }")
 	ax.scatter(
 		x_scatter_spikes, y=[y_max*1.1] * len(x_scatter_spikes),
 		label="Latent space", c='k', marker='|', linewidths=0.5

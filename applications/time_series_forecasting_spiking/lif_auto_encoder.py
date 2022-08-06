@@ -12,14 +12,14 @@ from scipy.ndimage import gaussian_filter1d
 
 
 class TimeSeriesAutoEncoderDataset(Dataset):
-	def __init__(self, sample_size=128, seed: int = 0):
+	def __init__(self, n_units=128, seed: int = 0):
 		super().__init__()
 		self.random_state = np.random.RandomState(seed)
 		self.ts = np.load('timeSeries_2020_12_16_cr3_df.npy')
 		self.n_neurons, self.n_time_steps = self.ts.shape
-		self.sample_size = sample_size
-		self.sample_indexes = self.random_state.randint(self.n_neurons, size=self.sample_size)
-		self.data = self.ts[self.sample_indexes, :]
+		self.sample_size = n_units
+		self.units_indexes = self.random_state.randint(self.n_neurons, size=self.sample_size)
+		self.data = self.ts[self.units_indexes, :]
 		self.sigma = 30
 		
 		for neuron in range(self.data.shape[0]):
@@ -37,10 +37,13 @@ class TimeSeriesAutoEncoderDataset(Dataset):
 
 
 class MeanConv(torch.nn.Module):
-	def __init__(self, kernel_size: int, alpha: float = 1.0):
+	def __init__(self, kernel_size: int, alpha: float = 1.0, learn_alpha: bool = False):
 		super(MeanConv, self).__init__()
 		self.kernel_size = kernel_size
 		self.alpha = alpha
+		self.learn_alpha = learn_alpha
+		if learn_alpha:
+			self.alpha = torch.nn.Parameter(nt.to_tensor(self.alpha))
 	
 	def forward(self, inputs: torch.Tensor):
 		batch_size, time_steps, n_units = inputs.shape
@@ -84,7 +87,7 @@ class SpikesAutoEncoder(nt.SequentialModel):
 		# 	conv,
 		# 	torchvision.ops.Permute([0, 2, 1]),
 		# )
-		spikes_decoder = MeanConv(n_encoder_steps, alpha=2.0)
+		spikes_decoder = MeanConv(n_encoder_steps, alpha=2.0, learn_alpha=True)
 		super(SpikesAutoEncoder, self).__init__(
 			input_transform=[
 				nt.transforms.ConstantValuesTransform(
@@ -192,9 +195,10 @@ def train_auto_encoder(
 		encoder_type: Type[nt.modules.BaseLayer],
 		n_units: int,
 		n_encoder_steps: int,
-		batch_size: int,
-		n_iterations: int,
-		seed: int = 0
+		batch_size: int = 256,
+		n_iterations: int = 1024,
+		seed: int = 0,
+		load_and_save: bool = True,
 ) -> AutoEncoderTrainingOutput:
 	params_str = f"{encoder_type.__name__}_{n_units}_{n_encoder_steps}_{batch_size}_{n_iterations}_{seed}"
 	checkpoint_folder = f"checkpoints/SpikesAutoEncoder_{params_str}"
@@ -202,30 +206,37 @@ def train_auto_encoder(
 	spikes_auto_encoder = SpikesAutoEncoder(
 		encoder_type, n_units, n_encoder_steps=n_encoder_steps, checkpoint_folder=checkpoint_folder
 	).build()
-	dataset = TimeSeriesAutoEncoderDataset(sample_size=n_units, seed=seed)
+	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed)
 	dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=0)
 	trainer = nt.Trainer(
 		spikes_auto_encoder,
-		callbacks=[checkpoint_manager]
+		callbacks=([checkpoint_manager] if load_and_save else None),
+		optimizer=torch.optim.AdamW(spikes_auto_encoder.parameters(), lr=1e-3, weight_decay=0.0),
 	)
 	history = trainer.train(dataloader, n_iterations=n_iterations, load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR)
 	return AutoEncoderTrainingOutput(spikes_auto_encoder=spikes_auto_encoder, history=history, dataset=dataset)
 
 
 if __name__ == '__main__':
-	for s_type in [nt.SpyLIFLayer, nt.LIFLayer, nt.ALIFLayer]:
+	for s_type in [
+		nt.SpyLIFLayer,
+		# nt.LIFLayer,
+		# nt.ALIFLayer,
+	]:
 		for n_u in [
-			# 2, 16,
-			128,
-			# 256, 1024
+			# 2,
+			# 16,
+			# 128,
+			256,
+			# 1024
 		]:
 			for n_t in [
 				# 2,
 				# 4,
-				# 8,
+				8,
 				# 16,
 				# 32,
-				64,
+				# 64,
 				# 128,
 				# 256, 512, 1024
 			]:
@@ -234,7 +245,8 @@ if __name__ == '__main__':
 					n_units=n_u,
 					n_encoder_steps=n_t,
 					batch_size=256,
-					n_iterations=512,
+					n_iterations=1024,
+					# load_and_save=False,
 				)
 				show_prediction(
 					auto_encoder_training_output.dataset.data,

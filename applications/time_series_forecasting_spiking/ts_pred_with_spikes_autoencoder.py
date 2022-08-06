@@ -9,8 +9,8 @@ from applications.time_series_forecasting_spiking.lif_auto_encoder import train_
 from neurotorch.transforms import ConstantValuesTransform
 
 n_units = 128
-n_encoder_steps = 8
-n_iterations = 128
+n_encoder_steps = 16
+n_iterations = 256
 encoder_type = nt.SpyLIFLayer
 
 auto_encoder_training_output = train_auto_encoder(
@@ -47,6 +47,8 @@ lif_layer = encoder_type(
 	),
 	output_size=n_units,
 	use_recurrent_connection=False,
+	learning_type=nt.LearningType.BPTT,
+	name="predictor",
 ).build()
 all_parameters = [
 	*list(lif_layer.parameters()),
@@ -81,9 +83,9 @@ def predict(network):
 
 
 def train(network):
-	loss_schedule = np.linspace(-0.5, 0.99, num=3)
+	loss_schedule = np.linspace(-0.5, 0.99, num=6)
 	curr_stage = 0
-	curr_lr = 1e-3
+	curr_lr = 1e-2
 	lr_history = []
 	history = []
 	optimizer = torch.optim.AdamW(all_parameters, lr=curr_lr, maximize=True, weight_decay=0.0)

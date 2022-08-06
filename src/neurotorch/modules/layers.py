@@ -977,7 +977,7 @@ class LILayer(BaseNeuronsLayer):
 	def initialize_weights_(self):
 		super(LILayer, self).initialize_weights_()
 		if "bias_weights" in self.kwargs:
-			self.forward_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
+			self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
 		else:
 			torch.nn.init.constant_(self.bias_weights, 0.0)
 

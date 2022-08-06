@@ -53,16 +53,22 @@ class SpikesAutoEncoder(nt.SequentialModel):
 		self.n_encoder_steps = n_encoder_steps
 		spikes_encoder = encoder_type(
 			n_units, n_units,
+			forward_weights=np.random.random((n_units, n_units)) * 1.5,
+			learning_type=nt.LearningType.BPTT,
 			use_recurrent_connection=False,
 			name='encoder'
 		).build()
+		conv = torch.nn.Conv1d(
+			n_units, n_units, n_encoder_steps,
+			stride=n_encoder_steps,
+			bias=False
+		)
+		torch.nn.init.constant_(conv.weight, 1.0/n_encoder_steps)
+		# torch.nn.init.constant_(conv.weight, 1.0)
+		conv.requires_grad_(False)
 		spikes_decoder = torch.nn.Sequential(
 			torchvision.ops.Permute([0, 2, 1]),
-			torch.nn.Conv1d(
-				n_units, n_units, n_encoder_steps,
-				stride=n_encoder_steps,
-				bias=False
-			),
+			conv,
 			torchvision.ops.Permute([0, 2, 1]),
 		)
 		super(SpikesAutoEncoder, self).__init__(
@@ -78,19 +84,33 @@ class SpikesAutoEncoder(nt.SequentialModel):
 		self.spikes_encoder = spikes_encoder
 		self.spikes_decoder = spikes_decoder
 	
+	def encode(self, x: torch.Tensor) -> torch.Tensor:
+		x = self._inputs_to_dict(x)
+		x = self.apply_input_transform(x)
+		x = x[self.spikes_encoder.name]
+		out, hh = [], None
+		for t in range(x.shape[1]):
+			out_t, hh = self.spikes_encoder(x[:, t], hh)
+			out.append(out_t)
+		return torch.stack(out, dim=1)
+	
+	def decode(self, x: torch.Tensor):
+		return self.spikes_decoder(x)
+	
 
 def show_prediction(time_series, auto_encoder: SpikesAutoEncoder):
 	target = nt.to_tensor(time_series, dtype=torch.float32)
 	
-	out = auto_encoder(torch.unsqueeze(target, dim=1))[0]
-	if isinstance(out, dict):
-		out = out[list(out.keys())[0]]
-	
+	spikes = auto_encoder.encode(torch.unsqueeze(target, dim=1))
+	out = auto_encoder.decode(spikes)
+	spikes = torch.squeeze(spikes).detach().cpu().numpy()
 	predictions = torch.squeeze(out.detach().cpu())
 	target = torch.squeeze(target.detach().cpu())
+	
 	errors = torch.squeeze(predictions - target.to(predictions.device))**2
 	mse_loss = torch.nn.MSELoss()(predictions, target.to(predictions.device))
 	pVar = 1 - mse_loss / torch.var(target.to(mse_loss.device))
+	
 	fig, axes = plt.subplots(3, 1, figsize=(15, 8))
 	axes[0].plot(errors.detach().cpu().numpy())
 	axes[0].set_xlabel("Time [-]")
@@ -105,23 +125,49 @@ def show_prediction(time_series, auto_encoder: SpikesAutoEncoder):
 	predictions = torch.squeeze(predictions).numpy().T
 	target = torch.squeeze(target).numpy().T
 	
-	axes[1].plot(predictions[indices[0]], label="Prediction")
-	axes[1].plot(target[indices[0]], label="Target")
-	axes[1].set_xlabel("Time [-]")
-	axes[1].set_ylabel("Activity [-]")
-	axes[1].set_title("Best Prediction vs Target")
-	axes[1].legend()
-	
-	axes[2].plot(predictions[indices[-1]], label="Prediction")
-	axes[2].plot(target[indices[-1]], label="Target")
-	axes[2].set_xlabel("Time [-]")
-	axes[2].set_ylabel("Activity [-]")
-	axes[2].set_title("Worst Prediction vs Target")
-	axes[2].legend()
+	best_idx, worst_idx = indices[0], indices[-1]
+	_show_single_preds(
+		auto_encoder, axes[1], predictions[best_idx], target[best_idx], spikes[:, :, best_idx],
+		title="Best reconstruction"
+	)
+	_show_single_preds(
+		auto_encoder, axes[2], predictions[worst_idx], target[worst_idx], spikes[:, :, worst_idx],
+		title="Worst reconstruction"
+	)
 	
 	fig.set_tight_layout(True)
 	plt.show()
-	
+
+
+def _show_single_preds(auto_encoder, ax, predictions, target, spikes, title=""):
+	y_max = max(target.max(), predictions.max())
+	x_scatter_space = np.linspace(0, len(target), num=auto_encoder.n_encoder_steps * len(target))
+	x_scatter_spikes = []
+	x_scatter_zeros = []
+	for i, xs in enumerate(x_scatter_space):
+		if np.isclose(
+				spikes[i // auto_encoder.n_encoder_steps][i % auto_encoder.n_encoder_steps],
+				1.0
+		):
+			x_scatter_spikes.append(xs)
+		else:
+			x_scatter_zeros.append(xs)
+	ax.plot(predictions, label="Prediction")
+	ax.plot(target, label="Target")
+	print(f"{len(x_scatter_spikes) = }, {np.max(spikes) = }, {np.min(spikes) = }")
+	ax.scatter(
+		x_scatter_spikes, y=[y_max*1.1] * len(x_scatter_spikes),
+		label="Latent space", c='k', marker='|', linewidths=0.5
+	)
+	# ax.scatter(
+	# 	x_scatter_zeros, y=[y_max*1.1] * len(x_scatter_zeros),
+	# 	c='k', marker='.', s=0.05
+	# )
+	ax.set_xlabel("Time [-]")
+	ax.set_ylabel("Activity [-]")
+	ax.set_title(title)
+	ax.legend()
+
 
 class AutoEncoderTrainingOutput(NamedTuple):
 	spikes_auto_encoder: SpikesAutoEncoder
@@ -145,15 +191,28 @@ def train_auto_encoder(
 	).build()
 	dataset = TimeSeriesAutoEncoderDataset(sample_size=n_units, seed=seed)
 	dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=0)
-	trainer = nt.Trainer(spikes_auto_encoder, callbacks=[checkpoint_manager])
+	trainer = nt.Trainer(
+		spikes_auto_encoder,
+		# callbacks=[checkpoint_manager]
+	)
 	history = trainer.train(dataloader, n_iterations=n_iterations, load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR)
 	return AutoEncoderTrainingOutput(spikes_auto_encoder=spikes_auto_encoder, history=history, dataset=dataset)
 
 
 if __name__ == '__main__':
-	for s_type in [nt.SpyLIFLayer, nt.LILayer, nt.ALIFLayer]:
-		for n_u in [2, 16, 128, 256, 1024]:
-			for n_t in [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]:
+	for s_type in [nt.SpyLIFLayer, nt.LIFLayer, nt.ALIFLayer]:
+		for n_u in [
+			# 2, 16,
+			128,
+			# 256, 1024
+		]:
+			for n_t in [
+				# 2, 4,
+				# 8,
+				# 16,
+				32,
+				# 64, 128, 256, 512, 1024
+			]:
 				auto_encoder_training_output = train_auto_encoder(
 					encoder_type=s_type,
 					n_units=n_u,
@@ -161,10 +220,10 @@ if __name__ == '__main__':
 					batch_size=256,
 					n_iterations=256,
 				)
-				# show_prediction(
-				# 	auto_encoder_training_output.dataset.data,
-				# 	auto_encoder_training_output.spikes_auto_encoder
-				# )
+				show_prediction(
+					auto_encoder_training_output.dataset.data,
+					auto_encoder_training_output.spikes_auto_encoder
+				)
 				# auto_encoder_training_output.history.plot(show=True)
 
 

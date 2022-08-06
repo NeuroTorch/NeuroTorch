@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from typing import NamedTuple, Type
 
 import psutil
 import torchvision
@@ -36,14 +36,22 @@ class TimeSeriesAutoEncoderDataset(Dataset):
 		return torch.unsqueeze(self.data[item], dim=0), torch.unsqueeze(self.data[item], dim=0)
 	
 
-class SpyLIFAutoEncoder(nt.SequentialModel):
+class SpikesAutoEncoder(nt.SequentialModel):
 	def __new__(cls, *args, **kwargs):
 		return object.__new__(cls)
 	
-	def __init__(self, n_units, n_encoder_steps, *args, **kwargs):
+	def __init__(
+			self,
+			encoder_type: Type[nt.modules.BaseLayer],
+			n_units: int,
+			n_encoder_steps: int,
+			*args,
+			**kwargs
+	):
+		self.encoder_type = encoder_type
 		self.n_units = n_units
 		self.n_encoder_steps = n_encoder_steps
-		spikes_encoder = nt.ALIFLayer(
+		spikes_encoder = encoder_type(
 			n_units, n_units,
 			use_recurrent_connection=False,
 			name='encoder'
@@ -57,7 +65,7 @@ class SpyLIFAutoEncoder(nt.SequentialModel):
 			),
 			torchvision.ops.Permute([0, 2, 1]),
 		)
-		super(SpyLIFAutoEncoder, self).__init__(
+		super(SpikesAutoEncoder, self).__init__(
 			input_transform=[
 				nt.transforms.ConstantValuesTransform(
 					n_steps=n_encoder_steps,
@@ -71,7 +79,7 @@ class SpyLIFAutoEncoder(nt.SequentialModel):
 		self.spikes_decoder = spikes_decoder
 	
 
-def show_prediction(time_series, auto_encoder):
+def show_prediction(time_series, auto_encoder: SpikesAutoEncoder):
 	target = nt.to_tensor(time_series, dtype=torch.float32)
 	
 	out = auto_encoder(torch.unsqueeze(target, dim=1))[0]
@@ -87,7 +95,10 @@ def show_prediction(time_series, auto_encoder):
 	axes[0].plot(errors.detach().cpu().numpy())
 	axes[0].set_xlabel("Time [-]")
 	axes[0].set_ylabel("Squared Error [-]")
-	axes[0].set_title(f"pVar: {pVar.detach().cpu().item():.4f}, n encoder steps: {auto_encoder.n_encoder_steps}")
+	axes[0].set_title(
+		f"Encoder: {auto_encoder.encoder_type.__name__}<{auto_encoder.n_units}u, {auto_encoder.n_encoder_steps}t>, "
+		f"pVar: {pVar.detach().cpu().item():.3f}, "
+	)
 	
 	mean_errors = torch.mean(errors, dim=0)
 	mean_error_sort, indices = torch.sort(mean_errors)
@@ -113,16 +124,24 @@ def show_prediction(time_series, auto_encoder):
 	
 
 class AutoEncoderTrainingOutput(NamedTuple):
-	spikes_auto_encoder: SpyLIFAutoEncoder
+	spikes_auto_encoder: SpikesAutoEncoder
 	history: nt.TrainingHistory
 	dataset: TimeSeriesAutoEncoderDataset
 	
-	
-def train_auto_encoder(n_units, n_encoder_steps, batch_size, n_iterations, seed: int = 0):
-	checkpoint_folder = f"checkpoints/SpyLIFAutoEncoder_{n_units}_{n_encoder_steps}_{batch_size}_{n_iterations}_{seed}"
+
+def train_auto_encoder(
+		encoder_type: Type[nt.modules.BaseLayer],
+		n_units: int,
+		n_encoder_steps: int,
+		batch_size: int,
+		n_iterations: int,
+		seed: int = 0
+) -> AutoEncoderTrainingOutput:
+	params_str = f"{encoder_type.__name__}_{n_units}_{n_encoder_steps}_{batch_size}_{n_iterations}_{seed}"
+	checkpoint_folder = f"checkpoints/SpikesAutoEncoder_{params_str}"
 	checkpoint_manager = nt.CheckpointManager(checkpoint_folder, metric="train_loss", minimise_metric=True, save_freq=-1)
-	spikes_auto_encoder = SpyLIFAutoEncoder(
-		n_units, n_encoder_steps=n_encoder_steps, checkpoint_folder=checkpoint_folder
+	spikes_auto_encoder = SpikesAutoEncoder(
+		encoder_type, n_units, n_encoder_steps=n_encoder_steps, checkpoint_folder=checkpoint_folder
 	).build()
 	dataset = TimeSeriesAutoEncoderDataset(sample_size=n_units, seed=seed)
 	dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=0)
@@ -132,10 +151,21 @@ def train_auto_encoder(n_units, n_encoder_steps, batch_size, n_iterations, seed:
 
 
 if __name__ == '__main__':
-	for n in [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]:
-		auto_encoder_training_output = train_auto_encoder(n_units=128, n_encoder_steps=n, batch_size=256, n_iterations=256)
-		show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
-	# auto_encoder_training_output.history.plot(show=True)
+	for s_type in [nt.SpyLIFLayer, nt.LILayer, nt.ALIFLayer]:
+		for n_u in [2, 16, 128, 256, 1024]:
+			for n_t in [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]:
+				auto_encoder_training_output = train_auto_encoder(
+					encoder_type=s_type,
+					n_units=n_u,
+					n_encoder_steps=n_t,
+					batch_size=256,
+					n_iterations=256,
+				)
+				# show_prediction(
+				# 	auto_encoder_training_output.dataset.data,
+				# 	auto_encoder_training_output.spikes_auto_encoder
+				# )
+				# auto_encoder_training_output.history.plot(show=True)
 
 
 

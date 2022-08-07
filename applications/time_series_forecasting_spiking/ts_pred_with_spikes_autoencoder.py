@@ -33,10 +33,10 @@ ws_ts = TimeSeriesDataset(
 
 spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
 spikes_encoder = auto_encoder_training_output.spikes_auto_encoder.spikes_encoder
-# spikes_encoder.learning_type = nt.LearningType.NONE
-# spikes_encoder.requires_grad_(False)
+spikes_encoder.learning_type = nt.LearningType.NONE
+spikes_encoder.requires_grad_(False)
 spikes_decoder = auto_encoder_training_output.spikes_auto_encoder.spikes_decoder
-# spikes_decoder.requires_grad_(False)
+spikes_decoder.requires_grad_(False)
 
 lif_layer = encoder_type(
 	input_size=nt.Size(
@@ -83,7 +83,7 @@ def predict(network):
 
 
 def train(network):
-	loss_schedule = np.linspace(-0.5, 0.99, num=6)
+	loss_schedule = np.linspace(-0.99, 0.99, num=6)
 	curr_stage = 0
 	curr_lr = 1e-2
 	lr_history = []

@@ -897,7 +897,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 
 	def initialize_weights_(self):
 		"""
-		Initialize the parameters (wights) that will be trained.
+		Initialize the parameters (weights) that will be trained.
 		"""
 		if "forward_weights" in self.kwargs:
 			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
@@ -930,7 +930,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		"""
 		Forward pass
 		With Euler discretisation, Wilson-Cowan equation becomes:
-		output = input * (1 - dt/tau) + dt/tau * (1 - r @ input) * sigmoid(forward_weights @ input - mu)
+		output = input * (1 - dt/tau) + dt/tau * (1 - input @ r) * sigmoid(input @ forward_weight - mu)
 		:param inputs: time series at a time t of shape (batch_size, number of neurons)
 			Remark: if you use to compute a time series, use batch_size = 1
 		:param state: State of the layer (only for SNN -> not use for RNN)

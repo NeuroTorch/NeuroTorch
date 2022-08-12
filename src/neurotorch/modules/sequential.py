@@ -770,6 +770,7 @@ class SequentialModel(BaseModel):
 		:return: the prediction trace.
 		"""
 		foresight_time_steps = kwargs.get('foresight_time_steps', self.foresight_time_steps)
+		foresight_time_steps = self.foresight_time_steps
 		outputs_trace, hidden_states = self(inputs.to(self.device), **kwargs)
 		if isinstance(outputs_trace, dict):
 			outputs_trace = {

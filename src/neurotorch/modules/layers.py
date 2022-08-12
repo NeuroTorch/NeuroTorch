@@ -870,6 +870,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.learn_r = self.kwargs["learn_r"]
 
 	def _set_default_kwargs(self):
+		self.kwargs.setdefault("forward_weights", None)
 		self.kwargs.setdefault("std_weight", 1.0)
 		self.kwargs.setdefault("mu", 0.0)
 		self.kwargs.setdefault("tau", 1.0)

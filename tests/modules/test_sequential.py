@@ -453,6 +453,41 @@ class TestSequential(unittest.TestCase):
 				f"{key} is not in the output layers {model.input_layers.keys()}"
 			)
 			self.assertIn(trans, ravel_compose_transforms(value))
+	
+	def test_get_prediction_trace_forward(self):
+		model = SequentialModel(
+			layers=[
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+				LILayer(Dimension(10, DimensionProperty.NONE), 10),
+			],
+			foresight_time_steps=100,
+		)
+		model.build()
+		
+		self.assertEqual(model.foresight_time_steps, 100)
+
+		x = torch.randn(1, 100, 10)
+		y = model.get_prediction_trace(x)
+		self.assertTrue(y.requires_grad)
+		self.assertEqual(y.shape, torch.Size([1, model.foresight_time_steps, 10]))
+		
+		x = torch.randn(1, 1000, 10)
+		y = model.get_prediction_trace(x)
+		self.assertTrue(y.requires_grad)
+		self.assertEqual(y.shape, torch.Size([1, model.foresight_time_steps, 10]))
+		
+		x = torch.randn(1, 1000, 10)
+		y = model.get_prediction_trace(x, foresight_time_steps=50)
+		self.assertTrue(y.requires_grad)
+		self.assertEqual(y.shape, torch.Size([1, 50, 10]))
+		
+		x = torch.randn(1, 1000, 10)
+		y = model.get_prediction_trace(x, foresight_time_steps=None)
+		self.assertTrue(y.requires_grad)
+		self.assertEqual(y.shape, torch.Size([1, model.foresight_time_steps, 10]))
 
 	def test_if_grad(self):
 		model = SequentialModel(

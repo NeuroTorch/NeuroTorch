@@ -22,6 +22,7 @@ class TimeSeriesDataset(Dataset):
 			target_transform: Optional[torch.nn.Module] = None,
 			n_units: Optional[int] = None,
 			units: Optional[Iterable[int]] = None,
+			n_time_steps: Optional[int] = None,
 			seed : int = 0
 	):
 		super().__init__()
@@ -40,9 +41,12 @@ class TimeSeriesDataset(Dataset):
 			n_units = 128
 			units = random_generator.randint(self.n_neurons, size=n_units)
 		
+		if n_time_steps is not None:
+			self.n_time_steps = n_time_steps
+		
 		self.n_units = n_units
 		self.units_indexes = units
-		self.data = self.ts[self.units_indexes, :]
+		self.data = self.ts[self.units_indexes, :self.n_time_steps]
 		self.sigma = 30
 		
 		for neuron in range(self.data.shape[0]):

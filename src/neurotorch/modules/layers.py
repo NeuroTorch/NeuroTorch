@@ -73,7 +73,7 @@ class BaseLayer(torch.nn.Module):
 		self.reset_regularization_loss()
 
 	@property
-	def input_size(self):
+	def input_size(self) -> Optional[Dimension]:
 		if not hasattr(self, "_input_size"):
 			return None
 		return self._input_size
@@ -83,7 +83,7 @@ class BaseLayer(torch.nn.Module):
 		self._input_size = self._format_size(size)
 
 	@property
-	def output_size(self):
+	def output_size(self) -> Optional[Dimension]:
 		if not hasattr(self, "_output_size"):
 			return None
 		return self._output_size
@@ -144,6 +144,7 @@ class BaseLayer(torch.nn.Module):
 	def device(self, device: torch.device):
 		"""
 		Set the device of the layer and move all the parameters to the new device.
+		
 		:param device: The device to set.
 		:return: None
 		"""
@@ -158,7 +159,7 @@ class BaseLayer(torch.nn.Module):
 		_repr += f"[{self.learning_type}]"
 		return _repr
 
-	def _format_size(self, size: Optional[SizeTypes]) -> Optional[DimensionsLike]:
+	def _format_size(self, size: Optional[SizeTypes]) -> Optional[Dimension]:
 		# TODO: must accept multiple time dimensions
 		if size is not None:
 			if isinstance(size, Iterable):
@@ -247,6 +248,7 @@ class BaseLayer(torch.nn.Module):
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function. This method is called at the end of each
 		forward call automatically by the BaseLayer class.
+		
 		:param state: The current state of the layer.
 		:param args: Other positional arguments.
 		:param kwargs: Other keyword arguments.
@@ -257,6 +259,7 @@ class BaseLayer(torch.nn.Module):
 	def reset_regularization_loss(self):
 		"""
 		Reset the regularization loss to zero.
+		
 		:return: None
 		"""
 		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
@@ -265,6 +268,7 @@ class BaseLayer(torch.nn.Module):
 		"""
 		Get and reset the regularization loss for this layer. The regularization loss will be reset by the
 		reset_regularization_loss method after it is returned.
+		
 		:return: The regularization loss.
 		"""
 		loss = self.get_regularization_loss()
@@ -409,6 +413,7 @@ class LIFLayer(BaseNeuronsLayer):
 		Create an empty state in the following form:
 			([membrane potential of shape (batch_size, self.output_size)],
 			[spikes of shape (batch_size, self.output_size)])
+			
 		:param batch_size: The size of the current batch.
 		:return: The current state.
 		"""
@@ -424,6 +429,7 @@ class LIFLayer(BaseNeuronsLayer):
 		"""
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function.
+		
 		:param state: The current state of the layer.
 		:return: The updated regularization loss.
 		"""

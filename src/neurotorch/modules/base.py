@@ -12,7 +12,7 @@ from ..callbacks import CheckpointManager, LoadCheckpointMode
 from ..dimension import DimensionLike, SizeTypes
 from ..transforms import to_tensor
 from ..transforms.wrappers import CallableToModuleWrapper
-from ..transforms.base import IdentityTransform, ToDevice
+from ..transforms.base import IdentityTransform, ToDevice, ToTensor
 from ..utils import ravel_compose_transforms, list_of_callable_to_sequential
 
 
@@ -129,6 +129,7 @@ class BaseModel(torch.nn.Module):
 		self._device = device
 		self._remove_to_device_transform_()
 		self._add_to_device_transform_()
+		self.to(device)
 
 	def _make_input_transform(
 			self,
@@ -241,7 +242,7 @@ class BaseModel(torch.nn.Module):
 			transform_keys = []
 		return {
 			in_name: Compose([
-				Lambda(lambda a: to_tensor(a, dtype=torch.float32)),
+				ToTensor(dtype=torch.float32),
 			])
 			for in_name in transform_keys
 		}
@@ -320,7 +321,7 @@ class BaseModel(torch.nn.Module):
 			}
 		self.input_sizes = {k: v.shape[1:] for k, v in inputs.items()}
 
-	def build(self, *args, **kwargs):
+	def build(self, *args, **kwargs) -> 'BaseModel':
 		"""
 		Build the network.
 		:param args:
@@ -335,6 +336,8 @@ class BaseModel(torch.nn.Module):
 		self.input_transform: Dict[str, Callable] = self._make_input_transform(self._given_input_transform)
 		self.output_transform: Dict[str, Callable] = self._make_output_transform(self._given_output_transform)
 		self._add_to_device_transform_()
+		self.device = self._device
+		return self
 
 	def __call__(self, inputs: Union[Dict[str, Any], torch.Tensor], *args, **kwargs):
 		if not self._is_built:

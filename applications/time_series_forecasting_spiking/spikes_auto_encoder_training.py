@@ -341,7 +341,7 @@ def train_all_params(
 					verbose=verbose,
 					force_overwrite=force_overwrite,
 				)
-				if str(hash_params(params)) in df["checkpoints"].values:
+				if result.checkpoints_name in df["checkpoints"].values:
 					# remove from df if already exists
 					df = df[df["checkpoints"] != result.checkpoints_name]
 				df = pd.concat(
@@ -353,7 +353,7 @@ def train_all_params(
 							pVar=[result.pVar],
 						)
 					)], ignore_index=True,
-					)
+				)
 				df.to_csv(results_path, index=False)
 				p_bar.set_postfix(
 					params=params,

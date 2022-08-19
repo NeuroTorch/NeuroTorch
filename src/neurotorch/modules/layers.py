@@ -214,7 +214,7 @@ class BaseLayer(torch.nn.Module):
 			raise ValueError("output_size must be specified before the forward call.")
 	
 	def __call__(self, inputs: torch.Tensor, *args, **kwargs):
-		inputs = inputs.to(self._device)
+		inputs = inputs.to(self.device)
 		if not self.is_built:
 			if not self.is_ready_to_build:
 				self.infer_sizes_from_inputs(inputs)
@@ -332,19 +332,25 @@ class BaseNeuronsLayer(BaseLayer):
 	def build(self) -> 'BaseNeuronsLayer':
 		super().build()
 		self.forward_weights = nn.Parameter(
-			torch.empty((int(self.input_size), int(self.output_size)), device=self._device, dtype=torch.float32),
+			torch.empty((int(self.input_size), int(self.output_size)), device=self.device, dtype=torch.float32),
 			requires_grad=self.requires_grad
 		)
 		if self.use_recurrent_connection:
 			self.recurrent_weights = nn.Parameter(
-				torch.empty((int(self.output_size), int(self.output_size)), device=self._device, dtype=torch.float32),
+				torch.empty((int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32),
 				requires_grad=self.requires_grad
 			)
 			if self.use_rec_eye_mask:
-				self.rec_mask = (1 - torch.eye(int(self.output_size), device=self._device, dtype=torch.float32))
+				self.rec_mask = nn.Parameter(
+					(1 - torch.eye(int(self.output_size), device=self.device, dtype=torch.float32)),
+					requires_grad=False
+				)
 			else:
-				self.rec_mask = torch.ones(
-					(int(self.output_size), int(self.output_size)), device=self._device, dtype=torch.float32
+				self.rec_mask = nn.Parameter(
+					torch.ones(
+						(int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32
+					),
+					requires_grad=False
 				)
 		self.initialize_weights_()
 		return self
@@ -377,9 +383,18 @@ class LIFLayer(BaseNeuronsLayer):
 			**kwargs
 		)
 
-		self.alpha = torch.tensor(np.exp(-dt / self.kwargs["tau_m"]), dtype=torch.float32, device=self.device)
-		self.threshold = torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device)
-		self.gamma = torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device)
+		self.alpha = nn.Parameter(
+			torch.tensor(np.exp(-dt / self.kwargs["tau_m"]), dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
+		self.threshold = nn.Parameter(
+			torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
+		self.gamma = nn.Parameter(
+			torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_m", 10.0 * self.dt)
@@ -507,10 +522,22 @@ class SpyLIFLayer(BaseNeuronsLayer):
 			**kwargs
 		)
 
-		self.alpha = torch.tensor(np.exp(-dt / self.kwargs["tau_syn"]), dtype=torch.float32, device=self.device)
-		self.beta = torch.tensor(np.exp(-dt / self.kwargs["tau_mem"]), dtype=torch.float32, device=self.device)
-		self.threshold = torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device)
-		self.gamma = torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device)
+		self.alpha = nn.Parameter(
+			torch.tensor(np.exp(-dt / self.kwargs["tau_syn"]), dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
+		self.beta = nn.Parameter(
+			torch.tensor(np.exp(-dt / self.kwargs["tau_mem"]), dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
+		self.threshold = nn.Parameter(
+			torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
+		self.gamma = nn.Parameter(
+			torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
 		self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
 		self._total_count = 0
@@ -575,7 +602,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		return self._regularization_loss
 
 	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
-		assert inputs.ndim == 2
+		assert inputs.ndim == 2, f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
 		batch_size, nb_features = inputs.shape
 		V, I_syn, Z = self._init_forward_state(state, batch_size)
 		input_current = torch.matmul(inputs, self.forward_weights)
@@ -615,10 +642,14 @@ class ALIFLayer(LIFLayer):
 			device=device,
 			**kwargs
 		)
-		self.beta = torch.tensor(self.kwargs["beta"], dtype=torch.float32, device=self._device)
-		if self.kwargs["learn_beta"]:
-			self.beta = torch.nn.Parameter(self.beta, requires_grad=True)
-		self.rho = torch.tensor(np.exp(-dt / self.kwargs["tau_a"]), dtype=torch.float32, device=self._device)
+		self.beta = nn.Parameter(
+			torch.tensor(self.kwargs["beta"], dtype=torch.float32, device=self.device),
+			requires_grad=self.kwargs["learn_beta"]
+		)
+		self.rho = nn.Parameter(
+			torch.tensor(np.exp(-dt / self.kwargs["tau_a"]), dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_m", 20.0 * self.dt)
@@ -918,7 +949,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			self.mu = torch.nn.Parameter(self.mu, requires_grad=self.requires_grad)
 			torch.nn.init.normal_(self.mu, mean=self.mean_mu, std=self.std_mu)
 		if self.learn_r:
-			_r = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self._device)
+			_r = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
 			torch.nn.init.normal_(_r, mean=self.mean_r, std=self.std_r)
 			self.r_sqrt = torch.nn.Parameter(torch.sqrt(torch.abs(_r)), requires_grad=self.requires_grad)
 		if self.learn_tau:

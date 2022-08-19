@@ -23,17 +23,21 @@ class TimeSeriesDataset(Dataset):
 			n_units: Optional[int] = None,
 			units: Optional[Iterable[int]] = None,
 			n_time_steps: Optional[int] = None,
-			seed : int = 0
+			seed : int = 0,
+			filename: Optional[str] = None,
+			**kwargs
 	):
 		super().__init__()
-		self.ts = np.load('timeSeries_2020_12_16_cr3_df.npy')
+		if filename is not None:
+			filename = 'timeSeries_2020_12_16_cr3_df.npy'
+		self.ts = np.load(filename)
 		self.n_neurons, self.n_time_steps = self.ts.shape
 		
 		random_generator = np.random.RandomState(seed)
 		
 		if units is not None:
 			units = list(units)
-			assert n_units is None
+			assert n_units is None or len(units) == n_units, "Number of units and number of units in units must be equal"
 			n_units = len(units)
 		elif n_units is not None:
 			units = random_generator.randint(self.n_neurons, size=n_units)
@@ -183,11 +187,15 @@ class WilsonCowanTimeSeries(Dataset):
 
 
 def get_dataloader(
+		dataset_name: str,
 		*args,
 		**kwargs
 ):
-	data_loader = DataLoader(WilsonCowanTimeSeries(*args, **kwargs), batch_size=1, shuffle=False)
-	return data_loader
+	if dataset_name.lower() in ["wilsoncowan", "wc"]:
+		return DataLoader(WilsonCowanTimeSeries(*args, **kwargs), batch_size=1, shuffle=False)
+	elif dataset_name.lower().endswith('.npy'):
+		return DataLoader(TimeSeriesDataset(filename=dataset_name, *args, **kwargs), batch_size=1, shuffle=False)
+	raise ValueError(f"Unknown dataset name: {dataset_name}")
 
 
 if __name__ == '__main__':

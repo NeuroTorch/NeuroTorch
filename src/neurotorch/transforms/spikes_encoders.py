@@ -32,6 +32,7 @@ class SpikesEncoder(torch.nn.Module):
 		:keyword spikes_layer_kwargs:
 			* <forward_weights>: Forward weights of the spikes layer. Default: eye(n_units).
 			* <use_recurrent_connection>: Whether to use a recurrent connection. Default: False.
+			* <name>: Name of the spikes layer. Default: "encoder".
 		
 		"""
 		super().__init__()
@@ -44,14 +45,11 @@ class SpikesEncoder(torch.nn.Module):
 			spikes_layer_kwargs = dict(
 				forward_weights=torch.eye(n_units),
 				use_recurrent_connection=False,
+				name='encoder',
 			)
 		
-		assert "forward_weights" not in spikes_layer_kwargs, \
-			"forward_weights cannot be specified since it must be eye(n_units)"
 		assert "learning_type" not in spikes_layer_kwargs, \
 			"learning_type cannot be specified since it must be the given value"
-		assert "use_recurrent_connection" not in spikes_layer_kwargs, \
-			"use_recurrent_connection cannot be specified since it must be False"
 		assert "dt" not in spikes_layer_kwargs, \
 			"dt cannot be specified since it must be the given dt"
 		assert "device" not in spikes_layer_kwargs, \
@@ -65,6 +63,10 @@ class SpikesEncoder(torch.nn.Module):
 			**spikes_layer_kwargs,
 		)
 		self.spikes_layer.build()
+	
+	def to(self, device):
+		self.spikes_layer.device = device
+		return super().to(device)
 
 	def forward(self, x: Any):
 		x = to_tensor(x).to(self.spikes_layer.device)
@@ -83,11 +85,12 @@ class LIFEncoder(SpikesEncoder):
 			n_steps: int,
 			n_units: int,
 			dt: float = 1e-3,
+			learning_type: LearningType = LearningType.NONE,
 			device: Optional[torch.device] = None,
 			spikes_layer_kwargs: Optional[dict] = None,
 	):
 		super().__init__(
-			n_steps, n_units, LIFLayer, dt, device, spikes_layer_kwargs,
+			n_steps, n_units, LIFLayer, dt, learning_type, device, spikes_layer_kwargs,
 		)
 
 
@@ -97,11 +100,12 @@ class SpyLIFEncoder(SpikesEncoder):
 			n_steps: int,
 			n_units: int,
 			dt: float = 1e-3,
+			learning_type: LearningType = LearningType.NONE,
 			device: Optional[torch.device] = None,
 			spikes_layer_kwargs: Optional[dict] = None,
 	):
 		super().__init__(
-			n_steps, n_units, SpyLIFLayer, dt, device, spikes_layer_kwargs,
+			n_steps, n_units, SpyLIFLayer, dt, learning_type, device, spikes_layer_kwargs,
 		)
 
 
@@ -111,11 +115,12 @@ class ALIFEncoder(SpikesEncoder):
 			n_steps: int,
 			n_units: int,
 			dt: float = 1e-3,
+			learning_type: LearningType = LearningType.NONE,
 			device: Optional[torch.device] = None,
 			spikes_layer_kwargs: Optional[dict] = None,
 	):
 		super().__init__(
-			n_steps, n_units, ALIFLayer, dt, device, spikes_layer_kwargs,
+			n_steps, n_units, ALIFLayer, dt, learning_type, device, spikes_layer_kwargs,
 		)
 
 

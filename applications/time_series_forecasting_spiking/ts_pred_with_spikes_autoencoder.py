@@ -4,19 +4,39 @@ import numpy as np
 import torch
 import tqdm
 from matplotlib import pyplot as plt
+from torch.utils.data import DataLoader
 
 import neurotorch as nt
 from applications.time_series_forecasting_spiking.dataset import TimeSeriesDataset
 from applications.time_series_forecasting_spiking.lif_auto_encoder import train_auto_encoder, show_prediction, \
 	show_single_preds
+from neurotorch.callbacks.base_callback import BaseCallback
 from neurotorch.transforms import ConstantValuesTransform
+
+
+class LinearLRScheduler(BaseCallback):
+	def __init__(self, lr_start: float, lr_end: float, n_steps: int):
+		super().__init__()
+		self.lr_start = lr_start
+		self.lr_end = lr_end
+		self.n_steps = n_steps
+		self.step = 0
+		self.lr = self.lr_start
+		self.lr_decay = (self.lr_start - self.lr_end) / self.n_steps
+	
+	def on_iteration_end(self, trainer):
+		trainer.training_history.append('lr', self.lr)
+		self.step += 1
+		self.lr = max(self.lr_start - self.step * self.lr_decay, self.lr_end)
+		for g in trainer.optimizer.param_groups:
+			g['lr'] = self.lr
 
 
 def create_dataset(auto_encoder_training_output, n_time_steps=None):
 	ws_ts = TimeSeriesDataset(
-		input_transform=ConstantValuesTransform(
-			n_steps=auto_encoder_training_output.spikes_auto_encoder.n_encoder_steps,
-		),
+		# input_transform=ConstantValuesTransform(
+		# 	n_steps=auto_encoder_training_output.spikes_auto_encoder.n_encoder_steps,
+		# ),
 		units=auto_encoder_training_output.dataset.units_indexes,
 		n_time_steps=n_time_steps,
 	)
@@ -59,7 +79,22 @@ def create_sequential_network(n_units, n_encoder_steps, encoder_type, n_aux_unit
 		input_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_encoder],
 		layers=[lif_layer],
 		output_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_decoder],
+		device=torch.device("cuda"),
+	).build()
+	auto_encoder_training_output.spikes_auto_encoder.device = seq.device
+	return seq, auto_encoder_training_output
+
+
+def predict_from_sequential(network, dataset, *args):
+	t0, target = dataset[0]
+	t0 = torch.unsqueeze(t0, 0)
+	target = torch.unsqueeze(target, 0)
+	n_encoder_steps = network.input_transform[network.get_layer().name][0].n_steps
+	preds, hh = network.get_prediction_trace(
+		t0, foresight_time_steps=(target.shape[1]-1)*n_encoder_steps, return_hidden_states=True
 	)
+	spikes_preds = hh[network.get_layer().name][-1]
+	return preds, spikes_preds
 
 
 def predict(network, spikes_auto_encoder, dataset=None, n_tbptt_steps=-1, criterion=None):
@@ -109,10 +144,6 @@ def predict(network, spikes_auto_encoder, dataset=None, n_tbptt_steps=-1, criter
 	return preds, spikes_preds
 
 
-def predict_from_sequential(network, dataset, *args):
-	pass
-
-
 def train(network, spikes_auto_encoder, dataset, n_iterations=256, desc=""):
 	loss_schedule = np.linspace(0.0, 0.98, num=5)
 	curr_stage = 0
@@ -123,8 +154,8 @@ def train(network, spikes_auto_encoder, dataset, n_iterations=256, desc=""):
 	
 	all_parameters = [
 		*list(network.parameters()),
-		*list(spikes_auto_encoder.spikes_encoder.parameters()),
-		*list(spikes_auto_encoder.spikes_decoder.parameters()),
+		# *list(spikes_auto_encoder.spikes_encoder.parameters()),
+		# *list(spikes_auto_encoder.spikes_decoder.parameters()),
 	]
 	criterion = nt.losses.PVarianceLoss()
 	optimizer = torch.optim.AdamW(all_parameters, lr=curr_lr, maximize=True, weight_decay=0.0)
@@ -135,7 +166,8 @@ def train(network, spikes_auto_encoder, dataset, n_iterations=256, desc=""):
 	p_bar = tqdm.tqdm(range(n_iterations), desc=desc)
 	for i in p_bar:
 		optimizer.zero_grad()
-		preds, spikes_preds = predict(network, spikes_auto_encoder, dataset=dataset, n_tbptt_steps=-1, criterion=criterion)
+		# preds, spikes_preds = predict(network, spikes_auto_encoder, dataset=dataset, n_tbptt_steps=-1, criterion=criterion)
+		preds, spikes_preds = predict_from_sequential(network, dataset, spikes_auto_encoder)
 		target_spikes = spikes_auto_encoder.encode(torch.permute(target, (1, 0, 2))).view(1, -1, target.shape[-1])
 		pVar = criterion(preds, target.to(preds.device))
 		latent_pVar = criterion(spikes_preds, target_spikes.to(spikes_preds.device))
@@ -166,7 +198,8 @@ def visualize_single_training(history: nt.TrainingHistory, network, spikes_auto_
 	target = torch.unsqueeze(target, 0)
 	history.plot(show=True)
 	
-	preds, spikes_preds = predict(network, spikes_auto_encoder, dataset)
+	# preds, spikes_preds = predict(network, spikes_auto_encoder, dataset)
+	preds, spikes_preds = predict_from_sequential(network, dataset)
 	spikes = torch.squeeze(spikes_preds).detach().cpu().numpy()
 	predictions = torch.squeeze(preds.detach().cpu())
 	target = torch.squeeze(target.detach().cpu())
@@ -218,11 +251,12 @@ def run_p_var_vs_n_encoder_steps(n_encoder_steps_space=None):
 		n_iterations = 256
 		encoder_type = nt.SpyLIFLayer
 		
-		lif_layer, auto_encoder_training_output = create_network(n_units, n_encoder_steps, encoder_type)
+		# lif_layer, auto_encoder_training_output = create_network(n_units, n_encoder_steps, encoder_type)
+		network, auto_encoder_training_output = create_sequential_network(n_units, n_encoder_steps, encoder_type)
 		dataset = create_dataset(auto_encoder_training_output, n_time_steps=4)
 		start_time = time.time()
 		hist, lr_hist = train(
-			lif_layer, auto_encoder_training_output.spikes_auto_encoder, dataset,
+			network, auto_encoder_training_output.spikes_auto_encoder, dataset,
 			n_iterations=n_iterations,
 			desc=f"n_encoder_steps: {n_encoder_steps}"
 		)
@@ -253,22 +287,45 @@ def main():
 	n_units = 128
 	n_aux_units = 0
 	n_encoder_steps = 32
-	n_iterations = 4096
+	n_iterations = 1024
 	n_time_steps = 16
 	encoder_type = nt.SpyLIFLayer
 	
-	lif_layer, auto_encoder_training_output = create_network(n_units, n_encoder_steps, encoder_type, n_aux_units)
+	# network, auto_encoder_training_output = create_network(n_units, n_encoder_steps, encoder_type, n_aux_units)
+	network, auto_encoder_training_output = create_sequential_network(n_units, n_encoder_steps, encoder_type)
 	# show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
 	dataset = create_dataset(auto_encoder_training_output, n_time_steps=n_time_steps)
+	data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+	checkpoint_manager = nt.CheckpointManager(
+		"checkpoints/ts_predictor",
+		metric="train_loss",
+		minimise_metric=False,
+		save_freq=-1,
+		save_best_only=False,
+	)
 	start_time = time.time()
-	history = train(
-		lif_layer, auto_encoder_training_output.spikes_auto_encoder, dataset,
-		n_iterations=n_iterations,
+	trainer = nt.RegressionTrainer(
+		network,
+		criterion=nt.losses.PVarianceLoss(),
+		optimizer=torch.optim.AdamW(network.parameters(), lr=5e-5, maximize=True, weight_decay=0.0),
+		callbacks=[LinearLRScheduler(5e-5, 1e-7, n_iterations), checkpoint_manager],
+		metrics=[],
+		foresight_time_steps=(n_time_steps-1)*n_encoder_steps,
+	)
+	history = trainer.train(
+		data_loader, n_iterations=n_iterations,
+		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
 		desc=f"Training [encoder: {encoder_type.__name__}, encoder_steps: {n_encoder_steps}, time_steps: {n_time_steps},"
 		f" units: {n_units}, aux_units: {n_aux_units}]"
 	)
+	# history = train(
+	# 	network, auto_encoder_training_output.spikes_auto_encoder, dataset,
+	# 	n_iterations=n_iterations,
+	# 	desc=f"Training [encoder: {encoder_type.__name__}, encoder_steps: {n_encoder_steps}, time_steps: {n_time_steps},"
+	# 	f" units: {n_units}, aux_units: {n_aux_units}]"
+	# )
 	print(f"Elapsed time: {time.time() - start_time :.2f} seconds")
-	visualize_single_training(history, lif_layer, auto_encoder_training_output.spikes_auto_encoder, dataset)
+	visualize_single_training(history, network, auto_encoder_training_output.spikes_auto_encoder, dataset)
 
 
 if __name__ == '__main__':

@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 
 import neurotorch as nt
 from applications.time_series_forecasting_spiking.dataset import TimeSeriesDataset
-from applications.time_series_forecasting_spiking.lif_auto_encoder import train_auto_encoder, show_prediction
+from applications.time_series_forecasting_spiking.spikes_auto_encoder_training import train_auto_encoder, visualize_reconstruction
 from neurotorch.transforms import ConstantValuesTransform
 
 n_units = 128

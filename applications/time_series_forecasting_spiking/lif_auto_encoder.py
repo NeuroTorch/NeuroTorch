@@ -1,6 +1,7 @@
 from typing import NamedTuple, Type, Union, Tuple, Any, Dict
 
 import psutil
+import tracemalloc
 import torchvision
 from matplotlib import pyplot as plt
 
@@ -31,7 +32,7 @@ class TimeSeriesAutoEncoderDataset(Dataset):
 			self.data[neuron, :] = self.data[neuron, :] / np.max(self.data[neuron, :])
 		
 		self.data = nt.to_tensor(self.data.T, dtype=torch.float32)
-
+	
 	def __len__(self):
 		return self.n_time_steps
 	
@@ -96,7 +97,7 @@ def show_single_preds(auto_encoder, ax, predictions, target, spikes, title=""):
 	ax.plot(predictions, label="Prediction")
 	ax.plot(target, label="Target")
 	ax.scatter(
-		x_scatter_spikes, y=[y_max*1.1] * len(x_scatter_spikes),
+		x_scatter_spikes, y=[y_max * 1.1] * len(x_scatter_spikes),
 		label="Latent space", c='k', marker='|', linewidths=0.5
 	)
 	# ax.scatter(
@@ -113,22 +114,25 @@ class AutoEncoderTrainingOutput(NamedTuple):
 	spikes_auto_encoder: SpikesAutoEncoder
 	history: nt.TrainingHistory
 	dataset: TimeSeriesAutoEncoderDataset
-	
+
 
 def train_auto_encoder(
 		encoder_type: Type[Union[nt.LIFLayer, nt.SpyLIFLayer, nt.ALIFLayer]],
 		n_units: int,
 		n_encoder_steps: int,
 		batch_size: int = 256,
-		n_iterations: int = 2048,
+		n_iterations: int = 4096,
 		seed: int = 0,
 		load_and_save: bool = True,
 ) -> AutoEncoderTrainingOutput:
 	params_str = f"{encoder_type.__name__}_{n_units}_{n_encoder_steps}_{batch_size}_{n_iterations}_{seed}"
 	checkpoint_folder = f"checkpoints/SpikesAutoEncoder_{params_str}"
-	checkpoint_manager = nt.CheckpointManager(checkpoint_folder, metric="train_loss", minimise_metric=True, save_freq=-1)
+	checkpoint_manager = nt.CheckpointManager(
+		checkpoint_folder, metric="train_loss", minimise_metric=True, save_freq=-1
+		)
 	spikes_auto_encoder = SpikesAutoEncoder(
-		n_units, n_encoder_steps=n_encoder_steps, encoder_type=encoder_type, checkpoint_folder=checkpoint_folder
+		n_units, n_encoder_steps=n_encoder_steps, encoder_type=encoder_type, checkpoint_folder=checkpoint_folder,
+		device=torch.device("cuda")
 	).build()
 	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed)
 	dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=0)
@@ -143,7 +147,41 @@ def train_auto_encoder(
 	return AutoEncoderTrainingOutput(spikes_auto_encoder=spikes_auto_encoder, history=history, dataset=dataset)
 
 
+def display_top(snapshot: tracemalloc.Snapshot, key_type='lineno', limit=3):
+	import linecache
+	import os
+	
+	snapshot = snapshot.filter_traces(
+		(
+			tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
+			tracemalloc.Filter(False, "<unknown>"),
+		)
+	)
+	top_stats = snapshot.statistics(key_type)
+	
+	print(f"Top {limit} lines")
+	for index, stat in enumerate(top_stats[:limit], 1):
+		frame = stat.traceback[0]
+		filename = os.sep.join(frame.filename.split(os.sep)[-2:])
+		print(
+			f"#{index:2d} {stat.size / 1024:>7.1f} KiB ({stat.size * 1e-9:.3f} GB) \n"
+			f"\t{filename}:{frame.lineno} "
+		)
+		line = linecache.getline(frame.filename, frame.lineno).strip()
+		if line:
+			print(f'\t> {line}')
+	
+	other = top_stats[limit:]
+	if other:
+		size = sum(stat.size for stat in other)
+		print(f"{len(other)} other: {size / 1024:.1f} KiB ({size * 1e-9:.3f} GB)")
+	total = sum(stat.size for stat in top_stats)
+	print(f"Total allocated size: {total / 1024:.1f} KiB ({total * 1e-9:.3f} GB)")
+
+
 if __name__ == '__main__':
+	tracemalloc.start()
+	
 	for s_type in [
 		nt.SpyLIFLayer,
 		# nt.LIFLayer,
@@ -175,13 +213,15 @@ if __name__ == '__main__':
 					n_encoder_steps=n_t,
 					batch_size=256,
 					n_iterations=4096,
-					load_and_save=False,
+					# load_and_save=False,
 				)
-				show_prediction(
-					auto_encoder_training_output.dataset.data,
-					auto_encoder_training_output.spikes_auto_encoder
-				)
-				# auto_encoder_training_output.history.plot(show=True)
-
-
+				# show_prediction(
+				# 	auto_encoder_training_output.dataset.data,
+				# 	auto_encoder_training_output.spikes_auto_encoder
+				# )
+			# auto_encoder_training_output.history.plot(show=True)
+	
+	snapshot = tracemalloc.take_snapshot()
+	tracemalloc.stop()
+	display_top(snapshot, limit=5)
 

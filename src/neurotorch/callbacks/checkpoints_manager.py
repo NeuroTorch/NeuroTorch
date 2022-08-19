@@ -93,6 +93,7 @@ class CheckpointManager(BaseCallback):
 			metric: str = "val_loss",
 			minimise_metric: bool = True,
 			save_freq: int = 1,
+			save_best_only: bool = False,
 			verbose: bool = False,
 	):
 		"""
@@ -104,6 +105,7 @@ class CheckpointManager(BaseCallback):
 		:param minimise_metric: Whether to minimise the metric or maximise it.
 		:param save_freq: The frequency at which to save checkpoints. If set to <= 0, will save at the end of the
 							training.
+		:param save_best_only: Whether to only save the best checkpoint.
 		:param verbose: Whether to print out the trace of the checkpoint manager.
 		"""
 		self.checkpoint_folder = checkpoint_folder
@@ -113,6 +115,9 @@ class CheckpointManager(BaseCallback):
 		self.metric = metric
 		self.minimise_metric = minimise_metric
 		self.save_freq = save_freq
+		self.save_best_only = save_best_only
+		if self.save_best_only:
+			raise NotImplementedError("save_best_only is not implemented yet")
 		self.curr_best_metric = np.inf if self.minimise_metric else -np.inf
 
 	@property

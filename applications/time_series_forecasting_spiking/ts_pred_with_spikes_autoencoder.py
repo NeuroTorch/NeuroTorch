@@ -8,28 +8,11 @@ from torch.utils.data import DataLoader
 
 import neurotorch as nt
 from applications.time_series_forecasting_spiking.dataset import TimeSeriesDataset
-from applications.time_series_forecasting_spiking.lif_auto_encoder import train_auto_encoder, show_prediction, \
+from applications.time_series_forecasting_spiking.spikes_auto_encoder_training import train_auto_encoder, visualize_reconstruction, \
 	show_single_preds
 from neurotorch.callbacks.base_callback import BaseCallback
+from neurotorch.callbacks.lr_schedulers import LinearLRScheduler
 from neurotorch.transforms import ConstantValuesTransform
-
-
-class LinearLRScheduler(BaseCallback):
-	def __init__(self, lr_start: float, lr_end: float, n_steps: int):
-		super().__init__()
-		self.lr_start = lr_start
-		self.lr_end = lr_end
-		self.n_steps = n_steps
-		self.step = 0
-		self.lr = self.lr_start
-		self.lr_decay = (self.lr_start - self.lr_end) / self.n_steps
-	
-	def on_iteration_end(self, trainer):
-		trainer.training_history.append('lr', self.lr)
-		self.step += 1
-		self.lr = max(self.lr_start - self.step * self.lr_decay, self.lr_end)
-		for g in trainer.optimizer.param_groups:
-			g['lr'] = self.lr
 
 
 def create_dataset(auto_encoder_training_output, n_time_steps=None):

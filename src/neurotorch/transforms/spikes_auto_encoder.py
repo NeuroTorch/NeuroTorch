@@ -41,13 +41,20 @@ class SpikesAutoEncoder(BaseModel):
 			spikes_decoder = self._create_default_decoder()
 		self.spikes_decoder = spikes_decoder
 	
+	@BaseModel.device.setter
+	def device(self, device: torch.device):
+		self.spikes_encoder.to(device)
+		self.spikes_decoder.to(device)
+		BaseModel.device.fset(self, device)
+	
 	def _create_default_encoder(self):
 		return SpikesEncoder(
 			n_steps=self.n_encoder_steps,
 			n_units=self.n_units,
 			spikes_layer_type=self.encoder_type,
 			learning_type=LearningType.BPTT,
-			spikes_layer_kwargs={'name': 'encoder'},
+			device=self.device,
+			# spikes_layer_kwargs={'name': 'encoder'},
 		)
 	
 	def _create_default_decoder(self):

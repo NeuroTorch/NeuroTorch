@@ -4,26 +4,35 @@ import shutil
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
-from typing import Any, Dict, Iterable, Type
+from typing import Any, Dict, Iterable, Type, Optional
 
 import numpy as np
 import pandas as pd
 import torch
 import torchvision
 import tqdm
+from matplotlib import pyplot as plt
+from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 
-from applications.fit_wilson_cowan_with_lif.dataset import get_dataloader
+from applications.time_series_forecasting_spiking.dataset import get_dataloader
 import neurotorch as nt
+from applications.time_series_forecasting_spiking.spikes_auto_encoder_training import (
+	train_auto_encoder,
+	show_single_preds,
+	visualize_reconstruction,
+)
 from neurotorch import Dimension, DimensionProperty, RegressionTrainer
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
+from neurotorch.callbacks.lr_schedulers import LinearLRScheduler
 from neurotorch.callbacks.training_visualization import TrainingHistoryVisualizationCallback
 from neurotorch.metrics import ClassificationMetrics, RegressionMetrics
 from neurotorch.modules import SequentialModel
 from neurotorch.modules.layers import LayerType, LayerType2Layer, LearningType
 from neurotorch.regularization import L1, L2, RegularizationList
 from neurotorch.trainers import ClassificationTrainer
-from neurotorch.utils import get_all_params_combinations, hash_params, save_params
+from neurotorch.transforms.spikes_auto_encoder import SpikesAutoEncoder
+from neurotorch.utils import get_all_params_combinations, hash_params, save_params, set_seed
 
 
 def get_training_params_space() -> Dict[str, Any]:
@@ -32,18 +41,32 @@ def get_training_params_space() -> Dict[str, Any]:
 	:return: The parameters space.
 	"""
 	return {
-		"n_steps": [
+		"dataset_name": [
+			"timeSeries_2020_12_16_cr3_df.npy"
+		],
+		"n_time_steps": [
 			# 8,
-			# 16,
+			16,
 			# 32,
 			# 64
-			100,
-			# 1_000
+			# 128,
+			# -1
 		],
-		"hidden_layer_type": [
-			LayerType.LIF,
-			LayerType.ALIF,
-			LayerType.SpyLIF,
+		"n_encoder_steps": [
+			8,
+			16,
+			32,
+			64,
+		],
+		"n_units": [
+			32,
+			128,
+			1024,
+		],
+		"encoder_type": [
+			nt.LIFLayer,
+			nt.ALIFLayer,
+			nt.SpyLIFLayer,
 		],
 		"optimizer": [
 			# "SGD",
@@ -52,12 +75,21 @@ def get_training_params_space() -> Dict[str, Any]:
 			# "RMSprop",
 			# "Adagrad",
 			# "Adadelta",
-			# "AdamW",
+			"AdamW",
 		],
 		"learning_rate": [
-			# 1e-2,
-			# 1e-3,
-			2e-4,
+			5e-5
+		],
+		"use_recurrent_connection": [
+			True,
+			False,
+		],
+		"dt": [
+			1e-3,
+			2e-2
+		],
+		"seed": [
+			0,
 		],
 	}
 
@@ -77,63 +109,50 @@ def get_optimizer(optimizer_name: str) -> Type[torch.optim.Optimizer]:
 
 def train_with_params(
 		params: Dict[str, Any],
-		t_0: np.ndarray,
-		forward_weights: np.ndarray,
-		mu: np.ndarray,
-		r: float,
-		tau: float,
-		n_iterations: int = 100,
+		n_iterations: int = 1024,
 		data_folder: str = "tr_results",
 		verbose: bool = False,
 		show_training: bool = False,
 		force_overwrite: bool = False,
-		seed: int = 42,
+		seed: int = 0,
 ):
-	torch.manual_seed(seed)
+	set_seed(seed)
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
 	os.makedirs(checkpoint_folder, exist_ok=True)
 	if verbose:
 		logging.info(f"Checkpoint folder: {checkpoint_folder}")
+	save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
 	
-	assert len(t_0) == forward_weights.shape[0] == forward_weights.shape[1] == params["n_units"]
-	
-	dataloader = get_dataloader(
-		n_steps=params["n_steps"],
-		dt=params["dt"],
-		t_0=t_0,
-		forward_weights=forward_weights,
-		spikes_transform=params["encoder"](
-			n_steps=params["n_encoder_steps"],
-			n_units=params["n_units"],
-			dt=params["dt"],
-		),
-		mu=mu,
-		r=r,
-		tau=tau,
+	auto_encoder_training_output = train_auto_encoder(**params)
+	visualize_reconstruction(
+		auto_encoder_training_output.dataset.data,
+		auto_encoder_training_output.spikes_auto_encoder,
+		filename=f"{checkpoint_folder}/autoencoder_reconstruction.png",
+		show=show_training,
 	)
-	spiking_foresight_steps = (params["n_steps"]-1)*params["n_encoder_steps"]
-	spiking_output_trace_steps = params["n_steps"]*params["n_encoder_steps"]
+	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
+	auto_encoder_training_output.spikes_auto_encoder.requires_grad_(False)
+	
+	dataloader = get_dataloader(units=auto_encoder_training_output.dataset.units_indexes, **params)
+	spiking_foresight_steps = (params["n_time_steps"]-1)*params["n_encoder_steps"]
 	network = SequentialModel(
+		input_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_encoder],
 		layers=[
-			LayerType2Layer[params["hidden_layer_type"]](
-				input_size=nt.Size([
-					Dimension(None, DimensionProperty.TIME),
-					Dimension(dataloader.dataset.n_units, DimensionProperty.NONE)
-				]),
-				output_size=dataloader.dataset.n_units,
-				use_recurrent_connection=False,
-				**params
+			params["encoder_type"](
+				input_size=nt.Size(
+					[
+						nt.Dimension(None, nt.DimensionProperty.TIME),
+						nt.Dimension(params["n_units"], nt.DimensionProperty.NONE)
+					]
+				),
+				output_size=params["n_units"],
+				use_recurrent_connection=params["use_recurrent_connection"],
+				learning_type=nt.LearningType.BPTT,
+				name="predictor",
 			),
 		],
-		output_transform=[torch.nn.Sequential(
-			torchvision.ops.Permute([0, 2, 1]),
-			torch.nn.Conv1d(
-				params["n_units"], params["n_units"], params["n_encoder_steps"],
-				stride=params["n_encoder_steps"]
-			),
-			torchvision.ops.Permute([0, 2, 1]),
-		)],
+		output_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_decoder],
 		name=f"network_{checkpoints_name}",
 		checkpoint_folder=checkpoint_folder,
 		foresight_time_steps=params.get("foresight_time_steps", spiking_foresight_steps),
@@ -141,9 +160,14 @@ def train_with_params(
 	network.build()
 	if verbose:
 		logging.info(f"\nNetwork:\n{network}")
-	checkpoint_manager = CheckpointManager(checkpoint_folder, metric="train_loss", minimise_metric=True)
-	save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
-	callbacks = [checkpoint_manager, ]
+	checkpoint_manager = nt.CheckpointManager(
+		checkpoint_folder,
+		metric="train_loss",
+		minimise_metric=False,
+		save_freq=-1,
+		save_best_only=False,
+	)
+	callbacks = [checkpoint_manager, LinearLRScheduler(5e-5, 1e-7, n_iterations)]
 	if show_training:
 		callbacks.append(TrainingHistoryVisualizationCallback("./temp/"))
 	regularization = RegularizationList([
@@ -154,13 +178,16 @@ def train_with_params(
 		model=network,
 		callbacks=callbacks,
 		# regularization=regularization,
+		criterion=nt.losses.PVarianceLoss(),
 		optimizer=get_optimizer(params.get("optimizer", "adam"))(
-			network.parameters(), lr=params.get("learning_rate", 2e-4), **params.get("optimizer_params", {})
+			network.parameters(), lr=params.get("learning_rate", 5e-5),
+			maximize=True, **params.get("optimizer_params", {})
 		),
 		# regularization_optimizer=torch.optim.Adam(regularization.parameters(), lr=params.get("learning_rate", 2e-4)),
-		lr=params.get("learning_rate", 2e-4),
+		lr=params.get("learning_rate", 5e-5),
 		# reg_lr=params.get("reg_lr", 2e-4),
-		foresight_time_steps=params["n_steps"],
+		foresight_time_steps=params.get("foresight_time_steps", spiking_foresight_steps),
+		metrics=[],
 		verbose=verbose,
 	)
 	history = trainer.train(
@@ -169,6 +196,8 @@ def train_with_params(
 		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR if not force_overwrite else None,
 		force_overwrite=force_overwrite,
 		exec_metrics_on_train=False,
+		desc=f"Training {spikes_auto_encoder.encoder_type.__name__}"
+		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
 	)
 	try:
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.BEST_ITR, verbose=verbose)
@@ -176,14 +205,74 @@ def train_with_params(
 		if verbose:
 			logging.info("No best checkpoint found. Loading last checkpoint instead.")
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.LAST_ITR, verbose=verbose)
-
+	visualize_forecasting(
+		network, spikes_auto_encoder, dataloader,
+		filename=f"{checkpoint_folder}/forecasting_visualization.png",
+		show=show_training,
+	)
 	y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(network, dataloader, verbose=verbose, desc=f"predictions")
 	return OrderedDict(dict(
 		network=network,
+		auto_encoder_training_output=auto_encoder_training_output,
 		checkpoints_name=checkpoints_name,
 		history=history,
 		pVar=RegressionMetrics.p_var(network, y_true=y_true, y_pred=y_pred),
 	))
+
+
+def visualize_forecasting(
+		network: nt.SequentialModel,
+		spikes_auto_encoder: SpikesAutoEncoder,
+		dataloader: DataLoader,
+		filename: Optional[str] = None,
+		show: bool = False,
+):
+	t0, target = next(iter(dataloader))
+	
+	n_encoder_steps = spikes_auto_encoder.n_encoder_steps
+	preds, hh = network.get_prediction_trace(
+		t0, foresight_time_steps=(target.shape[1] - 1) * n_encoder_steps, return_hidden_states=True
+	)
+	spikes_preds = hh[network.get_layer().name][-1]
+	
+	spikes = torch.squeeze(spikes_preds).detach().cpu().numpy()
+	predictions = torch.squeeze(preds.detach().cpu())
+	target = torch.squeeze(target.detach().cpu())
+	errors = torch.squeeze(predictions - target.to(predictions.device))**2
+	mse_loss = torch.nn.MSELoss()(predictions, target.to(predictions.device))
+	pVar = 1 - mse_loss / torch.var(target.to(mse_loss.device))
+	fig, axes = plt.subplots(3, 1, figsize=(12, 8))
+	axes[0].plot(errors.detach().cpu().numpy())
+	axes[0].set_xlabel("Time [-]")
+	axes[0].set_ylabel("Squared Error [-]")
+	axes[0].set_title(
+		f"Predictor: {spikes_auto_encoder.encoder_type.__name__}"
+		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>, "
+		f"pVar: {pVar.detach().cpu().item():.3f}, "
+	)
+	
+	mean_errors = torch.mean(errors, dim=0)
+	mean_error_sort, indices = torch.sort(mean_errors)
+	predictions = torch.squeeze(predictions).numpy().T
+	target = torch.squeeze(target).numpy().T
+	
+	best_idx, worst_idx = indices[0], indices[-1]
+	spikes = spikes.reshape(-1, spikes_auto_encoder.n_encoder_steps, spikes_auto_encoder.n_units)
+	show_single_preds(
+		spikes_auto_encoder, axes[1], predictions[best_idx], target[best_idx], spikes[:, :, best_idx],
+		title="Best Prediction"
+	)
+	show_single_preds(
+		spikes_auto_encoder, axes[2], predictions[worst_idx], target[worst_idx], spikes[:, :, worst_idx],
+		title="Worst Prediction"
+	)
+	
+	fig.set_tight_layout(True)
+	if filename is not None:
+		fig.savefig(filename)
+	if show:
+		plt.show()
+	plt.close(fig)
 
 
 def train_all_params(
@@ -198,6 +287,7 @@ def train_all_params(
 ):
 	"""
 	Train the network with all the parameters.
+	
 	:param n_iterations: The number of iterations to train the network.
 	:param batch_size: The batch size to use.
 	:param verbose: If True, print the progress.

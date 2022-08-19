@@ -8,3 +8,4 @@ checkpoints*
 *tr_test*
 logs
 *.npy
+spikes_autoencoder_checkpoints

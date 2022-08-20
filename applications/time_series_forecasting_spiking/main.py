@@ -1,12 +1,9 @@
 import pprint
 
-import numpy as np
 import torch
 from pythonbasictools import DeepLib, log_device_setup, logs_file_setup
 
 from applications.time_series_forecasting_spiking.results_generation import train_with_params
-from neurotorch.modules.layers import LayerType
-from neurotorch.transforms.spikes_encoders import LIFEncoder
 from neurotorch.utils import set_seed
 import neurotorch as nt
 

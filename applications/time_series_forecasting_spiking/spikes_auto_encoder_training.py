@@ -29,8 +29,10 @@ class TimeSeriesAutoEncoderDataset(Dataset):
 		self.random_state = np.random.RandomState(seed)
 		self.ts = np.load('timeSeries_2020_12_16_cr3_df.npy')
 		self.n_neurons, self.n_time_steps = self.ts.shape
-		self.sample_size = n_units
-		self.units_indexes = self.random_state.randint(self.n_neurons, size=self.sample_size)
+		if n_units <= 0:
+			n_units = self.n_neurons
+		self.n_units = n_units
+		self.units_indexes = self.random_state.randint(self.n_neurons, size=self.n_units)
 		self.data = self.ts[self.units_indexes, :]
 		self.sigma = 30
 		
@@ -54,15 +56,16 @@ def compute_reconstruction_pvar(
 ):
 	target = nt.to_tensor(time_series, dtype=torch.float32)
 	
-	spikes = auto_encoder.encode(torch.unsqueeze(target, dim=1))
-	out = auto_encoder.decode(spikes)
-	spikes = torch.squeeze(spikes).detach().cpu().numpy()
-	predictions = torch.squeeze(out.detach().cpu())
-	target = torch.squeeze(target.detach().cpu())
-	
-	errors = torch.squeeze(predictions - target.to(predictions.device))**2
-	mse_loss = torch.nn.MSELoss()(predictions, target.to(predictions.device))
-	pVar = 1 - mse_loss / torch.var(target.to(mse_loss.device))
+	with torch.no_grad():
+		spikes = auto_encoder.encode(torch.unsqueeze(target, dim=1))
+		out = auto_encoder.decode(spikes)
+		spikes = torch.squeeze(spikes).detach().cpu().numpy()
+		predictions = torch.squeeze(out.detach().cpu())
+		target = torch.squeeze(target.detach().cpu())
+		
+		errors = torch.squeeze(predictions - target.to(predictions.device))**2
+		mse_loss = torch.nn.MSELoss()(predictions, target.to(predictions.device))
+		pVar = 1 - mse_loss / torch.var(target.to(mse_loss.device))
 	return pVar.detach().cpu().item()
 
 
@@ -165,6 +168,8 @@ def train_auto_encoder(
 		**kwargs
 ) -> AutoEncoderTrainingOutput:
 	set_seed(seed)
+	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed)
+	n_units = dataset.n_units
 	params = dict(
 		encoder_type=encoder_type,
 		n_units=n_units,
@@ -181,11 +186,11 @@ def train_auto_encoder(
 	checkpoint_manager = nt.CheckpointManager(
 		checkpoint_folder, metric="train_loss", minimise_metric=True, save_freq=-1
 	)
-	spikes_auto_encoder = SpikesAutoEncoder(
-		n_units, n_encoder_steps=n_encoder_steps, encoder_type=encoder_type, checkpoint_folder=checkpoint_folder, dt=dt
-	).build()
-	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed)
 	dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=0)
+	spikes_auto_encoder = SpikesAutoEncoder(
+		n_units, n_encoder_steps=n_encoder_steps, encoder_type=encoder_type, checkpoint_folder=checkpoint_folder, dt=dt,
+		device=kwargs.get("device", torch.device("cuda:0" if torch.cuda.is_available() else "cpu"))
+	).build()
 	trainer = nt.Trainer(
 		spikes_auto_encoder,
 		callbacks=([checkpoint_manager] if load_and_save else None),
@@ -197,6 +202,7 @@ def train_auto_encoder(
 		n_iterations=n_iterations,
 		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR if not force_overwrite else None,
 		force_overwrite=force_overwrite,
+		desc=f"Training {checkpoints_name}:{encoder_type.__name__}<{n_units}u, {n_encoder_steps}t>",
 	)
 	visualize_reconstruction(
 		dataset.data, spikes_auto_encoder,
@@ -287,6 +293,7 @@ def train_all_params(
 		rm_data_folder_and_restart_all_training: bool = False,
 		force_overwrite: bool = False,
 		skip_if_exists: bool = False,
+		device: torch.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
 ):
 	"""
 	Train the network with all the parameters.
@@ -329,6 +336,8 @@ def train_all_params(
 			all_params_combinaison_dict, desc="Training all the parameters", position=0, disable=verbose
 	) as p_bar:
 		for i, params in enumerate(p_bar):
+			with torch.no_grad():
+				torch.cuda.empty_cache()
 			if str(hash_params(params)) in df["checkpoints"].values and skip_if_exists:
 				continue
 			# p_bar.set_description(f"Training {params}")
@@ -340,6 +349,7 @@ def train_all_params(
 					data_folder=data_folder,
 					verbose=verbose,
 					force_overwrite=force_overwrite,
+					device=device,
 				)
 				if result.checkpoints_name in df["checkpoints"].values:
 					# remove from df if already exists
@@ -357,10 +367,14 @@ def train_all_params(
 				df.to_csv(results_path, index=False)
 				p_bar.set_postfix(
 					params=params,
+					pVar=result.pVar,
 				)
-			except Exception as e:
-				logging.error(e)
-				continue
+			# except Exception as e:
+			# 	logging.error(e)
+			# 	continue
+			finally:
+				with torch.no_grad():
+					torch.cuda.empty_cache()
 	return df
 
 
@@ -368,15 +382,25 @@ if __name__ == '__main__':
 	logs_file_setup(__file__, add_stdout=False)
 	torch.cuda.set_per_process_memory_fraction(0.8)
 	log_device_setup(deepLib=DeepLib.Pytorch)
-	tracemalloc.start()
 	df_results = train_all_params(
 		training_params=get_training_params_space(),
 		verbose=False,
-		rm_data_folder_and_restart_all_training=False,
+		rm_data_folder_and_restart_all_training=True,
+		device=torch.device("cuda:0"),
 	)
 	logging.info(df_results)
 	
-	snapshot = tracemalloc.take_snapshot()
-	tracemalloc.stop()
-	display_top(snapshot, limit=5)
+	# tracemalloc.start()
+	# train_auto_encoder(
+	# 	nt.SpyLIFLayer, 128, 8,
+	# 	n_iterations=128,
+	# 	batch_size=512,
+	# 	data_folder="test_overflow",
+	# 	verbose=True,
+	# 	force_overwrite=True,
+	# 	device=torch.device("cuda:0"),
+	# )
+	# snapshot = tracemalloc.take_snapshot()
+	# tracemalloc.stop()
+	# display_top(snapshot, limit=5)
 

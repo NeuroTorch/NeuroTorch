@@ -52,6 +52,19 @@ class BaseLayer(torch.nn.Module):
 			device: Optional[torch.device] = None,
 			**kwargs
 	):
+		"""
+		Base class for all layers.
+		
+		:param input_size: The input size of the layer.
+		:param output_size: The output size of the layer.
+		:param name: The name of the layer.
+		:param learning_type: The learning type of the layer.
+		:param device: The device of the layer. Defaults to the current available device.
+		:param kwargs: Additional keyword arguments.
+		
+		:keyword regularize: Whether to regularize the layer. If True, the method `update_regularization_loss` will be
+		called after each forward pass. Defaults to False.
+		"""
 		super(BaseLayer, self).__init__()
 		self._is_built = False
 		self._name_is_set = False
@@ -70,7 +83,6 @@ class BaseLayer(torch.nn.Module):
 		self.output_size = output_size
 
 		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-		self.reset_regularization_loss()
 
 	@property
 	def input_size(self) -> Optional[Dimension]:
@@ -182,11 +194,18 @@ class BaseLayer(torch.nn.Module):
 		self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 	def build(self) -> 'BaseLayer':
+		"""
+		Build the layer. This method must be call after the layer is initialized to make sure that the layer is ready
+		to be used e.g. the input and output size is set, the weights are initialized, etc.
+		
+		:return: The layer itself.
+		"""
 		if self._is_built:
 			raise ValueError("The layer can't be built multiple times.")
 		if not self.is_ready_to_build:
 			raise ValueError("Input size and output size must be specified before the build call.")
 		self._is_built = True
+		self.reset_regularization_loss()
 		return self
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
@@ -230,7 +249,8 @@ class BaseLayer(torch.nn.Module):
 				"The forward method must return a torch.Tensor (the output of the layer) "
 				"or a tuple of torch.Tensor (the output of the layer and the hidden state)."
 			)
-		self.update_regularization_loss(hidden_state)
+		if self.kwargs.get("regularize", False):
+			self.update_regularization_loss(hidden_state)
 		return call_output
 
 	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -269,21 +289,36 @@ class BaseLayer(torch.nn.Module):
 		Get and reset the regularization loss for this layer. The regularization loss will be reset by the
 		reset_regularization_loss method after it is returned.
 		
+		WARNING: If this method is not called after an integration, the update of the regularization loss can cause a
+		memory leak. TODO: fix this.
+		
 		:return: The regularization loss.
 		"""
 		loss = self.get_regularization_loss()
 		self.reset_regularization_loss()
 		return loss
 
-	def get_regularization_loss(self):
+	def get_regularization_loss(self) -> torch.Tensor:
 		"""
 		Get the regularization loss for this layer.
+		
 		:return: The regularization loss.
 		"""
 		return self._regularization_loss
 
 
 class BaseNeuronsLayer(BaseLayer):
+	"""
+	A base class for layers that have neurons. This class provides two importants Parameters: the forward_weights and
+	the recurrent_weights. Child classes must implement the forward method and the `create_empty_state` method.
+	
+	:Attributes:
+		- forward_weights: The weights used to compute the output of the layer.
+		- recurrent_weights: The weights used to compute the hidden state of the layer.
+		- dt: The time step of the layer.
+		- use_rec_eye_mask: Whether to use the recurrent eye mask.
+		- rec_mask: The recurrent eye mask.
+	"""
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -296,6 +331,20 @@ class BaseNeuronsLayer(BaseLayer):
 			device: Optional[torch.device] = None,
 			**kwargs
 	):
+		"""
+		Initialize the layer.
+		
+		:param input_size: The input size of the layer.
+		:param output_size: The output size of the layer.
+		:param name: The name of the layer.
+		:param use_recurrent_connection: Whether to use a recurrent connection. Default is True.
+		:param use_rec_eye_mask: Whether to use a recurrent eye mask. Default is False. This mask will be used to
+			mask to zero the diagonal of the recurrent connection matrix.
+		:param learning_type: The learning type of the layer. Default is BPTT.
+		:param dt: The time step of the layer. Default is 1e-3.
+		:param device: The device of the layer. Default is the current available device.
+		:param kwargs: Other keyword arguments.
+		"""
 		self.dt = dt
 		self.use_recurrent_connection = use_recurrent_connection
 		self.forward_weights = None
@@ -406,7 +455,7 @@ class LIFLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
 
 	def initialize_weights_(self):
-		gain = self.threshold.data
+		gain = self.threshold.data.detach().item()
 		for param in self.parameters():
 			if param.ndim > 2:
 				torch.nn.init.xavier_normal_(param, gain=gain)
@@ -589,6 +638,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		"""
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function.
+		
 		:param state: The current state of the layer.
 		:return: The updated regularization loss.
 		"""

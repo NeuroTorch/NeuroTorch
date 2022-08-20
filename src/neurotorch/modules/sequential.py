@@ -909,6 +909,7 @@ class SequentialModel(BaseModel):
 		"""
 		Get the regularization loss as a sum of all the regularization losses of the layers. Then reset the
 		regularization losses.
+		
 		:return: the regularization loss.
 		"""
 		regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)

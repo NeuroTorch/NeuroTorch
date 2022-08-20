@@ -64,8 +64,8 @@ def get_training_params_space() -> Dict[str, Any]:
 			1024,
 		],
 		"encoder_type": [
-			nt.LIFLayer,
-			nt.ALIFLayer,
+			# nt.LIFLayer,
+			# nt.ALIFLayer,
 			nt.SpyLIFLayer,
 		],
 		"optimizer": [
@@ -124,7 +124,7 @@ def train_with_params(
 		logging.info(f"Checkpoint folder: {checkpoint_folder}")
 	save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
 	
-	auto_encoder_training_output = train_auto_encoder(**params)
+	auto_encoder_training_output = train_auto_encoder(**params, verbose=verbose)
 	visualize_reconstruction(
 		auto_encoder_training_output.dataset.data,
 		auto_encoder_training_output.spikes_auto_encoder,
@@ -278,7 +278,6 @@ def visualize_forecasting(
 def train_all_params(
 		training_params: Dict[str, Any] = None,
 		n_iterations: int = 100,
-		batch_size: int = 256,
 		data_folder: str = "tr_results",
 		verbose: bool = False,
 		rm_data_folder_and_restart_all_training: bool = False,
@@ -289,7 +288,6 @@ def train_all_params(
 	Train the network with all the parameters.
 	
 	:param n_iterations: The number of iterations to train the network.
-	:param batch_size: The batch size to use.
 	:param verbose: If True, print the progress.
 	:param data_folder: The folder where to save the data.
 	:param training_params: The parameters to use for the training.
@@ -310,10 +308,7 @@ def train_all_params(
 	columns = [
 		'checkpoints',
 		*list(training_params.keys()),
-		'train_accuracy', 'val_accuracy', 'test_accuracy',
-		'train_precision', 'val_precision', 'test_precision',
-		'train_recall', 'val_recall', 'test_recall',
-		'train_f1', 'val_f1', 'test_f1',
+		'pVar',
 	]
 
 	# load dataframe if exists
@@ -331,43 +326,25 @@ def train_all_params(
 				result = train_with_params(
 					params,
 					n_iterations=n_iterations,
-					batch_size=batch_size,
 					data_folder=data_folder,
 					verbose=verbose,
 					show_training=False,
 					force_overwrite=force_overwrite,
 				)
-				if str(hash_params(params)) in df["checkpoints"].values:
+				if result["checkpoints_name"] in df["checkpoints"].values:
 					# remove from df if already exists
 					df = df[df["checkpoints"] != result["checkpoints_name"]]
 				df = pd.concat([df, pd.DataFrame(
 					dict(
 						checkpoints=[result["checkpoints_name"]],
 						**{k: [v] for k, v in params.items()},
-						# accuracies
-						train_accuracy=[result["accuracies"]["train"]],
-						val_accuracy=[result["accuracies"]["val"]],
-						test_accuracy=[result["accuracies"]["test"]],
-						# precisions
-						train_precision=[result["precisions"]["train"]],
-						val_precision=[result["precisions"]["val"]],
-						test_precision=[result["precisions"]["test"]],
-						# recalls
-						train_recall=[result["recalls"]["train"]],
-						val_recall=[result["recalls"]["val"]],
-						test_recall=[result["recalls"]["test"]],
-						# f1s
-						train_f1=[result["f1s"]["train"]],
-						val_f1=[result["f1s"]["val"]],
-						test_f1=[result["f1s"]["test"]],
+						pVar=[result["pVar"]],
 					))],  ignore_index=True,
 				)
 				df.to_csv(results_path, index=False)
 				p_bar.set_postfix(
 					params=params,
-					train_accuracy=result["accuracies"]['train'],
-					val_accuracy=result["accuracies"]['val'],
-					test_accuracy=result["accuracies"]['test']
+					pVar=result["pVar"],
 				)
 			except Exception as e:
 				logging.error(e)

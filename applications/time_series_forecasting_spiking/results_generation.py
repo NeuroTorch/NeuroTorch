@@ -167,7 +167,7 @@ def train_with_params(
 		save_freq=-1,
 		save_best_only=False,
 	)
-	callbacks = [checkpoint_manager, LinearLRScheduler(5e-5, 1e-7, n_iterations)]
+	callbacks = [checkpoint_manager, LinearLRScheduler(params.get("learning_rate", 5e-5), 1e-7, n_iterations)]
 	if show_training:
 		callbacks.append(TrainingHistoryVisualizationCallback("./temp/"))
 	regularization = RegularizationList([

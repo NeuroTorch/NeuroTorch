@@ -88,6 +88,21 @@ class SpikesAutoEncoder(BaseModel):
 			**kwargs
 	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
 		return self.forward(inputs)
+	
+	def get_and_reset_regularization_loss(self) -> torch.Tensor:
+		"""
+		Get the regularization loss as a sum of all the regularization losses of the layers. Then reset the
+		regularization losses.
+
+		:return: the regularization loss.
+		"""
+		regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		for layer in [self.spikes_encoder, self.spikes_decoder]:
+			if hasattr(layer, "get_and_reset_regularization_loss") and callable(
+					layer.get_and_reset_regularization_loss
+					):
+				regularization_loss += layer.get_and_reset_regularization_loss()
+		return regularization_loss
 
 
 

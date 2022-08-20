@@ -77,6 +77,20 @@ class SpikesEncoder(torch.nn.Module):
 			x_spikes.append(spikes)
 		# x_spikes = torch.squeeze(torch.stack(x_spikes, dim=1))
 		return torch.stack(x_spikes, dim=1)
+	
+	def get_and_reset_regularization_loss(self) -> torch.Tensor:
+		"""
+		Get the regularization loss as a sum of all the regularization losses of the layers. Then reset the
+		regularization losses.
+
+		:return: the regularization loss.
+		"""
+		regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.spikes_layer.device)
+		if hasattr(self.spikes_layer, "get_and_reset_regularization_loss") and callable(
+				self.spikes_layer.get_and_reset_regularization_loss
+			):
+			regularization_loss += self.spikes_layer.get_and_reset_regularization_loss()
+		return regularization_loss
 
 
 class LIFEncoder(SpikesEncoder):

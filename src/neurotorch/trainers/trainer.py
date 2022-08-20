@@ -361,11 +361,13 @@ class Trainer:
 			regularization_loss = self.regularization()
 			batch_loss += regularization_loss
 		if self.model.training:
+			self.model.zero_grad()
 			self.optimizer.zero_grad()
 			batch_loss.backward()
 			self.optimizer.step()
 		if self.regularization_optimizer is not None and self.regularization is not None:
 			regularization_loss = self.regularization()
+			self.model.zero_grad()
 			self.regularization_optimizer.zero_grad()
 			regularization_loss.backward()
 			self.regularization_optimizer.step()

@@ -24,10 +24,17 @@ from neurotorch.utils import hash_params, set_seed, save_params, get_all_params_
 
 
 class TimeSeriesAutoEncoderDataset(Dataset):
-	def __init__(self, n_units=128, seed: int = 0):
+	def __init__(
+			self,
+			n_units=128,
+			seed: int = 0,
+			filename: Optional[str] = None,
+	):
 		super().__init__()
+		if filename is not None:
+			filename = 'timeSeries_2020_12_16_cr3_df.npy'
 		self.random_state = np.random.RandomState(seed)
-		self.ts = np.load('timeSeries_2020_12_16_cr3_df.npy')
+		self.ts = np.load(filename)
 		self.n_neurons, self.n_time_steps = self.ts.shape
 		if n_units <= 0:
 			n_units = self.n_neurons
@@ -168,7 +175,7 @@ def train_auto_encoder(
 		**kwargs
 ) -> AutoEncoderTrainingOutput:
 	set_seed(seed)
-	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed)
+	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed, filename=kwargs.get("dataset_name"))
 	n_units = dataset.n_units
 	params = dict(
 		encoder_type=encoder_type,
@@ -258,6 +265,9 @@ def get_training_params_space() -> Dict[str, Any]:
 	:return: The parameters space.
 	"""
 	return {
+		"dataset_name": [
+			"timeSeries_2020_12_16_cr3_df.npy"
+		],
 		"n_encoder_steps": [
 			8,
 			16,

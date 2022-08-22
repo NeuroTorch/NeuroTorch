@@ -11,7 +11,7 @@ if __name__ == '__main__':
 	logs_file_setup(__file__, add_stdout=False)
 	log_device_setup(deepLib=DeepLib.Pytorch)
 	torch.autograd.set_detect_anomaly(True)
-	torch.cuda.set_per_process_memory_fraction(0.5)
+	torch.cuda.set_per_process_memory_fraction(0.8)
 	
 	seed = 0
 	set_seed(seed)
@@ -23,8 +23,9 @@ if __name__ == '__main__':
 			"n_encoder_steps": 32,
 			"n_units": 128,
 			"dt": 2e-2,
-			"optimizer": "Adam",
+			"optimizer": "AdamW",
 			"learning_rate": 5e-5,
+			# "min_lr": 1e-6,
 			"encoder_type": nt.SpyLIFLayer,
 			"use_recurrent_connection": True,
 			"seed": seed,
@@ -33,7 +34,7 @@ if __name__ == '__main__':
 		verbose=True,
 		show_training=False,
 		force_overwrite=True,
-		data_folder="tr_results",
+		data_folder="checkpoints",
 	)
 	pprint.pprint(results, indent=4)
 	results["history"].plot(show=True)

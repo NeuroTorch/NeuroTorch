@@ -28,7 +28,7 @@ class TimeSeriesDataset(Dataset):
 			**kwargs
 	):
 		super().__init__()
-		if filename is not None:
+		if filename is None:
 			filename = 'timeSeries_2020_12_16_cr3_df.npy'
 		self.ts = np.load(filename)
 		self.n_neurons, self.n_time_steps = self.ts.shape

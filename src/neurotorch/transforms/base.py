@@ -31,6 +31,9 @@ class ToDevice(torch.nn.Module):
 
 	def forward(self, x: torch.Tensor):
 		return x.to(self.device)
+	
+	def __repr__(self):
+		return f"ToDevice({self.device})"
 
 
 class ToTensor(torch.nn.Module):

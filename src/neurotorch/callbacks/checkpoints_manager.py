@@ -105,7 +105,8 @@ class CheckpointManager(BaseCallback):
 		:param minimise_metric: Whether to minimise the metric or maximise it.
 		:param save_freq: The frequency at which to save checkpoints. If set to <= 0, will save at the end of the
 							training.
-		:param save_best_only: Whether to only save the best checkpoint.
+		:param save_best_only: Whether to only save the best checkpoint. If set to True, the save_freq will be set
+		automatically to -1.
 		:param verbose: Whether to print out the trace of the checkpoint manager.
 		"""
 		self.checkpoint_folder = checkpoint_folder
@@ -117,7 +118,7 @@ class CheckpointManager(BaseCallback):
 		self.save_freq = save_freq
 		self.save_best_only = save_best_only
 		if self.save_best_only:
-			raise NotImplementedError("save_best_only is not implemented yet")
+			self.save_freq = -1
 		self.curr_best_metric = np.inf if self.minimise_metric else -np.inf
 
 	@property
@@ -254,10 +255,7 @@ class CheckpointManager(BaseCallback):
 		if trainer.current_training_state.itr_metrics is None:
 			return False
 		
-		if self.minimise_metric:
-			is_best = trainer.current_training_state.itr_metrics[self.metric] < self.curr_best_metric
-		else:
-			is_best = trainer.current_training_state.itr_metrics[self.metric] > self.curr_best_metric
+		is_best = self._check_is_best(trainer)
 		if is_best:
 			self.curr_best_metric = trainer.current_training_state.itr_metrics[self.metric]
 		self.save_checkpoint(
@@ -271,10 +269,24 @@ class CheckpointManager(BaseCallback):
 				save_path=os.path.join(self.checkpoint_folder, "training_history.png"),
 				show=False
 			)
+		return True
 
 	def on_iteration_end(self, trainer):
-		if self.save_freq > 0 and trainer.current_training_state.iteration % self.save_freq == 0:
+		if self.save_best_only:
+			if self._check_is_best(trainer):
+				self._save_on(trainer)
+		elif self.save_freq > 0 and trainer.current_training_state.iteration % self.save_freq == 0:
 			self._save_on(trainer)
+	
+	def _check_is_best(self, trainer) -> Optional[bool]:
+		if trainer.current_training_state.itr_metrics is None:
+			return None
+		
+		if self.minimise_metric:
+			is_best = trainer.current_training_state.itr_metrics[self.metric] < self.curr_best_metric
+		else:
+			is_best = trainer.current_training_state.itr_metrics[self.metric] > self.curr_best_metric
+		return is_best
 	
 	def close(self, trainer):
 		self._save_on(trainer)

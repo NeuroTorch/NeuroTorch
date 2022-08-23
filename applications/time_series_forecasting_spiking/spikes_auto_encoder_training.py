@@ -26,12 +26,14 @@ from neurotorch.utils import hash_params, set_seed, save_params, get_all_params_
 class TimeSeriesAutoEncoderDataset(Dataset):
 	def __init__(
 			self,
-			n_units=128,
+			n_units: int = 128,
 			seed: int = 0,
 			filename: Optional[str] = None,
+			smoothing_sigma: float = 0.0,
+			**kwargs
 	):
 		super().__init__()
-		if filename is not None:
+		if filename is None:
 			filename = 'timeSeries_2020_12_16_cr3_df.npy'
 		self.random_state = np.random.RandomState(seed)
 		self.ts = np.load(filename)
@@ -41,10 +43,11 @@ class TimeSeriesAutoEncoderDataset(Dataset):
 		self.n_units = n_units
 		self.units_indexes = self.random_state.randint(self.n_neurons, size=self.n_units)
 		self.data = self.ts[self.units_indexes, :]
-		self.sigma = 30
+		self.sigma = smoothing_sigma
 		
 		for neuron in range(self.data.shape[0]):
-			self.data[neuron, :] = gaussian_filter1d(self.data[neuron, :], sigma=self.sigma)
+			if self.sigma > 0.0:
+				self.data[neuron, :] = gaussian_filter1d(self.data[neuron, :], sigma=self.sigma)
 			self.data[neuron, :] = self.data[neuron, :] - np.min(self.data[neuron, :])
 			self.data[neuron, :] = self.data[neuron, :] / np.max(self.data[neuron, :])
 		
@@ -81,7 +84,7 @@ def visualize_reconstruction(
 		auto_encoder: SpikesAutoEncoder,
 		filename: Optional[str] = None,
 		show: bool = False,
-):
+) -> plt.Figure:
 	target = nt.to_tensor(time_series, dtype=torch.float32)
 	
 	spikes = auto_encoder.encode(torch.unsqueeze(target, dim=1))
@@ -122,8 +125,8 @@ def visualize_reconstruction(
 	if filename is not None:
 		fig.savefig(filename)
 	if show:
-		plt.show()
-	plt.close(fig)
+		fig.show()
+	return fig
 
 
 def show_single_preds(auto_encoder, ax, predictions, target, spikes, title=""):
@@ -154,6 +157,7 @@ def show_single_preds(auto_encoder, ax, predictions, target, spikes, title=""):
 class AutoEncoderTrainingOutput(NamedTuple):
 	spikes_auto_encoder: SpikesAutoEncoder
 	history: nt.TrainingHistory
+	reconstruction_fig: plt.Figure
 	dataset: TimeSeriesAutoEncoderDataset
 	checkpoints_name: str
 	train_loss: float
@@ -175,7 +179,7 @@ def train_auto_encoder(
 		**kwargs
 ) -> AutoEncoderTrainingOutput:
 	set_seed(seed)
-	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed, filename=kwargs.get("dataset_name"))
+	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed, filename=kwargs.get("dataset_name"), **kwargs)
 	n_units = dataset.n_units
 	params = dict(
 		encoder_type=encoder_type,
@@ -185,6 +189,7 @@ def train_auto_encoder(
 		batch_size=batch_size,
 		n_iterations=n_iterations,
 		seed=seed,
+		**kwargs
 	)
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
@@ -211,7 +216,7 @@ def train_auto_encoder(
 		force_overwrite=force_overwrite,
 		desc=f"Training {checkpoints_name}:{encoder_type.__name__}<{n_units}u, {n_encoder_steps}t>",
 	)
-	visualize_reconstruction(
+	reconstruction_fig = visualize_reconstruction(
 		dataset.data, spikes_auto_encoder,
 		filename=f"{checkpoint_folder}/reconstruction_visualization.png",
 		show=False,
@@ -219,6 +224,7 @@ def train_auto_encoder(
 	return AutoEncoderTrainingOutput(
 		spikes_auto_encoder=spikes_auto_encoder,
 		history=history,
+		reconstruction_fig=reconstruction_fig,
 		dataset=dataset,
 		checkpoints_name=checkpoints_name,
 		train_loss=history["train_loss"][-1],
@@ -392,25 +398,27 @@ if __name__ == '__main__':
 	logs_file_setup(__file__, add_stdout=False)
 	torch.cuda.set_per_process_memory_fraction(0.8)
 	log_device_setup(deepLib=DeepLib.Pytorch)
-	df_results = train_all_params(
-		training_params=get_training_params_space(),
-		verbose=False,
-		rm_data_folder_and_restart_all_training=True,
-		device=torch.device("cuda:0"),
-	)
-	logging.info(df_results)
-	
-	# tracemalloc.start()
-	# train_auto_encoder(
-	# 	nt.SpyLIFLayer, 128, 8,
-	# 	n_iterations=128,
-	# 	batch_size=512,
-	# 	data_folder="test_overflow",
-	# 	verbose=True,
-	# 	force_overwrite=True,
+	# df_results = train_all_params(
+	# 	training_params=get_training_params_space(),
+	# 	verbose=False,
+	# 	rm_data_folder_and_restart_all_training=True,
 	# 	device=torch.device("cuda:0"),
 	# )
-	# snapshot = tracemalloc.take_snapshot()
-	# tracemalloc.stop()
-	# display_top(snapshot, limit=5)
+	# logging.info(df_results)
+	
+	tracemalloc.start()
+	out = train_auto_encoder(
+		nt.SpyLIFLayer, 128, 32,
+		n_iterations=4096,
+		batch_size=256,
+		data_folder="test_smoothing",
+		verbose=True,
+		force_overwrite=True,
+		device=torch.device("cuda:0"),
+		smoothing_sigma=1.0,
+	)
+	snapshot = tracemalloc.take_snapshot()
+	tracemalloc.stop()
+	display_top(snapshot, limit=5)
+	out.reconstruction_fig.show()
 

@@ -37,6 +37,7 @@ class LRSchedulerOnMetric(BaseCallback):
 			lr_decay: Optional[float] = None,
 			min_lr: float = 1e-12,
 			lr_start: float = None,
+			retain_progress: bool = True,
 	):
 		"""
 		Initialize the scheduler with the given metric and metric schedule.
@@ -49,6 +50,8 @@ class LRSchedulerOnMetric(BaseCallback):
 		:param min_lr: The minimum learning rate to use.
 		:param lr_start: The learning rate to use at the beginning of the training. If None, the learning rate is
 		get automatically as the learning rate of the first group of the optimizer.
+		:param retain_progress: If True the current step of the scheduler will only increase when the metric reach the
+		next value of the schedule. If False, the current step will increase or decrease depending on the metric.
 		"""
 		super().__init__()
 		self.metric = metric
@@ -60,11 +63,14 @@ class LRSchedulerOnMetric(BaseCallback):
 		self.min_lr = min_lr
 		self.lr_start = lr_start
 		self.lr = self.lr_start
+		self.retain_progress = retain_progress
+		self.step = 0
 	
 	def on_iteration_end(self, trainer):
 		last_metric = trainer.training_history[self.metric][-1]
 		trainer.training_history.append('lr', self.lr)
-		self.lr = max(self.lr_start - self.lr_decay * self.get_step(last_metric), self.min_lr)
+		self.step = self.update_step(last_metric)
+		self.lr = max(self.lr_start - self.lr_decay * self.step, self.min_lr)
 		for g in trainer.optimizer.param_groups:
 			g['lr'] = self.lr
 	
@@ -87,12 +93,16 @@ class LRSchedulerOnMetric(BaseCallback):
 		if self.lr_decay is None:
 			self.lr_decay = (self.lr_start - self.min_lr) / len(self.metric_schedule)
 	
-	def get_step(self, last_metric):
+	def update_step(self, last_metric) -> int:
 		last_index = len(self.metric_schedule) - 1
 		if self.minimize_metric:
-			return last_index - np.argmax((last_metric <= self.metric_schedule)[::-1])
+			next_step = last_index - np.argmax((last_metric <= self.metric_schedule)[::-1])
 		else:
-			return last_index - np.argmax((last_metric >= self.metric_schedule)[::-1])
+			next_step = last_index - np.argmax((last_metric >= self.metric_schedule)[::-1])
+		if self.retain_progress:
+			next_step = max(self.step, next_step)
+		self.step = next_step
+		return self.step
 	
 	def start(self, trainer):
 		if self.lr_start is None:

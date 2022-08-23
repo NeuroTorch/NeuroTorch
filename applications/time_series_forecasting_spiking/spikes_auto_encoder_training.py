@@ -125,7 +125,7 @@ def visualize_reconstruction(
 	if filename is not None:
 		fig.savefig(filename)
 	if show:
-		fig.show()
+		plt.show()
 	return fig
 
 
@@ -178,6 +178,7 @@ def train_auto_encoder(
 		force_overwrite: bool = False,
 		**kwargs
 ) -> AutoEncoderTrainingOutput:
+	kwargs.setdefault("use_recurrent_connection", True)
 	set_seed(seed)
 	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed, filename=kwargs.get("dataset_name"), **kwargs)
 	n_units = dataset.n_units
@@ -201,8 +202,10 @@ def train_auto_encoder(
 	dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=0)
 	spikes_auto_encoder = SpikesAutoEncoder(
 		n_units, n_encoder_steps=n_encoder_steps, encoder_type=encoder_type, checkpoint_folder=checkpoint_folder, dt=dt,
-		device=kwargs.get("device", torch.device("cuda:0" if torch.cuda.is_available() else "cpu"))
+		**kwargs
 	).build()
+	if verbose:
+		logging.info(f"\nNetwork:\n{spikes_auto_encoder}")
 	trainer = nt.Trainer(
 		spikes_auto_encoder,
 		callbacks=([checkpoint_manager] if load_and_save else None),
@@ -290,10 +293,15 @@ def get_training_params_space() -> Dict[str, Any]:
 			nt.ALIFLayer,
 			nt.SpyLIFLayer,
 		],
+		"use_recurrent_connection": [
+			True,
+			False,
+		],
 		"dt": [
 			1e-3,
 			2e-2
 		],
+		"smoothing_sigma": [5],
 		"seed": [
 			0,
 		],
@@ -398,27 +406,32 @@ if __name__ == '__main__':
 	logs_file_setup(__file__, add_stdout=False)
 	torch.cuda.set_per_process_memory_fraction(0.8)
 	log_device_setup(deepLib=DeepLib.Pytorch)
-	# df_results = train_all_params(
-	# 	training_params=get_training_params_space(),
-	# 	verbose=False,
-	# 	rm_data_folder_and_restart_all_training=True,
-	# 	device=torch.device("cuda:0"),
-	# )
-	# logging.info(df_results)
-	
-	tracemalloc.start()
-	out = train_auto_encoder(
-		nt.SpyLIFLayer, 128, 32,
-		n_iterations=4096,
-		batch_size=256,
-		data_folder="test_smoothing",
-		verbose=True,
-		force_overwrite=True,
-		device=torch.device("cuda:0"),
-		smoothing_sigma=1.0,
+	df_results = train_all_params(
+		training_params=get_training_params_space(),
+		verbose=False,
+		rm_data_folder_and_restart_all_training=False,
 	)
-	snapshot = tracemalloc.take_snapshot()
-	tracemalloc.stop()
-	display_top(snapshot, limit=5)
-	out.reconstruction_fig.show()
+	logging.info(df_results)
+	
+	# tracemalloc.start()
+	# out = train_auto_encoder(
+	# 	nt.SpyLIFLayer, 128, 32,
+	# 	n_iterations=4096,
+	# 	batch_size=256,
+	# 	data_folder="autoencoder_checkpoints",
+	# 	verbose=True,
+	# 	force_overwrite=True,
+	# 	# device=torch.device("cuda:0"),
+	# 	smoothing_sigma=5.0,
+	# 	**{
+	# 		# "hard_tanh.min_val": -1.0,
+	# 		"use_recurrent_connection": True,
+	# 		# "forward_weights": torch.normal(0.0, 0.2/np.sqrt(128), (128, 128)),
+	# 	},
+	# )
+	# snapshot = tracemalloc.take_snapshot()
+	# tracemalloc.stop()
+	# display_top(snapshot, limit=5)
+	# out.reconstruction_fig.show()
+	# plt.show()
 

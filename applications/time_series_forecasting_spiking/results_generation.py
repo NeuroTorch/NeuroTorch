@@ -24,7 +24,7 @@ from applications.time_series_forecasting_spiking.spikes_auto_encoder_training i
 )
 from neurotorch import Dimension, DimensionProperty, RegressionTrainer
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
-from neurotorch.callbacks.lr_schedulers import LinearLRScheduler
+from neurotorch.callbacks.lr_schedulers import LinearLRScheduler, LRSchedulerOnMetric
 from neurotorch.callbacks.training_visualization import TrainingHistoryVisualizationCallback
 from neurotorch.metrics import ClassificationMetrics, RegressionMetrics
 from neurotorch.modules import SequentialModel
@@ -53,19 +53,19 @@ def get_training_params_space() -> Dict[str, Any]:
 			# -1
 		],
 		"n_encoder_steps": [
-			8,
-			16,
+			# 8,
+			# 16,
 			32,
 			64,
 		],
 		"n_units": [
-			32,
+			# 32,
 			128,
-			1024,
+			# 1024,
 		],
 		"encoder_type": [
-			# nt.LIFLayer,
-			# nt.ALIFLayer,
+			nt.LIFLayer,
+			nt.ALIFLayer,
 			nt.SpyLIFLayer,
 		],
 		"optimizer": [
@@ -80,13 +80,16 @@ def get_training_params_space() -> Dict[str, Any]:
 		"learning_rate": [
 			5e-5
 		],
+		"min_lr": [
+			5e-7
+		],
 		"use_recurrent_connection": [
 			True,
 			False,
 		],
 		"dt": [
-			1e-3,
-			2e-2
+			# 1e-3,
+			2e-2,
 		],
 		"seed": [
 			0,
@@ -115,7 +118,9 @@ def train_with_params(
 		show_training: bool = False,
 		force_overwrite: bool = False,
 		seed: int = 0,
+		encoder_data_folder: Optional[str] = None,
 ):
+	params.setdefault("smoothing_sigma", 5)
 	set_seed(seed)
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
@@ -124,8 +129,11 @@ def train_with_params(
 		logging.info(f"Checkpoint folder: {checkpoint_folder}")
 	save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
 	
-	auto_encoder_training_output = train_auto_encoder(**params, verbose=verbose)
-	visualize_reconstruction(
+	encoder_params = deepcopy(params)
+	if encoder_data_folder is not None:
+		encoder_params["data_folder"] = encoder_data_folder
+	auto_encoder_training_output = train_auto_encoder(**encoder_params, verbose=verbose)
+	reconstruction_fig = visualize_reconstruction(
 		auto_encoder_training_output.dataset.data,
 		auto_encoder_training_output.spikes_auto_encoder,
 		filename=f"{checkpoint_folder}/autoencoder_reconstruction.png",
@@ -133,6 +141,11 @@ def train_with_params(
 	)
 	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
 	auto_encoder_training_output.spikes_auto_encoder.requires_grad_(False)
+	spikes_encoder = auto_encoder_training_output.spikes_auto_encoder.spikes_encoder
+	spikes_encoder.spikes_layer.learning_type = nt.LearningType.NONE
+	spikes_encoder.requires_grad_(False)
+	spikes_decoder = auto_encoder_training_output.spikes_auto_encoder.spikes_decoder
+	spikes_decoder.requires_grad_(False)
 	
 	dataloader = get_dataloader(units=auto_encoder_training_output.dataset.units_indexes, **params)
 	spiking_foresight_steps = (params["n_time_steps"]-1)*params["n_encoder_steps"]
@@ -156,8 +169,7 @@ def train_with_params(
 		name=f"network_{checkpoints_name}",
 		checkpoint_folder=checkpoint_folder,
 		foresight_time_steps=params.get("foresight_time_steps", spiking_foresight_steps),
-	)
-	network.build()
+	).build()
 	if verbose:
 		logging.info(f"\nNetwork:\n{network}")
 	checkpoint_manager = nt.CheckpointManager(
@@ -165,9 +177,18 @@ def train_with_params(
 		metric="train_loss",
 		minimise_metric=False,
 		save_freq=-1,
-		save_best_only=False,
+		save_best_only=True,
 	)
-	callbacks = [checkpoint_manager, LinearLRScheduler(params.get("learning_rate", 5e-5), 1e-7, n_iterations)]
+	callbacks = [
+		# LinearLRScheduler(params.get("learning_rate", 5e-5), params.get("min_lr", 1e-7), n_iterations),
+		LRSchedulerOnMetric(
+			'train_loss',
+			metric_schedule=np.linspace(-2.0, 0.99, n_iterations),
+			min_lr=params.get("min_lr", 1e-8),
+			retain_progress=True,
+		),
+		checkpoint_manager,
+	]
 	if show_training:
 		callbacks.append(TrainingHistoryVisualizationCallback("./temp/"))
 	regularization = RegularizationList([
@@ -196,7 +217,7 @@ def train_with_params(
 		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR if not force_overwrite else None,
 		force_overwrite=force_overwrite,
 		exec_metrics_on_train=False,
-		desc=f"Training {spikes_auto_encoder.encoder_type.__name__}"
+		desc=f"Training {checkpoints_name}:{spikes_auto_encoder.encoder_type.__name__}"
 		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
 	)
 	try:
@@ -205,7 +226,7 @@ def train_with_params(
 		if verbose:
 			logging.info("No best checkpoint found. Loading last checkpoint instead.")
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.LAST_ITR, verbose=verbose)
-	visualize_forecasting(
+	forecasting_fig = visualize_forecasting(
 		network, spikes_auto_encoder, dataloader,
 		filename=f"{checkpoint_folder}/forecasting_visualization.png",
 		show=show_training,
@@ -216,6 +237,9 @@ def train_with_params(
 		auto_encoder_training_output=auto_encoder_training_output,
 		checkpoints_name=checkpoints_name,
 		history=history,
+		dataloader=dataloader,
+		reconstruction_fig=reconstruction_fig,
+		forecasting_fig=forecasting_fig,
 		pVar=RegressionMetrics.p_var(network, y_true=y_true, y_pred=y_pred),
 	))
 
@@ -226,7 +250,7 @@ def visualize_forecasting(
 		dataloader: DataLoader,
 		filename: Optional[str] = None,
 		show: bool = False,
-):
+) -> plt.Figure:
 	t0, target = next(iter(dataloader))
 	
 	n_encoder_steps = spikes_auto_encoder.n_encoder_steps
@@ -272,7 +296,7 @@ def visualize_forecasting(
 		fig.savefig(filename)
 	if show:
 		plt.show()
-	plt.close(fig)
+	return fig
 
 
 def train_all_params(

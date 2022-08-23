@@ -54,7 +54,8 @@ class SpikesAutoEncoder(BaseModel):
 			spikes_layer_type=self.encoder_type,
 			learning_type=LearningType.BPTT,
 			device=self.device,
-			dt=self.kwargs.get("dt", 1e-3),
+			dt=self.kwargs.pop("dt", 1e-3),
+			**self.kwargs,
 		)
 	
 	def _create_default_decoder(self):
@@ -63,7 +64,10 @@ class SpikesAutoEncoder(BaseModel):
 			alpha=2.0,
 			learn_alpha=True,
 			learn_kernel=True,
-			activation=torch.nn.Hardtanh(min_val=0.0, max_val=1.0),
+			activation=torch.nn.Hardtanh(
+				min_val=self.kwargs.get("hard_tanh.min_val", 0.0),
+				max_val=self.kwargs.get("hard_tanh.max_val", 1.0)
+			),
 		)
 	
 	def encode(self, x: torch.Tensor) -> torch.Tensor:

@@ -25,9 +25,9 @@ if __name__ == '__main__':
 			"n_units": 128,
 			"dt": 1e-3,
 			"optimizer": "Adam",
-			"learning_rate": 8e-5,
+			"learning_rate": 5e-5,
 			"min_lr": 5e-6,
-			"encoder_type": nt.SpyLIFLayer,
+			"encoder_type": nt.LIFLayer,
 			"use_recurrent_connection": True,
 			"seed": seed,
 			"smoothing_sigma": 5,
@@ -36,8 +36,8 @@ if __name__ == '__main__':
 		verbose=True,
 		show_training=False,
 		force_overwrite=True,
-		data_folder="checkpoints_test_smoothing",
-		encoder_data_folder="encoder_checkpoints",
+		data_folder="predictor_checkpoints",
+		encoder_data_folder="autoencoder_checkpoints",
 	)
 	pprint.pprint(results, indent=4)
 	results["history"].plot(show=True)

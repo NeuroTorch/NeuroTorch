@@ -25,6 +25,7 @@ class TimeSeriesDataset(Dataset):
 			n_time_steps: Optional[int] = None,
 			seed : int = 0,
 			filename: Optional[str] = None,
+			smoothing_sigma: float = 0.0,
 			**kwargs
 	):
 		super().__init__()
@@ -51,10 +52,11 @@ class TimeSeriesDataset(Dataset):
 		self.n_units = n_units
 		self.units_indexes = units
 		self.data = self.ts[self.units_indexes, :self.n_time_steps]
-		self.sigma = 30
+		self.sigma = smoothing_sigma
 		
 		for neuron in range(self.data.shape[0]):
-			self.data[neuron, :] = gaussian_filter1d(self.data[neuron, :], sigma=self.sigma)
+			if self.sigma > 0.0:
+				self.data[neuron, :] = gaussian_filter1d(self.data[neuron, :], sigma=self.sigma)
 			self.data[neuron, :] = self.data[neuron, :] - np.min(self.data[neuron, :])
 			self.data[neuron, :] = self.data[neuron, :] / np.max(self.data[neuron, :])
 		
@@ -206,24 +208,31 @@ if __name__ == '__main__':
 	mu = np.random.randn(_n_units_, )
 	r = np.random.rand(1).item()
 	
-	fig, axes = plt.subplots(3, 2, figsize=(18, 8))
-	for i, (line_axes, encoder) in enumerate(zip(axes, [LIFEncoder, ALIFEncoder, SpyLIFEncoder])):
-		ws = WilsonCowanTimeSeries(
-			n_steps=1_000,
-			dt=_dt_,
-			t_0=t_0,
-			forward_weights=forward_weights,
-			transform=encoder(
-				n_steps=32,
-				n_units=_n_units_,
-				dt=_dt_,
-			),
-			mu=mu,
-			r=r,
-			tau=1.0,
-		)
-		print(f"shape: {ws[0][0].shape, ws[0][1].shape}")
-		ws.plot_timeseries(fig=fig, axes=line_axes, show=False)
+	fig, axes = plt.subplots(1, 1, figsize=(18, 8))
+	# for i, (line_axes, encoder) in enumerate(zip(axes, [LIFEncoder, ALIFEncoder, SpyLIFEncoder])):
+	# 	ws = WilsonCowanTimeSeries(
+	# 		n_steps=1_000,
+	# 		dt=_dt_,
+	# 		t_0=t_0,
+	# 		forward_weights=forward_weights,
+	# 		transform=encoder(
+	# 			n_steps=32,
+	# 			n_units=_n_units_,
+	# 			dt=_dt_,
+	# 		),
+	# 		mu=mu,
+	# 		r=r,
+	# 		tau=1.0,
+	# 	)
+	# 	print(f"shape: {ws[0][0].shape, ws[0][1].shape}")
+	# 	ws.plot_timeseries(fig=fig, axes=line_axes, show=False)
+	ts = TimeSeriesDataset(
+		n_units=2,
+		n_time_steps=16,
+		smoothing_sigma=1.0,
+		seed=0
+	)[0][-1].detach().cpu().numpy()
+	axes.plot(ts)
 	fig.tight_layout()
 	plt.show()
 	

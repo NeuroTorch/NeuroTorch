@@ -88,9 +88,10 @@ def get_training_params_space() -> Dict[str, Any]:
 			False,
 		],
 		"dt": [
-			# 1e-3,
-			2e-2,
+			1e-3,
+			# 2e-2,
 		],
+		"smoothing_sigma": [5],
 		"seed": [
 			0,
 		],
@@ -183,7 +184,7 @@ def train_with_params(
 		# LinearLRScheduler(params.get("learning_rate", 5e-5), params.get("min_lr", 1e-7), n_iterations),
 		LRSchedulerOnMetric(
 			'train_loss',
-			metric_schedule=np.linspace(-1.5, 0.99, n_iterations//16),
+			metric_schedule=np.linspace(-1.5, 0.99, 100),
 			min_lr=params.get("min_lr", 1e-8),
 			retain_progress=True,
 		),
@@ -295,7 +296,7 @@ def visualize_forecasting(
 	if filename is not None:
 		fig.savefig(filename)
 	if show:
-		fig.show()
+		plt.show()
 	return fig
 
 

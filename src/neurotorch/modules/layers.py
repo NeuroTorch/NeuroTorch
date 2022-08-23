@@ -169,6 +169,7 @@ class BaseLayer(torch.nn.Module):
 			_repr += f"<{self.name}>"
 		_repr += f"({int(self.input_size)}->{int(self.output_size)})"
 		_repr += f"[{self.learning_type}]"
+		_repr += f"@{self.device}"
 		return _repr
 
 	def _format_size(self, size: Optional[SizeTypes]) -> Optional[Dimension]:
@@ -403,6 +404,18 @@ class BaseNeuronsLayer(BaseLayer):
 				)
 		self.initialize_weights_()
 		return self
+	
+	def __repr__(self):
+		_repr = f"{self.__class__.__name__}"
+		if self.name_is_set:
+			_repr += f"<{self.name}>"
+		_repr += f"({int(self.input_size)}"
+		if self.use_recurrent_connection:
+			_repr += "<"
+		_repr += f"->{int(self.output_size)})"
+		_repr += f"[{self.learning_type}]"
+		_repr += f"@{self.device}"
+		return _repr
 
 
 class LIFLayer(BaseNeuronsLayer):
@@ -455,13 +468,6 @@ class LIFLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
 
 	def initialize_weights_(self):
-		gain = self.threshold.data.detach().item()
-		for param in self.parameters():
-			if param.ndim > 2:
-				torch.nn.init.xavier_normal_(param, gain=gain)
-			else:
-				torch.nn.init.normal_(param, std=gain)
-
 		if "forward_weights" in self.kwargs:
 			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:

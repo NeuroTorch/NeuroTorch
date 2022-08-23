@@ -11,7 +11,7 @@ from applications.time_series_forecasting_spiking.dataset import TimeSeriesDatas
 from applications.time_series_forecasting_spiking.spikes_auto_encoder_training import train_auto_encoder, visualize_reconstruction, \
 	show_single_preds
 from neurotorch.callbacks.base_callback import BaseCallback
-from neurotorch.callbacks.lr_schedulers import LinearLRScheduler
+from neurotorch.callbacks.lr_schedulers import LinearLRScheduler, LRSchedulerOnMetric
 from neurotorch.transforms import ConstantValuesTransform
 
 
@@ -35,7 +35,7 @@ def create_network(n_units, n_encoder_steps, encoder_type, n_aux_units=0):
 	
 	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
 	spikes_encoder = auto_encoder_training_output.spikes_auto_encoder.spikes_encoder
-	spikes_encoder.learning_type = nt.LearningType.NONE
+	spikes_encoder.spikes_layer.learning_type = nt.LearningType.NONE
 	spikes_encoder.requires_grad_(False)
 	spikes_decoder = auto_encoder_training_output.spikes_auto_encoder.spikes_decoder
 	spikes_decoder.requires_grad_(False)
@@ -176,7 +176,12 @@ def train(network, spikes_auto_encoder, dataset, n_iterations=256, desc=""):
 	return history
 
 
-def visualize_single_training(history: nt.TrainingHistory, network, spikes_auto_encoder, dataset):
+def visualize_single_training(
+		history: nt.TrainingHistory,
+		network,
+		spikes_auto_encoder,
+		dataset
+):
 	t0, target = dataset[0]
 	target = torch.unsqueeze(target, 0)
 	history.plot(show=True)
@@ -270,43 +275,48 @@ def main():
 	n_units = 128
 	n_aux_units = 0
 	n_encoder_steps = 32
-	n_iterations = 1024
+	n_iterations = 4096
 	n_time_steps = 16
 	encoder_type = nt.SpyLIFLayer
 	
 	# network, auto_encoder_training_output = create_network(n_units, n_encoder_steps, encoder_type, n_aux_units)
 	network, auto_encoder_training_output = create_sequential_network(n_units, n_encoder_steps, encoder_type)
+	print(f"\nNetwork:\n{network}")
 	# show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
 	dataset = create_dataset(auto_encoder_training_output, n_time_steps=n_time_steps)
 	data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
 	checkpoint_manager = nt.CheckpointManager(
-		"checkpoints/ts_predictor",
+		"checkpoints/ts_predictor_001",
 		metric="train_loss",
 		minimise_metric=False,
 		save_freq=-1,
-		save_best_only=False,
+		save_best_only=True,
 	)
 	start_time = time.time()
 	trainer = nt.RegressionTrainer(
 		network,
 		criterion=nt.losses.PVarianceLoss(),
 		optimizer=torch.optim.AdamW(network.parameters(), lr=5e-5, maximize=True, weight_decay=0.0),
-		callbacks=[LinearLRScheduler(5e-5, 1e-7, n_iterations), checkpoint_manager],
+		callbacks=[
+			# LinearLRScheduler(5e-5, 1e-7, n_iterations),
+			LRSchedulerOnMetric(
+				'train_loss',
+				metric_schedule=np.linspace(-1.5, 0.99, 100),
+				min_lr=1e-7,
+				retain_progress=True,
+			),
+			checkpoint_manager
+		],
 		metrics=[],
 		foresight_time_steps=(n_time_steps-1)*n_encoder_steps,
 	)
 	history = trainer.train(
 		data_loader, n_iterations=n_iterations,
-		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
+		# load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
+		force_overwrite=True,
 		desc=f"Training [encoder: {encoder_type.__name__}, encoder_steps: {n_encoder_steps}, time_steps: {n_time_steps},"
-		f" units: {n_units}, aux_units: {n_aux_units}]"
+		f" units: {n_units}]"
 	)
-	# history = train(
-	# 	network, auto_encoder_training_output.spikes_auto_encoder, dataset,
-	# 	n_iterations=n_iterations,
-	# 	desc=f"Training [encoder: {encoder_type.__name__}, encoder_steps: {n_encoder_steps}, time_steps: {n_time_steps},"
-	# 	f" units: {n_units}, aux_units: {n_aux_units}]"
-	# )
 	print(f"Elapsed time: {time.time() - start_time :.2f} seconds")
 	visualize_single_training(history, network, auto_encoder_training_output.spikes_auto_encoder, dataset)
 

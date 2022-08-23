@@ -16,7 +16,7 @@ class SpikesEncoder(torch.nn.Module):
 			dt: float = 1e-3,
 			learning_type: LearningType = LearningType.NONE,
 			device: Optional[torch.device] = None,
-			spikes_layer_kwargs: Optional[dict] = None,
+			**kwargs
 	):
 		"""
 		Constructor for the SpikesEncoder class.
@@ -27,9 +27,9 @@ class SpikesEncoder(torch.nn.Module):
 		:param dt: Time step of the simulation.
 		:param learning_type: Learning type of the spikes layer.
 		:param device: Device to use for the encoder.
-		:param spikes_layer_kwargs: Keyword arguments for the spikes layer.
+		:param kwargs: Keyword arguments for the spikes layer.
 		
-		:keyword spikes_layer_kwargs:
+		:keyword kwargs:
 			* <forward_weights>: Forward weights of the spikes layer. Default: eye(n_units).
 			* <use_recurrent_connection>: Whether to use a recurrent connection. Default: False.
 			* <name>: Name of the spikes layer. Default: "encoder".
@@ -41,18 +41,15 @@ class SpikesEncoder(torch.nn.Module):
 		self.spikes_layer_type = spikes_layer_type
 		self.dt = dt
 		self.learning_type = learning_type
-		if spikes_layer_kwargs is None:
-			spikes_layer_kwargs = dict(
-				forward_weights=torch.eye(n_units),
-				use_recurrent_connection=False,
-				name='encoder',
-			)
+		kwargs.setdefault('forward_weights', torch.eye(n_units))
+		kwargs.setdefault('use_recurrent_connection', False)
+		kwargs.setdefault('name', 'encoder')
 		
-		assert "learning_type" not in spikes_layer_kwargs, \
+		assert "learning_type" not in kwargs, \
 			"learning_type cannot be specified since it must be the given value"
-		assert "dt" not in spikes_layer_kwargs, \
+		assert "dt" not in kwargs, \
 			"dt cannot be specified since it must be the given dt"
-		assert "device" not in spikes_layer_kwargs, \
+		assert "device" not in kwargs, \
 			"device cannot be specified since it must be the given device"
 		
 		self.spikes_layer = self.spikes_layer_type(
@@ -60,7 +57,7 @@ class SpikesEncoder(torch.nn.Module):
 			learning_type=self.learning_type,
 			dt=dt,
 			device=device,
-			**spikes_layer_kwargs,
+			**kwargs,
 		)
 		self.spikes_layer.build()
 	

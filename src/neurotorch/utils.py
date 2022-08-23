@@ -83,8 +83,9 @@ def linear_decay(init_value, min_value, decay_value, current_itr):
 
 def get_meta_name(params: Dict[str, Any]):
 	meta_name = f""
-	for k, v in params.items():
-		meta_name += f"{k}-{v}_"
+	keys = sorted(list(params.keys()))
+	for k in keys:
+		meta_name += f"{k}-{params[k]}_"
 	return meta_name[:-1]
 
 

@@ -109,6 +109,7 @@ def train_with_params(
 		force_overwrite: bool = False,
 		seed: int = 0,
 		encoder_data_folder: Optional[str] = None,
+		encoder_iterations: int = 4096,
 ):
 	params.setdefault("smoothing_sigma", 5)
 	params.setdefault("seed", seed)
@@ -126,6 +127,7 @@ def train_with_params(
 	encoder_params = deepcopy(params)
 	if encoder_data_folder is not None:
 		encoder_params["data_folder"] = encoder_data_folder
+		encoder_params["n_iterations"] = encoder_iterations
 	auto_encoder_training_output = train_auto_encoder(**encoder_params, verbose=verbose)
 	visualize_reconstruction(
 		auto_encoder_training_output.dataset.data,
@@ -221,28 +223,49 @@ def train_with_params(
 		if verbose:
 			logging.info("No best checkpoint found. Loading last checkpoint instead.")
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.LAST_ITR, verbose=verbose)
-	visualize_forecasting(
-		network, spikes_auto_encoder, dataloader,
-		filename=f"{checkpoint_folder}/figures/forecasting_visualization.png",
-		show=show_training,
-	)
-	
 	t0, target = next(iter(dataloader))
 	preds, hh = network.get_prediction_trace(
 		t0, foresight_time_steps=(target.shape[1] - 1) * params["n_encoder_steps"], return_hidden_states=True
 	)
 	spikes_preds = hh[network.get_layer().name][-1]
-	viz = VisualiseKMeans(
-		spikes_preds.detach().cpu().numpy().squeeze().T,
-		# shape=nt.Size([
-		# 	Dimension(preds.shape[1], dtype=DimensionProperty.TIME),
-		# 	Dimension(preds.shape[-1], dtype=DimensionProperty.NONE)
-		# ]),
+	spikes = torch.squeeze(spikes_preds).detach().cpu().numpy().reshape(
+		-1, spikes_auto_encoder.n_encoder_steps, spikes_auto_encoder.n_units
 	)
-	viz.plot_timeseries()
-	viz.animate(network.get_layer().forward_weights.detach().cpu().numpy(), network.get_layer().dt)
-	viz.heatmap()
-	viz.rigidplot()
+	viz = VisualiseKMeans(
+		preds.detach().cpu().numpy().squeeze(),
+		shape=nt.Size([
+			Dimension(preds.shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
+			Dimension(preds.shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
+		]),
+	)
+	viz.plot_timeseries_comparison(
+		target, spikes,
+		n_spikes_steps=params["n_encoder_steps"],
+		title=f"Predictor: {spikes_auto_encoder.encoder_type.__name__}"
+		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
+		desc="Prediction",
+		filename=f"{checkpoint_folder}/figures/forecasting_visualization.png",
+		show=False,
+	)
+	viz.plot_timeseries(
+		filename=f"{checkpoint_folder}/figures/timeseries.png",
+		show=False
+	)
+	viz.animate(
+		network.get_layer().forward_weights.detach().cpu().numpy(),
+		network.get_layer().dt,
+		filename=f"{checkpoint_folder}/figures/animation.gif",
+		show=False,
+		fps=10,
+	)
+	viz.heatmap(
+		filename=f"{checkpoint_folder}/figures/heatmap.png",
+		show=False
+	)
+	viz.rigidplot(
+		filename=f"{checkpoint_folder}/figures/rigidplot.png",
+		show=False
+	)
 	
 	y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(network, dataloader, verbose=verbose, desc=f"predictions")
 	return OrderedDict(dict(
@@ -285,7 +308,7 @@ def visualize_forecasting(
 	axes[0].set_title(
 		f"Predictor: {spikes_auto_encoder.encoder_type.__name__}"
 		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>, "
-		f"pVar: {pVar.detach().cpu().item():.3f}, "
+		f"pVar: {pVar.detach().cpu().item():.3f}"
 	)
 	
 	mean_errors = torch.mean(errors, dim=0)
@@ -322,6 +345,8 @@ def train_all_params(
 		rm_data_folder_and_restart_all_training: bool = False,
 		force_overwrite: bool = False,
 		skip_if_exists: bool = False,
+		encoder_data_folder: Optional[str] = None,
+		encoder_iterations: int = 4096,
 ):
 	"""
 	Train the network with all the parameters.
@@ -369,6 +394,8 @@ def train_all_params(
 					verbose=verbose,
 					show_training=False,
 					force_overwrite=force_overwrite,
+					encoder_data_folder=encoder_data_folder,
+					encoder_iterations=encoder_iterations,
 				)
 				if result["checkpoints_name"] in df["checkpoints"].values:
 					# remove from df if already exists

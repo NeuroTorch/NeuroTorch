@@ -369,6 +369,8 @@ def metric_per_variable_pairwise(
 		dataset_name: Optional[str] = None,
 		dict_param_name: Optional[Dict[str, str]] = None,
 		value_rename: Optional[Dict[str, str]] = None,
+		filename: Optional[str] = None,
+		show: bool = False,
 ):
 	"""
 	Returns the data for the box plot.
@@ -378,6 +380,8 @@ def metric_per_variable_pairwise(
 	:param metric: The y data to use to filter the results e.g. the performance.
 	:param dict_param_name: The dictionary of parameter names to filter and format the x axis.
 	:param value_rename: The dictionary of parameter values to format the x axis.
+	:param filename: The filename to save the plot.
+	:param show: Whether to show the plot.
 	:return: None
 	"""
 	if dict_param_name is None:
@@ -396,26 +400,42 @@ def metric_per_variable_pairwise(
 	
 	nrows = int(np.sqrt(len(columns)))
 	ncols = int(np.ceil(len(columns) / nrows))
-	fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*4, nrows*4))
+	fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*6, nrows*3))
 	axes = np.ravel(axes)
 	index = 0
 	for i, col in enumerate(columns):
 		index = i
-		xticks_labels = list(sorted([value_rename.get(x, x) for x in dataset_results[col].unique()]))
+		xticks_labels = np.asarray([x for x in dataset_results[col].unique()])
+		xticks_labels_renamed = np.asarray([value_rename.get(x, x) for x in xticks_labels])
+		indexes_sort = np.argsort(xticks_labels_renamed)
+		xticks_labels_renamed = xticks_labels_renamed[indexes_sort]
+		xticks_labels = xticks_labels[indexes_sort]
 		xticks = np.arange(len(xticks_labels))
-		x_data = [xticks_labels.index(value_rename.get(x, x)) for x in dataset_results[col]]
-		y_mean = [y_data[dataset_results[col] == x].mean() for x in dataset_results[col].unique()]  # n'est pas dans le bon ordre à cause du sorted, maybe sorte par index pour ré-indexé y après
+		x_data = np.asarray([
+			np.where(np.isclose(xticks_labels, x))
+			if isinstance(x, float) else
+			np.where(xticks_labels == x)
+			for x in dataset_results[col]
+		]).squeeze()
+		y_mean = np.asarray([y_data[dataset_results[col] == x].mean() for x in xticks_labels])
+		y_std = np.asarray([y_data[dataset_results[col] == x].std() for x in xticks_labels])
+		axes[i].plot(xticks, y_mean, '-', color='black', label='mean')
+		axes[i].fill_between(xticks, y_mean - y_std, y_mean + y_std, color='black', alpha=0.2, label='std')
 		axes[i].plot(x_data, y_data, '.')
 		axes[i].set_xlabel(dict_param_name.get(col, col))
 		axes[i].set_ylabel(metric)
 		axes[i].set_xticks(xticks)
-		axes[i].set_xticklabels(xticks_labels)
+		axes[i].set_xticklabels(xticks_labels_renamed)
+		axes[i].legend()
 	
 	for ax in axes[index+1:]:
 		ax.set_visible(False)
 	
-	plt.tight_layout()
-	plt.show()
+	fig.set_tight_layout(True)
+	if filename is not None:
+		fig.savefig(filename)
+	if show:
+		plt.show()
 
 	
 

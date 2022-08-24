@@ -362,7 +362,7 @@ def format_table_metric_value(
 	return x
 
 
-def metric_per_variable_pairwise(
+def metric_per_all_variable(
 		results: pd.DataFrame,
 		metric: str,
 		*,

@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import seaborn as sns
 import numpy as np
+from matplotlib import pyplot as plt
 
 from neurotorch.modules import LayerType
 
@@ -360,6 +361,63 @@ def format_table_metric_value(
 		x = f"\\textbf{{{x}}}"
 	return x
 
+
+def metric_per_variable_pairwise(
+		results: pd.DataFrame,
+		metric: str,
+		*,
+		dataset_name: Optional[str] = None,
+		dict_param_name: Optional[Dict[str, str]] = None,
+		value_rename: Optional[Dict[str, str]] = None,
+):
+	"""
+	Returns the data for the box plot.
+
+	:param results: The results to plot.
+	:param dataset_name: The dataset name used to filter the results.
+	:param metric: The y data to use to filter the results e.g. the performance.
+	:param dict_param_name: The dictionary of parameter names to filter and format the x axis.
+	:param value_rename: The dictionary of parameter values to format the x axis.
+	:return: None
+	"""
+	if dict_param_name is None:
+		dict_param_name = {}
+	if value_rename is None:
+		value_rename = {}
+	if dataset_name is None:
+		dataset_results = results
+	else:
+		dataset_results = results[results['dataset_name'] == dataset_name]
+	y_data = dataset_results[metric]
+	if dict_param_name is not None:
+		columns = list(dict_param_name.keys())
+	else:
+		columns = list(set(dataset_results.columns) - {'dataset_name', metric})
+	
+	nrows = int(np.sqrt(len(columns)))
+	ncols = int(np.ceil(len(columns) / nrows))
+	fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*4, nrows*4))
+	axes = np.ravel(axes)
+	index = 0
+	for i, col in enumerate(columns):
+		index = i
+		xticks_labels = list(sorted([value_rename.get(x, x) for x in dataset_results[col].unique()]))
+		xticks = np.arange(len(xticks_labels))
+		x_data = [xticks_labels.index(value_rename.get(x, x)) for x in dataset_results[col]]
+		y_mean = [y_data[dataset_results[col] == x].mean() for x in dataset_results[col].unique()]  # n'est pas dans le bon ordre à cause du sorted, maybe sorte par index pour ré-indexé y après
+		axes[i].plot(x_data, y_data, '.')
+		axes[i].set_xlabel(dict_param_name.get(col, col))
+		axes[i].set_ylabel(metric)
+		axes[i].set_xticks(xticks)
+		axes[i].set_xticklabels(xticks_labels)
+	
+	for ax in axes[index+1:]:
+		ax.set_visible(False)
+	
+	plt.tight_layout()
+	plt.show()
+
+	
 
 
 

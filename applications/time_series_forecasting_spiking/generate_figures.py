@@ -6,7 +6,8 @@ import plotly.graph_objects as go
 import seaborn as sns
 import numpy as np
 import neurotorch as nt
-from applications.figure_generation_util import load_results, format_table, box_plot_on_metric
+from applications.figure_generation_util import load_results, format_table, box_plot_on_metric, \
+	metric_per_variable_pairwise
 from neurotorch.modules import LayerType
 
 plot_layout = dict(
@@ -112,7 +113,7 @@ def gen_autoencoder_figures(filename: str):
 		'n_units'                 : 'Number of units',
 		"encoder_type"            : "Encoder type",
 		"dt"                      : "Time step",
-		"seed"                    : "Seed",
+		# "seed"                    : "Seed",
 	}
 	dict_param_surname = dict(
 		n_encoder_steps='TE',
@@ -158,19 +159,27 @@ def gen_autoencoder_figures(filename: str):
 	for dataset_name in [
 		'timeSeries_2020_12_16_cr3_df.npy'
 	]:
-		box_plot_on_metric(
+		# box_plot_on_metric(
+		# 	result, 'pVar',
+		# 	dataset_name=dataset_name,
+		# 	dict_param_name=dict_param_name,
+		# 	dict_param_surname=dict_param_surname,
+		# 	value_rename=value_rename,
+		# 	plot_layout=plot_layout,
+		# ).show()
+		metric_per_variable_pairwise(
 			result, 'pVar',
-			dataset_name=None,
+			dataset_name=dataset_name,
 			dict_param_name=dict_param_name,
-			dict_param_surname=dict_param_surname,
 			value_rename=value_rename,
-			plot_layout=plot_layout,
-		).show()
+		)
 
 
 if __name__ == '__main__':
-	gen_predictor_figures('tr_results/results.csv')
 	gen_autoencoder_figures('spikes_autoencoder_checkpoints/results.csv')
+	# gen_predictor_figures('tr_results/results.csv')
+	# TODO: faire un graphe qui montre les tendances pair-wise entre les différents paramètres
+	
 
 
 

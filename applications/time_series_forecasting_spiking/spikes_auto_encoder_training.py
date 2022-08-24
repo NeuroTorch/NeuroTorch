@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader, Dataset
 from scipy.ndimage import gaussian_filter1d
 
 from applications.util import get_optimizer
+from neurotorch import to_tensor
 from neurotorch.transforms.spikes_auto_encoder import SpikesAutoEncoder
 from neurotorch.transforms.spikes_encoders import SpikesEncoder
 from neurotorch.utils import hash_params, set_seed, save_params, get_all_params_combinations
@@ -124,13 +125,18 @@ def visualize_reconstruction(
 	
 	fig.set_tight_layout(True)
 	if filename is not None:
+		os.makedirs(os.path.dirname(filename), exist_ok=True)
 		fig.savefig(filename)
 	if show:
 		plt.show()
+	plt.close(fig)
 	return fig
 
 
 def show_single_preds(auto_encoder, ax, predictions, target, spikes, title=""):
+	predictions, target = to_tensor(predictions), to_tensor(target)
+	mse_loss = torch.nn.MSELoss()(predictions, target.to(predictions.device))
+	pVar = 1 - mse_loss / torch.var(target.to(mse_loss.device))
 	y_max = max(target.max(), predictions.max())
 	x_scatter_space = np.linspace(0, len(target), num=auto_encoder.n_encoder_steps * len(target))
 	x_scatter_spikes = []
@@ -143,8 +149,8 @@ def show_single_preds(auto_encoder, ax, predictions, target, spikes, title=""):
 			x_scatter_spikes.append(xs)
 		else:
 			x_scatter_zeros.append(xs)
-	ax.plot(predictions, label="Prediction")
-	ax.plot(target, label="Target")
+	ax.plot(predictions.detach().cpu().numpy(), label=f"Prediction (pVar: {pVar.detach().cpu().item():.3f})")
+	ax.plot(target.detach().cpu().numpy(), label="Target")
 	ax.scatter(
 		x_scatter_spikes, y=[y_max * 1.1] * len(x_scatter_spikes),
 		label="Latent space", c='k', marker='|', linewidths=0.5
@@ -158,7 +164,6 @@ def show_single_preds(auto_encoder, ax, predictions, target, spikes, title=""):
 class AutoEncoderTrainingOutput(NamedTuple):
 	spikes_auto_encoder: SpikesAutoEncoder
 	history: nt.TrainingHistory
-	reconstruction_fig: plt.Figure
 	dataset: TimeSeriesAutoEncoderDataset
 	checkpoints_name: str
 	train_loss: float
@@ -192,7 +197,7 @@ def train_auto_encoder(
 		batch_size=batch_size,
 		n_iterations=n_iterations,
 		seed=seed,
-		**kwargs
+		**kwargs  # TODO: remove unnecessary kwargs
 	)
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
@@ -223,15 +228,14 @@ def train_auto_encoder(
 		force_overwrite=force_overwrite,
 		desc=f"Training {checkpoints_name}:{encoder_type.__name__}<{n_units}u, {n_encoder_steps}t>",
 	)
-	reconstruction_fig = visualize_reconstruction(
+	visualize_reconstruction(
 		dataset.data, spikes_auto_encoder,
-		filename=f"{checkpoint_folder}/reconstruction_visualization.png",
+		filename=f"{checkpoint_folder}/figures/reconstruction_visualization.png",
 		show=False,
 	)
 	return AutoEncoderTrainingOutput(
 		spikes_auto_encoder=spikes_auto_encoder,
 		history=history,
-		reconstruction_fig=reconstruction_fig,
 		dataset=dataset,
 		checkpoints_name=checkpoints_name,
 		train_loss=history["train_loss"][-1],
@@ -445,6 +449,4 @@ if __name__ == '__main__':
 	# snapshot = tracemalloc.take_snapshot()
 	# tracemalloc.stop()
 	# display_top(snapshot, limit=5)
-	# out.reconstruction_fig.show()
-	# plt.show()
 

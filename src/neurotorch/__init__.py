@@ -9,6 +9,8 @@ from .dimension import (
 	Dimension,
 	DimensionProperty,
 	Size,
+	DimensionLike,
+	DimensionsLike,
 )
 
 from .modules.sequential import (

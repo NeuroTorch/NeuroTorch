@@ -99,6 +99,7 @@ class Size:
 	def __init__(self, dimensions: Union[int, Dimension, Iterable[Union[int, Dimension]]]):
 		"""
 		Constructor for Size.
+		
 		:param dimensions: The dimensions of the space.
 		"""
 		if isinstance(dimensions, (int, Dimension)):

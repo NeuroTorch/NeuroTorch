@@ -21,34 +21,34 @@ if __name__ == '__main__':
 		{
 			"dataset_name": "timeSeries_2020_12_16_cr3_df.npy",
 			"n_time_steps": 16,
-			"n_encoder_steps": 32,
+			"n_encoder_steps": 64,
 			"n_units": 128,
 			"dt": 1e-3,
-			"optimizer": "Adam",
+			"optimizer": "AdamW",
 			"learning_rate": 5e-5,
 			"min_lr": 5e-6,
-			"encoder_type": nt.LIFLayer,
+			"encoder_type": nt.SpyLIFLayer,
 			"use_recurrent_connection": True,
 			"seed": seed,
 			"smoothing_sigma": 5,
 		},
-		n_iterations=4096,
+		n_iterations=1024,
 		verbose=True,
 		show_training=False,
-		force_overwrite=True,
+		force_overwrite=False,
 		data_folder="predictor_checkpoints",
 		encoder_data_folder="autoencoder_checkpoints",
 	)
 	pprint.pprint(results, indent=4)
 	results["history"].plot(show=True)
-	visualize_reconstruction(
-		results["auto_encoder_training_output"].dataset.data,
-		results["auto_encoder_training_output"].spikes_auto_encoder,
-		show=True,
-	)
-	visualize_forecasting(
-		results["network"],
-		results["auto_encoder_training_output"].spikes_auto_encoder,
-		results["dataloader"],
-		show=True,
-	)
+	# visualize_reconstruction(
+	# 	results["auto_encoder_training_output"].dataset.data,
+	# 	results["auto_encoder_training_output"].spikes_auto_encoder,
+	# 	show=True,
+	# )
+	# visualize_forecasting(
+	# 	results["network"],
+	# 	results["auto_encoder_training_output"].spikes_auto_encoder,
+	# 	results["dataloader"],
+	# 	show=True,
+	# )

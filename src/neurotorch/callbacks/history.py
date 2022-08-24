@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
@@ -185,6 +186,7 @@ class TrainingHistory(BaseCallback):
 		plt.close('all')
 		fig, axes, lines = self.create_plot(**kwargs)
 		if save_path is not None:
+			os.makedirs(os.path.dirname(save_path), exist_ok=True)
 			fig.savefig(save_path, dpi=kwargs["dpi"])
 		if show:
 			plt.show(block=kwargs.get('block', True))

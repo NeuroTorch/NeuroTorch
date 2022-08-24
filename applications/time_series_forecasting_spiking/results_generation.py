@@ -34,6 +34,7 @@ from neurotorch.regularization import L1, L2, RegularizationList
 from neurotorch.trainers import ClassificationTrainer
 from neurotorch.transforms.spikes_auto_encoder import SpikesAutoEncoder
 from neurotorch.utils import get_all_params_combinations, hash_params, save_params, set_seed
+from neurotorch.visualisation.time_series_visualisation import VisualiseKMeans
 
 
 def get_training_params_space() -> Dict[str, Any]:
@@ -126,10 +127,10 @@ def train_with_params(
 	if encoder_data_folder is not None:
 		encoder_params["data_folder"] = encoder_data_folder
 	auto_encoder_training_output = train_auto_encoder(**encoder_params, verbose=verbose)
-	reconstruction_fig = visualize_reconstruction(
+	visualize_reconstruction(
 		auto_encoder_training_output.dataset.data,
 		auto_encoder_training_output.spikes_auto_encoder,
-		filename=f"{checkpoint_folder}/autoencoder_reconstruction.png",
+		filename=f"{checkpoint_folder}/figures/autoencoder_reconstruction.png",
 		show=show_training,
 	)
 	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
@@ -213,17 +214,36 @@ def train_with_params(
 		desc=f"Training {checkpoints_name}:{spikes_auto_encoder.encoder_type.__name__}"
 		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
 	)
+	history.plot(save_path=f"{checkpoint_folder}/figures/training_history.png")
 	try:
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.BEST_ITR, verbose=verbose)
 	except FileNotFoundError:
 		if verbose:
 			logging.info("No best checkpoint found. Loading last checkpoint instead.")
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.LAST_ITR, verbose=verbose)
-	forecasting_fig = visualize_forecasting(
+	visualize_forecasting(
 		network, spikes_auto_encoder, dataloader,
-		filename=f"{checkpoint_folder}/forecasting_visualization.png",
+		filename=f"{checkpoint_folder}/figures/forecasting_visualization.png",
 		show=show_training,
 	)
+	
+	t0, target = next(iter(dataloader))
+	preds, hh = network.get_prediction_trace(
+		t0, foresight_time_steps=(target.shape[1] - 1) * params["n_encoder_steps"], return_hidden_states=True
+	)
+	spikes_preds = hh[network.get_layer().name][-1]
+	viz = VisualiseKMeans(
+		spikes_preds.detach().cpu().numpy().squeeze().T,
+		# shape=nt.Size([
+		# 	Dimension(preds.shape[1], dtype=DimensionProperty.TIME),
+		# 	Dimension(preds.shape[-1], dtype=DimensionProperty.NONE)
+		# ]),
+	)
+	viz.plot_timeseries()
+	viz.animate(network.get_layer().forward_weights.detach().cpu().numpy(), network.get_layer().dt)
+	viz.heatmap()
+	viz.rigidplot()
+	
 	y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(network, dataloader, verbose=verbose, desc=f"predictions")
 	return OrderedDict(dict(
 		network=network,
@@ -231,8 +251,8 @@ def train_with_params(
 		checkpoints_name=checkpoints_name,
 		history=history,
 		dataloader=dataloader,
-		reconstruction_fig=reconstruction_fig,
-		forecasting_fig=forecasting_fig,
+		y_true=y_true,
+		y_pred=y_pred,
 		pVar=RegressionMetrics.p_var(network, y_true=y_true, y_pred=y_pred),
 	))
 
@@ -286,9 +306,11 @@ def visualize_forecasting(
 	
 	fig.set_tight_layout(True)
 	if filename is not None:
+		os.makedirs(os.path.dirname(filename), exist_ok=True)
 		fig.savefig(filename)
 	if show:
 		plt.show()
+	plt.close(fig)
 	return fig
 
 

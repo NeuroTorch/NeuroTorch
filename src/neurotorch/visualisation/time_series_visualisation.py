@@ -1,4 +1,5 @@
-from typing import Optional, Tuple
+import os
+from typing import Optional, Tuple, Any
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -9,7 +10,8 @@ from scipy import interpolate
 from sklearn.cluster import KMeans, DBSCAN
 from sklearn.decomposition import PCA
 
-from neurotorch.dimension import Dimension, DimensionProperty
+from neurotorch.dimension import Dimension, DimensionProperty, Size, DimensionLike, DimensionsLike
+from neurotorch.transforms.base import to_numpy
 
 
 class Visualise:
@@ -26,57 +28,71 @@ class Visualise:
 
 	def __init__(
 			self,
-			timeseries: np.array,
-			shape: Optional[Dimension] = None,
+			timeseries: Any,
+			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = False
 		):
 		"""
-		:param timeseries: Time series of shape (num_sample, num_variable). Make sure the time series is a numpy array
+		:param timeseries: Time series of shape (Time Steps, Features).
 		:param shape: Shape of the time series. If shape is None, the shape is inferred from the time series. Useful
-		to identify the dtype of the time series. We know whether the neurons are the sample or variable.
+		to identify the dtype of the time series. If the shape is Size, make sure to set the name of the dimensions as
+		you want them to be displayed.
 		"""
-		self.timeseries = timeseries
-		self.num_sample, self.num_variable, self.x_axis_title, self.y_axis_title = self._set_dimension(shape)
+		self.timeseries = to_numpy(timeseries)
+		self.shape = self._set_dimension(shape)
 		if apply_zscore:
-			for i in range(self.num_sample):
-				self.timeseries[i] = (self.timeseries[i] - np.mean(self.timeseries[i])) / np.std(self.timeseries[i])
-
-	def _set_dimension(self, shape):
+			self._zscore_timeseries()
+	
+	def _zscore_timeseries(self):
 		"""
-		Identify the shape of the time series and name the x-axis and y-axis if shape is specified by the user.
-		:param shape: Shape of the time series. Use object Dimension given in this package.
-		:return: num_sample, num_variable, x_axis_title, y_axis_title
+		Z-score the time series.
+		"""
+		for i in range(int(self.shape[-1])):
+			self.timeseries[:, i] = (
+					(self.timeseries[:, i] - np.mean(self.timeseries[:, i])) / np.std(self.timeseries[:, i])
+			)
+
+	def _set_dimension(self, shape: Optional[DimensionsLike]) -> Size:
+		"""
+		Identify the shape of the time series. Will transpose the time series to have the time dimension as the first
+		dimension.
+		
+		:param shape: Shape of the time series. Use object Size given in this package.
+		:return: The shape of the time series.
 		"""
 		if shape is None:
-			num_sample, num_variable = self.timeseries.shape
-			x_axis_title = "Variable"
-			y_axis_title = "Sample"
-		else:
-			num_sample = shape[0].size
-			num_variable = shape[1].size
-			if shape[0].dtype == DimensionProperty.NONE:
-				y_axis_title = "Neuron ID"
-			elif shape[0].dtype == DimensionProperty.TIME:
-				y_axis_title = "Time step"
-			else:
-				y_axis_title = "Sample"
-			if shape[1].dtype == DimensionProperty.NONE:
-				x_axis_title = "Neuron ID"
-			elif shape[1].dtype == DimensionProperty.TIME:
-				x_axis_title = "Time step"
-			else:
-				x_axis_title = "Variable"
-		return num_sample, num_variable, x_axis_title, y_axis_title
+			shape = self.timeseries.shape
+
+		shape = Size(shape)
+		assert len(shape) == 2, "The shape of the time series must be 2 dimensional"
+		if all(dim.dtype == DimensionProperty.NONE for dim in shape):
+			shape[0].dtype = DimensionProperty.TIME
+			for dim in shape:
+				if dim.dtype == DimensionProperty.TIME:
+					dim.name = "Time Steps"
+				elif dim.dtype == DimensionProperty.NONE:
+					dim.name = "Features"
+		for i, dim in enumerate(shape):
+			if dim.size is None:
+				dim.size = self.timeseries.shape[i]
+		
+		if shape[0].dtype == DimensionProperty.NONE:
+			self.timeseries = self.timeseries.T
+			self.shape = Size(shape.dimensions[::-1])
+		return shape
 
 	def animate(
 			self,
 			forward_weights: np.ndarray,
-			dt: float,
-			step: int = 4,
+			dt: float = 1.0,
+			step: int = 1,
 			time_interval: float = 1.0,
 			node_size: float = 50,
 			alpha: float = 0.01,
-			anim_title: str = None
+			filename: Optional[str] = None,
+			file_extension: str = "mp4",
+			show: bool = False,
+			**kwargs
 	):
 		"""
 		Animate the time series. The position of the nodes are obtained using the spring layout.
@@ -85,15 +101,21 @@ class Visualise:
 		https://networkx.org/documentation/stable/reference/generated/networkx.drawing.layout.spring_layout.html
 
 		:param forward_weights: Weight matrix of size (number of neurons, number of neurons).
-		:param dt: Time step.
+		:param dt: Time step between two time steps.
 		:param step: Number of time step between two animation frames.
 			example: if step = 4, the animation will play at t = 0, t = 4, t = 8, t = 12 ...
 		:param time_interval: Time interval between two animation frames (in milliseconds)
 		:param node_size: Size of the nodes
 		:param alpha: Density of the connections. Small network should have a higher alpha value.
-		:param anim_title: Title of the animation to be saved as GIF. If anim_title is None, the animation is not saved
+		:param filename: Name of the file to save the animation. If filename is None, the animation will not be saved.
+		The application imagemagick is required to save the animation.
+		:param file_extension: Extension of the file to save the animation. The available extensions are: mp4 and gif.
+		:param show: If True, the animation will be displayed.
+		:param kwargs: Keyword arguments.
+		
+		:keyword fps: Frames per second. Default is 30.
 		"""
-		num_frames = self.num_variable // step
+		num_frames = int(self.shape[0]) // step
 		connectome = nx.from_numpy_array(forward_weights)
 		pos = nx.spring_layout(connectome)
 		fig, ax = plt.subplots(figsize=(7, 7))
@@ -108,7 +130,7 @@ class Visualise:
 		nx.draw_networkx_edges(connectome, pos, ax=ax, width=1.0, alpha=alpha)
 		x, y = ax.get_xlim()[0], ax.get_ylim()[1]
 		plt.axis("off")
-		text = ax.text(0, 1.08, rf"$t = 0 / {self.num_variable * dt}$", ha="center")
+		text = ax.text(0, 1.08, rf"$t = 0 / {int(self.shape[0]) * dt}$", ha="center")
 		plt.tight_layout(pad=0)
 
 		def _animation(i):
@@ -119,62 +141,117 @@ class Visualise:
 				node_color=self.timeseries[:, i * step],
 				cmap="hot"
 			)
-			text.set_text(rf"$t = {i * step * dt:.3f} / {self.num_variable * dt}$")
+			text.set_text(rf"$t = {i * step * dt:.3f} / {int(self.shape[0]) * dt}$")
 			return nodes, text
 
 		anim = animation.FuncAnimation(fig, _animation, frames=num_frames, interval=time_interval, blit=True)
-		if anim_title is not None:
-			anim.save(f"{anim_title}.gif", writer="imagemagick", fps=30)
-		plt.show()
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			assert file_extension in ["mp4", "gif"], "The extension of the file must be mp4 or gif."
+			if filename.endswith(file_extension):
+				filename = filename[:-len(file_extension)]
+			anim.save(f"{filename}.{file_extension}", writer="imagemagick", fps=kwargs.get("fps", 30))
+		if show:
+			plt.show()
 
-	def plot_timeseries(self):
+	def plot_timeseries(
+			self,
+			filename: Optional[str] = None,
+			show: bool = False,
+			**kwargs
+	):
 		"""
 		Plot all the neuronal activity in one figure.
+		
+		:param filename: Name of the file to save the figure. If filename is None, the figure will not be saved.
+		:param show: If True, the figure will be displayed.
+		:param kwargs: Keyword arguments.
+		
+		:keyword figsize: Size of the figure. Default is (12, 8).
+		:keyword dpi: DPI of the figure. Default is 300.
 		"""
-		plt.xlabel(self.x_axis_title)
-
-		plt.plot(self.timeseries.T)
-		plt.ylabel(self.y_axis_title)
-		plt.show()
+		fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
+		ax.set_xlabel(self.shape[0].name)
+		ax.plot(self.timeseries)
+		ax.set_ylabel(self.shape[1].name)
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
+		if show:
+			plt.show()
+		plt.close(fig)
 
 	def heatmap(
 			self,
 			show_axis: bool = True,
 			interpolation: str = "nearest",
 			cmap: str = "RdBu_r",
-			v: Tuple[float, float] = (0.0, 1.0)
+			v: Tuple[float, float] = (0.0, 1.0),
+			filename: Optional[str] = None,
+			show: bool = False,
+			**kwargs
 	):
 		"""
 		Plot the heatmap of the time series.
+		
 		:param show_axis: Whether to show the axis or not.
 		:param interpolation: Type of interpolation between the time step.
 		:param cmap: Colormap of the heatmap.
 		:param v: Range of the colorbar.
+		:param filename: Name of the file to save the figure. If filename is None, the figure will not be saved.
+		:param show: If True, the figure will be displayed.
+		:param kwargs: Keyword arguments.
+		
+		:keyword figsize: Size of the figure. Default is (12, 8).
+		:keyword dpi: DPI of the figure. Default is 300.
 		"""
-		plt.figure(figsize=(16, 8))
-		plt.imshow(self.timeseries, interpolation=interpolation, aspect="auto", cmap=cmap, vmin=v[0], vmax=v[1])
-		plt.xlabel(self.x_axis_title)
-		plt.ylabel(self.y_axis_title)
-		if not show_axis:
-			plt.axis("off")
-		plt.colorbar()
-		plt.show()
-
-	def rigidplot(self, show_axis: bool = False):
-		"""
-		Plot the rigid plot of the time series.
-		:param show_axis: Whether to show the axis or not.
-		"""
-		fig, ax = plt.subplots(figsize=(16, 8))
-		ax.set_xlabel(self.x_axis_title)
-		ax.set_ylabel(self.y_axis_title)
+		fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
+		ax.set_xlabel(self.shape[0].name)
+		ax.set_ylabel(self.shape[1].name)
+		ax.imshow(self.timeseries, interpolation=interpolation, aspect="auto", cmap=cmap, vmin=v[0], vmax=v[1])
 		if not show_axis:
 			ax.axis("off")
-		for i in range(self.num_sample):
-			shifted_timeseries = self.timeseries[i] - np.min(self.timeseries[i])
+		plt.colorbar()
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
+		if show:
+			plt.show()
+		plt.close(fig)
+
+	def rigidplot(
+			self,
+			show_axis: bool = False,
+			filename: Optional[str] = None,
+			show: bool = False,
+			**kwargs
+	):
+		"""
+		Plot the rigid plot of the time series.
+		
+		:param show_axis: Whether to show the axis or not.
+		:param filename: Name of the file to save the figure. If filename is None, the figure will not be saved.
+		:param show: If True, the figure will be displayed.
+		:param kwargs: Keyword arguments.
+		
+		:keyword figsize: Size of the figure. Default is (12, 8).
+		:keyword dpi: DPI of the figure. Default is 300.
+		"""
+		fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
+		ax.set_xlabel(self.shape[0].name)
+		ax.set_ylabel(self.shape[1].name)
+		if not show_axis:
+			ax.axis("off")
+		for i in range(int(self.shape[-1])):
+			shifted_timeseries = self.timeseries[:, i] - np.min(self.timeseries[:, i])
 			shifted_timeseries = shifted_timeseries / np.max(shifted_timeseries) + 0.8 * i
 			ax.plot(shifted_timeseries, c="k", alpha=0.9, linewidth=1.0)
-		plt.show()
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
+		if show:
+			plt.show()
+		plt.close(fig)
 
 
 class VisualiseKMeans(Visualise):
@@ -185,6 +262,7 @@ class VisualiseKMeans(Visualise):
 	def __init__(
 			self,
 			timeseries: np.array,
+			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = False,
 			n_clusters: int = 13,
 			random_state: int = 0
@@ -198,6 +276,7 @@ class VisualiseKMeans(Visualise):
 		"""
 		super().__init__(
 			timeseries=timeseries,
+			shape=shape,
 			apply_zscore=apply_zscore
 		)
 		self.n_clusters = n_clusters
@@ -229,6 +308,7 @@ class VisualisePCA(Visualise):
 	def __init__(
 			self,
 			timeseries: np.ndarray,
+			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = False,
 			n_PC: int = 5
 		):
@@ -239,6 +319,7 @@ class VisualisePCA(Visualise):
 		"""
 		super().__init__(
 			timeseries=timeseries,
+			shape=shape,
 			apply_zscore=apply_zscore
 		)
 		self.n_PC = n_PC
@@ -350,6 +431,7 @@ class VisualiseUMAP(Visualise):
 	def __init__(
 			self,
 			timeseries: np.ndarray,
+			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = False,
 			n_neighbors: int = 10,
 			min_dist: float = 0.5,
@@ -357,6 +439,7 @@ class VisualiseUMAP(Visualise):
 		):
 		super().__init__(
 			timeseries=timeseries,
+			shape=shape,
 			apply_zscore=apply_zscore
 		)
 		self.n_neighbors = n_neighbors
@@ -470,12 +553,14 @@ class VisualiseDBSCAN(Visualise):
 	def __init__(
 			self,
 			timeseries: np.ndarray,
+			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = True,
 			eps: float = 25,
 			min_samples: int = 3,
 			):
 		super().__init__(
 			timeseries=timeseries,
+			shape=shape,
 			apply_zscore=apply_zscore
 		)
 		self.eps = eps

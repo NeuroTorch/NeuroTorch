@@ -166,6 +166,7 @@ class AutoEncoderTrainingOutput(NamedTuple):
 	history: nt.TrainingHistory
 	dataset: TimeSeriesAutoEncoderDataset
 	checkpoints_name: str
+	params: dict
 	train_loss: float
 	pVar: float
 
@@ -186,6 +187,7 @@ def train_auto_encoder(
 ) -> AutoEncoderTrainingOutput:
 	kwargs.setdefault("use_recurrent_connection", True)
 	kwargs.setdefault("optimizer", "AdamW")
+	kwargs.setdefault("smoothing_sigma", 0.0)
 	set_seed(seed)
 	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed, filename=kwargs.get("dataset_name"), **kwargs)
 	n_units = dataset.n_units
@@ -197,7 +199,10 @@ def train_auto_encoder(
 		batch_size=batch_size,
 		n_iterations=n_iterations,
 		seed=seed,
-		**kwargs  # TODO: remove unnecessary kwargs
+		optimizer=kwargs.get("optimizer"),
+		use_recurrent_connection=kwargs.get("use_recurrent_connection"),
+		dataset_name=kwargs.get("dataset_name"),
+		smoothing_sigma=kwargs.get("smoothing_sigma"),
 	)
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
@@ -216,7 +221,7 @@ def train_auto_encoder(
 	trainer = nt.Trainer(
 		spikes_auto_encoder,
 		callbacks=([checkpoint_manager] if load_and_save else None),
-		optimizer=get_optimizer(params["optimizer"])(
+		optimizer=get_optimizer(kwargs["optimizer"])(
 			spikes_auto_encoder.parameters(), lr=2e-4, weight_decay=0.0
 		),
 		verbose=verbose,
@@ -238,6 +243,7 @@ def train_auto_encoder(
 		history=history,
 		dataset=dataset,
 		checkpoints_name=checkpoints_name,
+		params=params,
 		train_loss=history["train_loss"][-1],
 		pVar=compute_reconstruction_pvar(dataset.data, spikes_auto_encoder),
 	)
@@ -273,7 +279,7 @@ def display_top(snapshot: tracemalloc.Snapshot, key_type='lineno', limit=3):
 		print(f"{len(other)} other: {size / 1024:.1f} KiB ({size * 1e-9:.3f} GB)")
 	total = sum(stat.size for stat in top_stats)
 	print(f"Total allocated size: {total / 1024:.1f} KiB ({total * 1e-9:.3f} GB)")
-	
+
 	
 def get_training_params_space() -> Dict[str, Any]:
 	"""
@@ -307,7 +313,7 @@ def get_training_params_space() -> Dict[str, Any]:
 		],
 		"dt": [
 			1e-3,
-			2e-2
+			# 2e-2
 		],
 		"optimizer": [
 			# "SGD",
@@ -392,6 +398,7 @@ def train_all_params(
 					force_overwrite=force_overwrite,
 					device=device,
 				)
+				params.update(result.params)
 				if result.checkpoints_name in df["checkpoints"].values:
 					# remove from df if already exists
 					df = df[df["checkpoints"] != result.checkpoints_name]
@@ -421,12 +428,14 @@ def train_all_params(
 
 if __name__ == '__main__':
 	logs_file_setup(__file__, add_stdout=False)
-	torch.cuda.set_per_process_memory_fraction(0.8)
+	torch.cuda.set_per_process_memory_fraction(0.5)
 	log_device_setup(deepLib=DeepLib.Pytorch)
 	df_results = train_all_params(
+		n_iterations=1024,
 		training_params=get_training_params_space(),
 		verbose=False,
 		rm_data_folder_and_restart_all_training=False,
+		data_folder="spikes_autoencoder_checkpoints_002",
 	)
 	logging.info(df_results)
 	

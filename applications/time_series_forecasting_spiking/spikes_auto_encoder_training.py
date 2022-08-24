@@ -18,6 +18,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from scipy.ndimage import gaussian_filter1d
 
+from applications.util import get_optimizer
 from neurotorch.transforms.spikes_auto_encoder import SpikesAutoEncoder
 from neurotorch.transforms.spikes_encoders import SpikesEncoder
 from neurotorch.utils import hash_params, set_seed, save_params, get_all_params_combinations
@@ -179,6 +180,7 @@ def train_auto_encoder(
 		**kwargs
 ) -> AutoEncoderTrainingOutput:
 	kwargs.setdefault("use_recurrent_connection", True)
+	kwargs.setdefault("optimizer", "AdamW")
 	set_seed(seed)
 	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed, filename=kwargs.get("dataset_name"), **kwargs)
 	n_units = dataset.n_units
@@ -209,7 +211,9 @@ def train_auto_encoder(
 	trainer = nt.Trainer(
 		spikes_auto_encoder,
 		callbacks=([checkpoint_manager] if load_and_save else None),
-		optimizer=torch.optim.AdamW(spikes_auto_encoder.parameters(), lr=2e-4, weight_decay=0.0),
+		optimizer=get_optimizer(params["optimizer"])(
+			spikes_auto_encoder.parameters(), lr=2e-4, weight_decay=0.0
+		),
 		verbose=verbose,
 	)
 	history = trainer.train(
@@ -300,6 +304,15 @@ def get_training_params_space() -> Dict[str, Any]:
 		"dt": [
 			1e-3,
 			2e-2
+		],
+		"optimizer": [
+			# "SGD",
+			"Adam",
+			# "Adamax",
+			# "RMSprop",
+			# "Adagrad",
+			# "Adadelta",
+			"AdamW",
 		],
 		"smoothing_sigma": [5],
 		"seed": [

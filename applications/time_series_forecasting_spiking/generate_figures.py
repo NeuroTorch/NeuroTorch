@@ -1,3 +1,4 @@
+import os
 from functools import partial
 from typing import Dict, List, Optional
 
@@ -108,10 +109,13 @@ def gen_predictor_figures(filename: str):
 		
 
 def gen_autoencoder_figures(filename: str):
+	figures_folder = os.path.join(os.path.dirname(filename), 'figures')
+	os.makedirs(figures_folder, exist_ok=True)
 	dict_param_name = {
 		'n_encoder_steps'         : 'Number of encoder steps',
 		'n_units'                 : 'Number of units',
 		"encoder_type"            : "Encoder type",
+		"use_recurrent_connection": "Recurrent Connection",
 		"dt"                      : "Time step",
 		# "seed"                    : "Seed",
 	}
@@ -119,6 +123,7 @@ def gen_autoencoder_figures(filename: str):
 		n_encoder_steps='TE',
 		n_units='N',
 		encoder_type='E',
+		use_recurrent_connection='R',
 		learning_rate='Lr',
 		dt='dt',
 		seed='Seed',
@@ -135,6 +140,7 @@ def gen_autoencoder_figures(filename: str):
 		'n_encoder_steps',
 		'n_units',
 		'encoder_type',
+		'use_recurrent_connection',
 		'dt',
 		'pVar',
 	]
@@ -159,26 +165,27 @@ def gen_autoencoder_figures(filename: str):
 	for dataset_name in [
 		'timeSeries_2020_12_16_cr3_df.npy'
 	]:
-		# box_plot_on_metric(
-		# 	result, 'pVar',
-		# 	dataset_name=dataset_name,
-		# 	dict_param_name=dict_param_name,
-		# 	dict_param_surname=dict_param_surname,
-		# 	value_rename=value_rename,
-		# 	plot_layout=plot_layout,
-		# ).show()
+		box_plot_on_metric(
+			result, 'pVar',
+			dataset_name=dataset_name,
+			dict_param_name=dict_param_name,
+			dict_param_surname=dict_param_surname,
+			value_rename=value_rename,
+			plot_layout=plot_layout,
+		).show()
 		metric_per_variable_pairwise(
 			result, 'pVar',
 			dataset_name=dataset_name,
 			dict_param_name=dict_param_name,
 			value_rename=value_rename,
+			filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_pVar_pairwise.png"),
+			show=True,
 		)
 
 
 if __name__ == '__main__':
 	gen_autoencoder_figures('spikes_autoencoder_checkpoints/results.csv')
 	# gen_predictor_figures('tr_results/results.csv')
-	# TODO: faire un graphe qui montre les tendances pair-wise entre les différents paramètres
 	
 
 

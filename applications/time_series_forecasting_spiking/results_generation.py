@@ -22,6 +22,7 @@ from applications.time_series_forecasting_spiking.spikes_auto_encoder_training i
 	show_single_preds,
 	visualize_reconstruction,
 )
+from applications.util import get_optimizer
 from neurotorch import Dimension, DimensionProperty, RegressionTrainer
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
 from neurotorch.callbacks.lr_schedulers import LinearLRScheduler, LRSchedulerOnMetric
@@ -54,12 +55,12 @@ def get_training_params_space() -> Dict[str, Any]:
 		],
 		"n_encoder_steps": [
 			# 8,
-			# 16,
+			16,
 			32,
 			64,
 		],
 		"n_units": [
-			# 32,
+			32,
 			128,
 			# 1024,
 		],
@@ -98,19 +99,6 @@ def get_training_params_space() -> Dict[str, Any]:
 	}
 
 
-def get_optimizer(optimizer_name: str) -> Type[torch.optim.Optimizer]:
-	name_to_opt = {
-		"sgd": torch.optim.SGD,
-		"adam": torch.optim.Adam,
-		"adamax": torch.optim.Adamax,
-		"rmsprop": torch.optim.RMSprop,
-		"adagrad": torch.optim.Adagrad,
-		"adadelta": torch.optim.Adadelta,
-		"adamw": torch.optim.AdamW,
-	}
-	return name_to_opt[optimizer_name.lower()]
-
-
 def train_with_params(
 		params: Dict[str, Any],
 		n_iterations: int = 1024,
@@ -122,6 +110,10 @@ def train_with_params(
 		encoder_data_folder: Optional[str] = None,
 ):
 	params.setdefault("smoothing_sigma", 5)
+	params.setdefault("seed", seed)
+	params.setdefault("optimizer", "Adam")
+	params.setdefault("learning_rate", 5e-5)
+	params.setdefault("min_lr", 5e-7)
 	set_seed(seed)
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
@@ -185,7 +177,7 @@ def train_with_params(
 		LRSchedulerOnMetric(
 			'train_loss',
 			metric_schedule=np.linspace(-1.5, 0.99, 100),
-			min_lr=params.get("min_lr", 1e-8),
+			min_lr=params["min_lr"],
 			retain_progress=True,
 		),
 		checkpoint_manager,
@@ -201,12 +193,12 @@ def train_with_params(
 		callbacks=callbacks,
 		# regularization=regularization,
 		criterion=nt.losses.PVarianceLoss(),
-		optimizer=get_optimizer(params.get("optimizer", "adam"))(
-			network.parameters(), lr=params.get("learning_rate", 5e-5),
+		optimizer=get_optimizer(params["optimizer"])(
+			network.parameters(), lr=params["learning_rate"],
 			maximize=True, **params.get("optimizer_params", {})
 		),
 		# regularization_optimizer=torch.optim.Adam(regularization.parameters(), lr=params.get("learning_rate", 2e-4)),
-		lr=params.get("learning_rate", 5e-5),
+		lr=params["learning_rate"],
 		# reg_lr=params.get("reg_lr", 2e-4),
 		foresight_time_steps=params.get("foresight_time_steps", spiking_foresight_steps),
 		metrics=[],

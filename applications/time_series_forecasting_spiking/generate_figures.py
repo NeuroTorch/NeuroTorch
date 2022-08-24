@@ -8,7 +8,7 @@ import seaborn as sns
 import numpy as np
 import neurotorch as nt
 from applications.figure_generation_util import load_results, format_table, box_plot_on_metric, \
-	metric_per_variable_pairwise
+	metric_per_all_variable
 from neurotorch.modules import LayerType
 
 plot_layout = dict(
@@ -173,12 +173,12 @@ def gen_autoencoder_figures(filename: str):
 			value_rename=value_rename,
 			plot_layout=plot_layout,
 		).show()
-		metric_per_variable_pairwise(
+		metric_per_all_variable(
 			result, 'pVar',
 			dataset_name=dataset_name,
 			dict_param_name=dict_param_name,
 			value_rename=value_rename,
-			filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_pVar_pairwise.png"),
+			filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_pVar_per_all_variable.png"),
 			show=True,
 		)
 

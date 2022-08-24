@@ -21,13 +21,13 @@ if __name__ == '__main__':
 		{
 			"dataset_name": "timeSeries_2020_12_16_cr3_df.npy",
 			"n_time_steps": 16,
-			"n_encoder_steps": 64,
-			"n_units": 128,
-			"dt": 1e-3,
-			"optimizer": "AdamW",
+			"n_encoder_steps": 8,
+			"n_units": 32,
+			"dt": 2e-2,
+			"optimizer": "Adam",
 			"learning_rate": 5e-5,
-			"min_lr": 5e-6,
-			"encoder_type": nt.SpyLIFLayer,
+			"min_lr": 5e-7,
+			"encoder_type": nt.LIFLayer,
 			"use_recurrent_connection": True,
 			"seed": seed,
 			"smoothing_sigma": 5,
@@ -37,10 +37,11 @@ if __name__ == '__main__':
 		show_training=False,
 		force_overwrite=False,
 		data_folder="predictor_checkpoints",
-		encoder_data_folder="autoencoder_checkpoints",
+		encoder_data_folder="spikes_autoencoder_checkpoints_002",
+		encoder_iterations=1024,
 	)
 	pprint.pprint(results, indent=4)
-	results["history"].plot(show=True)
+	# results["history"].plot(show=True)
 	# visualize_reconstruction(
 	# 	results["auto_encoder_training_output"].dataset.data,
 	# 	results["auto_encoder_training_output"].spikes_auto_encoder,

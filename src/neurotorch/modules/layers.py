@@ -258,11 +258,7 @@ class BaseLayer(torch.nn.Module):
 		raise NotImplementedError()
 
 	def initialize_weights_(self):
-		for param in self.parameters():
-			if param.ndim > 2:
-				torch.nn.init.xavier_normal_(param)
-			else:
-				torch.nn.init.normal_(param)
+		pass
 
 	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
 		"""

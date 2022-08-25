@@ -117,6 +117,7 @@ def gen_autoencoder_figures(filename: str):
 		"encoder_type"            : "Encoder type",
 		"use_recurrent_connection": "Recurrent Connection",
 		"dt"                      : "Time step",
+		"optimizer"               : 'Optimizer',
 		# "seed"                    : "Seed",
 	}
 	dict_param_surname = dict(
@@ -126,6 +127,7 @@ def gen_autoencoder_figures(filename: str):
 		use_recurrent_connection='R',
 		learning_rate='Lr',
 		dt='dt',
+		optimizer='O',
 		seed='Seed',
 	)
 	value_rename = {
@@ -142,6 +144,7 @@ def gen_autoencoder_figures(filename: str):
 		'encoder_type',
 		'use_recurrent_connection',
 		'dt',
+		'optimizer',
 		'pVar',
 	]
 	filtered_result = format_table(
@@ -173,10 +176,15 @@ def gen_autoencoder_figures(filename: str):
 			value_rename=value_rename,
 			plot_layout=plot_layout,
 		).show()
+		temp_dict_params = {
+			k: v
+			for k, v in dict_param_name.items()
+			if result[result["dataset_name"] == dataset_name][k].nunique() > 1
+		}
 		metric_per_all_variable(
 			result, 'pVar',
 			dataset_name=dataset_name,
-			dict_param_name=dict_param_name,
+			dict_param_name=temp_dict_params,
 			value_rename=value_rename,
 			filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_pVar_per_all_variable.png"),
 			show=True,
@@ -184,7 +192,7 @@ def gen_autoencoder_figures(filename: str):
 
 
 if __name__ == '__main__':
-	gen_autoencoder_figures('spikes_autoencoder_checkpoints/results.csv')
+	gen_autoencoder_figures('spikes_autoencoder_checkpoints_002/results.csv')
 	# gen_predictor_figures('tr_results/results.csv')
 	
 

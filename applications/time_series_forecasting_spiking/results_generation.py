@@ -251,13 +251,14 @@ def train_with_params(
 		filename=f"{checkpoint_folder}/figures/timeseries.png",
 		show=False
 	)
-	viz.animate(
-		network.get_layer().forward_weights.detach().cpu().numpy(),
-		network.get_layer().dt,
-		filename=f"{checkpoint_folder}/figures/animation.gif",
-		show=False,
-		fps=10,
-	)
+	if verbose:
+		viz.animate(
+			network.get_layer().forward_weights.detach().cpu().numpy(),
+			network.get_layer().dt,
+			filename=f"{checkpoint_folder}/figures/animation.gif",
+			show=False,
+			fps=10,
+		)
 	viz.heatmap(
 		filename=f"{checkpoint_folder}/figures/heatmap.png",
 		show=False
@@ -269,6 +270,7 @@ def train_with_params(
 	
 	y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(network, dataloader, verbose=verbose, desc=f"predictions")
 	return OrderedDict(dict(
+		params=params,
 		network=network,
 		auto_encoder_training_output=auto_encoder_training_output,
 		checkpoints_name=checkpoints_name,
@@ -360,7 +362,7 @@ def train_all_params(
 	:param skip_if_exists: If True, skip the training if the results already in the results dataframe.
 	:return: The results of the training.
 	"""
-	warnings.filterwarnings("ignore", category=UserWarning)
+	warnings.filterwarnings("ignore", category=Warning)
 	if rm_data_folder_and_restart_all_training and os.path.exists(data_folder):
 		shutil.rmtree(data_folder)
 	os.makedirs(data_folder, exist_ok=True)
@@ -397,6 +399,7 @@ def train_all_params(
 					encoder_data_folder=encoder_data_folder,
 					encoder_iterations=encoder_iterations,
 				)
+				params.update(result["params"])
 				if result["checkpoints_name"] in df["checkpoints"].values:
 					# remove from df if already exists
 					df = df[df["checkpoints"] != result["checkpoints_name"]]

@@ -60,8 +60,8 @@ if __name__ == '__main__':
 	results = train_with_params(
 		{
 			"dataset_name": "timeSeries_2020_12_16_cr3_df.npy",
-			"n_time_steps": 16,
-			"n_encoder_steps": 16,
+			"n_time_steps": 100,
+			"n_encoder_steps": 64,
 			"n_units": 128,
 			"dt": 1e-3,
 			"optimizer": "Adam",
@@ -78,7 +78,7 @@ if __name__ == '__main__':
 		force_overwrite=False,
 		data_folder="predictor_checkpoints",
 		encoder_data_folder="spikes_autoencoder_checkpoints",
-		encoder_iterations=4096,
+		encoder_iterations=1024,
 	)
 	pprint.pprint(results, indent=4)
 	# results["history"].plot(show=True)

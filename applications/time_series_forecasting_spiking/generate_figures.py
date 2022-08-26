@@ -48,6 +48,7 @@ def gen_predictor_figures(filename: str):
 		"optimizer"               : 'Optimizer',
 		"learning_rate"           : 'Learning rate',
 		"dt"                      : "Time step",
+		"smoothing_sigma"         : "Smoothing sigma",
 		"seed"                    : "Seed",
 	}
 	dict_param_surname = dict(
@@ -59,6 +60,7 @@ def gen_predictor_figures(filename: str):
 		optimizer='O',
 		learning_rate='Lr',
 		dt='dt',
+		smoothing_sigma='$\sigma$',
 		seed='Seed',
 	)
 	result = load_results(filename).sort_values(by='pVar', ascending=False)
@@ -72,6 +74,7 @@ def gen_predictor_figures(filename: str):
 		'use_recurrent_connection',
 		"optimizer",
 		'dt',
+		'smoothing_sigma',
 		'pVar',
 	]
 	value_rename = {
@@ -208,7 +211,7 @@ def gen_autoencoder_figures(filename: str):
 
 if __name__ == '__main__':
 	# gen_autoencoder_figures('spikes_autoencoder_checkpoints_002/results.csv')
-	gen_predictor_figures('predictor_checkpoints_002_4096itr/results.csv')
+	gen_predictor_figures('predictor_checkpoints_003/results.csv')
 	
 
 

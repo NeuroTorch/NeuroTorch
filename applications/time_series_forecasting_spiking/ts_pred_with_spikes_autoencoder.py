@@ -28,17 +28,18 @@ def create_dataset(auto_encoder_training_output, n_time_steps=None):
 
 def create_network(n_units, n_encoder_steps, encoder_type, n_aux_units=0):
 	auto_encoder_training_output = train_auto_encoder(
-		encoder_type=encoder_type, n_units=n_units+n_aux_units, n_encoder_steps=n_encoder_steps
+		encoder_type=encoder_type, n_units=n_units+n_aux_units, n_encoder_steps=n_encoder_steps,
+		n_iterations=1024, data_folder='encoder_checkpoints',
 	)
 	# show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
 	# auto_encoder_training_output.history.plot(show=True)
 	
 	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
 	spikes_encoder = auto_encoder_training_output.spikes_auto_encoder.spikes_encoder
-	spikes_encoder.spikes_layer.learning_type = nt.LearningType.NONE
-	spikes_encoder.requires_grad_(False)
+	# spikes_encoder.spikes_layer.learning_type = nt.LearningType.NONE
+	# spikes_encoder.requires_grad_(False)
 	spikes_decoder = auto_encoder_training_output.spikes_auto_encoder.spikes_decoder
-	spikes_decoder.requires_grad_(False)
+	# spikes_decoder.requires_grad_(False)
 	
 	lif_layer = encoder_type(
 		input_size=nt.Size(
@@ -48,21 +49,20 @@ def create_network(n_units, n_encoder_steps, encoder_type, n_aux_units=0):
 			]
 		),
 		output_size=n_units+n_aux_units,
-		use_recurrent_connection=True,
+		use_recurrent_connection=False,
 		learning_type=nt.LearningType.BPTT,
 		name="predictor",
 	).build()
-	
-	return lif_layer, auto_encoder_training_output
-
-
-def create_sequential_network(n_units, n_encoder_steps, encoder_type, n_aux_units=0):
-	lif_layer, auto_encoder_training_output = create_network(n_units, n_encoder_steps, encoder_type, n_aux_units)
+	# seq = nt.SequentialModel(
+	# 	input_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_encoder],
+	# 	layers=[lif_layer],
+	# 	output_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_decoder],
+	# 	device=torch.device("cuda"),
+	# ).build()
 	seq = nt.SequentialModel(
-		input_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_encoder],
+		input_transform=[nt.transforms.ConstantValuesTransform(n_encoder_steps, batch_wise=True)],
 		layers=[lif_layer],
 		output_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_decoder],
-		device=torch.device("cuda"),
 	).build()
 	auto_encoder_training_output.spikes_auto_encoder.device = seq.device
 	return seq, auto_encoder_training_output
@@ -239,8 +239,7 @@ def run_p_var_vs_n_encoder_steps(n_encoder_steps_space=None):
 		n_iterations = 256
 		encoder_type = nt.SpyLIFLayer
 		
-		# lif_layer, auto_encoder_training_output = create_network(n_units, n_encoder_steps, encoder_type)
-		network, auto_encoder_training_output = create_sequential_network(n_units, n_encoder_steps, encoder_type)
+		network, auto_encoder_training_output = create_network(n_units, n_encoder_steps, encoder_type)
 		dataset = create_dataset(auto_encoder_training_output, n_time_steps=4)
 		start_time = time.time()
 		hist, lr_hist = train(
@@ -274,19 +273,17 @@ def run_p_var_vs_n_encoder_steps(n_encoder_steps_space=None):
 def main():
 	n_units = 128
 	n_aux_units = 0
-	n_encoder_steps = 32
+	n_encoder_steps = 64
 	n_iterations = 4096
 	n_time_steps = 16
 	encoder_type = nt.SpyLIFLayer
 	
-	# network, auto_encoder_training_output = create_network(n_units, n_encoder_steps, encoder_type, n_aux_units)
-	network, auto_encoder_training_output = create_sequential_network(n_units, n_encoder_steps, encoder_type)
+	network, auto_encoder_training_output = create_network(n_units, n_encoder_steps, encoder_type, n_aux_units)
 	print(f"\nNetwork:\n{network}")
-	# show_prediction(auto_encoder_training_output.dataset.data, auto_encoder_training_output.spikes_auto_encoder)
 	dataset = create_dataset(auto_encoder_training_output, n_time_steps=n_time_steps)
 	data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
 	checkpoint_manager = nt.CheckpointManager(
-		"checkpoints/ts_predictor_001",
+		"checkpoints/ts_predictor_const_value",
 		metric="train_loss",
 		minimise_metric=False,
 		save_freq=-1,
@@ -296,13 +293,13 @@ def main():
 	trainer = nt.RegressionTrainer(
 		network,
 		criterion=nt.losses.PVarianceLoss(),
-		optimizer=torch.optim.AdamW(network.parameters(), lr=5e-5, maximize=True, weight_decay=0.0),
+		optimizer=torch.optim.Adam(network.parameters(), lr=5e-5, maximize=True, weight_decay=0.0),
 		callbacks=[
 			# LinearLRScheduler(5e-5, 1e-7, n_iterations),
 			LRSchedulerOnMetric(
 				'train_loss',
 				metric_schedule=np.linspace(-1.5, 0.99, 100),
-				min_lr=1e-7,
+				min_lr=5e-7,
 				retain_progress=True,
 			),
 			checkpoint_manager
@@ -314,7 +311,7 @@ def main():
 		data_loader, n_iterations=n_iterations,
 		# load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
 		force_overwrite=True,
-		desc=f"Training [encoder: {encoder_type.__name__}, encoder_steps: {n_encoder_steps}, time_steps: {n_time_steps},"
+		desc=f"Training [{encoder_type.__name__}, encoder_steps: {n_encoder_steps}, time_steps: {n_time_steps},"
 		f" units: {n_units}]"
 	)
 	print(f"Elapsed time: {time.time() - start_time :.2f} seconds")

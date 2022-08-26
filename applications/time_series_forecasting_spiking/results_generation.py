@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+import time
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
@@ -47,18 +48,20 @@ def get_training_params_space() -> Dict[str, Any]:
 			"timeSeries_2020_12_16_cr3_df.npy"
 		],
 		"n_time_steps": [
-			# 8,
+			4,
+			8,
 			16,
-			# 32,
-			# 64
-			# 128,
+			32,
+			64,
+			128,
+			256,
 			# -1
 		],
 		"n_encoder_steps": [
 			# 8,
 			16,
 			# 32,
-			64,
+			# 64,
 		],
 		"n_units": [
 			# 32,
@@ -66,8 +69,8 @@ def get_training_params_space() -> Dict[str, Any]:
 			# 1024,
 		],
 		"encoder_type": [
-			nt.LIFLayer,
-			nt.ALIFLayer,
+			# nt.LIFLayer,
+			# nt.ALIFLayer,
 			nt.SpyLIFLayer,
 		],
 		"optimizer": [
@@ -94,9 +97,9 @@ def get_training_params_space() -> Dict[str, Any]:
 			# 2e-2,
 		],
 		"smoothing_sigma": [
-			0,
+			# 0,
 			5,
-			10,
+			# 10,
 		],
 		"seed": [
 			0,
@@ -211,6 +214,7 @@ def train_with_params(
 		metrics=[],
 		verbose=verbose,
 	)
+	start_time = time.time()
 	history = trainer.train(
 		dataloader,
 		n_iterations=n_iterations,
@@ -220,6 +224,7 @@ def train_with_params(
 		desc=f"Training {checkpoints_name}:{spikes_auto_encoder.encoder_type.__name__}"
 		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
 	)
+	training_time = time.time() - start_time
 	history.plot(save_path=f"{checkpoint_folder}/figures/training_history.png")
 	try:
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.BEST_ITR, verbose=verbose)
@@ -277,6 +282,7 @@ def train_with_params(
 		auto_encoder_training_output=auto_encoder_training_output,
 		checkpoints_name=checkpoints_name,
 		history=history,
+		training_time=training_time,
 		dataloader=dataloader,
 		preds=preds.detach().cpu().numpy(),
 		target=target.detach().cpu().numpy(),
@@ -404,13 +410,16 @@ def train_all_params(
 					encoder_iterations=encoder_iterations,
 				)
 				params.update(result["params"])
+				training_time = result["training_time"]
 				if result["checkpoints_name"] in df["checkpoints"].values:
+					training_time = df.loc[df["checkpoints"] == result["checkpoints_name"], "training_time"].values[0]
 					# remove from df if already exists
 					df = df[df["checkpoints"] != result["checkpoints_name"]]
 				df = pd.concat([df, pd.DataFrame(
 					dict(
 						checkpoints=[result["checkpoints_name"]],
 						**{k: [v] for k, v in params.items()},
+						training_time=training_time,
 						pVar=[result["pVar"]],
 					))],  ignore_index=True,
 				)

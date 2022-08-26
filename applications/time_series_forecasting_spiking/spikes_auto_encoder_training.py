@@ -177,7 +177,7 @@ def train_auto_encoder(
 		n_encoder_steps: int,
 		dt: float = 1e-3,
 		batch_size: int = 256,
-		n_iterations: int = 4096,
+		n_iterations: int = 1024,
 		seed: int = 0,
 		load_and_save: bool = True,
 		data_folder: Optional[str] = "spikes_autoencoder_checkpoints",

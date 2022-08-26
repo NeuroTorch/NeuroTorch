@@ -12,11 +12,11 @@ if __name__ == '__main__':
 	df = train_all_params(
 		training_params=get_training_params_space(),
 		n_iterations=4096,
-		data_folder="predictor_checkpoints_002_4096itr",
+		data_folder="predictor_checkpoints_003",
 		verbose=False,
 		rm_data_folder_and_restart_all_training=False,
-		encoder_data_folder="spikes_autoencoder_checkpoints_002",
-		encoder_iterations=1024,
+		encoder_data_folder="spikes_autoencoder_checkpoints_003",
+		encoder_iterations=4096,
 	)
 	logging.info(df)
 

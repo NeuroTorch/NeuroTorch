@@ -208,7 +208,7 @@ def gen_autoencoder_figures(filename: str):
 
 if __name__ == '__main__':
 	# gen_autoencoder_figures('spikes_autoencoder_checkpoints_002/results.csv')
-	gen_predictor_figures('predictor_checkpoints_002/results.csv')
+	gen_predictor_figures('predictor_checkpoints_002_4096itr/results.csv')
 	
 
 

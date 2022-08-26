@@ -57,7 +57,7 @@ def get_training_params_space() -> Dict[str, Any]:
 		"n_encoder_steps": [
 			# 8,
 			16,
-			32,
+			# 32,
 			64,
 		],
 		"n_units": [
@@ -86,14 +86,18 @@ def get_training_params_space() -> Dict[str, Any]:
 			5e-7
 		],
 		"use_recurrent_connection": [
-			True,
+			# True,
 			False,
 		],
 		"dt": [
 			1e-3,
 			# 2e-2,
 		],
-		"smoothing_sigma": [5],
+		"smoothing_sigma": [
+			0,
+			5,
+			10,
+		],
 		"seed": [
 			0,
 		],

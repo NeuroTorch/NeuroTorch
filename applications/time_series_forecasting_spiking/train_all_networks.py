@@ -11,8 +11,8 @@ if __name__ == '__main__':
 	log_device_setup(deepLib=DeepLib.Pytorch)
 	df = train_all_params(
 		training_params=get_training_params_space(),
-		n_iterations=1024,
-		data_folder="predictor_checkpoints_002",
+		n_iterations=4096,
+		data_folder="predictor_checkpoints_002_4096itr",
 		verbose=False,
 		rm_data_folder_and_restart_all_training=False,
 		encoder_data_folder="spikes_autoencoder_checkpoints_002",

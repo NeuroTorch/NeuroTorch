@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 from typing import Optional, Tuple, Any
 
 import matplotlib.pyplot as plt
@@ -11,8 +12,9 @@ from scipy import interpolate
 from sklearn.cluster import KMeans, DBSCAN
 from sklearn.decomposition import PCA
 
-from neurotorch.dimension import Dimension, DimensionProperty, Size, DimensionLike, DimensionsLike
-from neurotorch.transforms.base import to_numpy, to_tensor
+from ..dimension import Dimension, DimensionProperty, Size, DimensionLike, DimensionsLike
+from ..metrics import PVarianceLoss
+from ..transforms.base import to_numpy, to_tensor
 
 
 class Visualise:
@@ -40,6 +42,7 @@ class Visualise:
 		you want them to be displayed.
 		"""
 		self.timeseries = to_numpy(timeseries)
+		self._given_timeseries = deepcopy(self.timeseries)
 		self.shape = self._set_dimension(shape)
 		if apply_zscore:
 			self._zscore_timeseries()
@@ -250,7 +253,11 @@ class Visualise:
 			ax.axis("off")
 		for i in range(int(self.shape[-1])):
 			shifted_timeseries = self.timeseries[:, i] - np.min(self.timeseries[:, i])
-			shifted_timeseries = shifted_timeseries / np.max(shifted_timeseries) + 0.8 * i
+			shifted_timeseries = np.divide(
+				shifted_timeseries, np.max(shifted_timeseries),
+				out=np.zeros_like(shifted_timeseries),
+				where=np.logical_not(np.isclose(np.max(shifted_timeseries), 0))
+			) + 0.8 * i
 			ax.plot(shifted_timeseries, c="k", alpha=0.9, linewidth=1.0)
 		if filename is not None:
 			os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -269,7 +276,7 @@ class Visualise:
 			title: str = "",
 			desc: str = "Prediction",
 	) -> plt.Axes:
-		predictions, target = to_tensor(self.timeseries[:, feature_index]), to_tensor(target)
+		predictions, target = to_tensor(self._given_timeseries[:, feature_index]), to_tensor(target)
 		mse_loss = torch.nn.MSELoss()(predictions, target.to(predictions.device))
 		pVar = 1 - mse_loss / torch.var(target.to(mse_loss.device))
 		
@@ -313,12 +320,11 @@ class Visualise:
 			filename: Optional[str] = None,
 			show: bool = False,
 	) -> plt.Figure:
-		predictions, target = to_tensor(self.timeseries), to_tensor(target)
+		predictions, target = to_tensor(self._given_timeseries), to_tensor(target)
 		target = torch.squeeze(target.detach().cpu())
 		
 		errors = torch.squeeze(predictions - target.to(predictions.device))**2
-		mse_loss = torch.nn.MSELoss()(predictions, target.to(predictions.device))
-		pVar = 1 - mse_loss / torch.var(target.to(mse_loss.device))
+		pVar = PVarianceLoss()(predictions, target.to(predictions.device))
 		
 		fig, axes = plt.subplots(3, 1, figsize=(15, 8))
 		axes[0].plot(errors.detach().cpu().numpy())
@@ -391,21 +397,23 @@ class VisualiseKMeans(Visualise):
 		)
 		self.n_clusters = n_clusters
 		self.random_state = random_state
-		self.timeseries = self._permute_timeseries()
+		self.labels = self._compute_kmeans_labels()
+		self.cluster_labels = np.unique(self.labels)
+		self.timeseries = self._permute_timeseries(self.timeseries)
 
 	def _compute_kmeans_labels(self):
 		kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(self.timeseries.T)
 		return kmeans.labels_
 
-	def _permute_timeseries(self):
-		labels = self._compute_kmeans_labels()
-		cluster_labels = np.unique(labels)
-		permuted_timeseries = np.zeros_like(self.timeseries)
+	def _permute_timeseries(self, timeseries: np.ndarray):
+		# TODO: optimize this method
+		assert timeseries.shape[-1] == int(self.shape[-1])
+		permuted_timeseries = np.zeros_like(timeseries)
 		position = 0
-		for cluster in cluster_labels:
+		for cluster in self.cluster_labels:
 			for i in range(int(self.shape[-1])):
-				if labels[i] == cluster:
-					permuted_timeseries[:, position] = self.timeseries[:, i]
+				if self.labels[i] == cluster:
+					permuted_timeseries[:, position] = timeseries[:, i]
 					position += 1
 		return permuted_timeseries
 

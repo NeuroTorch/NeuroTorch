@@ -61,7 +61,7 @@ def get_training_params_space() -> Dict[str, Any]:
 			64,
 		],
 		"n_units": [
-			32,
+			# 32,
 			128,
 			# 1024,
 		],
@@ -77,7 +77,7 @@ def get_training_params_space() -> Dict[str, Any]:
 			# "RMSprop",
 			# "Adagrad",
 			# "Adadelta",
-			"AdamW",
+			# "AdamW",
 		],
 		"learning_rate": [
 			5e-5
@@ -267,8 +267,6 @@ def train_with_params(
 		filename=f"{checkpoint_folder}/figures/rigidplot.png",
 		show=False
 	)
-	
-	y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(network, dataloader, verbose=verbose, desc=f"predictions")
 	return OrderedDict(dict(
 		params=params,
 		network=network,
@@ -276,9 +274,9 @@ def train_with_params(
 		checkpoints_name=checkpoints_name,
 		history=history,
 		dataloader=dataloader,
-		y_true=y_true,
-		y_pred=y_pred,
-		pVar=RegressionMetrics.p_var(network, y_true=y_true, y_pred=y_pred),
+		preds=preds.detach().cpu().numpy(),
+		target=target.detach().cpu().numpy(),
+		pVar=nt.losses.PVarianceLoss()(preds, target.to(preds.device)).detach().cpu().numpy(),
 	))
 
 
@@ -360,6 +358,8 @@ def train_all_params(
 	:param rm_data_folder_and_restart_all_training: If True, remove the data folder and restart all the training.
 	:param force_overwrite: If True, overwrite and restart non-completed training.
 	:param skip_if_exists: If True, skip the training if the results already in the results dataframe.
+	:param encoder_data_folder: The folder where to load and save the encoder data.
+	:param encoder_iterations: The number of iterations to train the encoder.
 	:return: The results of the training.
 	"""
 	warnings.filterwarnings("ignore", category=Warning)

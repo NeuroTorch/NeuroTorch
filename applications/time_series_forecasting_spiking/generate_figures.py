@@ -37,6 +37,8 @@ plot_layout = dict(
 
 
 def gen_predictor_figures(filename: str):
+	figures_folder = os.path.join(os.path.dirname(filename), 'figures')
+	os.makedirs(figures_folder, exist_ok=True)
 	dict_param_name = {
 		'n_time_steps'            : 'Number of time steps',
 		'n_encoder_steps'         : 'Number of encoder steps',
@@ -106,6 +108,19 @@ def gen_predictor_figures(filename: str):
 			value_rename=value_rename,
 			plot_layout=plot_layout,
 		).show()
+		temp_dict_params = {
+			k: v
+			for k, v in dict_param_name.items()
+			if result[result["dataset_name"] == dataset_name][k].nunique() > 1
+		}
+		metric_per_all_variable(
+			result, 'pVar',
+			dataset_name=dataset_name,
+			dict_param_name=temp_dict_params,
+			value_rename=value_rename,
+			filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_pVar_per_all_variable.png"),
+			show=True,
+		)
 		
 
 def gen_autoencoder_figures(filename: str):
@@ -192,8 +207,8 @@ def gen_autoencoder_figures(filename: str):
 
 
 if __name__ == '__main__':
-	gen_autoencoder_figures('spikes_autoencoder_checkpoints_002/results.csv')
-	# gen_predictor_figures('tr_results/results.csv')
+	# gen_autoencoder_figures('spikes_autoencoder_checkpoints_002/results.csv')
+	gen_predictor_figures('predictor_checkpoints_002/results.csv')
 	
 
 

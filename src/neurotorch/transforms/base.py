@@ -104,7 +104,7 @@ class LinearRateToSpikes(torch.nn.Module):
 
 
 class ConstantValuesTransform(torch.nn.Module):
-	def __init__(self, n_steps: int, batch_wise: bool = False):
+	def __init__(self, n_steps: int, batch_wise: bool = True):
 		super().__init__()
 		self.n_steps = n_steps
 		self.batch_wise = batch_wise

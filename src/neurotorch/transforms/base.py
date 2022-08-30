@@ -75,6 +75,9 @@ class LinearRateToSpikes(torch.nn.Module):
 		self.data_min = to_tensor(data_min)
 		self.data_max = to_tensor(data_max)
 		self.epsilon = epsilon
+	
+	def __repr__(self):
+		return f"{self.__class__.__name__}(n_steps={self.n_steps})"
 
 	def firing_periods_to_spikes(self, firing_periods: np.ndarray) -> np.ndarray:
 		firing_periods = np.floor(firing_periods).astype(int)
@@ -108,6 +111,9 @@ class ConstantValuesTransform(torch.nn.Module):
 		super().__init__()
 		self.n_steps = n_steps
 		self.batch_wise = batch_wise
+	
+	def __repr__(self):
+		return f"{self.__class__.__name__}(n_steps={self.n_steps})"
 
 	def forward(self, x: Any):
 		x = to_tensor(x)

@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable, Union
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -369,6 +369,9 @@ def metric_per_all_variable(
 		dataset_name: Optional[str] = None,
 		dict_param_name: Optional[Dict[str, str]] = None,
 		value_rename: Optional[Dict[str, str]] = None,
+		metric_rename: Optional[str] = None,
+		fig: Optional[plt.Figure] = None,
+		axes: Optional[Union[plt.Axes, Iterable[plt.Axes]]] = None,
 		filename: Optional[str] = None,
 		show: bool = False,
 ):
@@ -380,28 +383,43 @@ def metric_per_all_variable(
 	:param metric: The y data to use to filter the results e.g. the performance.
 	:param dict_param_name: The dictionary of parameter names to filter and format the x axis.
 	:param value_rename: The dictionary of parameter values to format the x axis.
+	:param metric_rename: The metric name to use to format the y axis.
 	:param filename: The filename to save the plot.
 	:param show: Whether to show the plot.
 	:return: None
 	"""
-	if dict_param_name is None:
-		dict_param_name = {}
-	if value_rename is None:
-		value_rename = {}
 	if dataset_name is None:
 		dataset_results = results
 	else:
 		dataset_results = results[results['dataset_name'] == dataset_name]
-	y_data = dataset_results[metric]
-	if dict_param_name is not None:
-		columns = list(dict_param_name.keys())
-	else:
+	if dict_param_name is None:
 		columns = list(set(dataset_results.columns) - {'dataset_name', metric})
+		dict_param_name = {
+			c_name: c_name.replace('_', ' ')
+			for c_name in columns
+		}
+	
+	if value_rename is None:
+		value_rename = {}
+	if metric_rename is None:
+		metric_rename = dict_param_name.pop(metric, metric.replace('_', ' '))
+	y_data = dataset_results[metric]
+	columns = list(dict_param_name.keys())
 	
 	nrows = int(np.sqrt(len(columns)))
 	ncols = int(np.ceil(len(columns) / nrows))
-	fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*6, nrows*3))
-	axes = np.ravel(axes)
+	if fig is None:
+		assert axes is None, "If fig is None, axes must be None"
+		fig, axes_view = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*6, nrows*3))
+	else:
+		assert axes is not None, "If fig is not None, axes must be not None"
+		if isinstance(axes, plt.Axes):
+			axes_view = [axes]
+		else:
+			axes_view = axes
+		axes_view = np.asarray(axes_view)
+		assert axes_view.size == len(columns), "axes must have the same length as columns"
+	axes_view = np.ravel(axes)
 	index = 0
 	for i, col in enumerate(columns):
 		index = i
@@ -419,16 +437,16 @@ def metric_per_all_variable(
 		]).squeeze()
 		y_mean = np.asarray([y_data[dataset_results[col] == x].mean() for x in xticks_labels])
 		y_std = np.asarray([y_data[dataset_results[col] == x].std() for x in xticks_labels])
-		axes[i].plot(xticks, y_mean, '-', color='black', label='mean')
-		axes[i].fill_between(xticks, y_mean - y_std, y_mean + y_std, color='black', alpha=0.2, label='std')
-		axes[i].plot(x_data, y_data, '.')
-		axes[i].set_xlabel(dict_param_name.get(col, col))
-		axes[i].set_ylabel(metric)
-		axes[i].set_xticks(xticks)
-		axes[i].set_xticklabels(xticks_labels_renamed)
-		axes[i].legend()
+		axes_view[i].plot(xticks, y_mean, '-', color='black', label='mean')
+		axes_view[i].fill_between(xticks, y_mean - y_std, y_mean + y_std, color='black', alpha=0.2, label='std')
+		axes_view[i].plot(x_data, y_data, '.')
+		axes_view[i].set_xlabel(dict_param_name.get(col, col))
+		axes_view[i].set_ylabel(metric_rename)
+		axes_view[i].set_xticks(xticks)
+		axes_view[i].set_xticklabels(xticks_labels_renamed)
+		axes_view[i].legend()
 	
-	for ax in axes[index+1:]:
+	for ax in axes_view[index+1:]:
 		ax.set_visible(False)
 	
 	fig.set_tight_layout(True)
@@ -436,6 +454,7 @@ def metric_per_all_variable(
 		fig.savefig(filename)
 	if show:
 		plt.show()
+	return fig, axes
 
 	
 

@@ -23,7 +23,7 @@ from applications.time_series_forecasting_spiking.spikes_auto_encoder_training i
 	show_single_preds,
 	visualize_reconstruction,
 )
-from applications.util import get_optimizer
+from applications.util import get_optimizer, get_regularization
 from neurotorch import Dimension, DimensionProperty, RegressionTrainer
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
 from neurotorch.callbacks.lr_schedulers import LinearLRScheduler, LRSchedulerOnMetric
@@ -123,6 +123,7 @@ def train_with_params(
 	params.setdefault("optimizer", "Adam")
 	params.setdefault("learning_rate", 5e-5)
 	params.setdefault("min_lr", 5e-7)
+	params.setdefault("reg_lr", 5e-7)
 	set_seed(seed)
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
@@ -194,22 +195,19 @@ def train_with_params(
 	]
 	if show_training:
 		callbacks.append(TrainingHistoryVisualizationCallback("./temp/"))
-	regularization = RegularizationList([
-		L2(network.parameters()),
-		L1(network.parameters()),
-	])
+	regularization = get_regularization(params["reg"], network.parameters())
 	trainer = RegressionTrainer(
 		model=network,
 		callbacks=callbacks,
-		# regularization=regularization,
+		regularization=regularization,
 		criterion=nt.losses.PVarianceLoss(),
 		optimizer=get_optimizer(params["optimizer"])(
 			network.parameters(), lr=params["learning_rate"],
 			maximize=True, **params.get("optimizer_params", {})
 		),
-		# regularization_optimizer=torch.optim.Adam(regularization.parameters(), lr=params.get("learning_rate", 2e-4)),
+		regularization_optimizer=torch.optim.Adam(regularization.parameters(), lr=params["reg_lr"]),
 		lr=params["learning_rate"],
-		# reg_lr=params.get("reg_lr", 2e-4),
+		reg_lr=params["reg_lr"],
 		foresight_time_steps=params.get("foresight_time_steps", spiking_foresight_steps),
 		metrics=[],
 		verbose=verbose,

@@ -6,6 +6,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import seaborn as sns
 import numpy as np
+from matplotlib import pyplot as plt
+
 import neurotorch as nt
 from applications.figure_generation_util import load_results, format_table, box_plot_on_metric, \
 	metric_per_all_variable
@@ -36,20 +38,23 @@ plot_layout = dict(
 )
 
 
-def gen_predictor_figures(filename: str):
+def gen_predictor_figures(
+		filename: str,
+):
 	figures_folder = os.path.join(os.path.dirname(filename), 'figures')
 	os.makedirs(figures_folder, exist_ok=True)
 	dict_param_name = {
-		'n_time_steps'            : 'Number of time steps',
-		'n_encoder_steps'         : 'Number of encoder steps',
-		'n_units'                 : 'Number of units',
-		"encoder_type"            : "Encoder type",
-		"use_recurrent_connection": "Recurrent Connection",
-		"optimizer"               : 'Optimizer',
-		"learning_rate"           : 'Learning rate',
-		"dt"                      : "Time step",
-		"smoothing_sigma"         : "Smoothing sigma",
-		"seed"                    : "Seed",
+		'n_time_steps'            : 'Number of time steps [-]',
+		'n_encoder_steps'         : 'Number of encoder steps [-]',
+		'n_units'                 : 'Number of units [-]',
+		"encoder_type"            : "Encoder type [-]",
+		"use_recurrent_connection": "Recurrent Connection [-]",
+		"optimizer"               : 'Optimizer [-]',
+		"learning_rate"           : 'Learning rate [-]',
+		"dt"                      : "Time step [s]",
+		"smoothing_sigma"         : "Smoothing sigma [-]",
+		# "training_time"           : "Training time [s]",
+		"seed"                    : "Seed [-]",
 	}
 	dict_param_surname = dict(
 		n_time_steps='T',
@@ -61,6 +66,7 @@ def gen_predictor_figures(filename: str):
 		learning_rate='Lr',
 		dt='dt',
 		smoothing_sigma='$\sigma$',
+		# training_time='Trt',
 		seed='Seed',
 	)
 	result = load_results(filename).sort_values(by='pVar', ascending=False)
@@ -75,6 +81,7 @@ def gen_predictor_figures(filename: str):
 		"optimizer",
 		'dt',
 		'smoothing_sigma',
+		# 'training_time',
 		'pVar',
 	]
 	value_rename = {
@@ -103,25 +110,38 @@ def gen_predictor_figures(filename: str):
 	for dataset_name in [
 		'timeSeries_2020_12_16_cr3_df.npy'
 	]:
-		box_plot_on_metric(
-			result, 'pVar',
-			dataset_name=dataset_name,
-			dict_param_name=dict_param_name,
-			dict_param_surname=dict_param_surname,
-			value_rename=value_rename,
-			plot_layout=plot_layout,
-		).show()
+		# box_plot_on_metric(
+		# 	result, 'pVar',
+		# 	dataset_name=dataset_name,
+		# 	dict_param_name=dict_param_name,
+		# 	dict_param_surname=dict_param_surname,
+		# 	value_rename=value_rename,
+		# 	plot_layout=plot_layout,
+		# ).show()
 		temp_dict_params = {
 			k: v
 			for k, v in dict_param_name.items()
 			if result[result["dataset_name"] == dataset_name][k].nunique() > 1
 		}
+		fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 3))
 		metric_per_all_variable(
 			result, 'pVar',
 			dataset_name=dataset_name,
 			dict_param_name=temp_dict_params,
 			value_rename=value_rename,
-			filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_pVar_per_all_variable.png"),
+			metric_rename="pVar [-]",
+			fig=fig, axes=axes[0],
+			# filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_pVar_per_all_variable.png"),
+			# show=True,
+		)
+		metric_per_all_variable(
+			result, 'training_time',
+			dataset_name=dataset_name,
+			dict_param_name=temp_dict_params,
+			value_rename=value_rename,
+			metric_rename='Training time [s]',
+			fig=fig, axes=axes[1],
+			# filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_tr_time_per_all_variable.png"),
 			show=True,
 		)
 		
@@ -211,7 +231,7 @@ def gen_autoencoder_figures(filename: str):
 
 if __name__ == '__main__':
 	# gen_autoencoder_figures('spikes_autoencoder_checkpoints_002/results.csv')
-	gen_predictor_figures('predictor_checkpoints_003/results.csv')
+	gen_predictor_figures('predictor_checkpoints_pVar_vs_time_steps/results.csv')
 	
 
 

@@ -34,6 +34,10 @@ from .regularization import (
 	L2,
 )
 
+from .regularization.connectome import (
+	DaleLaw,
+	DaleLawL2,
+)
 
 from .trainers import (
 	Trainer,
@@ -56,4 +60,5 @@ from .callbacks import (
 	CheckpointManager,
 )
 
+from . import init
 

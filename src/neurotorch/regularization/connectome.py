@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from typing import Optional, Union, Iterable, Dict
 from . import BaseRegularization
+from ..init import dale_
 
 
 class DaleLawL2(BaseRegularization):
@@ -21,31 +22,49 @@ class DaleLawL2(BaseRegularization):
 			self,
 			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
 			alpha: float = 0.8,
-			reference_weights: Optional[torch.Tensor] = None,
+			reference_weights: Optional[Iterable[torch.Tensor]] = None,
 			Lambda: float = 1.0,
+			**dale_kwargs
 	):
 		"""
-		:params: Weights matrix to regularize (can be multiple)
+		:param params: Weights matrix to regularize (can be multiple)
 		:param alpha: Number between 0 and 1 that favors one of the constraints.
 			If alpha = 0 -> Only Dale's law is applied.
 			If alpha = 1 -> Only the reduction of the energy is applied.
 			If 1 < alpha < 0 -> Both Dale's law and the reduction of the energy are applied with their ratio.
-		:param reference_weights: Reference weights to compare. Must be the same size as the weights. Optional if
-		alpha = 1.
-		:Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
+		:param reference_weights: Reference weights to compare. Must be the same size as the weights. If not provided,
+			the weights will be generated automatically with the dale_kwargs.
+		:param Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
+		:param dale_kwargs: kwargs of the Dale's law.
+		
+		:keyword inh_ratio: ratio of inhibitory connections. Must be between 0 and 1.
+		:keyword rho: The connectivity ratio. Must be between 0 and 1. If rho = 1, the tensor will be fully connected.
+		:keyword inh_first: If True, the inhibitory neurons will be in the first half of the tensor. If False,
+			the neurons will be shuffled.
+		:keyword seed: seed for the random number generator. If None, the seed is not set.
 		"""
 		super(DaleLawL2, self).__init__(params, Lambda)
 		self.__name__ = self.__class__.__name__
 		self.alpha = alpha
 		if self.alpha > 1 or self.alpha < 0:
-			raise ValueError("t must be between 0 and 1")
-		if self.alpha != 1 and reference_weights is None:
-			raise ValueError("reference_weights must be provided if t != 1")
-		self.reference_weights = reference_weights
-		if self.reference_weights is not None:
-			self.reference_weights = torch.sign(reference_weights)
+			raise ValueError("alpha must be between 0 and 1")
+		self.dale_kwargs = dale_kwargs
+		self.reference_weights = self._init_reference_weights(reference_weights)
+	
+	def _init_reference_weights(
+			self,
+			reference_weights: Optional[Union[Iterable[torch.Tensor], Dict[str, torch.Tensor]]] = None
+	):
+		"""
+		Initialize the reference weights with Dale's law.
+		"""
+		if reference_weights is None:
+			self.reference_weights = []
+			for param in self.params:
+				self.reference_weights.append(torch.sign(dale_(torch.empty_like(param), **self.dale_kwargs)))
 		else:
-			self.reference_weights = torch.tensor(0.0, dtype=torch.float32, device=self.params[0].device)
+			self.reference_weights = [torch.sign(ref) for ref in reference_weights]
+		return self.reference_weights
 
 	def forward(self, *args, **kwargs) -> torch.Tensor:
 		"""
@@ -55,11 +74,39 @@ class DaleLawL2(BaseRegularization):
 		:param kwargs: kwargs of the forward pass
 		"""
 		loss_list = []
-		for param in self.params:
-			loss = torch.trace(param.T @ (self.alpha * param - (1 - self.alpha) * self.reference_weights))
+		for param, ref in zip(self.params, self.reference_weights):
+			loss = torch.trace(
+				param.T @ (self.alpha * param - (1 - self.alpha) * ref.to(param.device))
+			)
 			loss_list.append(loss)
 		if len(self.params) == 0:
 			loss = torch.tensor(0.0, dtype=torch.float32)
 		else:
 			loss = torch.sum(torch.stack(loss_list))
 		return loss
+
+
+class DaleLaw(DaleLawL2):
+	def __init__(
+			self,
+			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+			reference_weights: Optional[Iterable[torch.Tensor]] = None,
+			Lambda: float = 1.0,
+			**dale_kwargs
+	):
+		"""
+		:param params: Weights matrix to regularize (can be multiple)
+		:param reference_weights: Reference weights to compare. Must be the same size as the weights. If not provided,
+			the weights will be generated automatically with the dale_kwargs.
+		:param Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
+		:param dale_kwargs: kwargs of the Dale's law.
+
+		:keyword inh_ratio: ratio of inhibitory connections. Must be between 0 and 1.
+		:keyword rho: The connectivity ratio. Must be between 0 and 1. If rho = 1, the tensor will be fully connected.
+		:keyword inh_first: If True, the inhibitory neurons will be in the first half of the tensor. If False,
+			the neurons will be shuffled.
+		:keyword seed: seed for the random number generator. If None, the seed is not set.
+		"""
+		super(DaleLaw, self).__init__(params, 0.0, reference_weights, Lambda, **dale_kwargs)
+		self.__name__ = self.__class__.__name__
+

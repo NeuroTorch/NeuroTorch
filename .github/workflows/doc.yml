@@ -37,10 +37,10 @@ jobs:
         git commit -m "Update docs"
 
     - name: Push to gh-pages
-      uses: ad-m/github-push-action@gh-pages
+      uses: ad-m/github-push-action@v2
       with:
         github_token: ${{secrets.GITHUB_TOKEN}}
         branch: gh-pages
         force: true
         directory: docs/build/html
-        
+

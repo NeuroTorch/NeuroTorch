@@ -37,7 +37,7 @@ jobs:
         git commit -m "Update docs"
 
     - name: Push to gh-pages
-      uses: ad-m/github-push-action@v2
+      uses: ad-m/github-push-action@master
       with:
         github_token: ${{secrets.GITHUB_TOKEN}}
         branch: gh-pages

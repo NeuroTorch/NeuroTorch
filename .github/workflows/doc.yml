@@ -35,4 +35,4 @@ jobs:
     - name: Generate doc with Sphinx
       run: |
         cd docs
-        generate_doc.py 
+        python generate_doc.py 

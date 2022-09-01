@@ -47,6 +47,10 @@ from .trainers import (
 
 from .transforms import (
 	to_tensor,
+	to_numpy,
+	IdentityTransform,
+	ToDevice,
+	ToTensor,
 )
 
 

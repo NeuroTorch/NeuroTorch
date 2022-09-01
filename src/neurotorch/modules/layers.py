@@ -43,6 +43,10 @@ class LayerType(enum.Enum):
 
 
 class BaseLayer(torch.nn.Module):
+	"""
+	Base class for all layers.
+	
+	"""
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -53,7 +57,7 @@ class BaseLayer(torch.nn.Module):
 			**kwargs
 	):
 		"""
-		Base class for all layers.
+		Constructor of the BaseLayer class.
 		
 		:param input_size: The input size of the layer.
 		:param output_size: The output size of the layer.
@@ -310,11 +314,11 @@ class BaseNeuronsLayer(BaseLayer):
 	the recurrent_weights. Child classes must implement the forward method and the `create_empty_state` method.
 	
 	:Attributes:
-		- forward_weights: The weights used to compute the output of the layer.
-		- recurrent_weights: The weights used to compute the hidden state of the layer.
-		- dt: The time step of the layer.
-		- use_rec_eye_mask: Whether to use the recurrent eye mask.
-		- rec_mask: The recurrent eye mask.
+		- forward_weights (torch.nn.Parameter): The weights used to compute the output of the layer.
+		- recurrent_weights (torch.nn.Parameter): The weights used to compute the hidden state of the layer.
+		- dt (float): The time step of the layer.
+		- use_rec_eye_mask (torch.Tensor): Whether to use the recurrent eye mask.
+		- rec_mask (torch.Tensor): The recurrent eye mask.
 	"""
 	def __init__(
 			self,

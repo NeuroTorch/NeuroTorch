@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   Build-Doc-on-Windows:
-    name: Run tests on Windows-latest
+    name: Build doc on Windows-latest
     runs-on: windows-latest
 
     steps:
@@ -24,7 +24,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -U sphinx
-        pip install -r sphinx_rtd_theme
+        pip install sphinx_rtd_theme
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names

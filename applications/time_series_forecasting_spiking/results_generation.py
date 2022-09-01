@@ -3,9 +3,9 @@ import os
 import shutil
 import time
 import warnings
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from copy import deepcopy
-from typing import Any, Dict, Iterable, Type, Optional
+from typing import Any, Dict, Iterable, Type, Optional, Union, Tuple
 
 import numpy as np
 import pandas as pd
@@ -21,7 +21,7 @@ import neurotorch as nt
 from applications.time_series_forecasting_spiking.spikes_auto_encoder_training import (
 	train_auto_encoder,
 	show_single_preds,
-	visualize_reconstruction,
+	visualize_reconstruction, AutoEncoderTrainingOutput,
 )
 from applications.util import get_optimizer, get_regularization
 from neurotorch import Dimension, DimensionProperty, RegressionTrainer
@@ -107,31 +107,28 @@ def get_training_params_space() -> Dict[str, Any]:
 	}
 
 
-def train_with_params(
-		params: Dict[str, Any],
-		n_iterations: int = 1024,
-		data_folder: str = "tr_results",
-		verbose: bool = False,
-		show_training: bool = False,
-		force_overwrite: bool = False,
-		seed: int = 0,
-		encoder_data_folder: Optional[str] = None,
-		encoder_iterations: int = 4096,
-):
+def set_default_params(params: Dict[str, Any], **kwargs) -> Dict[str, Any]:
 	params.setdefault("smoothing_sigma", 5)
-	params.setdefault("seed", seed)
+	params.setdefault("seed", kwargs["seed"])
 	params.setdefault("optimizer", "Adam")
 	params.setdefault("learning_rate", 5e-5)
 	params.setdefault("min_lr", 5e-7)
-	params.setdefault("reg_lr", 5e-7)
-	set_seed(seed)
-	checkpoints_name = str(hash_params(params))
-	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
-	os.makedirs(checkpoint_folder, exist_ok=True)
-	if verbose:
-		logging.info(f"Checkpoint folder: {checkpoint_folder}")
-	save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
-	
+	params.setdefault("reg_lr", 1e-7)
+	params.setdefault("reg", None)
+	params.setdefault("dataset_length", 1)
+	return params
+
+
+def train_and_get_autoencoder(
+		params: Dict[str, Any],
+		*,
+		show_training: bool,
+		checkpoint_folder: str,
+		encoder_data_folder: Optional[str],
+		encoder_iterations: int,
+		verbose: bool = True,
+		**kwargs
+) -> AutoEncoderTrainingOutput:
 	encoder_params = deepcopy(params)
 	if encoder_data_folder is not None:
 		encoder_params["data_folder"] = encoder_data_folder
@@ -143,15 +140,49 @@ def train_with_params(
 		filename=f"{checkpoint_folder}/figures/autoencoder_reconstruction.png",
 		show=show_training,
 	)
-	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
 	auto_encoder_training_output.spikes_auto_encoder.requires_grad_(False)
 	spikes_encoder = auto_encoder_training_output.spikes_auto_encoder.spikes_encoder
 	spikes_encoder.spikes_layer.learning_type = nt.LearningType.NONE
 	spikes_encoder.requires_grad_(False)
 	spikes_decoder = auto_encoder_training_output.spikes_auto_encoder.spikes_decoder
 	spikes_decoder.requires_grad_(False)
+	return auto_encoder_training_output
+
+
+def train_with_params(
+		params: Dict[str, Any],
+		n_iterations: int = 1024,
+		data_folder: str = "tr_results",
+		verbose: bool = False,
+		show_training: bool = False,
+		force_overwrite: bool = False,
+		seed: int = 0,
+		encoder_data_folder: Optional[str] = None,
+		encoder_iterations: int = 4096,
+		batch_size: int = 32,
+		save_best_only: bool = True,
+):
+	params = set_default_params(params, seed=seed)
+	set_seed(seed)
+	checkpoints_name = str(hash_params(params))
+	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
+	os.makedirs(checkpoint_folder, exist_ok=True)
+	if verbose:
+		logging.info(f"Checkpoint folder: {checkpoint_folder}")
+	save_params(params, os.path.join(checkpoint_folder, "params.pkl"))
 	
-	dataloader = get_dataloader(units=auto_encoder_training_output.dataset.units_indexes, **params)
+	auto_encoder_training_output = train_and_get_autoencoder(
+		params,
+		show_training=show_training,
+		checkpoint_folder=checkpoint_folder,
+		encoder_data_folder=encoder_data_folder,
+		encoder_iterations=encoder_iterations,
+	)
+	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
+	
+	dataloader = get_dataloader(
+		units=auto_encoder_training_output.dataset.units_indexes, batch_size=batch_size, **params
+	)
 	spiking_foresight_steps = (params["n_time_steps"]-1)*params["n_encoder_steps"]
 	network = SequentialModel(
 		input_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_encoder],
@@ -174,6 +205,7 @@ def train_with_params(
 		checkpoint_folder=checkpoint_folder,
 		foresight_time_steps=params.get("foresight_time_steps", spiking_foresight_steps),
 	).build()
+	initial_weights = deepcopy(network.get_layer().forward_weights.detach().cpu())
 	if verbose:
 		logging.info(f"\nNetwork:\n{network}")
 	checkpoint_manager = nt.CheckpointManager(
@@ -181,7 +213,8 @@ def train_with_params(
 		metric="train_loss",
 		minimise_metric=False,
 		save_freq=-1,
-		save_best_only=True,
+		save_best_only=save_best_only,
+		start_save_at=int(0.98*n_iterations),
 	)
 	callbacks = [
 		# LinearLRScheduler(params.get("learning_rate", 5e-5), params.get("min_lr", 1e-7), n_iterations),
@@ -195,7 +228,11 @@ def train_with_params(
 	]
 	if show_training:
 		callbacks.append(TrainingHistoryVisualizationCallback("./temp/"))
-	regularization = get_regularization(params["reg"], network.parameters())
+	regularization = get_regularization(params["reg"], [network.get_layer().forward_weights])
+	if regularization is None:
+		regularization_optimizer = None
+	else:
+		regularization_optimizer = torch.optim.Adam(regularization.parameters(), lr=params["reg_lr"])
 	trainer = RegressionTrainer(
 		model=network,
 		callbacks=callbacks,
@@ -205,7 +242,7 @@ def train_with_params(
 			network.parameters(), lr=params["learning_rate"],
 			maximize=True, **params.get("optimizer_params", {})
 		),
-		regularization_optimizer=torch.optim.Adam(regularization.parameters(), lr=params["reg_lr"]),
+		regularization_optimizer=regularization_optimizer,
 		lr=params["learning_rate"],
 		reg_lr=params["reg_lr"],
 		foresight_time_steps=params.get("foresight_time_steps", spiking_foresight_steps),
@@ -230,62 +267,76 @@ def train_with_params(
 		if verbose:
 			logging.info("No best checkpoint found. Loading last checkpoint instead.")
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.LAST_ITR, verbose=verbose)
-	t0, target = next(iter(dataloader))
-	preds, hh = network.get_prediction_trace(
-		t0, foresight_time_steps=(target.shape[1] - 1) * params["n_encoder_steps"], return_hidden_states=True
+	preds_targets_spikes = compute_preds_targets_spikes(
+		network,
+		get_dataloader(
+			units=auto_encoder_training_output.dataset.units_indexes, batch_size=batch_size, shuffle=False, **params
+		),
+		verbose=verbose,
+		desc="Compute predictions, spikes and targets",
 	)
-	spikes_preds = hh[network.get_layer().name][-1]
-	spikes = torch.squeeze(spikes_preds).detach().cpu().numpy().reshape(
-		-1, spikes_auto_encoder.n_encoder_steps, spikes_auto_encoder.n_units
+	make_figures(
+		params, network,
+		preds_targets_spikes=preds_targets_spikes,
+		auto_encoder_training_output=auto_encoder_training_output,
+		initial_weights=initial_weights,
+		checkpoint_folder=checkpoint_folder,
+		verbose=verbose,
 	)
-	viz = VisualiseKMeans(
-		preds.detach().cpu().numpy().squeeze(),
-		shape=nt.Size([
-			Dimension(preds.shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
-			Dimension(preds.shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
-		]),
-	)
-	viz.plot_timeseries_comparison(
-		target, spikes,
-		n_spikes_steps=params["n_encoder_steps"],
-		title=f"Predictor: {spikes_auto_encoder.encoder_type.__name__}"
-		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
-		desc="Prediction",
-		filename=f"{checkpoint_folder}/figures/forecasting_visualization.png",
-		show=False,
-	)
-	viz.plot_timeseries(
-		filename=f"{checkpoint_folder}/figures/timeseries.png",
-		show=False
-	)
-	if verbose:
-		viz.animate(
-			network.get_layer().forward_weights.detach().cpu().numpy(),
-			network.get_layer().dt,
-			filename=f"{checkpoint_folder}/figures/animation.gif",
-			show=False,
-			fps=10,
-		)
-	viz.heatmap(
-		filename=f"{checkpoint_folder}/figures/heatmap.png",
-		show=False
-	)
-	viz.rigidplot(
-		filename=f"{checkpoint_folder}/figures/rigidplot.png",
-		show=False
-	)
+	
 	return OrderedDict(dict(
 		params=params,
 		network=network,
 		auto_encoder_training_output=auto_encoder_training_output,
+		checkpoint_folder=checkpoint_folder,
 		checkpoints_name=checkpoints_name,
 		history=history,
 		training_time=training_time,
 		dataloader=dataloader,
-		preds=preds.detach().cpu().numpy(),
-		target=target.detach().cpu().numpy(),
-		pVar=nt.losses.PVarianceLoss()(preds, target.to(preds.device)).detach().cpu().numpy(),
+		predictions=preds_targets_spikes["predictions"],
+		targets=preds_targets_spikes["targets"],
+		pVar=nt.to_numpy(nt.losses.PVarianceLoss()(
+			nt.to_tensor(preds_targets_spikes["predictions"]).to("cpu"),
+			nt.to_tensor(preds_targets_spikes["targets"]).to("cpu")
+		)),
 	))
+
+
+def compute_preds_targets_spikes(
+		network: SequentialModel,
+		dataloader: DataLoader,
+		device: Optional[torch.device] = None,
+		verbose: bool = False,
+		desc: Optional[str] = None,
+		p_bar_position: int = 0,
+) -> Dict[str, np.ndarray]:
+	if device is not None:
+		network.to(device)
+	network.eval()
+	predictions = []
+	targets = []
+	spikes = []
+	with torch.no_grad():
+		for i, (x, y_true) in tqdm.tqdm(
+				enumerate(dataloader), total=len(dataloader),
+				desc=desc, disable=not verbose, position=p_bar_position,
+		):
+			x = x.to(network.device)
+			y_true = y_true.to(network.device)
+			preds, hh = network.get_prediction_trace(x, return_hidden_states=True)
+			spikes_preds = hh[network.get_layer().name][-1]
+			n_encoder_steps = int(spikes_preds.shape[1] / preds.shape[1])
+			spikes_preds = nt.to_numpy(spikes_preds).reshape(
+				spikes_preds.shape[0], -1, n_encoder_steps, y_true.shape[-1]
+			)
+			predictions.extend(nt.to_numpy(preds))
+			targets.extend(nt.to_numpy(y_true))
+			spikes.extend(nt.to_numpy(spikes_preds))
+			
+	predictions = np.asarray(predictions)
+	targets = np.asarray(targets)
+	spikes = np.asarray(spikes)
+	return dict(predictions=predictions, targets=targets, spikes=spikes)
 
 
 def visualize_forecasting(
@@ -343,6 +394,107 @@ def visualize_forecasting(
 		plt.show()
 	plt.close(fig)
 	return fig
+
+
+def visualize_init_final_weights(
+		initial_wights: Any,
+		final_weights: Any,
+		filename: Optional[str] = None,
+		show: bool = False,
+) -> plt.Figure:
+	from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+	initial_wights, final_weights = nt.to_numpy(initial_wights), nt.to_numpy(final_weights)
+	initial_dale = nt.to_numpy(nt.DaleLaw([nt.to_tensor(initial_wights)], seed=0)())
+	final_dale = nt.to_numpy(nt.DaleLaw([nt.to_tensor(final_weights)], seed=0)())
+	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
+	im = axes[0].imshow(initial_wights, cmap="RdBu_r")
+	axes[0].set_title(f"Initial Weights (Dale loss = {initial_dale:.3f})")
+	axes[1].imshow(final_weights, cmap=im.cmap, extent=im.get_extent())
+	axes[1].set_title(f"Final Weights (Dale loss = {final_dale:.3f})")
+	cax = inset_axes(
+		axes[1],
+		width="5%",
+		height="100%",
+		loc='lower left',
+		bbox_to_anchor=(1.05, 0.0, 1.0, 1.0),
+		bbox_transform=axes[1].transAxes,
+		borderpad=0,
+	)
+	fig.colorbar(im, cax=cax)
+	fig.set_tight_layout(False)
+	if filename is not None:
+		os.makedirs(os.path.dirname(filename), exist_ok=True)
+		fig.savefig(filename)
+	if show:
+		plt.show()
+	plt.close(fig)
+	return fig
+
+
+def make_figures(
+		params: Dict[str, Any],
+		network: nt.SequentialModel,
+		*,
+		auto_encoder_training_output,
+		preds_targets_spikes: dict,
+		initial_weights,
+		checkpoint_folder: str,
+		verbose: bool,
+):
+	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
+	preds = preds_targets_spikes["predictions"].reshape(
+		-1, spikes_auto_encoder.n_units
+	)
+	spikes = preds_targets_spikes["spikes"].reshape(
+		-1, spikes_auto_encoder.n_encoder_steps, spikes_auto_encoder.n_units
+	)
+	targets = preds_targets_spikes["targets"].reshape(
+		-1, spikes_auto_encoder.n_units
+	)
+	viz = VisualiseKMeans(
+		preds,
+		shape=nt.Size(
+			[
+				Dimension(preds.shape[0], dtype=DimensionProperty.TIME, name="Time Steps"),
+				Dimension(preds.shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
+			]
+		),
+	)
+	viz.plot_timeseries_comparison(
+		targets, spikes,
+		n_spikes_steps=params["n_encoder_steps"],
+		title=f"Predictor: {spikes_auto_encoder.encoder_type.__name__}"
+		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
+		desc="Prediction",
+		filename=f"{checkpoint_folder}/figures/forecasting_visualization.png",
+		show=False,
+	)
+	viz.plot_timeseries(
+		filename=f"{checkpoint_folder}/figures/preds_timeseries.png",
+		show=False
+	)
+	if verbose:
+		viz.animate(
+			network.get_layer().forward_weights.detach().cpu().numpy(),
+			network.get_layer().dt,
+			filename=f"{checkpoint_folder}/figures/preds_animation.gif",
+			show=False,
+			fps=10,
+		)
+	viz.heatmap(
+		filename=f"{checkpoint_folder}/figures/preds_heatmap.png",
+		show=False
+	)
+	viz.rigidplot(
+		filename=f"{checkpoint_folder}/figures/preds_rigidplot.png",
+		show=False
+	)
+	visualize_init_final_weights(
+		initial_weights,
+		network.get_layer().forward_weights,
+		filename=f"{checkpoint_folder}/figures/init_final_weights.png",
+		show=False
+	)
 
 
 def train_all_params(

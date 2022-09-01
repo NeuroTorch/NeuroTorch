@@ -23,7 +23,7 @@ def get_regularization(
 		parameters,
 		**kwargs
 ) -> Optional[BaseRegularization]:
-	if regularization_name is None:
+	if regularization_name is None or not regularization_name:
 		return None
 	regs = regularization_name.lower().split('_')
 	name_to_reg = {

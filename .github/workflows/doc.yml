@@ -2,17 +2,13 @@ name: Docs
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
-permissions:
-  contents: read
 
 jobs:
-  Build-Doc-on-Windows:
-    name: Build doc on Windows-latest
-    runs-on: windows-latest
+  Build-Docs:
+    name: Build docs
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
@@ -24,15 +20,23 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install flake8
-        pip install -U sphinx
-        pip install sphinx_rtd_theme
-    - name: Lint with flake8
+        python -m pip install -U sphinx
+        python pip -m install sphinx_rtd_theme
+    - name: Make the sphinx docs
       run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Generate doc with Sphinx
+        make -C docs clean
+        make -C docs html
+    - name: Commit to gh-pages branch
       run: |
-        cd docs
-        python generate_doc.py 
+        git checkout -b gh-pages
+        touch .nojekyll
+        git add docs/build/html
+        git commit -m "Update docs"
+    - name: Push to gh-pages branch
+      run: |
+        uses: ad-m/github-push-action@v0.5.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: gh-pages
+          force: true
+          directory: ./docs/build/html

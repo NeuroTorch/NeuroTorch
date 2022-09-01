@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from queue import PriorityQueue
 
-from PythonAcademy.src.wrappers import TensorActionTuple
+from .wrappers import TensorActionTuple
 
 
 class Experience:

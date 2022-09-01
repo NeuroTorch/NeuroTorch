@@ -26,7 +26,7 @@ jobs:
       run: |
         make -C docs clean
         make -C docs html
-    - name: Commit to gh-pages branch
+    - name: Update gh-pages branch
       run: |
         git checkout -b gh-pages
         git init
@@ -35,11 +35,4 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git commit -m "Update docs"
-    - name: Push to gh-pages branch
-      run: |
-        uses: ad-m/github-push-action@v0.5.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: gh-pages
-          force: true
-          directory: ./docs/build/html
+        git push

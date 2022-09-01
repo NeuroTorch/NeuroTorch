@@ -25,7 +25,7 @@ class Lesson:
 	def __init__(
 			self,
 			name,
-			channel: EnvironmentParametersChannel,
+			channel,  #: EnvironmentParametersChannel,
 			params: Dict[str, float],
 			completion_criteria: CompletionCriteria = CompletionCriteria.default_criteria(),
 			teacher=None,

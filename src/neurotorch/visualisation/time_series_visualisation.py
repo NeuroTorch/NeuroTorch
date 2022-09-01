@@ -1,15 +1,20 @@
-from typing import Optional, Tuple
+import os
+from copy import deepcopy
+from typing import Optional, Tuple, Any
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+import torch
 import umap
 from matplotlib import animation
 from scipy import interpolate
 from sklearn.cluster import KMeans, DBSCAN
 from sklearn.decomposition import PCA
 
-from neurotorch.dimension import Dimension, DimensionProperty
+from ..dimension import Dimension, DimensionProperty, Size, DimensionLike, DimensionsLike
+from ..metrics import PVarianceLoss
+from ..transforms.base import to_numpy, to_tensor
 
 
 class Visualise:
@@ -26,57 +31,72 @@ class Visualise:
 
 	def __init__(
 			self,
-			timeseries: np.array,
-			shape: Optional[Dimension] = None,
+			timeseries: Any,
+			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = False
 		):
 		"""
-		:param timeseries: Time series of shape (num_sample, num_variable). Make sure the time series is a numpy array
+		:param timeseries: Time series of shape (Time Steps, Features).
 		:param shape: Shape of the time series. If shape is None, the shape is inferred from the time series. Useful
-		to identify the dtype of the time series. We know whether the neurons are the sample or variable.
+		to identify the dtype of the time series. If the shape is Size, make sure to set the name of the dimensions as
+		you want them to be displayed.
 		"""
-		self.timeseries = timeseries
-		self.num_sample, self.num_variable, self.x_axis_title, self.y_axis_title = self._set_dimension(shape)
+		self.timeseries = to_numpy(timeseries)
+		self._given_timeseries = deepcopy(self.timeseries)
+		self.shape = self._set_dimension(shape)
 		if apply_zscore:
-			for i in range(self.num_sample):
-				self.timeseries[i] = (self.timeseries[i] - np.mean(self.timeseries[i])) / np.std(self.timeseries[i])
-
-	def _set_dimension(self, shape):
+			self._zscore_timeseries()
+	
+	def _zscore_timeseries(self):
 		"""
-		Identify the shape of the time series and name the x-axis and y-axis if shape is specified by the user.
-		:param shape: Shape of the time series. Use object Dimension given in this package.
-		:return: num_sample, num_variable, x_axis_title, y_axis_title
+		Z-score the time series.
+		"""
+		for i in range(int(self.shape[-1])):
+			self.timeseries[:, i] = (
+					(self.timeseries[:, i] - np.mean(self.timeseries[:, i])) / np.std(self.timeseries[:, i])
+			)
+
+	def _set_dimension(self, shape: Optional[DimensionsLike]) -> Size:
+		"""
+		Identify the shape of the time series. Will transpose the time series to have the time dimension as the first
+		dimension.
+		
+		:param shape: Shape of the time series. Use object Size given in this package.
+		:return: The shape of the time series.
 		"""
 		if shape is None:
-			num_sample, num_variable = self.timeseries.shape
-			x_axis_title = "Variable"
-			y_axis_title = "Sample"
-		else:
-			num_sample = shape[0].size
-			num_variable = shape[1].size
-			if shape[0].dtype == DimensionProperty.NONE:
-				y_axis_title = "Neuron ID"
-			elif shape[0].dtype == DimensionProperty.TIME:
-				y_axis_title = "Time step"
-			else:
-				y_axis_title = "Sample"
-			if shape[1].dtype == DimensionProperty.NONE:
-				x_axis_title = "Neuron ID"
-			elif shape[1].dtype == DimensionProperty.TIME:
-				x_axis_title = "Time step"
-			else:
-				x_axis_title = "Variable"
-		return num_sample, num_variable, x_axis_title, y_axis_title
+			shape = self.timeseries.shape
+
+		shape = Size(shape)
+		assert len(shape) == 2, "The shape of the time series must be 2 dimensional"
+		if all(dim.dtype == DimensionProperty.NONE for dim in shape):
+			shape[0].dtype = DimensionProperty.TIME
+			for dim in shape:
+				if dim.dtype == DimensionProperty.TIME:
+					dim.name = "Time Steps"
+				elif dim.dtype == DimensionProperty.NONE:
+					dim.name = "Features"
+		for i, dim in enumerate(shape):
+			if dim.size is None:
+				dim.size = self.timeseries.shape[i]
+		
+		if shape[0].dtype == DimensionProperty.NONE:
+			self.timeseries = self.timeseries.T
+			self.shape = Size(shape.dimensions[::-1])
+		return shape
 
 	def animate(
 			self,
 			forward_weights: np.ndarray,
-			dt: float,
-			step: int = 4,
+			dt: float = 1.0,
+			step: int = 1,
 			time_interval: float = 1.0,
 			node_size: float = 50,
 			alpha: float = 0.01,
-			anim_title: str = None
+			filename: Optional[str] = None,
+			file_extension: Optional[str] = None,
+			show: bool = False,
+			**kwargs
 	):
 		"""
 		Animate the time series. The position of the nodes are obtained using the spring layout.
@@ -85,15 +105,21 @@ class Visualise:
 		https://networkx.org/documentation/stable/reference/generated/networkx.drawing.layout.spring_layout.html
 
 		:param forward_weights: Weight matrix of size (number of neurons, number of neurons).
-		:param dt: Time step.
+		:param dt: Time step between two time steps.
 		:param step: Number of time step between two animation frames.
 			example: if step = 4, the animation will play at t = 0, t = 4, t = 8, t = 12 ...
 		:param time_interval: Time interval between two animation frames (in milliseconds)
 		:param node_size: Size of the nodes
 		:param alpha: Density of the connections. Small network should have a higher alpha value.
-		:param anim_title: Title of the animation to be saved as GIF. If anim_title is None, the animation is not saved
+		:param filename: Name of the file to save the animation. If filename is None, the animation will not be saved.
+		The application imagemagick is required to save the animation.
+		:param file_extension: Extension of the file to save the animation. The available extensions are: mp4 and gif.
+		:param show: If True, the animation will be displayed.
+		:param kwargs: Keyword arguments.
+		
+		:keyword fps: Frames per second. Default is 30.
 		"""
-		num_frames = self.num_variable // step
+		num_frames = int(self.shape[0]) // step
 		connectome = nx.from_numpy_array(forward_weights)
 		pos = nx.spring_layout(connectome)
 		fig, ax = plt.subplots(figsize=(7, 7))
@@ -102,13 +128,13 @@ class Visualise:
 			pos,
 			ax=ax,
 			node_size=node_size,
-			node_color=self.timeseries[:, 0],
+			node_color=self.timeseries[0],
 			cmap="hot"
 		)
 		nx.draw_networkx_edges(connectome, pos, ax=ax, width=1.0, alpha=alpha)
 		x, y = ax.get_xlim()[0], ax.get_ylim()[1]
 		plt.axis("off")
-		text = ax.text(0, 1.08, rf"$t = 0 / {self.num_variable * dt}$", ha="center")
+		text = ax.text(0, 1.08, rf"$t = 0 / {int(self.shape[0]) * dt}$", ha="center")
 		plt.tight_layout(pad=0)
 
 		def _animation(i):
@@ -116,81 +142,249 @@ class Visualise:
 				connectome,
 				pos,
 				ax=ax, node_size=node_size,
-				node_color=self.timeseries[:, i * step],
+				node_color=self.timeseries[i * step],
 				cmap="hot"
 			)
-			text.set_text(rf"$t = {i * step * dt:.3f} / {self.num_variable * dt}$")
+			text.set_text(rf"$t = {i * step * dt:.3f} / {int(self.shape[0]) * dt}$")
 			return nodes, text
 
 		anim = animation.FuncAnimation(fig, _animation, frames=num_frames, interval=time_interval, blit=True)
-		if anim_title is not None:
-			anim.save(f"{anim_title}.gif", writer="imagemagick", fps=30)
-		plt.show()
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			if file_extension is None:
+				if '.' in filename:
+					file_extension = filename.split('.')[-1]
+				else:
+					file_extension = 'gif'
+			assert file_extension in ["mp4", "gif"], "The extension of the file must be mp4 or gif."
+			if filename.endswith(file_extension):
+				filename = ''.join(filename.split('.')[:-1])
+			anim.save(f"{filename}.{file_extension}", writer="imagemagick", fps=kwargs.get("fps", 30))
+		if show:
+			plt.show()
 
-	def plot_timeseries(self):
+	def plot_timeseries(
+			self,
+			filename: Optional[str] = None,
+			show: bool = False,
+			**kwargs
+	):
 		"""
 		Plot all the neuronal activity in one figure.
+		
+		:param filename: Name of the file to save the figure. If filename is None, the figure will not be saved.
+		:param show: If True, the figure will be displayed.
+		:param kwargs: Keyword arguments.
+		
+		:keyword figsize: Size of the figure. Default is (12, 8).
+		:keyword dpi: DPI of the figure. Default is 300.
 		"""
-		plt.xlabel(self.x_axis_title)
-
-		plt.plot(self.timeseries.T)
-		plt.ylabel(self.y_axis_title)
-		plt.show()
+		fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
+		ax.set_xlabel(self.shape[0].name)
+		ax.plot(self.timeseries)
+		ax.set_ylabel(self.shape[1].name)
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
+		if show:
+			plt.show()
+		plt.close(fig)
 
 	def heatmap(
 			self,
 			show_axis: bool = True,
 			interpolation: str = "nearest",
 			cmap: str = "RdBu_r",
-			v: Tuple[float, float] = (0.0, 1.0)
+			v: Tuple[float, float] = (0.0, 1.0),
+			filename: Optional[str] = None,
+			show: bool = False,
+			**kwargs
 	):
 		"""
 		Plot the heatmap of the time series.
+		
 		:param show_axis: Whether to show the axis or not.
 		:param interpolation: Type of interpolation between the time step.
 		:param cmap: Colormap of the heatmap.
 		:param v: Range of the colorbar.
+		:param filename: Name of the file to save the figure. If filename is None, the figure will not be saved.
+		:param show: If True, the figure will be displayed.
+		:param kwargs: Keyword arguments.
+		
+		:keyword figsize: Size of the figure. Default is (12, 8).
+		:keyword dpi: DPI of the figure. Default is 300.
 		"""
-		plt.figure(figsize=(16, 8))
-		plt.imshow(self.timeseries, interpolation=interpolation, aspect="auto", cmap=cmap, vmin=v[0], vmax=v[1])
-		plt.xlabel(self.x_axis_title)
-		plt.ylabel(self.y_axis_title)
-		if not show_axis:
-			plt.axis("off")
-		plt.colorbar()
-		plt.show()
-
-	def rigidplot(self, show_axis: bool = False):
-		"""
-		Plot the rigid plot of the time series.
-		:param show_axis: Whether to show the axis or not.
-		"""
-		fig, ax = plt.subplots(figsize=(16, 8))
-		ax.set_xlabel(self.x_axis_title)
-		ax.set_ylabel(self.y_axis_title)
+		fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
+		ax.set_xlabel(self.shape[0].name)
+		ax.set_ylabel(self.shape[1].name)
+		im = ax.imshow(self.timeseries.T, interpolation=interpolation, aspect="auto", cmap=cmap, vmin=v[0], vmax=v[1])
 		if not show_axis:
 			ax.axis("off")
-		for i in range(self.num_sample):
-			shifted_timeseries = self.timeseries[i] - np.min(self.timeseries[i])
-			shifted_timeseries = shifted_timeseries / np.max(shifted_timeseries) + 0.8 * i
+		fig.colorbar(im)
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
+		if show:
+			plt.show()
+		plt.close(fig)
+
+	def rigidplot(
+			self,
+			show_axis: bool = False,
+			filename: Optional[str] = None,
+			show: bool = False,
+			**kwargs
+	):
+		"""
+		Plot the rigid plot of the time series.
+		
+		:param show_axis: Whether to show the axis or not.
+		:param filename: Name of the file to save the figure. If filename is None, the figure will not be saved.
+		:param show: If True, the figure will be displayed.
+		:param kwargs: Keyword arguments.
+		
+		:keyword figsize: Size of the figure. Default is (12, 8).
+		:keyword dpi: DPI of the figure. Default is 300.
+		"""
+		fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
+		ax.set_xlabel(self.shape[0].name)
+		ax.set_ylabel(self.shape[1].name)
+		if not show_axis:
+			ax.axis("off")
+		for i in range(int(self.shape[-1])):
+			shifted_timeseries = self.timeseries[:, i] - np.min(self.timeseries[:, i])
+			shifted_timeseries = np.divide(
+				shifted_timeseries, np.max(shifted_timeseries),
+				out=np.zeros_like(shifted_timeseries),
+				where=np.logical_not(np.isclose(np.max(shifted_timeseries), 0))
+			) + 0.8 * i
 			ax.plot(shifted_timeseries, c="k", alpha=0.9, linewidth=1.0)
-		plt.show()
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
+		if show:
+			plt.show()
+		plt.close(fig)
+	
+	def plot_single_timeseries_comparison(
+			self,
+			feature_index: int,
+			ax: plt.Axes,
+			target: Any,
+			spikes: Optional[Any] = None,
+			n_spikes_steps: Optional[int] = None,
+			title: str = "",
+			desc: str = "Prediction",
+	) -> plt.Axes:
+		predictions, target = to_tensor(self._given_timeseries[:, feature_index]), to_tensor(target)
+		mse_loss = torch.nn.MSELoss()(predictions, target.to(predictions.device))
+		pVar = 1 - mse_loss / torch.var(target.to(mse_loss.device))
+		
+		ax.plot(predictions.detach().cpu().numpy(), label=f"{desc} (pVar: {pVar.detach().cpu().item():.3f})")
+		ax.plot(target.detach().cpu().numpy(), label="Target")
+		
+		if spikes is not None:
+			spikes = to_tensor(spikes)
+			assert len(spikes.shape) == 2, "spikes must be a 2D tensor"
+			assert n_spikes_steps is not None, "n_spikes_steps must be provided if spikes is not None"
+			y_max = max(target.max(), predictions.max())
+			x_scatter_space = np.linspace(0, len(target), num=n_spikes_steps * len(target))
+			x_scatter_spikes = []
+			x_scatter_zeros = []
+			for i, xs in enumerate(x_scatter_space):
+				if np.isclose(
+						spikes[i // n_spikes_steps][i % n_spikes_steps],
+						1.0
+				):
+					x_scatter_spikes.append(xs)
+				else:
+					x_scatter_zeros.append(xs)
+			ax.scatter(
+				x_scatter_spikes, y=[y_max * 1.1] * len(x_scatter_spikes),
+				label="Latent space", c='k', marker='|', linewidths=0.5
+			)
+		
+		ax.set_xlabel("Time [-]")
+		ax.set_ylabel("Activity [-]")
+		ax.set_title(title)
+		ax.legend()
+		return ax
+	
+	def plot_timeseries_comparison(
+			self,
+			target: Any,
+			spikes: Optional[Any] = None,
+			n_spikes_steps: Optional[int] = None,
+			title: str = "",
+			desc: str = "Prediction",
+			filename: Optional[str] = None,
+			show: bool = False,
+	) -> plt.Figure:
+		predictions, target = to_tensor(self._given_timeseries), to_tensor(target)
+		target = torch.squeeze(target.detach().cpu())
+		
+		errors = torch.squeeze(predictions - target.to(predictions.device))**2
+		pVar = PVarianceLoss()(predictions, target.to(predictions.device))
+		
+		fig, axes = plt.subplots(3, 1, figsize=(15, 8))
+		axes[0].plot(errors.detach().cpu().numpy())
+		axes[0].set_xlabel("Time [-]")
+		axes[0].set_ylabel("Squared Error [-]")
+		axes[0].set_title(f"{title}, pVar: {pVar.detach().cpu().item():.3f}")
+		
+		mean_errors = torch.mean(errors, dim=0)
+		mean_error_sort, indices = torch.sort(mean_errors)
+		target = torch.squeeze(target).numpy().T
+		
+		best_idx, worst_idx = indices[0], indices[-1]
+		if spikes is not None:
+			spikes = np.squeeze(to_numpy(spikes))
+			best_spikes = spikes[:, :, best_idx]
+			worst_spikes = spikes[:, :, worst_idx]
+		else:
+			best_spikes = None
+			worst_spikes = None
+		self.plot_single_timeseries_comparison(
+			best_idx, axes[1], target[best_idx], best_spikes,
+			n_spikes_steps=n_spikes_steps,
+			title=f"Best {desc}", desc=desc,
+		)
+		self.plot_single_timeseries_comparison(
+			worst_idx, axes[2], target[worst_idx], worst_spikes,
+			n_spikes_steps=n_spikes_steps,
+			title=f"Worst {desc}", desc=desc,
+		)
+		
+		fig.set_tight_layout(True)
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			fig.savefig(filename)
+		if show:
+			plt.show()
+		plt.close(fig)
+		return fig
 
 
 class VisualiseKMeans(Visualise):
 	"""
-	Visualise the time series using only a K-means algorithm of clustering
+	Visualise the time series using only a K-means algorithm of clustering.
 	"""
 
 	def __init__(
 			self,
-			timeseries: np.array,
+			timeseries: Any,
+			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = False,
 			n_clusters: int = 13,
 			random_state: int = 0
 		):
 		"""
-		:param timeseries: Time series of shape (num_sample, num_sample). Make sure the time series is a numpy array
+		Constructor of the class.
+		
+		:param timeseries: Time series of shape (n_time_steps, n_neurons).
+		:param shape: Shape of the time series. If shape is None, the shape is inferred from the time series. Useful
+		to identify the dtype of the time series. If the shape is Size, make sure to set the name of the dimensions as
+		you want them to be displayed.
 		:param apply_zscore: Whether to apply z-score or not.
 		:param n_clusters: Number of clusters.
 		:param random_state: Determines random number generation for centroid initialization.
@@ -198,47 +392,57 @@ class VisualiseKMeans(Visualise):
 		"""
 		super().__init__(
 			timeseries=timeseries,
+			shape=shape,
 			apply_zscore=apply_zscore
 		)
 		self.n_clusters = n_clusters
 		self.random_state = random_state
-		self.timeseries = self._permute_timeseries()
+		self.labels = self._compute_kmeans_labels()
+		self.cluster_labels = np.unique(self.labels)
+		self.timeseries = self._permute_timeseries(self.timeseries)
 
 	def _compute_kmeans_labels(self):
-		kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(self.timeseries)
+		kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(self.timeseries.T)
 		return kmeans.labels_
 
-	def _permute_timeseries(self):
-		labels = self._compute_kmeans_labels()
-		cluster_labels = np.unique(labels)
-		permuted_timeseries = np.zeros_like(self.timeseries)
+	def _permute_timeseries(self, timeseries: np.ndarray):
+		# TODO: optimize this method
+		assert timeseries.shape[-1] == int(self.shape[-1])
+		permuted_timeseries = np.zeros_like(timeseries)
 		position = 0
-		for cluster in cluster_labels:
-			for i in range(self.num_sample):
-				if labels[i] == cluster:
-					permuted_timeseries[position] = self.timeseries[i]
+		for cluster in self.cluster_labels:
+			for i in range(int(self.shape[-1])):
+				if self.labels[i] == cluster:
+					permuted_timeseries[:, position] = timeseries[:, i]
 					position += 1
 		return permuted_timeseries
 
 
 class VisualisePCA(Visualise):
 	"""
-	Visualise the time series using PCA algorithm of dimensionality reduction. PCA is apply on the variable
+	Visualise the time series using PCA algorithm of dimensionality reduction. PCA is apply on the variable.
+	
+	TODO: generalise the class to work with Size and to save the results in a file.
 	"""
 
 	def __init__(
 			self,
-			timeseries: np.ndarray,
+			timeseries: Any,
+			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = False,
 			n_PC: int = 5
 		):
 		"""
-		:param timeseries: Time series of shape (num_sample, num_variable). Make sure the time series is a numpy array
+		:param timeseries: Time series of shape (n_time_steps, n_neurons).
+		:param shape: Shape of the time series. If shape is None, the shape is inferred from the time series. Useful
+		to identify the dtype of the time series. If the shape is Size, make sure to set the name of the dimensions as
+		you want them to be displayed.
 		:param apply_zscore: Whether to apply z-score or not.
 		:param n_PC: Number of principal components.
 		"""
 		super().__init__(
 			timeseries=timeseries,
+			shape=shape,
 			apply_zscore=apply_zscore
 		)
 		self.n_PC = n_PC
@@ -249,15 +453,17 @@ class VisualisePCA(Visualise):
 	def _compute_pca(self, n_PC: int):
 		"""
 		Compute PCA of the time series.
-		:return: timeseries in PCA space, variance ratio, variance ratio cumulative sum
+		
+		:return: timeseries in PCA space, variance ratio, variance ratio cumulative sum.
 		"""
-		pca = PCA(n_components=n_PC).fit(self.timeseries)
-		reduced_timeseries = pca.transform(self.timeseries)
+		pca = PCA(n_components=n_PC).fit(self.timeseries.T)
+		reduced_timeseries = pca.transform(self.timeseries.T)
 		return reduced_timeseries, pca.explained_variance_ratio_, pca.explained_variance_ratio_.cumsum()
 
 	def with_kmeans(self, n_clusters: int = 13, random_state: int = 0):
 		"""
 		Apply K-means clustering to the PCA space as coloring.
+		
 		:param n_clusters: Number of clusters.
 		:param random_state: Determines random number generation for centroid initialization.
 			Example: VisualisePCA(data).with_kmeans(n_clusters=13, random_state=0).scatter_pca()
@@ -269,6 +475,7 @@ class VisualisePCA(Visualise):
 	def scatter_pca(self, PCs: Tuple[int, ...] = (1, 2), color_sample: bool = False):
 		"""
 		Plot the scatter plot of the PCA space in 2D or 3D.
+		
 		:param PCs: List of PCs to plot. Always a list of length 2 or 3
 		:param color_sample: Whether to color the sample or not.
 		"""
@@ -283,7 +490,7 @@ class VisualisePCA(Visualise):
 		if self.kmean_label is not None:
 			color = self.kmean_label
 		if color_sample:
-			color = range(self.num_sample)
+			color = range(int(self.shape[-1]))
 
 		if dimension == 2:
 			plt.title("Two-dimensional PCA embedding")
@@ -318,6 +525,7 @@ class VisualisePCA(Visualise):
 	):
 		"""
 		Plot the trajectory of the PCA space in 2D.
+		
 		:param PCs: List of PCs to plot. Always a list of length 2.
 		:param with_smooth: Whether to smooth the trajectory or not.
 		:param degree: Degree of the polynomial used for smoothing.
@@ -346,10 +554,14 @@ class VisualisePCA(Visualise):
 
 
 class VisualiseUMAP(Visualise):
+	"""
+	TODO: generalise the class to work with Size and to save the results in a file.
+	"""
 
 	def __init__(
 			self,
-			timeseries: np.ndarray,
+			timeseries: Any,
+			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = False,
 			n_neighbors: int = 10,
 			min_dist: float = 0.5,
@@ -357,6 +569,7 @@ class VisualiseUMAP(Visualise):
 		):
 		super().__init__(
 			timeseries=timeseries,
+			shape=shape,
 			apply_zscore=apply_zscore
 		)
 		self.n_neighbors = n_neighbors
@@ -466,16 +679,21 @@ class VisualiseUMAP(Visualise):
 
 
 class VisualiseDBSCAN(Visualise):
+	"""
+	TODO: generalise the class to work with Size and to save the results in a file.
+	"""
 
 	def __init__(
 			self,
-			timeseries: np.ndarray,
+			timeseries: Any,
+			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = True,
 			eps: float = 25,
 			min_samples: int = 3,
 			):
 		super().__init__(
 			timeseries=timeseries,
+			shape=shape,
 			apply_zscore=apply_zscore
 		)
 		self.eps = eps

@@ -9,6 +9,8 @@ from .dimension import (
 	Dimension,
 	DimensionProperty,
 	Size,
+	DimensionLike,
+	DimensionsLike,
 )
 
 from .modules.sequential import (
@@ -32,6 +34,10 @@ from .regularization import (
 	L2,
 )
 
+from .regularization.connectome import (
+	DaleLaw,
+	DaleLawL2,
+)
 
 from .trainers import (
 	Trainer,
@@ -41,6 +47,10 @@ from .trainers import (
 
 from .transforms import (
 	to_tensor,
+	to_numpy,
+	IdentityTransform,
+	ToDevice,
+	ToTensor,
 )
 
 
@@ -54,4 +64,5 @@ from .callbacks import (
 	CheckpointManager,
 )
 
+from . import init
 

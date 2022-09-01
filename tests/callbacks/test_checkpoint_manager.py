@@ -12,6 +12,12 @@ from neurotorch.modules import LIFLayer, SequentialModel
 from neurotorch.trainers.trainer import CurrentTrainingState
 
 
+def replace_none_by_nan(x):
+	if x is None:
+		return np.nan
+	return x
+
+
 def _manage_temp_checkpoints_folder(_func=None, *, temp_folder: str = "./temp"):
 	def decorator_log_func(func):
 		@functools.wraps(func)
@@ -329,7 +335,7 @@ class TestCheckpointManager(unittest.TestCase):
 		)
 		self.assertTrue(
 			all(
-				np.allclose(v, second_param_group[k])
+				np.allclose(replace_none_by_nan(v),  replace_none_by_nan(second_param_group[k]), equal_nan=True)
 				for first_param_group, second_param_group in zip(
 					opt.state_dict()['param_groups'],
 					checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY]['param_groups']
@@ -372,7 +378,7 @@ class TestCheckpointManager(unittest.TestCase):
 		)
 		self.assertTrue(
 			all(
-				np.allclose(v, second_param_group[k])
+				np.allclose(replace_none_by_nan(v),  replace_none_by_nan(second_param_group[k]), equal_nan=True)
 				for first_param_group, second_param_group in zip(
 					opt.state_dict()['param_groups'],
 					checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY]['param_groups']
@@ -415,7 +421,7 @@ class TestCheckpointManager(unittest.TestCase):
 		)
 		self.assertTrue(
 			all(
-				np.allclose(v, second_param_group[k])
+				np.allclose(replace_none_by_nan(v),  replace_none_by_nan(second_param_group[k]), equal_nan=True)
 				for first_param_group, second_param_group in zip(
 					opt.state_dict()['param_groups'],
 					checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY]['param_groups']
@@ -458,7 +464,7 @@ class TestCheckpointManager(unittest.TestCase):
 		)
 		self.assertTrue(
 			all(
-				np.allclose(v, second_param_group[k])
+				np.allclose(replace_none_by_nan(v),  replace_none_by_nan(second_param_group[k]), equal_nan=True)
 				for first_param_group, second_param_group in zip(
 					opt.state_dict()['param_groups'],
 					checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY]['param_groups']
@@ -554,7 +560,7 @@ class TestCheckpointManager(unittest.TestCase):
 		)
 		self.assertTrue(
 			all(
-				np.allclose(v, second_param_group[k])
+				np.allclose(replace_none_by_nan(v),  replace_none_by_nan(second_param_group[k]), equal_nan=True)
 				for first_param_group, second_param_group in zip(
 					opt.state_dict()['param_groups'],
 					trainer.optimizer.state_dict()['param_groups']
@@ -622,7 +628,7 @@ class TestCheckpointManager(unittest.TestCase):
 		)
 		self.assertTrue(
 			all(
-				np.allclose(v, second_param_group[k])
+				np.allclose(replace_none_by_nan(v),  replace_none_by_nan(second_param_group[k]), equal_nan=True)
 				for first_param_group, second_param_group in zip(
 					opt.state_dict()['param_groups'],
 					trainer.optimizer.state_dict()['param_groups']
@@ -690,7 +696,7 @@ class TestCheckpointManager(unittest.TestCase):
 		)
 		self.assertTrue(
 			all(
-				np.allclose(v, second_param_group[k])
+				np.allclose(replace_none_by_nan(v),  replace_none_by_nan(second_param_group[k]), equal_nan=True)
 				for first_param_group, second_param_group in zip(
 					opt.state_dict()['param_groups'],
 					trainer.optimizer.state_dict()['param_groups']
@@ -762,7 +768,7 @@ class TestCheckpointManager(unittest.TestCase):
 		)
 		self.assertTrue(
 			all(
-				np.allclose(v, second_param_group[k])
+				np.allclose(replace_none_by_nan(v),  replace_none_by_nan(second_param_group[k]), equal_nan=True)
 				for first_param_group, second_param_group in zip(
 					opt.state_dict()['param_groups'],
 					trainer.optimizer.state_dict()['param_groups']

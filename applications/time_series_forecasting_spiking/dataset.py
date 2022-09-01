@@ -22,52 +22,82 @@ class TimeSeriesDataset(Dataset):
 			target_transform: Optional[torch.nn.Module] = None,
 			n_units: Optional[int] = None,
 			units: Optional[Iterable[int]] = None,
-			seed : int = 0
+			n_time_steps: Optional[int] = None,
+			seed : int = 0,
+			filename: Optional[str] = None,
+			smoothing_sigma: float = 0.0,
+			dataset_length: Optional[int] = 1,
+			**kwargs
 	):
 		super().__init__()
-		self.ts = np.load('timeSeries_2020_12_16_cr3_df.npy')
-		self.n_neurons, self.n_time_steps = self.ts.shape
+		if filename is None:
+			filename = 'timeSeries_2020_12_16_cr3_df.npy'
+		self.ts = np.load(filename)
+		self.total_n_neurons, self.total_n_time_steps = self.ts.shape
 		
 		random_generator = np.random.RandomState(seed)
 		
 		if units is not None:
 			units = list(units)
-			assert n_units is None
+			assert n_units is None or len(units) == n_units, "Number of units and number of units in units must be equal"
 			n_units = len(units)
 		elif n_units is not None:
-			units = random_generator.randint(self.n_neurons, size=n_units)
+			units = random_generator.randint(self.total_n_neurons, size=n_units)
 		else:
 			n_units = 128
-			units = random_generator.randint(self.n_neurons, size=n_units)
+			units = random_generator.randint(self.total_n_neurons, size=n_units)
+		
+		if n_time_steps is None:
+			self.n_time_steps = self.total_n_time_steps
+		else:
+			self.n_time_steps = n_time_steps
 		
 		self.n_units = n_units
 		self.units_indexes = units
-		self.data = self.ts[self.units_indexes, :]
-		self.sigma = 30
+		# self.data = self.ts[self.units_indexes, :self.n_time_steps].T
+		self.data = self.ts[self.units_indexes].T
+		self.sigma = smoothing_sigma
 		
-		for neuron in range(self.data.shape[0]):
-			self.data[neuron, :] = gaussian_filter1d(self.data[neuron, :], sigma=self.sigma)
-			self.data[neuron, :] = self.data[neuron, :] - np.min(self.data[neuron, :])
-			self.data[neuron, :] = self.data[neuron, :] / np.max(self.data[neuron, :])
+		for neuron in range(self.data.shape[-1]):
+			if self.sigma > 0.0:
+				self.data[:, neuron] = gaussian_filter1d(self.data[:, neuron], sigma=self.sigma)
+			self.data[:, neuron] = self.data[:, neuron] - np.min(self.data[:, neuron])
+			self.data[:, neuron] = self.data[:, neuron] / np.max(self.data[:, neuron])
 		
-		self.data = nt.to_tensor(self.data.T, dtype=torch.float32)
+		self.data = nt.to_tensor(self.data, dtype=torch.float32)
 		self.transform = input_transform
 		self.target_transform = target_transform
+		self.dataset_length = dataset_length
+		if self.dataset_length is None or self.dataset_length <= 0:
+			self.dataset_length = self.total_n_time_steps - self.n_time_steps
+		assert self.dataset_length <= self.total_n_time_steps - self.n_time_steps, \
+			f"Dataset length must be less than total number of time steps " \
+			f"({self.total_n_time_steps - self.n_time_steps})"
+		# if self.transform is None:
+		# 	self.t0_transformed = torch.unsqueeze(self.data[0], dim=0)
+		# else:
+		# 	self.t0_transformed = self.transform(torch.unsqueeze(self.data[0], dim=0))
+		#
+		# self.target = self.data
+		# if self.target_transform is None:
+		# 	self.target_transformed = self.target
+		# else:
+		# 	self.target_transformed = self.transform(self.target)
+	
+	def __len__(self):
+		return self.dataset_length
+	
+	def __getitem__(self, item):
 		if self.transform is None:
-			self.t0_transformed = torch.unsqueeze(self.data[0], dim=0)
+			self.t0_transformed = torch.unsqueeze(self.data[item], dim=0)
 		else:
-			self.t0_transformed = self.transform(torch.unsqueeze(self.data[0], dim=0))
-			
-		self.target = self.data
+			self.t0_transformed = self.transform(torch.unsqueeze(self.data[item], dim=0))
+		
+		self.target = self.data[item:self.n_time_steps + item]
 		if self.target_transform is None:
 			self.target_transformed = self.target
 		else:
 			self.target_transformed = self.transform(self.target)
-	
-	def __len__(self):
-		return 1
-	
-	def __getitem__(self, item):
 		return self.t0_transformed, self.target_transformed
 
 
@@ -179,11 +209,17 @@ class WilsonCowanTimeSeries(Dataset):
 
 
 def get_dataloader(
+		dataset_name: str,
 		*args,
 		**kwargs
 ):
-	data_loader = DataLoader(WilsonCowanTimeSeries(*args, **kwargs), batch_size=1, shuffle=False)
-	return data_loader
+	if dataset_name.lower() in ["wilsoncowan", "wc"]:
+		return DataLoader(WilsonCowanTimeSeries(*args, **kwargs), batch_size=1, shuffle=False)
+	elif dataset_name.lower().endswith('.npy'):
+		dataset = TimeSeriesDataset(filename=dataset_name, *args, **kwargs)
+		batch_size = min(len(dataset), kwargs.setdefault("batch_size", 32))
+		return DataLoader(dataset, batch_size=batch_size, shuffle=kwargs.get("shuffle", len(dataset) > 1))
+	raise ValueError(f"Unknown dataset name: {dataset_name}")
 
 
 if __name__ == '__main__':
@@ -194,24 +230,31 @@ if __name__ == '__main__':
 	mu = np.random.randn(_n_units_, )
 	r = np.random.rand(1).item()
 	
-	fig, axes = plt.subplots(3, 2, figsize=(18, 8))
-	for i, (line_axes, encoder) in enumerate(zip(axes, [LIFEncoder, ALIFEncoder, SpyLIFEncoder])):
-		ws = WilsonCowanTimeSeries(
-			n_steps=1_000,
-			dt=_dt_,
-			t_0=t_0,
-			forward_weights=forward_weights,
-			transform=encoder(
-				n_steps=32,
-				n_units=_n_units_,
-				dt=_dt_,
-			),
-			mu=mu,
-			r=r,
-			tau=1.0,
-		)
-		print(f"shape: {ws[0][0].shape, ws[0][1].shape}")
-		ws.plot_timeseries(fig=fig, axes=line_axes, show=False)
+	fig, axes = plt.subplots(1, 1, figsize=(18, 8))
+	# for i, (line_axes, encoder) in enumerate(zip(axes, [LIFEncoder, ALIFEncoder, SpyLIFEncoder])):
+	# 	ws = WilsonCowanTimeSeries(
+	# 		n_steps=1_000,
+	# 		dt=_dt_,
+	# 		t_0=t_0,
+	# 		forward_weights=forward_weights,
+	# 		transform=encoder(
+	# 			n_steps=32,
+	# 			n_units=_n_units_,
+	# 			dt=_dt_,
+	# 		),
+	# 		mu=mu,
+	# 		r=r,
+	# 		tau=1.0,
+	# 	)
+	# 	print(f"shape: {ws[0][0].shape, ws[0][1].shape}")
+	# 	ws.plot_timeseries(fig=fig, axes=line_axes, show=False)
+	ts = TimeSeriesDataset(
+		n_units=2,
+		n_time_steps=16,
+		smoothing_sigma=1.0,
+		seed=0
+	)[0][-1].detach().cpu().numpy()
+	axes.plot(ts)
 	fig.tight_layout()
 	plt.show()
 	

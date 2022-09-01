@@ -12,7 +12,7 @@ from ..callbacks import CheckpointManager, LoadCheckpointMode
 from ..dimension import DimensionLike, SizeTypes
 from ..transforms import to_tensor
 from ..transforms.wrappers import CallableToModuleWrapper
-from ..transforms.base import IdentityTransform, ToDevice
+from ..transforms.base import IdentityTransform, ToDevice, ToTensor
 from ..utils import ravel_compose_transforms, list_of_callable_to_sequential
 
 
@@ -50,7 +50,7 @@ class BaseModel(torch.nn.Module):
 		:param name: The name of the model.
 		:param checkpoint_folder: The folder where the checkpoints are saved.
 		:param device: The device of the model. If None, the default device is used.
-		:param input_transform: The transforms to apply to the inputs. The input_transform must work on a single datum.
+		:param input_transform: The transforms to apply to the inputs. The input_transform must work batch-wise.
 		:param output_transform: The transforms to apply to the outputs. The output_transform must work batch-wise.
 		:keyword kwargs: Additional arguments.
 		"""
@@ -123,12 +123,14 @@ class BaseModel(torch.nn.Module):
 	def device(self, device: torch.device):
 		"""
 		Set the device of the network.
+		
 		:param device: The device to set.
 		:return: None
 		"""
 		self._device = device
 		self._remove_to_device_transform_()
 		self._add_to_device_transform_()
+		self.to(device)
 
 	def _make_input_transform(
 			self,
@@ -241,7 +243,7 @@ class BaseModel(torch.nn.Module):
 			transform_keys = []
 		return {
 			in_name: Compose([
-				Lambda(lambda a: to_tensor(a, dtype=torch.float32)),
+				ToTensor(dtype=torch.float32),
 			])
 			for in_name in transform_keys
 		}
@@ -264,10 +266,7 @@ class BaseModel(torch.nn.Module):
 		assert all([in_name in self.input_transform for in_name in inputs]), \
 			f"Inputs must be all in input names: {self.input_transform.keys()}"
 		inputs = {
-			in_name: torch.stack(
-				[self.input_transform[in_name](obs_i) for obs_i in in_batch],
-				dim=0
-			)
+			in_name: self.input_transform[in_name](in_batch)
 			for in_name, in_batch in inputs.items()
 		}
 		return inputs
@@ -288,12 +287,14 @@ class BaseModel(torch.nn.Module):
 	def _add_to_device_transform_(self):
 		"""
 		Add the to_device_transform to the input transforms.
+		
 		:return: None
 		"""
 		for in_name, trans in self.input_transform.items():
 			list_of_transforms = ravel_compose_transforms(self.input_transform[in_name])
 			list_of_transforms.append(self._to_device_transform)
 			self.input_transform[in_name] = list_of_callable_to_sequential(list_of_transforms)
+			trans.to(self.device)
 
 	def _remove_to_device_transform_(self):
 		"""
@@ -320,21 +321,20 @@ class BaseModel(torch.nn.Module):
 			}
 		self.input_sizes = {k: v.shape[1:] for k, v in inputs.items()}
 
-	def build(self, *args, **kwargs):
+	def build(self, *args, **kwargs) -> 'BaseModel':
 		"""
 		Build the network.
-		:param args:
-		:param kwargs:
-		:return:
+		
+		:param args: Not used.
+		:param kwargs: Not used.
+		:return: The network.
 		"""
 		self._is_built = True
-
-		# TODO: mettre ces lignes dans le build et checker si le modèle possède seulement une layer, dans ce cas
-		# TODO: gérer les inputs transforms avec les keys des outputs. À mettre dans le build du séquentiel et
-		# TODO: laisser une note dans la doc de BaseModel que les child doivent caller la construction des transforms
 		self.input_transform: Dict[str, Callable] = self._make_input_transform(self._given_input_transform)
 		self.output_transform: Dict[str, Callable] = self._make_output_transform(self._given_output_transform)
 		self._add_to_device_transform_()
+		self.device = self._device
+		return self
 
 	def __call__(self, inputs: Union[Dict[str, Any], torch.Tensor], *args, **kwargs):
 		if not self._is_built:

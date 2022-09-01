@@ -52,6 +52,19 @@ class BaseLayer(torch.nn.Module):
 			device: Optional[torch.device] = None,
 			**kwargs
 	):
+		"""
+		Base class for all layers.
+		
+		:param input_size: The input size of the layer.
+		:param output_size: The output size of the layer.
+		:param name: The name of the layer.
+		:param learning_type: The learning type of the layer.
+		:param device: The device of the layer. Defaults to the current available device.
+		:param kwargs: Additional keyword arguments.
+		
+		:keyword regularize: Whether to regularize the layer. If True, the method `update_regularization_loss` will be
+		called after each forward pass. Defaults to False.
+		"""
 		super(BaseLayer, self).__init__()
 		self._is_built = False
 		self._name_is_set = False
@@ -70,10 +83,9 @@ class BaseLayer(torch.nn.Module):
 		self.output_size = output_size
 
 		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-		self.reset_regularization_loss()
 
 	@property
-	def input_size(self):
+	def input_size(self) -> Optional[Dimension]:
 		if not hasattr(self, "_input_size"):
 			return None
 		return self._input_size
@@ -83,7 +95,7 @@ class BaseLayer(torch.nn.Module):
 		self._input_size = self._format_size(size)
 
 	@property
-	def output_size(self):
+	def output_size(self) -> Optional[Dimension]:
 		if not hasattr(self, "_output_size"):
 			return None
 		return self._output_size
@@ -144,6 +156,7 @@ class BaseLayer(torch.nn.Module):
 	def device(self, device: torch.device):
 		"""
 		Set the device of the layer and move all the parameters to the new device.
+		
 		:param device: The device to set.
 		:return: None
 		"""
@@ -156,9 +169,10 @@ class BaseLayer(torch.nn.Module):
 			_repr += f"<{self.name}>"
 		_repr += f"({int(self.input_size)}->{int(self.output_size)})"
 		_repr += f"[{self.learning_type}]"
+		_repr += f"@{self.device}"
 		return _repr
 
-	def _format_size(self, size: Optional[SizeTypes]) -> Optional[DimensionsLike]:
+	def _format_size(self, size: Optional[SizeTypes]) -> Optional[Dimension]:
 		# TODO: must accept multiple time dimensions
 		if size is not None:
 			if isinstance(size, Iterable):
@@ -181,11 +195,18 @@ class BaseLayer(torch.nn.Module):
 		self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 	def build(self) -> 'BaseLayer':
+		"""
+		Build the layer. This method must be call after the layer is initialized to make sure that the layer is ready
+		to be used e.g. the input and output size is set, the weights are initialized, etc.
+		
+		:return: The layer itself.
+		"""
 		if self._is_built:
 			raise ValueError("The layer can't be built multiple times.")
 		if not self.is_ready_to_build:
 			raise ValueError("Input size and output size must be specified before the build call.")
 		self._is_built = True
+		self.reset_regularization_loss()
 		return self
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
@@ -213,7 +234,7 @@ class BaseLayer(torch.nn.Module):
 			raise ValueError("output_size must be specified before the forward call.")
 	
 	def __call__(self, inputs: torch.Tensor, *args, **kwargs):
-		inputs = inputs.to(self._device)
+		inputs = inputs.to(self.device)
 		if not self.is_built:
 			if not self.is_ready_to_build:
 				self.infer_sizes_from_inputs(inputs)
@@ -229,24 +250,22 @@ class BaseLayer(torch.nn.Module):
 				"The forward method must return a torch.Tensor (the output of the layer) "
 				"or a tuple of torch.Tensor (the output of the layer and the hidden state)."
 			)
-		self.update_regularization_loss(hidden_state)
+		if self.kwargs.get("regularize", False):
+			self.update_regularization_loss(hidden_state)
 		return call_output
 
 	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
 		raise NotImplementedError()
 
 	def initialize_weights_(self):
-		for param in self.parameters():
-			if param.ndim > 2:
-				torch.nn.init.xavier_normal_(param)
-			else:
-				torch.nn.init.normal_(param)
+		pass
 
 	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
 		"""
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function. This method is called at the end of each
 		forward call automatically by the BaseLayer class.
+		
 		:param state: The current state of the layer.
 		:param args: Other positional arguments.
 		:param kwargs: Other keyword arguments.
@@ -257,6 +276,7 @@ class BaseLayer(torch.nn.Module):
 	def reset_regularization_loss(self):
 		"""
 		Reset the regularization loss to zero.
+		
 		:return: None
 		"""
 		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
@@ -265,21 +285,37 @@ class BaseLayer(torch.nn.Module):
 		"""
 		Get and reset the regularization loss for this layer. The regularization loss will be reset by the
 		reset_regularization_loss method after it is returned.
+		
+		WARNING: If this method is not called after an integration, the update of the regularization loss can cause a
+		memory leak. TODO: fix this.
+		
 		:return: The regularization loss.
 		"""
 		loss = self.get_regularization_loss()
 		self.reset_regularization_loss()
 		return loss
 
-	def get_regularization_loss(self):
+	def get_regularization_loss(self) -> torch.Tensor:
 		"""
 		Get the regularization loss for this layer.
+		
 		:return: The regularization loss.
 		"""
 		return self._regularization_loss
 
 
 class BaseNeuronsLayer(BaseLayer):
+	"""
+	A base class for layers that have neurons. This class provides two importants Parameters: the forward_weights and
+	the recurrent_weights. Child classes must implement the forward method and the `create_empty_state` method.
+	
+	:Attributes:
+		- forward_weights: The weights used to compute the output of the layer.
+		- recurrent_weights: The weights used to compute the hidden state of the layer.
+		- dt: The time step of the layer.
+		- use_rec_eye_mask: Whether to use the recurrent eye mask.
+		- rec_mask: The recurrent eye mask.
+	"""
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -292,6 +328,20 @@ class BaseNeuronsLayer(BaseLayer):
 			device: Optional[torch.device] = None,
 			**kwargs
 	):
+		"""
+		Initialize the layer.
+		
+		:param input_size: The input size of the layer.
+		:param output_size: The output size of the layer.
+		:param name: The name of the layer.
+		:param use_recurrent_connection: Whether to use a recurrent connection. Default is True.
+		:param use_rec_eye_mask: Whether to use a recurrent eye mask. Default is False. This mask will be used to
+			mask to zero the diagonal of the recurrent connection matrix.
+		:param learning_type: The learning type of the layer. Default is BPTT.
+		:param dt: The time step of the layer. Default is 1e-3.
+		:param device: The device of the layer. Default is the current available device.
+		:param kwargs: Other keyword arguments.
+		"""
 		self.dt = dt
 		self.use_recurrent_connection = use_recurrent_connection
 		self.forward_weights = None
@@ -328,22 +378,40 @@ class BaseNeuronsLayer(BaseLayer):
 	def build(self) -> 'BaseNeuronsLayer':
 		super().build()
 		self.forward_weights = nn.Parameter(
-			torch.empty((int(self.input_size), int(self.output_size)), device=self._device, dtype=torch.float32),
+			torch.empty((int(self.input_size), int(self.output_size)), device=self.device, dtype=torch.float32),
 			requires_grad=self.requires_grad
 		)
 		if self.use_recurrent_connection:
 			self.recurrent_weights = nn.Parameter(
-				torch.empty((int(self.output_size), int(self.output_size)), device=self._device, dtype=torch.float32),
+				torch.empty((int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32),
 				requires_grad=self.requires_grad
 			)
 			if self.use_rec_eye_mask:
-				self.rec_mask = (1 - torch.eye(int(self.output_size), device=self._device, dtype=torch.float32))
+				self.rec_mask = nn.Parameter(
+					(1 - torch.eye(int(self.output_size), device=self.device, dtype=torch.float32)),
+					requires_grad=False
+				)
 			else:
-				self.rec_mask = torch.ones(
-					(int(self.output_size), int(self.output_size)), device=self._device, dtype=torch.float32
+				self.rec_mask = nn.Parameter(
+					torch.ones(
+						(int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32
+					),
+					requires_grad=False
 				)
 		self.initialize_weights_()
 		return self
+	
+	def __repr__(self):
+		_repr = f"{self.__class__.__name__}"
+		if self.name_is_set:
+			_repr += f"<{self.name}>"
+		_repr += f"({int(self.input_size)}"
+		if self.use_recurrent_connection:
+			_repr += "<"
+		_repr += f"->{int(self.output_size)})"
+		_repr += f"[{self.learning_type}]"
+		_repr += f"@{self.device}"
+		return _repr
 
 
 class LIFLayer(BaseNeuronsLayer):
@@ -373,9 +441,18 @@ class LIFLayer(BaseNeuronsLayer):
 			**kwargs
 		)
 
-		self.alpha = torch.tensor(np.exp(-dt / self.kwargs["tau_m"]), dtype=torch.float32, device=self.device)
-		self.threshold = torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device)
-		self.gamma = torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device)
+		self.alpha = nn.Parameter(
+			torch.tensor(np.exp(-dt / self.kwargs["tau_m"]), dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
+		self.threshold = nn.Parameter(
+			torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
+		self.gamma = nn.Parameter(
+			torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_m", 10.0 * self.dt)
@@ -387,13 +464,6 @@ class LIFLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
 
 	def initialize_weights_(self):
-		gain = self.threshold.data
-		for param in self.parameters():
-			if param.ndim > 2:
-				torch.nn.init.xavier_normal_(param, gain=gain)
-			else:
-				torch.nn.init.normal_(param, std=gain)
-
 		if "forward_weights" in self.kwargs:
 			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
@@ -409,6 +479,7 @@ class LIFLayer(BaseNeuronsLayer):
 		Create an empty state in the following form:
 			([membrane potential of shape (batch_size, self.output_size)],
 			[spikes of shape (batch_size, self.output_size)])
+			
 		:param batch_size: The size of the current batch.
 		:return: The current state.
 		"""
@@ -424,6 +495,7 @@ class LIFLayer(BaseNeuronsLayer):
 		"""
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function.
+		
 		:param state: The current state of the layer.
 		:return: The updated regularization loss.
 		"""
@@ -501,10 +573,22 @@ class SpyLIFLayer(BaseNeuronsLayer):
 			**kwargs
 		)
 
-		self.alpha = torch.tensor(np.exp(-dt / self.kwargs["tau_syn"]), dtype=torch.float32, device=self.device)
-		self.beta = torch.tensor(np.exp(-dt / self.kwargs["tau_mem"]), dtype=torch.float32, device=self.device)
-		self.threshold = torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device)
-		self.gamma = torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device)
+		self.alpha = nn.Parameter(
+			torch.tensor(np.exp(-dt / self.kwargs["tau_syn"]), dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
+		self.beta = nn.Parameter(
+			torch.tensor(np.exp(-dt / self.kwargs["tau_mem"]), dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
+		self.threshold = nn.Parameter(
+			torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
+		self.gamma = nn.Parameter(
+			torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
 		self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
 		self._total_count = 0
@@ -556,6 +640,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		"""
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function.
+		
 		:param state: The current state of the layer.
 		:return: The updated regularization loss.
 		"""
@@ -569,7 +654,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		return self._regularization_loss
 
 	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
-		assert inputs.ndim == 2
+		assert inputs.ndim == 2, f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
 		batch_size, nb_features = inputs.shape
 		V, I_syn, Z = self._init_forward_state(state, batch_size)
 		input_current = torch.matmul(inputs, self.forward_weights)
@@ -609,10 +694,14 @@ class ALIFLayer(LIFLayer):
 			device=device,
 			**kwargs
 		)
-		self.beta = torch.tensor(self.kwargs["beta"], dtype=torch.float32, device=self._device)
-		if self.kwargs["learn_beta"]:
-			self.beta = torch.nn.Parameter(self.beta, requires_grad=True)
-		self.rho = torch.tensor(np.exp(-dt / self.kwargs["tau_a"]), dtype=torch.float32, device=self._device)
+		self.beta = nn.Parameter(
+			torch.tensor(self.kwargs["beta"], dtype=torch.float32, device=self.device),
+			requires_grad=self.kwargs["learn_beta"]
+		)
+		self.rho = nn.Parameter(
+			torch.tensor(np.exp(-dt / self.kwargs["tau_a"]), dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_m", 20.0 * self.dt)
@@ -912,7 +1001,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			self.mu = torch.nn.Parameter(self.mu, requires_grad=self.requires_grad)
 			torch.nn.init.normal_(self.mu, mean=self.mean_mu, std=self.std_mu)
 		if self.learn_r:
-			_r = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self._device)
+			_r = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
 			torch.nn.init.normal_(_r, mean=self.mean_r, std=self.std_r)
 			self.r_sqrt = torch.nn.Parameter(torch.sqrt(torch.abs(_r)), requires_grad=self.requires_grad)
 		if self.learn_tau:

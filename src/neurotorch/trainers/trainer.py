@@ -261,7 +261,7 @@ class Trainer:
 			range(self.current_training_state.iteration, n_iterations),
 			initial=self.current_training_state.iteration,
 			total=n_iterations,
-			desc="Training",
+			desc=kwargs.get("desc", "Training"),
 			disable=not self.verbose,
 			position=p_bar_position,
 			unit="itr",
@@ -292,6 +292,8 @@ class Trainer:
 			train_dataloader: DataLoader,
 			val_dataloader: Optional[DataLoader] = None
 	) -> Dict[str, float]:
+		with torch.no_grad():
+			torch.cuda.empty_cache()
 		losses = {}
 
 		self.callbacks.on_train_begin(self)
@@ -303,13 +305,17 @@ class Trainer:
 		losses["train_loss"] = train_loss
 
 		if val_dataloader is not None:
-			self.callbacks.on_validation_begin(self)
-			self.model.eval()
-			self.current_training_state = self.current_training_state.update(batch_is_train=False)
-			val_loss = self._exec_epoch(val_dataloader)
-			self.current_training_state = self.current_training_state.update(val_loss=val_loss)
-			self.callbacks.on_validation_end(self)
-			losses["val_loss"] = val_loss
+			with torch.no_grad():
+				self.callbacks.on_validation_begin(self)
+				self.model.eval()
+				self.current_training_state = self.current_training_state.update(batch_is_train=False)
+				val_loss = self._exec_epoch(val_dataloader)
+				self.current_training_state = self.current_training_state.update(val_loss=val_loss)
+				self.callbacks.on_validation_end(self)
+				losses["val_loss"] = val_loss
+		
+		with torch.no_grad():
+			torch.cuda.empty_cache()
 		return losses
 
 	def _exec_metrics(self, dataloader: torch.utils.data.DataLoader, prefix: str) -> Dict:
@@ -355,11 +361,13 @@ class Trainer:
 			regularization_loss = self.regularization()
 			batch_loss += regularization_loss
 		if self.model.training:
+			self.model.zero_grad()
 			self.optimizer.zero_grad()
 			batch_loss.backward()
 			self.optimizer.step()
 		if self.regularization_optimizer is not None and self.regularization is not None:
 			regularization_loss = self.regularization()
+			self.model.zero_grad()
 			self.regularization_optimizer.zero_grad()
 			regularization_loss.backward()
 			self.regularization_optimizer.step()

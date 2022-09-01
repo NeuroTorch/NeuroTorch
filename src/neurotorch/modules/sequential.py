@@ -692,6 +692,63 @@ class SequentialModel(BaseModel):
 			outputs_trace[layer_name].append(out)
 			hidden_states[layer_name].append(hh)
 		return outputs_trace
+	
+	def _integrate_inputs_(
+			self,
+			inputs: Dict[str, torch.Tensor],
+			hidden_states: Dict[str, List],
+			outputs_trace: Dict[str, List[torch.Tensor]],
+			time_steps: int,
+	):
+		"""
+		Integration of the inputs or the initial conditions.
+		
+		:param inputs: the inputs to integrate.
+		:param hidden_states: the hidden states of the model.
+		:param outputs_trace: the outputs trace of the model.
+		:param time_steps: the number of time steps to integrate.
+		:return: the integrated inputs and the hidden states.
+		"""
+		for t in range(time_steps):
+			forward_tensor = self._inputs_forward_(inputs, hidden_states, t)
+			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
+			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace)
+
+			outputs_trace = {layer_name: self._pop_memory_(trace) for layer_name, trace in outputs_trace.items()}
+			hidden_states = {layer_name: self._pop_memory_(trace) for layer_name, trace in hidden_states.items()}
+		return outputs_trace, hidden_states
+	
+	def _forecast_integration_(
+			self,
+			hidden_states: Dict[str, List],
+			outputs_trace: Dict[str, List[torch.Tensor]],
+			foresight_time_steps: int,
+	) -> Tuple[Dict[str, List[torch.Tensor]], Dict[str, List]]:
+		"""
+		Foresight prediction of the initial conditions.
+		
+		:param hidden_states: the hidden states of the model.
+		:param outputs_trace: the outputs trace of the model.
+		:param foresight_time_steps: the number of time steps to forecast.
+		:return: the forecasted outputs and the hidden states.
+		"""
+		if self._outputs_to_inputs_names_map is None:
+			self._map_outputs_to_inputs()
+		
+		# for t in range(foresight_time_steps-1):
+		for t in range(foresight_time_steps):
+			# foresight_inputs_tensor = {
+			# 	self._outputs_to_inputs_names_map[layer_name]: torch.stack(trace, dim=1)
+			# 	for layer_name, trace in outputs_trace.items()
+			# }
+			foresight_inputs_tensor = {
+				self._outputs_to_inputs_names_map[layer_name]: torch.unsqueeze(trace[-1], dim=1)
+				for layer_name, trace in outputs_trace.items()
+			}
+			forward_tensor = self._inputs_forward_(foresight_inputs_tensor, hidden_states, -1)
+			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
+			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace)
+		return outputs_trace, hidden_states
 
 	def forward(
 			self,
@@ -719,6 +776,10 @@ class SequentialModel(BaseModel):
 						names of the layers. The values of the dictionaries are lists of tensors. The length of the
 						lists is the number of time steps.
 		"""
+		foresight_time_steps = kwargs.get('foresight_time_steps', None)
+		if foresight_time_steps is None:
+			foresight_time_steps = self.foresight_time_steps
+		
 		inputs = self._inputs_to_dict(inputs)
 		inputs = self.apply_input_transform(inputs)
 		inputs = self._format_inputs(inputs)
@@ -726,28 +787,11 @@ class SequentialModel(BaseModel):
 		hidden_states = self._init_hidden_states_memory()
 		outputs_trace: Dict[str, List[torch.Tensor]] = defaultdict(list)
 
-		# TODO: implement a way to integrate an other time dimension for inputs of
-		#  shape: (batch_size, time_steps, time_steps, ...). Those inputs are obtained for forecasting a time series of
-		#  real values that were transformed to times series of spikes.
-
 		# integration of the inputs or the initial conditions
-		for t in range(time_steps):
-			forward_tensor = self._inputs_forward_(inputs, hidden_states, t)
-			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
-			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace)
-
-			outputs_trace = {layer_name: self._pop_memory_(trace) for layer_name, trace in outputs_trace.items()}
-			hidden_states = {layer_name: self._pop_memory_(trace) for layer_name, trace in hidden_states.items()}
-
-		# Foresight prediction of the initial conditions
-		for t in range(self.foresight_time_steps-1):
-			foresight_inputs_tensor = {
-				self._outputs_to_inputs_names_map[layer_name]: torch.stack(trace, dim=1)
-				for layer_name, trace in outputs_trace.items()
-			}
-			forward_tensor = self._inputs_forward_(foresight_inputs_tensor, hidden_states, -1)
-			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
-			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace)
+		outputs_trace, hidden_states = self._integrate_inputs_(inputs, hidden_states, outputs_trace, time_steps)
+		if foresight_time_steps > 0:
+			# Foresight prediction of the initial conditions
+			outputs_trace, hidden_states = self._forecast_integration_(hidden_states, outputs_trace, foresight_time_steps)
 
 		hidden_states = self._format_hidden_outputs_traces(hidden_states)
 		outputs_trace_tensor = {layer_name: torch.stack(trace, dim=1) for layer_name, trace in outputs_trace.items()}
@@ -758,7 +802,7 @@ class SequentialModel(BaseModel):
 			self,
 			inputs: Union[Dict[str, Any], torch.Tensor],
 			**kwargs
-	) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
+	) -> Union[Dict[str, torch.Tensor], torch.Tensor, Tuple[torch.Tensor, ...]]:
 		"""
 		Returns the prediction trace for the given inputs. Method used for time series prediction.
 		
@@ -766,6 +810,7 @@ class SequentialModel(BaseModel):
 		:param kwargs: kwargs to be passed to the forward method.
 		
 		:keyword int foresight_time_steps: number of time steps to predict. Default is self.foresight_time_steps.
+		:keyword bool return_hidden_states: if True, returns the hidden states of the model. Default is False.
 		
 		:return: the prediction trace.
 		"""
@@ -779,9 +824,11 @@ class SequentialModel(BaseModel):
 				for layer_name, trace in outputs_trace.items()
 			}
 			if len(outputs_trace) == 1:
-				return outputs_trace[list(outputs_trace.keys())[0]]
+				outputs_trace = outputs_trace[list(outputs_trace.keys())[0]]
 		else:
 			outputs_trace = outputs_trace[:, -foresight_time_steps:]
+		if kwargs.get('return_hidden_states', False):
+			return outputs_trace, hidden_states
 		return outputs_trace
 
 	def get_raw_prediction(
@@ -862,6 +909,7 @@ class SequentialModel(BaseModel):
 		"""
 		Get the regularization loss as a sum of all the regularization losses of the layers. Then reset the
 		regularization losses.
+		
 		:return: the regularization loss.
 		"""
 		regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)

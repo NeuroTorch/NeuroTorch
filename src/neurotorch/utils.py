@@ -83,16 +83,18 @@ def linear_decay(init_value, min_value, decay_value, current_itr):
 
 def get_meta_name(params: Dict[str, Any]):
 	meta_name = f""
-	for k, v in params.items():
-		meta_name += f"{k}-{v}_"
+	keys = sorted(list(params.keys()))
+	for k in keys:
+		meta_name += f"{k}-{params[k]}_"
 	return meta_name[:-1]
 
 
 def hash_params(params: Dict[str, Any]):
 	"""
 	Hash the parameters to get a unique and persistent id.
-	:param params:
-	:return:
+	
+	:param params: The parameters to hash.
+	:return: The hash of the parameters.
 	"""
 	return int(hashlib.md5(get_meta_name(params).encode('utf-8')).hexdigest(), 16)
 
@@ -172,6 +174,7 @@ def get_transform_from_str(transform_name: str, **kwargs):
 def get_all_params_combinations(params_space: Dict[str, Any]) -> List[Dict[str, Any]]:
 	"""
 	Get all possible combinations of parameters.
+	
 	:param params_space: Dictionary of parameters.
 	:return: List of dictionaries of parameters.
 	"""

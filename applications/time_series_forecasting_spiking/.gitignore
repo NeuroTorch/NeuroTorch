@@ -4,7 +4,8 @@
 tr_data
 *tr_data*
 mnist_venv
-checkpoints*
+*checkpoints*
 *tr_test*
 logs
 *.npy
+spikes_autoencoder_checkpoints

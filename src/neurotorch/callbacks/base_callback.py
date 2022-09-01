@@ -5,6 +5,7 @@ class BaseCallback:
 	def start(self, trainer):
 		"""
 		Called when the training starts. This is the first callback called.
+		
 		:param trainer: The trainer.
 		:return: None
 		"""
@@ -13,6 +14,7 @@ class BaseCallback:
 	def close(self, trainer):
 		"""
 		Called when the training ends. This is the last callback called.
+		
 		:param trainer: The trainer.
 		:return: None
 		"""
@@ -22,6 +24,7 @@ class BaseCallback:
 		"""
 		Called when the train phase of an iteration starts. The train phase is defined as a full pass through the
 		training dataset.
+		
 		:param trainer: The trainer.
 		:return: None
 		"""
@@ -31,6 +34,7 @@ class BaseCallback:
 		"""
 		Called when the train phase of an iteration ends. The train phase is defined as a full pass through the
 		training dataset.
+		
 		:param trainer: The trainer.
 		:return: None
 		"""
@@ -40,6 +44,7 @@ class BaseCallback:
 		"""
 		Called when an epoch starts. An epoch is defined as one full pass through the training dataset or
 		the validation dataset.
+		
 		:param trainer: The trainer.
 		:return: None
 		"""
@@ -49,6 +54,7 @@ class BaseCallback:
 		"""
 		Called when an epoch ends. An epoch is defined as one full pass through the training dataset or
 		the validation dataset.
+		
 		:param trainer: The trainer.
 		:return: None
 		"""
@@ -57,6 +63,7 @@ class BaseCallback:
 	def on_batch_begin(self, trainer):
 		"""
 		Called when a batch starts. The batch is defined as one forward pass through the network.
+		
 		:param trainer: The trainer.
 		:return: None
 		"""
@@ -65,6 +72,7 @@ class BaseCallback:
 	def on_batch_end(self, trainer):
 		"""
 		Called when a batch ends. The batch is defined as one forward pass through the network.
+		
 		:param trainer: The trainer.
 		:return: None
 		"""
@@ -74,6 +82,7 @@ class BaseCallback:
 		"""
 		Called when the validation phase of an iteration starts. The validation phase is defined as a full pass through
 		the validation dataset.
+		
 		:param trainer:
 		:return:
 		"""
@@ -83,6 +92,7 @@ class BaseCallback:
 		"""
 		Called when the validation phase of an iteration ends. The validation phase is defined as a full pass through
 		the validation dataset.
+		
 		:param trainer: The trainer.
 		:return: None
 		"""
@@ -92,6 +102,7 @@ class BaseCallback:
 		"""
 		Called when an iteration starts. An iteration is defined as one full pass through the training dataset and
 		the validation dataset.
+		
 		:param trainer: The trainer.
 		:return: None
 		"""
@@ -101,6 +112,7 @@ class BaseCallback:
 		"""
 		Called when an iteration ends. An iteration is defined as one full pass through the training dataset and
 		the validation dataset.
+		
 		:param trainer: The trainer.
 		:return: None
 		"""

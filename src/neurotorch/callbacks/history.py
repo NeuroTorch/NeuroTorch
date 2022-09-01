@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
@@ -128,6 +129,7 @@ class TrainingHistory(BaseCallback):
 
 	def create_plot(self, **kwargs) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
 		kwargs = self._set_default_plot_kwargs(kwargs)
+		keys_lower_to_given = {k.lower(): k for k in self.keys()}
 		keys_lower = [key.lower() for key in self.keys()]
 		loss_metrics = [k for k in keys_lower if 'loss' in k]
 		keys_lower = list(set(keys_lower) - set(loss_metrics))
@@ -149,7 +151,8 @@ class TrainingHistory(BaseCallback):
 				continue
 			if i == 0:
 				for k in loss_metrics:
-					lines[k] = ax.plot(self[k], label=k, linewidth=kwargs['linewidth'])[0]
+					key = keys_lower_to_given[k]
+					lines[key] = ax.plot(self[key], label=key, linewidth=kwargs['linewidth'])[0]
 				axes_dict['losses'] = ax
 				ax.set_ylabel("Loss [-]", fontsize=kwargs["fontsize"])
 				ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
@@ -158,15 +161,17 @@ class TrainingHistory(BaseCallback):
 				metric_basename = '_'.join(max_set_metrics_container[i-1].split('_')[1:])
 				for prefix in ['val', 'train', 'test']:
 					k = prefix + '_' + metric_basename
-					if k in self:
-						lines[k] = ax.plot(self[k], label=k, linewidth=kwargs['linewidth'])[0]
-						axes_dict[k] = ax
+					key = keys_lower_to_given[k]
+					if key in self:
+						lines[key] = ax.plot(self[key], label=key, linewidth=kwargs['linewidth'])[0]
+						axes_dict[key] = ax
 				ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
 				ax.legend(fontsize=kwargs["fontsize"])
 			else:
 				k = other_metrics[i - 1 - n_set_metrics]
-				lines[k] = ax.plot(self[k], label=k, linewidth=kwargs['linewidth'])[0]
-				axes_dict[k] = ax
+				key = keys_lower_to_given[k]
+				lines[key] = ax.plot(self[key], label=key, linewidth=kwargs['linewidth'])[0]
+				axes_dict[key] = ax
 				ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
 				ax.legend(fontsize=kwargs["fontsize"])
 		return fig, axes_dict, lines
@@ -181,6 +186,7 @@ class TrainingHistory(BaseCallback):
 		plt.close('all')
 		fig, axes, lines = self.create_plot(**kwargs)
 		if save_path is not None:
+			os.makedirs(os.path.dirname(save_path), exist_ok=True)
 			fig.savefig(save_path, dpi=kwargs["dpi"])
 		if show:
 			plt.show(block=kwargs.get('block', True))

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -14,7 +14,7 @@ def to_tensor(x: Any, dtype=torch.float32):
 	raise ValueError(f"Unsupported type {type(x)}")
 
 
-def to_numpy(x: Any, dtype=torch.float32):
+def to_numpy(x: Any, dtype=np.float32):
 	if isinstance(x, np.ndarray):
 		return np.asarray(x, dtype=dtype)
 	elif isinstance(x, torch.Tensor):
@@ -31,6 +31,26 @@ class ToDevice(torch.nn.Module):
 
 	def forward(self, x: torch.Tensor):
 		return x.to(self.device)
+	
+	def __repr__(self):
+		return f"ToDevice({self.device})"
+
+
+class ToTensor(torch.nn.Module):
+	def __init__(self, dtype=torch.float32, device: Optional[torch.device] = None):
+		super().__init__()
+		self.dtype = dtype
+		self.device = device
+		if self.device is None:
+			self.to_device = None
+		else:
+			self.to_device = ToDevice(self.device)
+	
+	def forward(self, x: Any) -> torch.Tensor:
+		x = to_tensor(x, self.dtype)
+		if self.to_device is not None:
+			x = self.to_device(x)
+		return x
 
 
 class IdentityTransform(torch.nn.Module):
@@ -55,6 +75,9 @@ class LinearRateToSpikes(torch.nn.Module):
 		self.data_min = to_tensor(data_min)
 		self.data_max = to_tensor(data_max)
 		self.epsilon = epsilon
+	
+	def __repr__(self):
+		return f"{self.__class__.__name__}(n_steps={self.n_steps})"
 
 	def firing_periods_to_spikes(self, firing_periods: np.ndarray) -> np.ndarray:
 		firing_periods = np.floor(firing_periods).astype(int)
@@ -84,11 +107,17 @@ class LinearRateToSpikes(torch.nn.Module):
 
 
 class ConstantValuesTransform(torch.nn.Module):
-	def __init__(self, n_steps: int):
+	def __init__(self, n_steps: int, batch_wise: bool = True):
 		super().__init__()
 		self.n_steps = n_steps
+		self.batch_wise = batch_wise
+	
+	def __repr__(self):
+		return f"{self.__class__.__name__}(n_steps={self.n_steps})"
 
 	def forward(self, x: Any):
 		x = to_tensor(x)
+		if self.batch_wise:
+			return x.repeat(1, self.n_steps, 1)
 		return x.repeat(self.n_steps, 1)
 

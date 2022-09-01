@@ -1,9 +1,9 @@
 from copy import deepcopy
 from typing import Dict, List, NamedTuple, Optional
 
-from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
+# from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
 
-from PythonAcademy.src.buffers import ReplayBuffer
+from .buffers import ReplayBuffer
 
 
 class CompletionCriteria(NamedTuple):
@@ -25,7 +25,7 @@ class Lesson:
 	def __init__(
 			self,
 			name,
-			channel: EnvironmentParametersChannel,
+			channel,  #: EnvironmentParametersChannel,
 			params: Dict[str, float],
 			completion_criteria: CompletionCriteria = CompletionCriteria.default_criteria(),
 			teacher=None,

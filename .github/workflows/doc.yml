@@ -35,7 +35,12 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git commit -m "Update docs"
-        git push origin gh-pages
-        with:
-          github_token: "${{secrets.GITHUB_TOKEN}}"
-          force: true
+
+    - name: Push to gh-pages
+      uses: ad-m/github-push-action@gh-pages
+      with:
+        github_token: ${{secrets.GITHUB_TOKEN}}
+        branch: gh-pages
+        force: true
+        directory: docs/build/html
+        

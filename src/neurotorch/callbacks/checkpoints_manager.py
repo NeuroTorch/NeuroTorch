@@ -94,6 +94,7 @@ class CheckpointManager(BaseCallback):
 			minimise_metric: bool = True,
 			save_freq: int = 1,
 			save_best_only: bool = False,
+			start_save_at: int = 0,
 			verbose: bool = False,
 	):
 		"""
@@ -107,6 +108,7 @@ class CheckpointManager(BaseCallback):
 							training.
 		:param save_best_only: Whether to only save the best checkpoint. If set to True, the save_freq will be set
 		automatically to -1.
+		:param start_save_at: The iteration at which to start saving checkpoints.
 		:param verbose: Whether to print out the trace of the checkpoint manager.
 		"""
 		self.checkpoint_folder = checkpoint_folder
@@ -119,6 +121,7 @@ class CheckpointManager(BaseCallback):
 		self.save_best_only = save_best_only
 		if self.save_best_only:
 			self.save_freq = -1
+		self.start_save_at = start_save_at
 		self.curr_best_metric = np.inf if self.minimise_metric else -np.inf
 
 	@property
@@ -272,6 +275,8 @@ class CheckpointManager(BaseCallback):
 		return True
 
 	def on_iteration_end(self, trainer):
+		if self.start_save_at > trainer.current_training_state.iteration:
+			return
 		if self.save_best_only:
 			if self._check_is_best(trainer):
 				self._save_on(trainer)

@@ -87,8 +87,6 @@ class BaseModel(torch.nn.Module):
 
 	@output_sizes.setter
 	def output_sizes(self, output_size: Union[Dict[str, DimensionLike], SizeTypes]):
-		# if self._output_sizes is not None:
-		# 	raise ValueError("Output sizes can only be set once.")
 		if output_size is not None:
 			self._output_sizes = self._format_sizes(output_size)
 

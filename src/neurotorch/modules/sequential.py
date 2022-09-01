@@ -28,6 +28,17 @@ IntDimension = Union[int, Dimension]
 
 
 class SequentialModel(BaseModel):
+	"""
+	The SequentialModel is a neural network that is constructed by stacking layers.
+	
+	.. image:: ../../../images/modules/Sequential_model_schm.drawio.png
+	
+	:Attributes:
+		- **input_layers** (torch.nn.ModuleDict): The input layers of the model.
+		- **hidden_layers** (torch.nn.ModuleList): The hidden layers of the model.
+		- **output_layers** (torch.nn.ModuleDict): The output layers of the model.
+		- **foresight_time_steps** (int): The number of time steps that the model will forecast.
+	"""
 
 	@staticmethod
 	def _format_hidden_outputs_traces(
@@ -35,6 +46,7 @@ class SequentialModel(BaseModel):
 	) -> Dict[str, Tuple[torch.Tensor, ...]]:
 		"""
 		Permute the hidden states to have a dictionary of shape {layer_name: (tensor, ...)}
+		
 		trace can be a list of :
 			- Tensor -> list[torch.Tensor]
 			- Tuple or list of Tensor or None -> Iterable[torch.Tensor] or Iterable[None]
@@ -45,8 +57,11 @@ class SequentialModel(BaseModel):
 		if you use a list of iterable, it will NOT check if all the element of the iterable are the same type. This
 		decision was done to reduce the computation time. Make sure all the element of your list are the same type to
 		avoid error.
+		
 		:param hidden_states: Dictionary of hidden states
+		:type hidden_states: Dict[str, List[Tuple[torch.Tensor, ...]]]
 		:return: Dictionary of hidden states with the shape {layer_name: (tensor, ...)}
+		:rtype: Dict[str, Tuple[torch.Tensor, ...]]
 		"""
 		new_hidden_states = {}
 		for layer_name, trace in hidden_states.items():
@@ -87,10 +102,15 @@ class SequentialModel(BaseModel):
 	) -> OrderedDict[str, BaseLayer]:
 		"""
 		Format the input or output layers. The format is an ordered dictionary of the form {layer_name: layer}.
+		
 		:param layers: The input or output layers.
+		:type layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
 		:param default_prefix_layer_name: The default prefix of the layer name. The prefix is used when the name of
 		the layer is not specified.
+		:type default_prefix_layer_name: str
+		
 		:return: The formatted input or output layers.
+		:rtype: OrderedDict[str, BaseLayer]
 		"""
 		layers: Iterable[BaseLayer] = [layers] if not isinstance(layers, Iterable) else layers
 		if isinstance(layers, Mapping):
@@ -120,10 +140,15 @@ class SequentialModel(BaseModel):
 	) -> List[BaseLayer]:
 		"""
 		Format the hidden layers. The format is a list of the form [layer, ...].
+		
 		:param layers: The hidden layers.
+		:type layers: Iterable[BaseLayer]
 		:param default_prefix_layer_name: The default prefix of the layer name. The prefix is used when the name of
 		the layer is not specified.
+		:type default_prefix_layer_name: str
+		
 		:return: The formatted hidden layers.
+		:rtype: List[BaseLayer]
 		"""
 		assert all([isinstance(layer, BaseLayer) for layer in layers]), \
 			"All hidden layers must be of type BaseLayer"
@@ -137,14 +162,21 @@ class SequentialModel(BaseModel):
 			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
 	) -> Tuple[OrderedDict, List, OrderedDict]:
 		"""
-		Format the given layers. The format is a tuple of the form
-		(
-			OrderedDict({input_layer_name: input_layer}),
-			List(hidden_layers),
-			OrderedDict({output_layer_name: output_layer}),
-		).
+		Format the given layers. The format is a tuple of the form:
+		
+		::
+		
+			(
+				OrderedDict({input_layer_name: input_layer}),
+				List(hidden_layers),
+				OrderedDict({output_layer_name: output_layer}),
+			)
+		
 		:param layers: The layers.
+		:type layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
+		
 		:return: The formatted layers.
+		:rtype: Tuple[OrderedDict, List, OrderedDict]
 		"""
 		if not isinstance(layers, Iterable):
 			layers = [layers]
@@ -172,10 +204,16 @@ class SequentialModel(BaseModel):
 	) -> Tuple[nn.ModuleDict, nn.ModuleList, nn.ModuleDict]:
 		"""
 		Convert the input, hidden and output layers containers to modules.
+		
 		:param inputs_layers: The input layers.
+		:type inputs_layers: OrderedDict
 		:param hidden_layers: The hidden layers.
+		:type hidden_layers: List
 		:param outputs_layers: The output layers.
+		:type outputs_layers: OrderedDict
+		
 		:return: The input, hidden and output layers modules.
+		:rtype: Tuple[nn.ModuleDict, nn.ModuleList, nn.ModuleDict]
 		"""
 		input_layers = nn.ModuleDict(inputs_layers)
 		hidden_layers = nn.ModuleList(hidden_layers)
@@ -249,7 +287,9 @@ class SequentialModel(BaseModel):
 		"""
 		The SequentialModel is a neural network that is constructed by stacking layers.
 		
-		:param layers: The layers to be used in the model. The following structure is expected:
+		:param layers: The layers to be used in the model. One of the following structure is expected:
+		::
+		
 			layers = [
 				[*inputs_layers, ],
 				*hidden_layers,
@@ -260,19 +300,28 @@ class SequentialModel(BaseModel):
 				input_layer,
 				*hidden_layers,
 				output_layer
-			].
+			]
+		
+		:type layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
 		:param foresight_time_steps: The number of time steps to predict in the future. When multiple inputs or outputs
 			are given, the outputs of the network are given to the inputs in the same order as they were specified in
 			the construction of the network. In other words, the first output is given to the first input, the second
 			output is given to the second input, and so on. If there are fewer outputs than inputs, the last inputs are
 			not considered as recurrent inputs, so they are not fed.
+		:type foresight_time_steps: int
 		:param name: The name of the model.
+		:type name: str
 		:param checkpoint_folder: The folder where the checkpoints are saved.
+		:type checkpoint_folder: str
 		:param device: The device to use.
+		:type device: torch.device
 		:param input_transform: The transform to apply to the input. The input_transform must work on a single datum.
+		:type input_transform: Union[Dict[str, Callable], List[Callable]]
 		:param output_transform: The transform to apply to the output trace. The output_transform must work batch-wise.
-		:param kwargs:
-				memory_size (Optional[int]): The size of the memory buffer. The output of each layer is stored in
+		:type output_transform: Union[Dict[str, Callable], List[Callable]]
+		:param kwargs: Additional keyword arguments.
+		
+		:keyword Optional[int] memory_size: The size of the memory buffer. The output of each layer is stored in
 					the memory buffer. If the memory_size is not specified, the memory_size is set to the number
 					of time steps of the inputs.
 		"""
@@ -309,7 +358,10 @@ class SequentialModel(BaseModel):
 	def device(self, device: torch.device):
 		"""
 		Set the device of the model and all its layers.
+		
 		:param device: The device to use.
+		:type device: torch.device
+		
 		:return: None
 		"""
 		BaseModel.device.fset(self, device)
@@ -320,7 +372,9 @@ class SequentialModel(BaseModel):
 		"""
 		Get all the layers of the model as a list. The order of the layers is the same as the order of the layers in the
 		model.
+		
 		:return: A list of all the layers of the model.
+		:rtype: List[nn.Module]
 		"""
 		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
 
@@ -328,19 +382,32 @@ class SequentialModel(BaseModel):
 		"""
 		Get all the names of the layers of the model. The order of the layers is the same as the order of the layers in
 		the model.
+		
 		:return: A list of all the names of the layers of the model.
+		:rtype: List[str]
 		"""
 		return [layer.name for layer in self.get_all_layers()]
 
-	def get_dict_of_layers(self):
+	def get_dict_of_layers(self) -> Dict[str, nn.Module]:
+		"""
+		Get all the layers of the model as a dictionary. The order of the layers is the same as the order of the layers
+		in the model. The keys of the dictionary are the names of the layers.
+		
+		:return: A dictionary of all the layers of the model.
+		:rtype: Dict[str, nn.Module]
+		"""
 		return {layer.name: layer for layer in self.get_all_layers()}
 
 	def get_layer(self, name: Optional[str] = None) -> nn.Module:
 		"""
 		Get a layer of the model. If the name is None, the first layer is returned which is useful when the model has
 		only one layer.
+		
 		:param name: The name of the layer.
+		:type name: str
+		
 		:return: The layer with the given name. If the name is None, the first layer is returned.
+		:rtype: nn.Module
 		"""
 		if name is None:
 			return self.get_all_layers()[0]
@@ -351,8 +418,12 @@ class SequentialModel(BaseModel):
 		"""
 		Get a layer of the model. If the name is None, the first layer is returned which is useful when the model has
 		only one layer.
+		
 		:param name: The name of the layer.
+		:type name: str
+		
 		:return: The layer with the given name. If the name is None, the first layer is returned.
+		:rtype: nn.Module
 		"""
 		return self.get_layer(name)
 
@@ -360,7 +431,10 @@ class SequentialModel(BaseModel):
 		"""
 		Infer the sizes of the inputs layers from the inputs of the network. The sizes of the inputs layers are set to
 		the size of the inputs without the batch dimension.
+		
 		:param inputs: The inputs of the network.
+		:type inputs: Union[Dict[str, Any], torch.Tensor]
+		
 		:return: None
 		"""
 		if isinstance(inputs, torch.Tensor):
@@ -469,6 +543,7 @@ class SequentialModel(BaseModel):
 	def initialize_weights_(self):
 		"""
 		Initialize the weights of the layers of the model.
+		
 		:return: None
 		"""
 		for layer in self.get_all_layers():
@@ -481,9 +556,14 @@ class SequentialModel(BaseModel):
 		to the front of the tensor to make it (batch_size, 1, features).
 		If the shape of the inputs is (batch_size, v_time_steps, features), v_time_steps must be less are equal to
 		time_steps and the inputs will be padded by zeros for time steps greater than time_steps.
+		
 		:param inputs: Inputs tensor.
+		:type inputs: torch.Tensor
 		:param time_steps: Number of time steps.
+		:type time_steps: int
+		
 		:return: Formatted Input tensor.
+		:rtype: torch.Tensor
 		"""
 		with torch.no_grad():
 			if inputs.ndim == 2:
@@ -507,19 +587,27 @@ class SequentialModel(BaseModel):
 		"""
 		Set the memory size of the sequential model if not already set. The default memory size is the number of
 		time steps of the inputs. Return the formatted inputs formatted by self._format_single_inputs.
+		
 		:param inputs: Inputs dictionary.
+		:type inputs: Dict[str, torch.Tensor]
+		
 		:return: Formatted inputs dictionary.
+		:rtype: Dict[str, torch.Tensor]
 		"""
 		max_time_steps = max([v.shape[1] for v in inputs.values()])
 		if self._memory_size is None:
 			self._memory_size = max_time_steps
 		return {k: self._format_single_inputs(in_tensor, max_time_steps) for k, in_tensor in inputs.items()}
 
-	def _inputs_to_dict(self, inputs: Union[Dict[str, Any], torch.Tensor]):
+	def _inputs_to_dict(self, inputs: Union[Dict[str, Any], torch.Tensor]) -> Dict[str, torch.Tensor]:
 		"""
 		Transform the inputs tensor into dictionary of tensors.
+		
 		:param inputs: The inputs of the network.
+		:type inputs: Union[Dict[str, Any], torch.Tensor]
+		
 		:return: The transformed inputs.
+		:rtype: Dict[str, torch.Tensor]
 		"""
 		keys = list(self.input_layers.keys())
 		if len(keys) == 0 and len(list(self.output_layers.keys())) > 0:
@@ -534,8 +622,12 @@ class SequentialModel(BaseModel):
 	def _get_time_steps_from_inputs(self, inputs: Dict[str, torch.Tensor]) -> int:
 		"""
 		Get the number of time steps from the inputs. Make sure that all inputs have the same number of time steps.
+		
 		:param inputs: The inputs of the network.
+		:type inputs: Dict[str, torch.Tensor]
+		
 		:return: The number of time steps.
+		:rtype: int
 		"""
 		time_steps_entries = [in_tensor.shape[1] for in_tensor in inputs.values()]
 		assert len(set(time_steps_entries)) == 1, "inputs must have the same time steps"
@@ -543,9 +635,13 @@ class SequentialModel(BaseModel):
 
 	def _pop_memory_(self, memory: List[Any]) -> List[Any]:
 		"""
-		Pop the memory from the list
+		Pop the memory from the list if the memory size is greater than ::attr:`_memory_size`.
+		
 		:param memory: List of memory
+		:type memory: List[Any]
+		
 		:return: List of memory without the first element
+		:rtype: List[Any]
 		"""
 		remove_count = len(memory) - self._memory_size
 		if remove_count > 0:
@@ -555,7 +651,9 @@ class SequentialModel(BaseModel):
 	def _init_hidden_states_memory(self) -> Dict[str, List]:
 		"""
 		Initialize the hidden states memory of the model.
+		
 		:return: The hidden states memory.
+		:rtype: Dict[str, List]
 		"""
 		return {
 			layer_name: [None]
@@ -565,6 +663,7 @@ class SequentialModel(BaseModel):
 	def build_layers(self):
 		"""
 		Build the layers of the model.
+		
 		:return: None
 		"""
 		for layer in self.get_all_layers():
@@ -575,7 +674,9 @@ class SequentialModel(BaseModel):
 	def build(self) -> 'SequentialModel':
 		"""
 		Build the network and all its layers.
-		:return: None
+		
+		:return: The network.
+		:rtype: SequentialModel
 		"""
 		super(SequentialModel, self).build()
 		self._infer_and_set_sizes_of_all_layers()
@@ -589,6 +690,7 @@ class SequentialModel(BaseModel):
 	def _infer_and_set_sizes_of_all_layers(self):
 		"""
 		Infer the sizes of all layers and set them.
+		
 		:return: None
 		"""
 		inputs_layers_out_sum = 0
@@ -628,7 +730,9 @@ class SequentialModel(BaseModel):
 	def _map_outputs_to_inputs(self) -> Dict[str, str]:
 		"""
 		Map the outputs of the model to the inputs of the model for forcasting purposes.
-		:return:
+		
+		:return: The mapping between the outputs and the inputs.
+		:rtype: Dict[str, str]
 		"""
 		self._outputs_to_inputs_names_map = {}
 		if len(self.input_layers) == 1 and len(self.output_layers) == 1:
@@ -699,15 +803,21 @@ class SequentialModel(BaseModel):
 			hidden_states: Dict[str, List],
 			outputs_trace: Dict[str, List[torch.Tensor]],
 			time_steps: int,
-	):
+	) -> Tuple[Dict[str, torch.Tensor], Dict[str, List]]:
 		"""
 		Integration of the inputs or the initial conditions.
 		
 		:param inputs: the inputs to integrate.
+		:type inputs: Dict[str, torch.Tensor]
 		:param hidden_states: the hidden states of the model.
+		:type hidden_states: Dict[str, List]
 		:param outputs_trace: the outputs trace of the model.
+		:type outputs_trace: Dict[str, List[torch.Tensor]]
 		:param time_steps: the number of time steps to integrate.
+		:type time_steps: int
+		
 		:return: the integrated inputs and the hidden states.
+		:rtype: Tuple[Dict[str, torch.Tensor], Dict[str, List]]
 		"""
 		for t in range(time_steps):
 			forward_tensor = self._inputs_forward_(inputs, hidden_states, t)
@@ -728,9 +838,14 @@ class SequentialModel(BaseModel):
 		Foresight prediction of the initial conditions.
 		
 		:param hidden_states: the hidden states of the model.
+		:type hidden_states: Dict[str, List]
 		:param outputs_trace: the outputs trace of the model.
+		:type outputs_trace: Dict[str, List[torch.Tensor]]
 		:param foresight_time_steps: the number of time steps to forecast.
+		:type foresight_time_steps: int
+		
 		:return: the forecasted outputs and the hidden states.
+		:rtype: Tuple[Dict[str, List[torch.Tensor]], Dict[str, List]]
 		"""
 		if self._outputs_to_inputs_names_map is None:
 			self._map_outputs_to_inputs()
@@ -757,24 +872,35 @@ class SequentialModel(BaseModel):
 	) -> Tuple[Dict[str, torch.Tensor], Dict[str, Tuple[torch.Tensor, ...]]]:
 		"""
 		Forward pass of the model.
-		-> When it comes to integrate a time series:
+		
+		When it comes to integrate a time series:
 			* We integrate the initial conditions <time_step> times.
 			* We predict the remaining <forward_sight_time_steps - 1> time steps from the initial conditions
 			* Please note that the last output of the integration of the initial conditions is the input for
 			the integration of the remaining time steps AND also the first prediction.
-			Example: time_series = [t_0, t_1 ... t_N] if:
-				[t_0, t_1] -> Initial conditions, then t_1 generate the first prediction (t_2) :
-				[t_2, t_3 ... t_N] -> The remaining time steps are predicted from the initial conditions.
+			
+			::
+			
+				Example:
+					time_series = [t_0, t_1 ... t_N] if:
+					[t_0, t_1] -> Initial conditions, then t_1 generate the first prediction (t_2) :
+					[t_2, t_3 ... t_N] -> The remaining time steps are predicted from the initial conditions.
 
 		:param inputs: The inputs to the model where the dimensions are
 						{input_name: (batch_size, time_steps, input_size)}. If the inputs have the shape
 						(batch_size, input_size), then the time_steps is 1. All the inputs must have the same
 						time_steps otherwise the inputs with lower time_steps will be padded with zeros.
+		:type inputs: Union[Dict[str, Any], torch.Tensor]
 		:param kwargs: Additional arguments for the forward pass.
+		
+		:keyword int foresight_time_steps: The number of time steps to forecast. Default: The value of the
+			attribute ::attr:`foresight_time_steps`.
+		
 		:return: A tuple of two dictionaries. The first dictionary contains the outputs of the model and the second
 						dictionary contains the hidden states of the model. The keys of the dictionaries are the
 						names of the layers. The values of the dictionaries are lists of tensors. The length of the
 						lists is the number of time steps.
+		:rtype: Tuple[Dict[str, torch.Tensor], Dict[str, Tuple[torch.Tensor, ...]]]
 		"""
 		foresight_time_steps = kwargs.get('foresight_time_steps', None)
 		if foresight_time_steps is None:
@@ -807,12 +933,14 @@ class SequentialModel(BaseModel):
 		Returns the prediction trace for the given inputs. Method used for time series prediction.
 		
 		:param inputs: inputs to the network.
+		:type inputs: Union[Dict[str, Any], torch.Tensor]
 		:param kwargs: kwargs to be passed to the forward method.
 		
 		:keyword int foresight_time_steps: number of time steps to predict. Default is self.foresight_time_steps.
 		:keyword bool return_hidden_states: if True, returns the hidden states of the model. Default is False.
 		
 		:return: the prediction trace.
+		:rtype: Union[Dict[str, torch.Tensor], torch.Tensor, Tuple[torch.Tensor, ...]]
 		"""
 		foresight_time_steps = kwargs.get('foresight_time_steps', None)
 		if foresight_time_steps is None:
@@ -837,6 +965,20 @@ class SequentialModel(BaseModel):
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
 	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		"""
+		Get the raw prediction of the model which is the output of the forward pass.
+		
+		:param inputs: inputs to the network.
+		:type inputs: torch.Tensor
+		:param re_outputs_trace: Whether to return the outputs trace. Default is True.
+		:type re_outputs_trace: bool
+		:param re_hidden_states: Whether to return the hidden states. Default is True.
+		:type re_hidden_states: bool
+		
+		:return: the raw prediction of the model.
+		:rtype: Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]
+		"""
+		
 		outputs_trace, hidden_states = self(inputs.to(self._device))
 		if isinstance(outputs_trace, torch.Tensor):
 			logits, _ = torch.max(outputs_trace, dim=1)
@@ -863,6 +1005,20 @@ class SequentialModel(BaseModel):
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
 	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		"""
+		Get the prediction probability of the model which is the softmax of the output of the forward pass.
+		The softmax is performed on the time dimension. This method is generally used for classification.
+		
+		:param inputs: inputs to the network.
+		:type inputs: torch.Tensor
+		:param re_outputs_trace: Whether to return the outputs trace. Default is True.
+		:type re_outputs_trace: bool
+		:param re_hidden_states: Whether to return the hidden states. Default is True.
+		:type re_hidden_states: bool
+		
+		:return: the prediction probability of the model.
+		:rtype: Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]
+		"""
 		outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
 		if isinstance(outs, (list, tuple)):
 			m = outs[0]
@@ -887,6 +1043,21 @@ class SequentialModel(BaseModel):
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
 	) -> Union[tuple[Tensor, Any, Any], tuple[Tensor, Any], Tensor]:
+		"""
+		Get the prediction log probability of the model which is the log softmax of the output of the forward pass.
+		The log softmax is performed on the time dimension. This method is generally used for training in classification
+		task.
+		
+		:param inputs: inputs to the network.
+		:type inputs: torch.Tensor
+		:param re_outputs_trace: Whether to return the outputs trace. Default is True.
+		:type re_outputs_trace: bool
+		:param re_hidden_states: Whether to return the hidden states. Default is True.
+		:type re_hidden_states: bool
+		
+		:return: the prediction log probability of the model.
+		:rtype: Union[tuple[Tensor, Any, Any], tuple[Tensor, Any], Tensor]
+		"""
 		outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
 		if isinstance(outs, (list, tuple)):
 			m = outs[0]
@@ -911,6 +1082,7 @@ class SequentialModel(BaseModel):
 		regularization losses.
 		
 		:return: the regularization loss.
+		:rtype: torch.Tensor
 		"""
 		regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 		for layer in self.get_all_layers():

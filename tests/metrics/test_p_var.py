@@ -6,6 +6,7 @@ from neurotorch.metrics.regression import RegressionMetrics
 class TestpVar(unittest.TestCase):
 
 	def test_return_scalar(self):
+		torch.manual_seed(0)
 		y_pred = torch.rand(1, 2, 10)
 		y_true = torch.rand(1, 2, 10)
 		p_var = RegressionMetrics.compute_p_var(y_true, y_pred, torch.device('cpu'))
@@ -13,6 +14,7 @@ class TestpVar(unittest.TestCase):
 		self.assertIsInstance(p_var, torch.Tensor)
 
 	def test_result_one_batch_manual_MSE(self):
+		torch.manual_seed(0)
 		y_true = torch.rand(1, 2, 10)
 		y_pred = torch.rand(1, 2, 10)
 		MSE = 1/20 * torch.sum((y_true - y_pred) ** 2)
@@ -21,6 +23,7 @@ class TestpVar(unittest.TestCase):
 		self.assertTrue(torch.isclose(p_var, RegressionMetrics.compute_p_var(y_true, y_pred, torch.device('cpu'))))
 
 	def test_result_one_batch_built_in_MSE(self):
+		torch.manual_seed(0)
 		y_true = torch.rand(1, 2, 10)
 		y_pred = torch.rand(1, 2, 10)
 		MSE = torch.nn.MSELoss()
@@ -30,6 +33,7 @@ class TestpVar(unittest.TestCase):
 		self.assertTrue(torch.isclose(p_var, RegressionMetrics.compute_p_var(y_true, y_pred, torch.device('cpu'))))
 
 	def test_result_multiple_batch_mean(self):
+		torch.manual_seed(0)
 		y_true_1 = torch.rand(1, 2, 10)
 		y_true_2 = torch.rand(1, 2, 10)
 		y_pred_1 = torch.rand(1, 2, 10)
@@ -48,6 +52,7 @@ class TestpVar(unittest.TestCase):
 		))
 
 	def test_result_multiple_batch_built_in_sum(self):
+		torch.manual_seed(0)
 		y_true_1 = torch.rand(1, 2, 10)
 		y_true_2 = torch.rand(1, 2, 10)
 		y_pred_1 = torch.rand(1, 2, 10)
@@ -65,6 +70,7 @@ class TestpVar(unittest.TestCase):
 		))
 
 	def test_result_multiple_batch_built_in_none(self):
+		torch.manual_seed(0)
 		y_true_1 = torch.rand(1, 2, 10)
 		y_true_2 = torch.rand(1, 2, 10)
 		y_pred_1 = torch.rand(1, 2, 10)

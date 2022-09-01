@@ -36,3 +36,6 @@ jobs:
         git config --local user.name "GitHub Action"
         git commit -m "Update docs"
         git push origin gh-pages
+        with:
+          github_token: "${{secrets.GITHUB_TOKEN}}"
+          force: true

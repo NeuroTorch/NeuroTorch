@@ -30,7 +30,7 @@ jobs:
       run: |
         git checkout -b gh-pages
         touch .nojekyll
-        git add docs/build/html
+        git add -f docs/build/html
         git commit -m "Update docs"
     - name: Push to gh-pages branch
       run: |

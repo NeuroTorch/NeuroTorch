@@ -1,6 +1,7 @@
 
 from .base import (
 	to_tensor,
+	to_numpy,
 	LinearRateToSpikes,
 	ConstantValuesTransform,
 	IdentityTransform,

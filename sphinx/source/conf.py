@@ -18,8 +18,8 @@ def skip(app, what, name, obj, would_skip, options):
 
 def setup(app):
     app.connect("autodoc-skip-member", skip)
-    # app.connect('html-page-context', change_pathto)
-    # app.connect('build-finished', move_private_folders)
+    app.connect('html-page-context', change_pathto)
+    app.connect('build-finished', move_private_folders)
 
 
 def change_pathto(app, pagename, templatename, context, doctree):

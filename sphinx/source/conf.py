@@ -66,7 +66,6 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.githubpages',
     'sphinx_rtd_theme',
-    'sphinxtogithub',
 ]
 
 sphinx_to_github = True

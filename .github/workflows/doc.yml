@@ -30,8 +30,12 @@ jobs:
       run: |
         git checkout -b gh-pages
         git init
-        touch .nojekyll
-        git add -f docs/build/html
+        rmdir docs
+        mkdir docs
+        cp -a sphinx/build/html/. docs/
+        rmdir sphinx/build
+        touch docs/.nojekyll
+        git add -f docs
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git commit -m "Update docs"
@@ -41,5 +45,5 @@ jobs:
         github_token: ${{secrets.GITHUB_TOKEN}}
         branch: gh-pages
         force: true
-        directory: docs/build/html
+        directory: docs
 

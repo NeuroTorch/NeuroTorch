@@ -30,7 +30,6 @@ jobs:
       run: |
         git checkout -b gh-pages
         git init
-        touch .nojekyll
         git add -f docs/build/html
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"

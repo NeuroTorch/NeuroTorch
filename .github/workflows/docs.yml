@@ -22,19 +22,25 @@ jobs:
         pip install flake8
         pip install -U sphinx
         pip install sphinx_rtd_theme
-    - name: Make the sphinx docs
+    - name: Build the sphinx docs
       run: |
         make -C sphinx clean
         make -C sphinx html
-    - name: Commit to gh-pages branch
+    - name: Checkout gh-pages branch
       run: |
         git checkout -b gh-pages
         git init
+    - name: Copy build files to docs folder
+      run: |
         rm -rf docs
         mkdir docs
         cp -a sphinx/build/html/. docs/
         rm -rf sphinx/build
         touch docs/.nojekyll
+        mv docs/_sources docs/sources
+        mv docs/_static docs/static
+    - name: Commit to gh-pages branch
+      run: |
         git add -f docs
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"

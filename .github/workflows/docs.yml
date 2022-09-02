@@ -16,36 +16,42 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: "3.9"
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install flake8
         pip install -U sphinx
         pip install sphinx_rtd_theme
-    - name: Build the sphinx docs
-      run: |
-        make -C sphinx clean
-        make -C sphinx html
+
     - name: Checkout gh-pages branch
       run: |
         git checkout -b gh-pages
         git init
+
+    - name: Build the sphinx docs
+      run: |
+        make -C sphinx clean
+        python -m sphinx/clean_html_files.py
+        make -C sphinx html
+        touch sphinx/build/html/.nojekyll
+        mv sphinx/build/html/_sources sphinx/build/html/sources
+        mv sphinx/build/html/_static sphinx/build/html/static
+
     - name: Copy build files to docs folder
       run: |
-        rm -rf docs
-        mkdir docs
         cp -a sphinx/build/html/. docs/
+        python -m sphinx/make_html_files_list.py
         rm -rf sphinx/build
-        touch docs/.nojekyll
-        mv docs/_sources docs/sources
-        mv docs/_static docs/static
+
     - name: Commit to gh-pages branch
       run: |
         git add -f docs
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git commit -m "Update docs"
-    - name: Push to gh-pages
+
+    - name: Push to gh-pages branch
       uses: ad-m/github-push-action@master
       with:
         github_token: ${{secrets.GITHUB_TOKEN}}

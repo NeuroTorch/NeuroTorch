@@ -8,7 +8,7 @@ def generate_doc():
 		r".\make html",
 		# r"rmdir ../docs",
 		# r"mkdir ../docs",
-		r"move ./build/html/* ../docs/"
+		# r"move ./build/html/* ../docs/"
 	]
 	for command in commands:
 		print(f"Executing: {command}")

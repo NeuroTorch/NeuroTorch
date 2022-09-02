@@ -30,8 +30,6 @@ jobs:
         python sphinx/clean_html_files.py
         make -C sphinx html
         touch sphinx/build/html/.nojekyll
-        mv sphinx/build/html/_sources sphinx/build/html/sources
-        mv sphinx/build/html/_static sphinx/build/html/static
 
     - name: Checkout gh-pages branch
       run: |

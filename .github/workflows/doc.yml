@@ -30,7 +30,7 @@ jobs:
       run: |
         git checkout -b gh-pages
         git init
-        rmdir docs
+        rm -rf docs
         mkdir docs
         cp -a sphinx/build/html/. docs/
         rmdir sphinx/build

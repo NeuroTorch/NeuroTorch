@@ -13,6 +13,13 @@ from ..utils import mapping_update_recursively
 
 
 class LoadCheckpointMode(enum.Enum):
+	"""
+	Enum for the different modes of loading a checkpoint.
+	
+	:Attributes:
+		- **BEST_ITR** (int): Indicates that the iteration with the best metric will be loaded.
+		- **LAST_ITR** (int): Indicates that the last iteration will be loaded.
+	"""
 	BEST_ITR = 0
 	LAST_ITR = 1
 
@@ -22,29 +29,29 @@ class CheckpointManager(BaseCallback):
 	This class is used to manage and create the checkpoints of a model.
 
 	Attributes:
-		checkpoint_folder (str): The folder to save the checkpoints to.
-		meta_path_prefix (str): The prefix to use for the checkpoint's metadata file.
-		metric (str): The name of the metric to collect the best checkpoint on.
-		minimise_metric (bool): Whether to minimise the metric or maximise it.
-		curr_best_metric (float): The current best metric value.
+		- **checkpoint_folder** (str): The folder to save the checkpoints to.
+		- **meta_path_prefix** (str): The prefix to use for the checkpoint's metadata file.
+		- **metric** (str): The name of the metric to collect the best checkpoint on.
+		- **minimise_metric** (bool): Whether to minimise the metric or maximise it.
+		- **curr_best_metric** (float): The current best metric value.
 	"""
 
-	SAVE_EXT = '.pth'
-	SUFFIX_SEP = '-'
-	CHECKPOINTS_META_SUFFIX = 'checkpoints'
-	CHECKPOINT_SAVE_PATH_KEY = "save_path"
-	CHECKPOINT_BEST_KEY = "best"
-	CHECKPOINT_ITRS_KEY = "iterations"
-	CHECKPOINT_ITR_KEY = "itr"
-	CHECKPOINT_METRICS_KEY = 'metrics'
-	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY = "optimizer_state_dict"
-	CHECKPOINT_STATE_DICT_KEY = "model_state_dict"
-	CHECKPOINT_TRAINING_HISTORY_KEY = "training_history"
+	SAVE_EXT: str = '.pth'
+	SUFFIX_SEP: str = '-'
+	CHECKPOINTS_META_SUFFIX: str = 'checkpoints'
+	CHECKPOINT_SAVE_PATH_KEY: str = "save_path"
+	CHECKPOINT_BEST_KEY: str = "best"
+	CHECKPOINT_ITRS_KEY: str = "iterations"
+	CHECKPOINT_ITR_KEY: str = "itr"
+	CHECKPOINT_METRICS_KEY: str = 'metrics'
+	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
+	CHECKPOINT_STATE_DICT_KEY: str = "model_state_dict"
+	CHECKPOINT_TRAINING_HISTORY_KEY: str = "training_history"
 	CHECKPOINT_FILE_STRUCT: Dict[str, Union[str, Dict[int, str]]] = {
 		CHECKPOINT_BEST_KEY: CHECKPOINT_SAVE_PATH_KEY,
 		CHECKPOINT_ITRS_KEY: {0: CHECKPOINT_SAVE_PATH_KEY},
 	}
-	load_mode_to_suffix = {mode: mode.name for mode in list(LoadCheckpointMode)}
+	load_mode_to_suffix: Dict[LoadCheckpointMode, str] = {mode: mode.name for mode in list(LoadCheckpointMode)}
 
 	@staticmethod
 	def _replace_trainer_history(trainer, new_history: Any):
@@ -66,9 +73,14 @@ class CheckpointManager(BaseCallback):
 	) -> str:
 		"""
 		Gets the save name from the checkpoint's metadata given the load checkpoint mode.
+		
 		:param checkpoints_meta: The checkpoint's metadata.
+		:type checkpoints_meta: Dict[str, Union[str, Dict[Any, str]]]
 		:param load_checkpoint_mode: The load checkpoint mode.
+		:type load_checkpoint_mode: LoadCheckpointMode
+		
 		:return: The save name.
+		:rtype: str
 		"""
 		if load_checkpoint_mode == load_checkpoint_mode.BEST_ITR:
 			if CheckpointManager.CHECKPOINT_BEST_KEY in checkpoints_meta:
@@ -101,15 +113,23 @@ class CheckpointManager(BaseCallback):
 		Initialises the checkpoint manager.
 		
 		:param checkpoint_folder: The folder to save the checkpoints to.
+		:type checkpoint_folder: str
 		:param meta_path_prefix: The prefix to use for the checkpoint's metadata file.
+		:type meta_path_prefix: str
 		:param metric: The name of the metric to collect the best checkpoint on.
+		:type metric: str
 		:param minimise_metric: Whether to minimise the metric or maximise it.
+		:type minimise_metric: bool
 		:param save_freq: The frequency at which to save checkpoints. If set to <= 0, will save at the end of the
 							training.
+		:type save_freq: int
 		:param save_best_only: Whether to only save the best checkpoint. If set to True, the save_freq will be set
 		automatically to -1.
+		:type save_best_only: bool
 		:param start_save_at: The iteration at which to start saving checkpoints.
+		:type start_save_at: int
 		:param verbose: Whether to print out the trace of the checkpoint manager.
+		:type verbose: bool
 		"""
 		self.checkpoint_folder = checkpoint_folder
 		self.meta_path_prefix = meta_path_prefix
@@ -128,7 +148,9 @@ class CheckpointManager(BaseCallback):
 	def checkpoints_meta_path(self) -> str:
 		"""
 		Gets the path to the checkpoints metadata file.
+		
 		:return: The path to the checkpoints metadata file.
+		:rtype: str
 		"""
 		full_filename = (
 			f"{self.meta_path_prefix}{CheckpointManager.SUFFIX_SEP}{CheckpointManager.CHECKPOINTS_META_SUFFIX}"
@@ -138,8 +160,12 @@ class CheckpointManager(BaseCallback):
 	def get_checkpoint_filename(self, itr: int = -1):
 		"""
 		Generate the filename for the checkpoint at the given iteration.
+		
 		:param itr: The iteration to generate the filename for.
+		:type itr: int
+		
 		:return: The filename for the checkpoint at the given iteration.
+		:rtype: str
 		"""
 		pre_name = f"{self.meta_path_prefix}"
 		if itr == -1:
@@ -151,9 +177,14 @@ class CheckpointManager(BaseCallback):
 	def _create_new_checkpoint_meta(self, itr: int, best: bool = False) -> dict:
 		"""
 		Creates a new checkpoint's metadata.
+		
 		:param itr: The iteration of the checkpoint.
+		:type itr: int
 		:param best: Whether the checkpoint is currently the best.
+		:type best: bool
+		
 		:return: The new checkpoint's metadata.
+		:rtype: dict
 		"""
 		save_name = self.get_checkpoint_filename(itr)
 		new_info = {CheckpointManager.CHECKPOINT_ITRS_KEY: {str(itr): save_name}}
@@ -172,13 +203,22 @@ class CheckpointManager(BaseCallback):
 	) -> str:
 		"""
 		Saves a checkpoint of the model and optimizer states at the given iteration.
+		
 		:param itr: The iteration number.
+		:type itr: int
 		:param itr_metrics: The metrics at the given iteration.
+		:type itr_metrics: Dict[str, Any]
 		:param best: Whether this is the best iteration so far.
+		:type best: bool
 		:param state_dict: The state dict of the model.
+		:type state_dict: Optional[Dict[str, Any]]
 		:param optimizer_state_dict: The state dict of the optimizer.
+		:type optimizer_state_dict: Optional[Dict[str, Any]]
 		:param training_history: The training history object.
+		:type training_history: Optional[Any]
+		
 		:return: The path to the saved checkpoint.
+		:rtype: str
 		"""
 		os.makedirs(self.checkpoint_folder, exist_ok=True)
 		save_name = self.get_checkpoint_filename(itr)
@@ -199,8 +239,12 @@ class CheckpointManager(BaseCallback):
 	) -> dict:
 		"""
 		Loads the checkpoint at the given load_checkpoint_mode.
-		:param load_checkpoint_mode:
-		:return:
+		
+		:param load_checkpoint_mode: The load_checkpoint_mode to use.
+		:type load_checkpoint_mode: LoadCheckpointMode
+		
+		:return: The loaded checkpoint.
+		:rtype: dict
 		"""
 		# TODO: add the possibility to load a specific itr
 		with open(self.checkpoints_meta_path, "r+") as jsonFile:
@@ -210,6 +254,14 @@ class CheckpointManager(BaseCallback):
 		return checkpoint
 
 	def save_checkpoints_meta(self, new_info: dict):
+		"""
+		Saves the new checkpoints metadata.
+		
+		:param new_info: The new checkpoints metadata.
+		:type new_info: dict
+		
+		:return: None
+		"""
 		info = dict()
 		if os.path.exists(self.checkpoints_meta_path):
 			with open(self.checkpoints_meta_path, "r+") as jsonFile:
@@ -223,7 +275,9 @@ class CheckpointManager(BaseCallback):
 		"""
 		Call at the beginning of the training by the Trainer. Load the checkpoint base on the load_checpoint_mode of the
 		trainer and update the current_training_state of the trainer.
+		
 		:param trainer: The trainer.
+		
 		:return: None
 		"""
 		start_itr = 0
@@ -275,6 +329,14 @@ class CheckpointManager(BaseCallback):
 		return True
 
 	def on_iteration_end(self, trainer):
+		"""
+		Called when an iteration ends. An iteration is defined as one full pass through the training dataset and
+		the validation dataset. The checkpoint is saved if the current constraints are met.
+		
+		:param trainer: The trainer.
+		
+		:return: None
+		"""
 		if self.start_save_at > trainer.current_training_state.iteration:
 			return
 		if self.save_best_only:
@@ -294,4 +356,11 @@ class CheckpointManager(BaseCallback):
 		return is_best
 	
 	def close(self, trainer):
+		"""
+		Called when the training is finished. Saves the current checkpoint.
+		
+		:param trainer: The trainer.
+		
+		:return: None
+		"""
 		self._save_on(trainer)

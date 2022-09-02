@@ -24,8 +24,8 @@ jobs:
         pip install sphinx_rtd_theme
     - name: Make the sphinx docs
       run: |
-        make -C docs clean
-        make -C docs html
+        make -C sphinx clean
+        make -C sphinx html
     - name: Commit to gh-pages branch
       run: |
         git checkout -b gh-pages

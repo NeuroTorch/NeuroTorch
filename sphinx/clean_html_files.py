@@ -1,4 +1,5 @@
 import os
+import shutil
 
 
 def clean_html_files():
@@ -8,7 +9,13 @@ def clean_html_files():
 	with open(meta_filename, "r") as f:
 		files = f.readlines()
 	for file in files:
-		os.remove(os.path.join(os.getcwd(), "..", "docs", file.strip()))
+		path = os.path.join(os.getcwd(), "docs", file.strip())
+		if os.path.exists(path):
+			if os.path.isdir(path):
+				shutil.rmtree(path)
+			else:
+				os.remove(path)
+	os.remove(meta_filename)
 
 
 if __name__ == '__main__':

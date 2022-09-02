@@ -24,11 +24,6 @@ jobs:
         pip install -U sphinx
         pip install sphinx_rtd_theme
 
-    - name: Checkout gh-pages branch
-      run: |
-        git checkout -b gh-pages
-        git init
-
     - name: Build the sphinx docs
       run: |
         make -C sphinx clean
@@ -37,6 +32,11 @@ jobs:
         touch sphinx/build/html/.nojekyll
         mv sphinx/build/html/_sources sphinx/build/html/sources
         mv sphinx/build/html/_static sphinx/build/html/static
+
+    - name: Checkout gh-pages branch
+      run: |
+        git checkout -b gh-pages
+        git init
 
     - name: Copy build files to docs folder
       run: |

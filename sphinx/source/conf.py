@@ -68,10 +68,6 @@ extensions = [
     'sphinx_rtd_theme',
 ]
 
-sphinx_to_github = True
-sphinx_to_github_verbose = True
-sphinx_to_github_encoding = "utf-8"
-
 templates_path = ['_templates']
 exclude_patterns = []
 

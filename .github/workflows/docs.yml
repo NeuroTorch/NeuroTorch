@@ -32,7 +32,7 @@ jobs:
     - name: Build the sphinx docs
       run: |
         make -C sphinx clean
-        python -m sphinx/clean_html_files.py
+        python sphinx/clean_html_files.py
         make -C sphinx html
         touch sphinx/build/html/.nojekyll
         mv sphinx/build/html/_sources sphinx/build/html/sources
@@ -41,7 +41,7 @@ jobs:
     - name: Copy build files to docs folder
       run: |
         cp -a sphinx/build/html/. docs/
-        python -m sphinx/make_html_files_list.py
+        python sphinx/make_html_files_list.py
         rm -rf sphinx/build
 
     - name: Commit to gh-pages branch

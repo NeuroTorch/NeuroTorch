@@ -33,7 +33,7 @@ jobs:
         rm -rf docs
         mkdir docs
         cp -a sphinx/build/html/. docs/
-        rmdir sphinx/build
+        rm -rf sphinx/build
         touch docs/.nojekyll
         git add -f docs
         git config --local user.email "action@github.com"

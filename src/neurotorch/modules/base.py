@@ -17,6 +17,19 @@ from ..utils import ravel_compose_transforms, list_of_callable_to_sequential
 
 
 class BaseModel(torch.nn.Module):
+	"""
+	This class is the base class of all models.
+	
+	:Attributes:
+		- input_sizes: The input sizes of the model.
+		- input_transform (torch.nn.ModuleDict): The transforms to apply to the inputs.
+		- output_sizes: The output size of the model.
+		- output_transform (torch.nn.ModuleDict): The transforms to apply to the outputs.
+		- name: The name of the model.
+		- checkpoint_folder: The folder where the checkpoints are saved.
+		- kwargs: Additional arguments.
+	
+	"""
 	@staticmethod
 	def _format_sizes(sizes: Union[Dict[str, DimensionLike], SizeTypes]) -> Dict[str, int]:
 		if isinstance(sizes, dict):
@@ -46,12 +59,20 @@ class BaseModel(torch.nn.Module):
 		Constructor of the BaseModel class. This class is the base class of all models.
 		
 		:param input_sizes: The input sizes of the model.
+		:type input_sizes: Union[Dict[str, DimensionLike], SizeTypes]
 		:param output_size: The output size of the model.
+		:type output_size: Union[Dict[str, DimensionLike], SizeTypes]
 		:param name: The name of the model.
+		:type name: str
 		:param checkpoint_folder: The folder where the checkpoints are saved.
+		:type checkpoint_folder: str
 		:param device: The device of the model. If None, the default device is used.
+		:type device: torch.device
 		:param input_transform: The transforms to apply to the inputs. The input_transform must work batch-wise.
+		:type input_transform: Union[Dict[str, Callable], List[Callable]]
 		:param output_transform: The transforms to apply to the outputs. The output_transform must work batch-wise.
+		:type output_transform: Union[Dict[str, Callable], List[Callable]]
+		
 		:keyword kwargs: Additional arguments.
 		"""
 		super(BaseModel, self).__init__()
@@ -105,6 +126,12 @@ class BaseModel(torch.nn.Module):
 
 	@property
 	def checkpoints_meta_path(self) -> str:
+		"""
+		The path to the checkpoints meta file.
+		
+		:return: The path to the checkpoints meta file.
+		:rtype: str
+		"""
 		full_filename = (
 			f"{self.name}{CheckpointManager.SUFFIX_SEP}{CheckpointManager.CHECKPOINTS_META_SUFFIX}"
 		)
@@ -114,6 +141,7 @@ class BaseModel(torch.nn.Module):
 	def device(self) -> torch.device:
 		"""
 		:return: The device of the model.
+		:rtype: torch.device
 		"""
 		return self._device
 
@@ -123,6 +151,8 @@ class BaseModel(torch.nn.Module):
 		Set the device of the network.
 		
 		:param device: The device to set.
+		:type device: torch.device
+		
 		:return: None
 		"""
 		self._device = device
@@ -141,7 +171,10 @@ class BaseModel(torch.nn.Module):
 		network has inputs else the outputs if the network has outputs.
 
 		:param input_transform: The input transform to use.
+		:type input_transform: Union[Dict[str, Callable], List[Callable]]
+		
 		:return: The input transform.
+		:rtype: torch.nn.ModuleDict
 		"""
 		if len(self.input_sizes) > 0:
 			transform_keys = list(self.input_sizes.keys())
@@ -184,7 +217,10 @@ class BaseModel(torch.nn.Module):
 		network has outputs.
 
 		:param output_transform: The output transform to use.
+		:type output_transform: Union[Dict[str, Callable], List[Callable]]
+		
 		:return: The output transform.
+		:rtype: torch.nn.ModuleDict
 		"""
 		if len(self.output_sizes) > 0:
 			transform_keys = list(self.output_sizes.keys())
@@ -220,6 +256,20 @@ class BaseModel(torch.nn.Module):
 			load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR,
 			verbose: bool = True
 	) -> dict:
+		"""
+		Load the checkpoint from the checkpoints_meta_path. If the checkpoints_meta_path is None, the default
+		checkpoints_meta_path is used.
+		
+		:param checkpoints_meta_path: The path to the checkpoints meta file.
+		:type checkpoints_meta_path: Optional[str]
+		:param load_checkpoint_mode: The mode to use when loading the checkpoint.
+		:type load_checkpoint_mode: LoadCheckpointMode
+		:param verbose: Whether to print the loaded checkpoint information.
+		:type verbose: bool
+		
+		:return: The loaded checkpoint information.
+		:rtype: dict
+		"""
 		if checkpoints_meta_path is None:
 			checkpoints_meta_path = self.checkpoints_meta_path
 		with open(checkpoints_meta_path, "r+") as jsonFile:
@@ -233,6 +283,12 @@ class BaseModel(torch.nn.Module):
 		return checkpoint
 
 	def get_default_input_transform(self) -> Dict[str, nn.Module]:
+		"""
+		Get the default input transform. The default input transform is a to tensor transform.
+		
+		:return: The default input transform.
+		:rtype: Dict[str, nn.Module]
+		"""
 		if len(self.input_sizes) > 0:
 			transform_keys = list(self.input_sizes.keys())
 		elif len(self.output_sizes) > 0:
@@ -247,6 +303,12 @@ class BaseModel(torch.nn.Module):
 		}
 	
 	def get_default_output_transform(self) -> Dict[str, nn.Module]:
+		"""
+		Get the default output transform. The default output transform is an identity transform.
+		
+		:return: The default output transform.
+		:rtype: Dict[str, nn.Module]
+		"""
 		if len(self.output_sizes) > 0:
 			transform_keys = list(self.output_sizes.keys())
 		else:
@@ -258,8 +320,13 @@ class BaseModel(torch.nn.Module):
 
 	def apply_input_transform(self, inputs: Dict[str, Any]) -> Dict[str, torch.Tensor]:
 		"""
+		Apply the input transform to the inputs.
+		
 		:param inputs: dict of inputs of shape (batch_size, *input_size)
+		:type inputs: Dict[str, Any]
+		
 		:return: The input of the network with the same shape as the input.
+		:rtype: Dict[str, torch.Tensor]
 		"""
 		assert all([in_name in self.input_transform for in_name in inputs]), \
 			f"Inputs must be all in input names: {self.input_transform.keys()}"
@@ -271,8 +338,13 @@ class BaseModel(torch.nn.Module):
 	
 	def apply_output_transform(self, outputs: Dict[str, Any]) -> Dict[str, torch.Tensor]:
 		"""
+		Apply the output transform to the outputs.
+		
 		:param outputs: dict of outputs of shape (batch_size, *output_size).
+		:type outputs: Dict[str, Any]
+		
 		:return: The output of the network transformed.
+		:rtype: Dict[str, torch.Tensor]
 		"""
 		assert all([out_name in self.output_transform for out_name in outputs]), \
 			f"Outputs must be all in output names: {self.output_transform.keys()}"
@@ -297,6 +369,7 @@ class BaseModel(torch.nn.Module):
 	def _remove_to_device_transform_(self):
 		"""
 		Remove the to_device transform from the transforms.
+		
 		:return: None
 		"""
 		for in_name, trans in self.input_transform.items():
@@ -308,11 +381,20 @@ class BaseModel(torch.nn.Module):
 	def _set_default_device_(self):
 		"""
 		Set the default device of the network. The default device will be cuda if available and cpu otherwise.
+		
 		:return: None
 		"""
 		self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 	def infer_sizes_from_inputs(self, inputs: Union[Dict[str, Any], torch.Tensor]):
+		"""
+		Infer the input and output sizes from the inputs.
+		
+		:param inputs: The inputs of the network.
+		:type inputs: Union[Dict[str, Any], torch.Tensor]
+		
+		:return: None
+		"""
 		if isinstance(inputs, torch.Tensor):
 			inputs = {
 				"0": inputs
@@ -325,7 +407,9 @@ class BaseModel(torch.nn.Module):
 		
 		:param args: Not used.
 		:param kwargs: Not used.
+		
 		:return: The network.
+		:rtype: BaseModel
 		"""
 		self._is_built = True
 		self.input_transform: Dict[str, Callable] = self._make_input_transform(self._given_input_transform)
@@ -348,6 +432,13 @@ class BaseModel(torch.nn.Module):
 			inputs: Union[Dict[str, Any], torch.Tensor],
 			**kwargs
 	) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
+		"""
+		Get the prediction trace of the network.
+		
+		:param inputs:
+		:param kwargs:
+		:return:
+		"""
 		raise NotImplementedError()
 	
 	def get_raw_prediction(

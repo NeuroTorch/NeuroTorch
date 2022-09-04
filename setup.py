@@ -1,5 +1,5 @@
 from setuptools import setup
-from src.neurotorch.version import __version__
+from src.neurotorch import __author__, __url__, __email__, __version__, __license__
 import setuptools
 
 with open("README.md", "r", encoding="utf-8") as fh:
@@ -14,10 +14,10 @@ setup(
     description="",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url='https://github.com/JeremieGince/NeuroTorch',
-    author='Jérémie Gince',
-    author_email='gincejeremie@gmail.com',
-    license='Apache 2.0',
+    url=__url__,
+    author=__author__,
+    author_email=__email__,
+    license=__license__,
     package_dir={"": "src"},
     packages=setuptools.find_packages(where="src"),
     python_requires=">=3.9",

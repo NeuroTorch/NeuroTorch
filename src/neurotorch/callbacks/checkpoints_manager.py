@@ -28,7 +28,7 @@ class CheckpointManager(BaseCallback):
 	"""
 	This class is used to manage and create the checkpoints of a model.
 
-	Attributes:
+	:Attributes:
 		- **checkpoint_folder** (str): The folder to save the checkpoints to.
 		- **meta_path_prefix** (str): The prefix to use for the checkpoint's metadata file.
 		- **metric** (str): The name of the metric to collect the best checkpoint on.

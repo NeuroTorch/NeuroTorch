@@ -6,6 +6,7 @@
 import os
 import sys
 import shutil
+import neurotorch
 basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 sys.path.insert(0, basedir)
 
@@ -56,7 +57,8 @@ def move_private_folders(app, e):
 
 project = 'NeuroTorch'
 copyright = '2022, Jeremie Gince'
-author = 'Jeremie Gince'
+# author = 'Jeremie Gince'
+author = neurotorch.__author__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

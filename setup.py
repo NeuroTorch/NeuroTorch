@@ -1,6 +1,7 @@
 from setuptools import setup
 from src.neurotorch import __author__, __url__, __email__, __version__, __license__
 import setuptools
+from src import neurotorch
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -11,7 +12,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 setup(
     name='NeuroTorch',
     version=__version__,
-    description="",
+    description=neurotorch.__doc__,
     long_description=long_description,
     long_description_content_type="text/markdown",
     url=__url__,

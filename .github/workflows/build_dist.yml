@@ -25,7 +25,7 @@ jobs:
 
     - name: Build dist
       run: |
-        setup.py sdist bdist_wheel
+        python setup.py sdist bdist_wheel
 
     - name: Commit
       run: |

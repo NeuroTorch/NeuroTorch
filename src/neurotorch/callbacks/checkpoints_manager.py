@@ -277,6 +277,7 @@ class CheckpointManager(BaseCallback):
 		trainer and update the current_training_state of the trainer.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -308,7 +309,16 @@ class CheckpointManager(BaseCallback):
 		else:
 			self.curr_best_metric = trainer.training_history.max(self.metric)
 	
-	def _save_on(self, trainer):
+	def _save_on(self, trainer) -> bool:
+		"""
+		Saves the checkpoint if the current iteration is a checkpoint iteration.
+		
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		
+		:return: Whether the checkpoint was saved.
+		:rtype: bool
+		"""
 		if trainer.current_training_state.itr_metrics is None:
 			return False
 		
@@ -334,6 +344,7 @@ class CheckpointManager(BaseCallback):
 		the validation dataset. The checkpoint is saved if the current constraints are met.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -360,6 +371,7 @@ class CheckpointManager(BaseCallback):
 		Called when the training is finished. Saves the current checkpoint.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""

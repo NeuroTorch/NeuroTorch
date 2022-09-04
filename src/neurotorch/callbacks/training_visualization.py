@@ -13,14 +13,22 @@ class _VisualizerProcess(mp.Process):
 	"""
 	Process to load a training history from pickle file and plot it. The process will update the plot every `update_dt`
 	seconds and will close when join method is called.
+	
+	:Attributes:
+		- **fig** (plt.Figure): The figure to plot.
+		- **axes** (plt.Axes): The axes to plot.
+		- **lines** (list): The list of lines to plot.
 	"""
 	def __init__(self, history_path: str, lock: Union[mp.Lock, mp.RLock], update_dt: float = 1.0):
 		"""
 		Create a new process to plot the training history.
 
 		:param history_path: The path to the pickle file containing the training history.
+		:type history_path: str
 		:param lock: The lock to use to protect the training history.
-		:param update_dt: The time between two updates of the plot.
+		:type lock: Union[mp.Lock, mp.RLock]
+		:param update_dt: The time in seconds between two updates of the plot.
+		:type update_dt: float
 		"""
 		super().__init__()
 		self._history_path = history_path
@@ -34,6 +42,7 @@ class _VisualizerProcess(mp.Process):
 	def run(self):
 		"""
 		Run the process.
+		
 		:return: None
 		"""
 		can_plot = False
@@ -62,6 +71,7 @@ class _VisualizerProcess(mp.Process):
 	def update_history(self):
 		"""
 		Update the training history by loading it from the pickle file.
+		
 		:return: None
 		"""
 		try:
@@ -73,8 +83,8 @@ class _VisualizerProcess(mp.Process):
 
 	def join(self, *args, **kwargs):
 		"""
-		Set le close event.
-		Join le processus courant.
+		Set the close event.
+		Join the current process.
 		"""
 		self._close_event.set()
 		plt.close(self.fig)
@@ -84,6 +94,11 @@ class _VisualizerProcess(mp.Process):
 class TrainingHistoryVisualizationCallback(BaseCallback):
 	"""
 	This callback is used to visualize the training history in real time.
+	
+	:Attributes:
+		- **fig** (plt.Figure): The figure to plot.
+		- **axes** (plt.Axes): The axes to plot.
+		- **lines** (list): The list of lines to plot.
 	"""
 
 	def __init__(
@@ -92,7 +107,9 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
 	):
 		"""
 		Create a new callback to visualize the training history.
+		
 		:param temp_folder: The folder where to save the training history.
+		:type temp_folder: str
 		"""
 		super().__init__()
 		self._is_open = False
@@ -106,7 +123,10 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
 	def start(self, trainer):
 		"""
 		Start the process.
+		
 		:param trainer: The trainer.
+		:type trainer: Trainer
+		
 		:return: None
 		"""
 		self._process.start()
@@ -115,7 +135,10 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
 	def on_iteration_end(self, trainer):
 		"""
 		Update the training history.
+		
 		:param trainer: The trainer.
+		:type trainer: Trainer
+		
 		:return: None
 		"""
 		with self._lock:
@@ -124,6 +147,7 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
 	def __del__(self):
 		"""
 		Delete the temporary file.
+		
 		:return: None
 		"""
 		self.close(None)
@@ -131,7 +155,10 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
 	def close(self, trainer):
 		"""
 		Close the process adn delete the temporary file.
+		
 		:param trainer: The trainer.
+		:type trainer: Trainer
+		
 		:return: None
 		"""
 		if self._is_open:

@@ -30,8 +30,12 @@ class LayerType(enum.Enum):
 	def from_str(cls, name: str) -> Optional['LayerType']:
 		"""
 		Get the LayerType from a string.
+		
 		:param name: The name of the LayerType.
+		:type name: str
+		
 		:return: The LayerType.
+		:rtype: Optional[LayerType]
 		"""
 		if isinstance(name, LayerType):
 			return name
@@ -45,6 +49,12 @@ class LayerType(enum.Enum):
 class BaseLayer(torch.nn.Module):
 	"""
 	Base class for all layers.
+	
+	:Attributes:
+		- input_size (Optional[Dimension]): The input size of the layer.
+		- output_size (Optional[Dimension]): The output size of the layer.
+		- name (str): The name of the layer.
+		- kwargs (dict): Additional keyword arguments.
 	
 	"""
 	def __init__(
@@ -60,13 +70,18 @@ class BaseLayer(torch.nn.Module):
 		Constructor of the BaseLayer class.
 		
 		:param input_size: The input size of the layer.
+		:type input_size: Optional[SizeTypes]
 		:param output_size: The output size of the layer.
+		:type output_size: Optional[SizeTypes]
 		:param name: The name of the layer.
+		:type name: Optional[str]
 		:param learning_type: The learning type of the layer.
+		:type learning_type: LearningType
 		:param device: The device of the layer. Defaults to the current available device.
+		:type device: Optional[torch.device]
 		:param kwargs: Additional keyword arguments.
 		
-		:keyword regularize: Whether to regularize the layer. If True, the method `update_regularization_loss` will be
+		:keyword bool regularize: Whether to regularize the layer. If True, the method `update_regularization_loss` will be
 		called after each forward pass. Defaults to False.
 		"""
 		super(BaseLayer, self).__init__()
@@ -162,6 +177,8 @@ class BaseLayer(torch.nn.Module):
 		Set the device of the layer and move all the parameters to the new device.
 		
 		:param device: The device to set.
+		:type device: torch.device
+		
 		:return: None
 		"""
 		self._device = device
@@ -204,6 +221,7 @@ class BaseLayer(torch.nn.Module):
 		to be used e.g. the input and output size is set, the weights are initialized, etc.
 		
 		:return: The layer itself.
+		:rtype: BaseLayer
 		"""
 		if self._is_built:
 			raise ValueError("The layer can't be built multiple times.")
@@ -214,6 +232,15 @@ class BaseLayer(torch.nn.Module):
 		return self
 
 	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
+		"""
+		Create an empty state for the layer. This method must be implemented by the child class.
+		
+		:param batch_size: The batch size of the state.
+		:type batch_size: int
+		
+		:return: The empty state.
+		:rtype: Tuple[torch.Tensor, ...]
+		"""
 		raise NotImplementedError()
 
 	def _init_forward_state(

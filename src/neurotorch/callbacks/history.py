@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,6 +8,12 @@ from ..callbacks.base_callback import BaseCallback
 
 
 class TrainingHistory(BaseCallback):
+	"""
+	This class is used to store some metrics over the training process.
+	
+	:Attributes:
+		- **default_value** (float): The default value to use to equalize the lengths of the container's items.
+	"""
 
 	@staticmethod
 	def _set_default_plot_kwargs(kwargs: dict):
@@ -24,8 +30,11 @@ class TrainingHistory(BaseCallback):
 	def __init__(self, container: Dict[str, List[float]] = None, default_value=np.NAN):
 		"""
 		Initialize the container with the given container.
+		
 		:param container: The container to initialize the container with.
+		:type container: Dict[str, List[float]]
 		:param default_value: The default value to use to equalize the lengths of the container's items.
+		:type default_value: float
 		"""
 		self._container = {}
 		self.default_value = default_value
@@ -58,7 +67,10 @@ class TrainingHistory(BaseCallback):
 	def _increase_to_size(self, to_size: int):
 		"""
 		Increase the size of the container items to the given size.
+		
 		:param to_size: The size to increase the container to.
+		:type to_size: int
+		
 		:return: None
 		"""
 		if len(self) > to_size:
@@ -81,8 +93,12 @@ class TrainingHistory(BaseCallback):
 	def insert(self, index: int, other):
 		"""
 		Increase the size of the container items to the given index and insert the given other into the container.
+		
 		:param index: The index to insert the other at.
+		:type index: int
 		:param other: The other to insert.
+		:type other: Dict[str, float]
+		
 		:return: None
 		"""
 		if index >= len(self):
@@ -94,16 +110,48 @@ class TrainingHistory(BaseCallback):
 				self[key][index] = values
 
 	def append(self, key, value):
+		"""
+		Add the given value to the given key. Increase the size of the container by one.
+		
+		:param key: The key to add the value to.
+		:type key: str
+		:param value: The value to add.
+		:type value: float
+		
+		:return: None
+		"""
 		self.insert(len(self), {key: value})
 
-	def min(self, key=None, default=np.inf):
+	def min(self, key=None, default: float = np.inf) -> float:
+		"""
+		Get the minimum value of the given key.
+		
+		:param key: The key to get the minimum value of. If None, the first key is used.
+		:type key: str
+		:param default: The default value to return if the key is not in the container.
+		:type default: float
+		
+		:return: The minimum value of the given key.
+		:rtype: float
+		"""
 		if key is None:
 			key = list(self.keys())[0]
 		if key in self:
 			return np.nanmin(self[key])
 		return default
 
-	def min_item(self, key=None):
+	def min_item(self, key=None) -> Dict[str, float]:
+		"""
+		Get all the metrics of the iteration with the minimum value of the given key.
+		
+		:param key: The key to get the minimum value of. If None, the first key is used.
+		:type key: str
+		
+		:return: All the metrics of the iteration with the minimum value of the given key.
+		:rtype: Dict[str, float]
+		
+		:raises ValueError: If the key is not in the container.
+		"""
 		if key is None:
 			key = list(self.keys())[0]
 		if key in self:
@@ -112,6 +160,17 @@ class TrainingHistory(BaseCallback):
 		raise ValueError("key not in container")
 
 	def max(self, key=None, default=-np.inf):
+		"""
+		Get the maximum value of the given key.
+		
+		:param key: The key to get the maximum value of. If None, the first key is used.
+		:type key: str
+		:param default: The default value to return if the key is not in the container.
+		:type default: float
+		
+		:return: The maximum value of the given key.
+		:rtype: float
+		"""
 		if key is None:
 			key = list(self.keys())[0]
 		if key in self:
@@ -119,6 +178,17 @@ class TrainingHistory(BaseCallback):
 		return default
 
 	def max_item(self, key=None):
+		"""
+		Get all the metrics of the iteration with the maximum value of the given key.
+
+		:param key: The key to get the maximum value of. If None, the first key is used.
+		:type key: str
+
+		:return: All the metrics of the iteration with the maximum value of the given key.
+		:rtype: Dict[str, float]
+
+		:raises ValueError: If the key is not in the container.
+		"""
 		if key is None:
 			key = list(self.keys())[0]
 		if key in self:
@@ -127,6 +197,17 @@ class TrainingHistory(BaseCallback):
 		raise ValueError("key not in container")
 
 	def create_plot(self, **kwargs) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
+		"""
+		Create a plot of the metrics in the container.
+		
+		:param kwargs: Keyword arguments.
+		
+		:keyword Tuple[float, float] figsize: The size of the figure.
+		:keyword int linewidth: The width of the lines.
+		
+		:return: The figure, axes and lines of the plot.
+		:rtype: Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]
+		"""
 		kwargs = self._set_default_plot_kwargs(kwargs)
 		keys_lower_to_given = {k.lower(): k for k in self.keys()}
 		keys_lower = [key.lower() for key in self.keys()]
@@ -177,10 +258,30 @@ class TrainingHistory(BaseCallback):
 
 	def plot(
 			self,
-			save_path=None,
-			show=False,
+			save_path: Optional[str] = None,
+			show: bool = False,
 			**kwargs
 	) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
+		"""
+		Plot the metrics in the container.
+		
+		:param save_path: The path to save the plot to. If None, the plot is not saved.
+		:type save_path: Optional[str]
+		
+		:param show: Whether to show the plot.
+		:type show: bool
+		
+		:param kwargs: Keyword arguments.
+		
+		:keyword Tuple[float, float] figsize: The size of the figure.
+		:keyword int linewidth: The width of the lines.
+		:keyword int dpi: The resolution of the figure.
+		:keyword bool block: Whether to block execution until the plot is closed.
+		:keyword bool close: Whether to close the plot at the end.
+		
+		:return: The figure, axes and lines of the plot.
+		:rtype: Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]
+		"""
 		kwargs = self._set_default_plot_kwargs(kwargs)
 		plt.close('all')
 		fig, axes, lines = self.create_plot(**kwargs)
@@ -200,6 +301,20 @@ class TrainingHistory(BaseCallback):
 			lines: Dict[str, plt.Line2D],
 			**kwargs
 	) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
+		"""
+		Update the plot of the metrics in the container.
+		
+		:param fig: The figure to update.
+		:type fig: plt.Figure
+		:param axes: The axes to update.
+		:type axes: Dict[str, plt.Axes]
+		:param lines: The lines to update.
+		:type lines: Dict[str, plt.Line2D]
+		:param kwargs: Keyword arguments.
+		
+		:return: The figure, axes and lines of the plot.
+		:rtype: Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]
+		"""
 		kwargs = self._set_default_plot_kwargs(kwargs)
 		for k in lines:
 			lines[k].set_data(range(len(self[k])), self[k])
@@ -211,6 +326,14 @@ class TrainingHistory(BaseCallback):
 		return fig, axes, lines
 
 	def on_iteration_end(self, trainer):
+		"""
+		Insert the current metrics into the container.
+		
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		
+		:return: None
+		"""
 		self.insert(trainer.current_training_state.iteration, trainer.current_training_state.itr_metrics)
 
 

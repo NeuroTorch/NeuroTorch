@@ -6,7 +6,28 @@ from neurotorch.callbacks.base_callback import BaseCallback
 
 
 class LinearLRScheduler(BaseCallback):
+	"""
+	This class is a callback that implements a linear learning rate decay. This is useful to decrease the learning rate
+	over iterations. The learning rate is decreased linearly from lr_start to lr_end over n_steps iterations.
+	
+	:Attributes:
+		- **lr_start** (float): The initial learning rate.
+		- **lr_end** (float): The final learning rate.
+		- **n_steps** (int): The number of steps over which the learning rate is decreased.
+		- **lr** (float): The current learning rate.
+		- **lr_decay** (float): The learning rate decay per step.
+	"""
 	def __init__(self, lr_start: float, lr_end: float, n_steps: int):
+		"""
+		Construcor for the LinearLRScheduler class.
+		
+		:param lr_start: The initial learning rate.
+		:type lr_start: float
+		:param lr_end: The final learning rate.
+		:type lr_end: float
+		:param n_steps: The number of steps over which the learning rate is decreased.
+		:type n_steps: int
+		"""
 		super().__init__()
 		self.lr_start = lr_start
 		self.lr_end = lr_end
@@ -15,6 +36,14 @@ class LinearLRScheduler(BaseCallback):
 		self.lr_decay = (self.lr_start - self.lr_end) / self.n_steps
 	
 	def on_iteration_end(self, trainer):
+		"""
+		Decrease the learning rate linearly.
+		
+		:param trainer: The trainer object.
+		:type trainer: Trainer
+		
+		:return: None
+		"""
 		trainer.training_history.append('lr', self.lr)
 		step = trainer.current_training_state.iteration
 		self.lr = max(self.lr_start - step * self.lr_decay, self.lr_end)
@@ -27,6 +56,18 @@ class LRSchedulerOnMetric(BaseCallback):
 	Class to schedule the learning rate of the optimizer based on the metric value.
 	Each time the metric reach the next value of the schedule, the learning rate is multiplied by the given decay.
 	The learning rate is also capped at the given minimum value.
+	
+	:Attributes:
+		- **metric** (str): The metric to use to schedule the learning rate.
+		- **metric_schedule** (Iterable[float]): The schedule of the metric.
+		- **minimize_metric** (bool): Whether to minimize the metric or maximize it.
+		- **lr_decay** (float): The decay factor to use when the metric reach the next value of the schedule.
+		- **min_lr** (float): The minimum learning rate to use.
+		- **lr_start** (float): The learning rate to use at the beginning of the training.
+		- **lr** (float): The current learning rate.
+		- **retain_progress** (bool): If True the current step of the scheduler will only increase when the metric reach
+		the next value of the schedule. If False, the current step will increase or decrease depending on the metric.
+		- **step** (int): The current step of the scheduler.
 	"""
 	def __init__(
 			self,
@@ -36,22 +77,29 @@ class LRSchedulerOnMetric(BaseCallback):
 			minimize_metric: Optional[bool] = None,
 			lr_decay: Optional[float] = None,
 			min_lr: float = 1e-12,
-			lr_start: float = None,
+			lr_start: Optional[float] = None,
 			retain_progress: bool = True,
 	):
 		"""
 		Initialize the scheduler with the given metric and metric schedule.
 		
 		:param metric: The metric to use to schedule the learning rate.
+		:type metric: str
 		:param metric_schedule: The schedule of the metric.
+		:type metric_schedule: Iterable[float]
 		:param minimize_metric: Whether to minimize the metric or maximize it. If None, infer from the metric schedule.
+		:type minimize_metric: Optional[bool]
 		:param lr_decay: The decay factor to use when the metric reach the next value of the schedule. If None, the
 		decay is computed automatically as (lr_start - min_lr) / len(metric_schedule).
+		:type lr_decay: Optional[float]
 		:param min_lr: The minimum learning rate to use.
+		:type min_lr: float
 		:param lr_start: The learning rate to use at the beginning of the training. If None, the learning rate is
 		get automatically as the learning rate of the first group of the optimizer.
+		:type lr_start: Optional[float]
 		:param retain_progress: If True the current step of the scheduler will only increase when the metric reach the
 		next value of the schedule. If False, the current step will increase or decrease depending on the metric.
+		:type retain_progress: bool
 		"""
 		super().__init__()
 		self.metric = metric
@@ -67,6 +115,14 @@ class LRSchedulerOnMetric(BaseCallback):
 		self.step = 0
 	
 	def on_iteration_end(self, trainer):
+		"""
+		Update the learning rate of the optimizer based on the metric value.
+		
+		:param trainer: The trainer object.
+		:type trainer: Trainer
+		
+		:return: None
+		"""
 		last_metric = trainer.training_history[self.metric][-1]
 		trainer.training_history.append('lr', self.lr)
 		self.step = self.update_step(last_metric)
@@ -93,7 +149,16 @@ class LRSchedulerOnMetric(BaseCallback):
 		if self.lr_decay is None:
 			self.lr_decay = (self.lr_start - self.min_lr) / len(self.metric_schedule)
 	
-	def update_step(self, last_metric) -> int:
+	def update_step(self, last_metric: float) -> int:
+		"""
+		Update the current step of the scheduler based on the metric value.
+		
+		:param last_metric: The last value of the metric.
+		:type last_metric: float
+		
+		:return: The new step.
+		:rtype: int
+		"""
 		last_index = len(self.metric_schedule) - 1
 		if self.minimize_metric:
 			next_step = last_index - np.argmax((last_metric <= self.metric_schedule)[::-1])
@@ -105,6 +170,14 @@ class LRSchedulerOnMetric(BaseCallback):
 		return self.step
 	
 	def start(self, trainer):
+		"""
+		Initialize the learning rate of the optimizer and the :attr:`lr_start` attribute if necessary.
+		
+		:param trainer: The trainer object.
+		:type trainer: Trainer
+		
+		:return: None
+		"""
 		if self.lr_start is None:
 			self.lr_start = trainer.optimizer.param_groups[0]['lr']
 		self.lr = self.lr_start

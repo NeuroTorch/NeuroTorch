@@ -7,6 +7,7 @@ class BaseCallback:
 		Called when the training starts. This is the first callback called.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -17,6 +18,7 @@ class BaseCallback:
 		Called when the training ends. This is the last callback called.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -28,6 +30,7 @@ class BaseCallback:
 		training dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -39,6 +42,7 @@ class BaseCallback:
 		training dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -50,6 +54,7 @@ class BaseCallback:
 		the validation dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -61,6 +66,7 @@ class BaseCallback:
 		the validation dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -71,6 +77,7 @@ class BaseCallback:
 		Called when a batch starts. The batch is defined as one forward pass through the network.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -81,6 +88,7 @@ class BaseCallback:
 		Called when a batch ends. The batch is defined as one forward pass through the network.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -91,7 +99,8 @@ class BaseCallback:
 		Called when the validation phase of an iteration starts. The validation phase is defined as a full pass through
 		the validation dataset.
 		
-		:param trainer:
+		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return:
 		"""
@@ -103,6 +112,7 @@ class BaseCallback:
 		the validation dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -114,6 +124,7 @@ class BaseCallback:
 		the validation dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -125,6 +136,7 @@ class BaseCallback:
 		the validation dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -215,6 +227,7 @@ class CallbacksList:
 		Called when the trainer starts.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -226,6 +239,7 @@ class CallbacksList:
 		Called when the trainer closes.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -238,6 +252,7 @@ class CallbacksList:
 		training dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -250,6 +265,7 @@ class CallbacksList:
 		training dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -262,6 +278,7 @@ class CallbacksList:
 		the validation dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -274,6 +291,7 @@ class CallbacksList:
 		the validation dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -285,6 +303,7 @@ class CallbacksList:
 		Called when a batch starts. The batch is defined as one forward pass through the network.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -296,6 +315,7 @@ class CallbacksList:
 		Called when a batch ends. The batch is defined as one forward pass through the network.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -308,6 +328,7 @@ class CallbacksList:
 		the validation dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -320,6 +341,7 @@ class CallbacksList:
 		the validation dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -332,6 +354,7 @@ class CallbacksList:
 		the validation dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""
@@ -344,6 +367,7 @@ class CallbacksList:
 		the validation dataset.
 		
 		:param trainer: The trainer.
+		:type trainer: Trainer
 		
 		:return: None
 		"""

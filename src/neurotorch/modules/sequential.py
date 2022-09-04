@@ -31,7 +31,7 @@ class SequentialModel(BaseModel):
 	"""
 	The SequentialModel is a neural network that is constructed by stacking layers.
 	
-	.. image:: ../../images/modules/Sequential_model_schm.drawio.png
+	.. image:: ../../images/modules/Sequential_model_schm.png
 		:width: 300
 		:align: center
 	

@@ -26,6 +26,7 @@ jobs:
 
     - name: Build the sphinx docs
       run: |
+        sphinx-apidoc -f -o ./sphinx/source ./src/neurotorch
         make -C sphinx clean
         python sphinx/clean_html_files.py
         make -C sphinx html

@@ -46,9 +46,7 @@ def change_pathto(app, pagename, templatename, context, doctree):
 
 def move_private_folders(app, e):
     """
-    remove leading underscore from folders in in the output folder.
-
-    :todo: should only affect html built
+    Remove leading underscore from folders in in the output folder.
     """
     
     def join(dir):
@@ -57,9 +55,6 @@ def move_private_folders(app, e):
     for item in os.listdir(app.builder.outdir):
         if item.startswith('_') and os.path.isdir(join(item)) and item in _html_folders_formatted:
             shutil.move(join(item), join(item[1:]))
-    
-    print('Folders formatted:')
-    pprint.pprint(_html_folders_formatted, indent=4)
 
 
 # -- Project information -----------------------------------------------------

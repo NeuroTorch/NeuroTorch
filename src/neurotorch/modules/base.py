@@ -435,9 +435,12 @@ class BaseModel(torch.nn.Module):
 		"""
 		Get the prediction trace of the network.
 		
-		:param inputs:
-		:param kwargs:
-		:return:
+		:param inputs: The inputs of the network.
+		:type inputs: Union[Dict[str, Any], torch.Tensor]
+		:param kwargs: Additional arguments.
+		
+		:return: The prediction trace.
+		:rtype: Union[Dict[str, torch.Tensor], torch.Tensor]
 		"""
 		raise NotImplementedError()
 	
@@ -447,6 +450,19 @@ class BaseModel(torch.nn.Module):
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
 	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		"""
+		The raw prediction of the network.
+		
+		:param inputs: The inputs of the network.
+		:type inputs: torch.Tensor
+		:param re_outputs_trace: If True, the outputs trace will be returned.
+		:type re_outputs_trace: bool
+		:param re_hidden_states: If True, the hidden states will be returned.
+		:type re_hidden_states: bool
+		
+		:return: The raw prediction.
+		:rtype: Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]
+		"""
 		raise NotImplementedError()
 	
 	def get_prediction_proba(
@@ -455,6 +471,19 @@ class BaseModel(torch.nn.Module):
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
 	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		"""
+		Get the prediction probabilities of the network.
+		
+		:param inputs: The inputs of the network.
+		:type inputs: torch.Tensor
+		:param re_outputs_trace: If True, the outputs trace will be returned.
+		:type re_outputs_trace: bool
+		:param re_hidden_states: If True, the hidden states will be returned.
+		:type re_hidden_states: bool
+		
+		:return: The prediction probabilities.
+		:rtype: Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]
+		"""
 		m, *outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
 		if isinstance(m, torch.Tensor):
 			proba = torch.softmax(m, dim=-1)
@@ -475,6 +504,19 @@ class BaseModel(torch.nn.Module):
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
 	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		"""
+		Get the prediction log probabilities of the network.
+		
+		:param inputs: The inputs of the network.
+		:type inputs: torch.Tensor
+		:param re_outputs_trace: If True, the outputs trace will be returned.
+		:type re_outputs_trace: bool
+		:param re_hidden_states: If True, the hidden states will be returned.
+		:type re_hidden_states: bool
+		
+		:return: The prediction log probabilities.
+		:rtype: Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]
+		"""
 		m, *outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
 		if isinstance(m, torch.Tensor):
 			log_proba = F.log_softmax(m, dim=-1)
@@ -491,7 +533,14 @@ class BaseModel(torch.nn.Module):
 
 	def soft_update(self, other: 'BaseModel', tau: float = 1e-2) -> None:
 		"""
-		Copies the weights from the other network to this network with a factor of tau
+		Copies the weights from the other network to this network with a factor of tau.
+		
+		:param other: The other network.
+		:type other: 'BaseModel'
+		:param tau: The factor of the copy.
+		:type tau: float
+		
+		:return: None
 		"""
 		with torch.no_grad():
 			for param, other_param in zip(self.parameters(), other.parameters()):
@@ -499,12 +548,25 @@ class BaseModel(torch.nn.Module):
 
 	def hard_update(self, other: 'BaseModel') -> None:
 		"""
-		Copies the weights from the other network to this network
+		Copies the weights from the other network to this network.
+		
+		:param other: The other network.
+		:type other: 'BaseModel'
+		
+		:return: None
 		"""
 		with torch.no_grad():
 			self.load_state_dict(other.state_dict())
 
 	def to_onnx(self, in_viz=None):
+		"""
+		Creates an ONNX model from the network.
+		
+		:param in_viz: The input to visualize.
+		:type in_viz: Any
+		
+		:return: The ONNX model.
+		"""
 		if in_viz is None:
 			in_viz = torch.randn((1, self.input_sizes), device=self._device)
 		torch.onnx.export(

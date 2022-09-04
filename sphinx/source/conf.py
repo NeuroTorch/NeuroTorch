@@ -6,9 +6,10 @@
 import os
 import sys
 import shutil
-import neurotorch
 basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+print(f"{basedir = }")
 sys.path.insert(0, basedir)
+import neurotorch
 
 
 def skip(app, what, name, obj, would_skip, options):

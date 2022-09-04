@@ -35,14 +35,6 @@ neurotorch.utils module
    :undoc-members:
    :show-inheritance:
 
-neurotorch.version module
--------------------------
-
-.. automodule:: neurotorch.version
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Module contents
 ---------------
 

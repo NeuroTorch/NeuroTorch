@@ -6,6 +6,10 @@
 Welcome to NeuroTorch's documentation!
 ======================================
 
+.. image:: ../../images/neurotorch_logo.png
+   :width: 300
+   :align: center
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:

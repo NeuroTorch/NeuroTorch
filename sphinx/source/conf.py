@@ -4,11 +4,15 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import os
+import pprint
 import sys
 import shutil
 basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 sys.path.insert(0, basedir)
 import neurotorch
+
+
+_html_folders_formatted = {}
 
 
 def skip(app, what, name, obj, would_skip, options):
@@ -31,8 +35,11 @@ def change_pathto(app, pagename, templatename, context, doctree):
     
     def gh_pathto(otheruri, *args, **kw):
         if otheruri.startswith('_'):
-            otheruri = otheruri[1:]
-        return pathto(otheruri, *args, **kw)
+            otheruri_fmt = otheruri[1:]
+            _html_folders_formatted[os.path.dirname(otheruri)] = os.path.dirname(otheruri_fmt)
+        else:
+            otheruri_fmt = otheruri
+        return pathto(otheruri_fmt, *args, **kw)
     
     context['pathto'] = gh_pathto
 
@@ -48,8 +55,11 @@ def move_private_folders(app, e):
         return os.path.join(app.builder.outdir, dir)
     
     for item in os.listdir(app.builder.outdir):
-        if item.startswith('_') and os.path.isdir(join(item)):
+        if item.startswith('_') and os.path.isdir(join(item)) and item in _html_folders_formatted:
             shutil.move(join(item), join(item[1:]))
+    
+    print('Folders formatted:')
+    pprint.pprint(_html_folders_formatted, indent=4)
 
 
 # -- Project information -----------------------------------------------------

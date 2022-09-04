@@ -3,7 +3,7 @@ __email__ = "gincejeremie@gmail.com"
 __copyright__ = "Copyright 2022, Jérémie Gince"
 __license__ = "Apache 2.0"
 __url__ = "https://github.com/JeremieGince/NeuroTorch"
-__version__ = "alpha-0.0.0.1"
+__version__ = "alpha"
 
 """NeuroTorch: A PyTorch-based framework for deep learning in neuroscience."""
 

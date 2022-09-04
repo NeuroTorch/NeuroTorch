@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from neurotorch.modules import BaseModel
+from ..modules import BaseModel
 
 
 class BaseMetrics:

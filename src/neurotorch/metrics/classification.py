@@ -6,8 +6,8 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from neurotorch.metrics.base import BaseMetrics
-from neurotorch.modules import BaseModel
+from .base import BaseMetrics
+from ..modules import BaseModel
 
 
 class ClassificationMetrics(BaseMetrics):

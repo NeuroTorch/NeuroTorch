@@ -8,9 +8,9 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 from sklearn import metrics as sk_metrics
 
-from neurotorch.metrics.base import BaseMetrics
-from neurotorch.modules import BaseModel
-from neurotorch.transforms import to_tensor
+from .base import BaseMetrics
+from ..modules import BaseModel
+from ..transforms import to_tensor
 
 
 class RegressionMetrics(BaseMetrics):

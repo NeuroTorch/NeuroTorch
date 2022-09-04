@@ -1,0 +1,44 @@
+name: Build dist
+
+on:
+  push:
+    branches: ["main"]
+
+
+jobs:
+  Build-Dist:
+    name: Build dist
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.9"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Build dist
+      run: |
+        setup.py sdist bdist_wheel
+
+    - name: Commit
+      run: |
+        git add -f dist
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git commit -m "Update dist"
+
+    - name: Push
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{secrets.GITHUB_TOKEN}}
+        branch: main
+        force: true
+        directory: dist
+

@@ -11,6 +11,10 @@ from ..modules import BaseModel
 
 
 class ClassificationMetrics(BaseMetrics):
+	"""
+	This class is used to compute metrics for a classification model.
+	"""
+	
 	@staticmethod
 	def get_all_metrics_names_to_func() -> Dict[str, Callable]:
 		sep = ClassificationMetrics.METRICS_NAMES_SEP

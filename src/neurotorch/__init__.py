@@ -2,6 +2,8 @@ __author__ = "Jérémie Gince"
 __copyright__ = "Copyright 2022, Jérémie Gince"
 __url__ = "https://github.com/JeremieGince/NeuroTorch"
 
+"""NeuroTorch: A PyTorch-based framework for deep learning in neuroscience."""
+
 
 from .version import __version__
 

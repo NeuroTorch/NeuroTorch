@@ -20,9 +20,9 @@ class Dimension:
 	This object is used to represent a dimension.
 
 	Attributes:
-		size: The size of the dimension.
-		dtype: The type of the dimension.
-		name: The name of the dimension.
+		size (int): The size of the dimension.
+		dtype (DimensionProperty): The type of the dimension.
+		name (str): The name of the dimension.
 
 	"""
 
@@ -36,8 +36,11 @@ class Dimension:
 		Constructor for Dimension.
 
 		:param size: The size of the dimension.
+		:type size: int
 		:param dtype: The type of the dimension.
+		:type dtype: DimensionProperty
 		:param name: The name of the dimension.
+		:type name: str
 		"""
 		self.size: Optional[int] = size
 		self.dtype: DimensionProperty = dtype
@@ -47,8 +50,12 @@ class Dimension:
 		"""
 		Check if the dimension is equal to the other dimension. Two dimensions are considered equal if they have the
 		same size and type.
+		
 		:param other: The other dimension.
+		:type other: int or Dimension
+		
 		:return: True if the dimensions are equal, False otherwise.
+		:rtype: bool
 		"""
 		if other is None:
 			return False
@@ -69,8 +76,12 @@ class Dimension:
 	def from_int(size: Optional[int]) -> "Dimension":
 		"""
 		Create a Dimension from an integer.
+		
 		:param size: The size of the dimension.
+		:type size: int
+		
 		:return: A dimension with the given size and None as dtype.
+		:rtype: Dimension
 		"""
 		return Dimension(size, DimensionProperty.NONE)
 
@@ -80,8 +91,11 @@ class Dimension:
 		Create a Dimension from an integer or a Dimension.
 
 		:param dimension: The dimension to convert.
+		:type dimension: int or Dimension
+		
 		:return: A dimension with the given size and None as dtype if the input is an integer and the given dimension
 		if it is a Dimension.
+		:rtype: Dimension
 		"""
 		if isinstance(dimension, int) or dimension is None:
 			return Dimension.from_int(dimension)
@@ -94,6 +108,9 @@ DimensionLike = Union[int, Dimension]
 class Size:
 	"""
 	This object is used to represent the size of a space.
+	
+	:Attributes:
+		dimensions (List[Dimension]): The dimensions of the space.
 	"""
 
 	def __init__(self, dimensions: Union[int, Dimension, Iterable[Union[int, Dimension]]]):
@@ -101,6 +118,7 @@ class Size:
 		Constructor for Size.
 		
 		:param dimensions: The dimensions of the space.
+		:type dimensions: int or Dimension or Iterable[int or Dimension]
 		"""
 		if isinstance(dimensions, (int, Dimension)):
 			dimensions = [dimensions]

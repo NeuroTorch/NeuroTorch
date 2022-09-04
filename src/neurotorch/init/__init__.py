@@ -17,13 +17,20 @@ def dale_(
 	tensor are considered as i (row) -> j (col).
 	
 	:param tensor: tensor to initialize. This tensor will be modified inplace.
+	:type tensor: torch.Tensor
 	:param inh_ratio: ratio of inhibitory connections. Must be between 0 and 1. Default is 0.5.
+	:type inh_ratio: float
 	:param rho: The connectivity ratio. Must be between 0 and 1. If rho = 1, the tensor will be fully connected.
 		Default is 0.99.
+	:type rho: float
 	:param inh_first: If True, the inhibitory neurons will be in the first half of the tensor. If False, the neurons
 		will be shuffled. Default is True.
+	:type inh_first: bool
 	:param seed: seed for the random number generator. If None, the seed is not set.
+	:type seed: Optional[int]
+	
 	:return: The initialized tensor.
+	:rtype: torch.Tensor
 	"""
 	assert tensor.ndimension() == 2, "tensor must be 2 dimensional."
 	assert 0 <= inh_ratio <= 1, "inh_ratio must be between 0 and 1."

@@ -8,6 +8,14 @@ from ..modules import BaseModel
 
 
 class BaseMetrics:
+	"""
+	This base class is used to compute metrics for a model.
+	
+	:Attributes:
+		- **model** (BaseModel): The model to evaluate.
+		- **metrics_names** (List[str]): The metrics to compute.
+		- **device** (torch.device): The device in which the metrics will be computed.
+	"""
 	METRICS_NAMES_SEP = ' '
 	
 	def __init__(
@@ -17,10 +25,14 @@ class BaseMetrics:
 			device: Optional[torch.device] = None
 	):
 		"""
+		Constructor for the BaseMetrics class.
 
 		:param model: the model to evaluate.
+		:type model: BaseModel
 		:param metrics_names: the metrics to compute.
+		:type metrics_names: Any
 		:param device: The device in which the metrics will be computed.
+		:type device: Optional[torch.device]
 		"""
 		self.model = model
 		self.metrics_names = self._format_metrics_names_(metrics_names)
@@ -29,6 +41,12 @@ class BaseMetrics:
 	
 	@property
 	def metrics_functions(self) -> Dict[str, Callable]:
+		"""
+		Get the metrics functions to compute.
+		
+		:return: The metrics functions to compute.
+		:rtype: Dict[str, Callable]
+		"""
 		all_metrics_names_to_func = self.get_unwrap_all_metrics_names_to_func()
 		return {
 			metric_name: all_metrics_names_to_func[metric_name]
@@ -55,10 +73,21 @@ class BaseMetrics:
 	
 	@staticmethod
 	def get_all_metrics_names_to_func() -> Dict[str, Callable]:
+		"""
+		Get all the metrics names and their associated functions.
+		
+		:raises NotImplementedError: This method must be implemented in the child class.
+		"""
 		raise NotImplementedError()
 	
 	@classmethod
 	def get_unwrap_all_metrics_names_to_func(cls) -> Dict[str, Callable]:
+		"""
+		Get all the metrics names and their associated functions. The metrics names are unwrapped.
+		
+		:return: The metrics names and their associated functions.
+		:rtype: Dict[str, Callable]
+		"""
 		return {
 			metric_name: metric_func
 			for metric_names, metric_func in cls.get_all_metrics_names_to_func().items()
@@ -67,6 +96,12 @@ class BaseMetrics:
 	
 	@classmethod
 	def get_all_metrics_names(cls) -> List[str]:
+		"""
+		Get all the metrics names.
+		
+		:return: The metrics names.
+		:rtype: List[str]
+		"""
 		all_metrics_names = []
 		for metric_names, _ in cls.get_all_metrics_names_to_func().items():
 			all_metrics_names.extend(metric_names.split(cls.METRICS_NAMES_SEP))
@@ -74,6 +109,12 @@ class BaseMetrics:
 	
 	@classmethod
 	def get_unique_metrics_names(cls) -> List[str]:
+		"""
+		Get all the unique metrics names.
+		
+		:return: The unique metrics names.
+		:rtype: List[str]
+		"""
 		all_metrics_names = []
 		for metric_names, _ in cls.get_all_metrics_names_to_func().items():
 			all_metrics_names.append(metric_names.split(cls.METRICS_NAMES_SEP)[0])
@@ -86,10 +127,15 @@ class BaseMetrics:
 	) -> Dict[str, Any]:
 		"""
 		Compute the metrics for the given data_loader.
+		
 		:param data_loader: The data loader to use to compute the metrics.
+		:type data_loader: DataLoader
 		:param verbose: 0: no progress bar, 1: single progress bar, 2: progress bar for each metrics
 						True: verbose is set to 1, False: verbose is set to 0.
+		:type verbose: Union[bool, int]
+		
 		:return: The metrics computed.
+		:rtype: Dict[str, Any]
 		"""
 		if isinstance(verbose, bool):
 			verbose = 1 if verbose else 0

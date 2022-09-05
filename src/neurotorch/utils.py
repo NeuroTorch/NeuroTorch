@@ -1,5 +1,6 @@
 import collections.abc
 import enum
+import functools
 import hashlib
 import os
 import pickle
@@ -213,4 +214,29 @@ def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Se
 		for c in callable_list
 	])
 
+
+def inherit_method_docstring(_func=None, *, sep: str = '\n'):
+	# decorator to add the docstring of the parent class
+	def decorator_func(func):
+		bases = func.__class__.__bases__
+		func.__doc__ = sep.join([p.__doc__ for p in bases]) + func.__doc__
+		return func
+	
+	if _func is None:
+		return decorator_func
+	else:
+		return decorator_func(_func)
+
+
+def inherit_class_docstring(_class=None, *, sep: str = '\n'):
+	# decorator to add the docstring of the parent class
+	def decorator_func(__class):
+		bases = __class.__bases__
+		__class.__doc__ = sep.join([p.__doc__ for p in bases]) + __class.__doc__
+		return __class
+	
+	if _class is None:
+		return decorator_func
+	else:
+		return decorator_func(_class)
 

@@ -1,11 +1,11 @@
-import os
+import os, sys
 
 
-def generate_doc():
+def generate_doc(path_to_root_dir: str = '.'):
 	commands = [
-		r"sphinx-apidoc -f -o ./source ../src/neurotorch",
-		r".\make clean html",
-		r".\make html",
+		rf"sphinx-apidoc -f -o {path_to_root_dir}/sphinx/source {path_to_root_dir}/src/neurotorch",
+		rf"{path_to_root_dir}\sphinx\make clean html",
+		rf"{path_to_root_dir}\sphinx\make html",
 		# r"rmdir ../docs",
 		# r"mkdir ../docs",
 		# r"move ./build/html/* ../docs/"
@@ -16,4 +16,5 @@ def generate_doc():
 
 
 if __name__ == '__main__':
-	generate_doc()
+	root_dir = sys.argv[1] if len(sys.argv) > 1 else '.'
+	generate_doc(root_dir)

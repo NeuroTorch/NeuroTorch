@@ -550,7 +550,6 @@ class LIFLayer(BaseNeuronsLayer):
 	
 	"""
 	
-	@inherit_method_docstring
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,

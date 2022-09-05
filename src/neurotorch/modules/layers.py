@@ -10,6 +10,7 @@ from torch import nn
 from . import HeavisideSigmoidApprox, SpikeFunction
 from ..dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 from ..transforms import to_tensor
+from ..utils import inherit_method_docstring
 
 
 class LearningType(enum.Enum):
@@ -51,10 +52,10 @@ class BaseLayer(torch.nn.Module):
 	Base class for all layers.
 	
 	:Attributes:
-		- input_size (Optional[Dimension]): The input size of the layer.
-		- output_size (Optional[Dimension]): The output size of the layer.
-		- name (str): The name of the layer.
-		- kwargs (dict): Additional keyword arguments.
+		- **input_size** (Optional[Dimension]): The input size of the layer.
+		- **output_size** (Optional[Dimension]): The output size of the layer.
+		- **name** (str): The name of the layer.
+		- **kwargs** (dict): Additional keyword arguments.
 	
 	"""
 	def __init__(
@@ -260,11 +261,31 @@ class BaseLayer(torch.nn.Module):
 		return state
 
 	def infer_sizes_from_inputs(self, inputs: torch.Tensor):
+		"""
+		Try to infer the input and output size of the layer from the inputs.
+		
+		:param inputs: The inputs to infer the size from.
+		:type inputs: torch.Tensor
+		
+		:return: None
+		"""
 		self.input_size = inputs.shape[-1]
 		if self.output_size is None:
 			raise ValueError("output_size must be specified before the forward call.")
 	
 	def __call__(self, inputs: torch.Tensor, *args, **kwargs):
+		"""
+		Call the forward method of the layer. If the layer is not built, it will be built automatically.
+		In addition, if :attr: `kwargs['regularize']` is set to True, the :meth: `update_regularization_loss` method
+		will be called.
+		
+		:param inputs: The inputs to the layer.
+		:type inputs: torch.Tensor
+		:param args: The positional arguments to the forward method.
+		:param kwargs: The keyword arguments to the forward method.
+		
+		:return: The output of the layer.
+		"""
 		inputs = inputs.to(self.device)
 		if not self.is_built:
 			if not self.is_ready_to_build:
@@ -289,6 +310,11 @@ class BaseLayer(torch.nn.Module):
 		raise NotImplementedError()
 
 	def initialize_weights_(self):
+		"""
+		Initialize the weights of the layer. This method must be implemented by the child class.
+		
+		:return: None
+		"""
 		pass
 
 	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
@@ -298,9 +324,12 @@ class BaseLayer(torch.nn.Module):
 		forward call automatically by the BaseLayer class.
 		
 		:param state: The current state of the layer.
+		:type state: Optional[Any]
 		:param args: Other positional arguments.
 		:param kwargs: Other keyword arguments.
+		
 		:return: The updated regularization loss.
+		:rtype: torch.Tensor
 		"""
 		return self._regularization_loss
 
@@ -341,11 +370,11 @@ class BaseNeuronsLayer(BaseLayer):
 	the recurrent_weights. Child classes must implement the forward method and the `create_empty_state` method.
 	
 	:Attributes:
-		- forward_weights (torch.nn.Parameter): The weights used to compute the output of the layer.
-		- recurrent_weights (torch.nn.Parameter): The weights used to compute the hidden state of the layer.
-		- dt (float): The time step of the layer.
-		- use_rec_eye_mask (torch.Tensor): Whether to use the recurrent eye mask.
-		- rec_mask (torch.Tensor): The recurrent eye mask.
+		- **forward_weights** (torch.nn.Parameter): The weights used to compute the output of the layer.
+		- **recurrent_weights** (torch.nn.Parameter): The weights used to compute the hidden state of the layer.
+		- **dt** (float): The time step of the layer.
+		- **use_rec_eye_mask** (torch.Tensor): Whether to use the recurrent eye mask.
+		- **rec_mask** (torch.Tensor): The recurrent eye mask.
 	"""
 	def __init__(
 			self,
@@ -363,15 +392,26 @@ class BaseNeuronsLayer(BaseLayer):
 		Initialize the layer.
 		
 		:param input_size: The input size of the layer.
+		:type input_size: Optional[SizeTypes]
 		:param output_size: The output size of the layer.
+		:type output_size: Optional[SizeTypes]
 		:param name: The name of the layer.
+		:type name: Optional[str]
 		:param use_recurrent_connection: Whether to use a recurrent connection. Default is True.
+		:type use_recurrent_connection: bool
 		:param use_rec_eye_mask: Whether to use a recurrent eye mask. Default is False. This mask will be used to
 			mask to zero the diagonal of the recurrent connection matrix.
+		:type use_rec_eye_mask: bool
 		:param learning_type: The learning type of the layer. Default is BPTT.
+		:type learning_type: LearningType
 		:param dt: The time step of the layer. Default is 1e-3.
+		:type dt: float
 		:param device: The device of the layer. Default is the current available device.
+		:type device: Optional[torch.device]
 		:param kwargs: Other keyword arguments.
+		
+		:keyword bool regularize: Whether to regularize the layer. If True, the method `update_regularization_loss` will be
+		called after each forward pass. Defaults to False.
 		"""
 		self.dt = dt
 		self.use_recurrent_connection = use_recurrent_connection
@@ -407,6 +447,16 @@ class BaseNeuronsLayer(BaseLayer):
 			torch.nn.init.xavier_normal_(self.recurrent_weights)
 
 	def build(self) -> 'BaseNeuronsLayer':
+		"""
+		Build the layer. This method must be call after the layer is initialized to make sure that the layer is ready
+		to be used e.g. the input and output size is set, the weights are initialized, etc.
+		
+		In this method the :attr:`forward_weights`, :attr:`recurrent_weights` and :attr: `rec_mask` are created and
+		finally the method :meth:`initialize_weights_` is called.
+		
+		:return: The layer itself.
+		:rtype: BaseLayer
+		"""
 		super().build()
 		self.forward_weights = nn.Parameter(
 			torch.empty((int(self.input_size), int(self.output_size)), device=self.device, dtype=torch.float32),
@@ -446,6 +496,61 @@ class BaseNeuronsLayer(BaseLayer):
 
 
 class LIFLayer(BaseNeuronsLayer):
+	"""
+	LIF dynamics, inspired by :cite:t:`neftci_surrogate_2019` , :cite:t:`bellec_solution_2020` , models the synaptic
+	potential and impulses of a neuron over time. The shape of this potential is not considered realistic
+	:cite:t:`izhikevich_dynamical_2007` , but the time at which the potential exceeds the threshold is.
+	This potential is found by the recurrent equation :eq:`lif_V` .
+	
+	.. math::
+		:label: lif_V
+		
+		V_j^{t+\\Delta t} = \\left(\\alpha V_j^t + \\sum_{i}^{N} W_{ij}^{\\text{rec}} z_i^t +
+		\\sum_i^{N} W_{ij}^{\\text{in}} x_i^{t+\\Delta t}\\right) \\left(1 - z_j^t\\right)
+	
+	The variables of the equation :eq:`lif_V` are described by the following definitions:
+		
+		- :math:`N` is the number of neurons in the layer.
+		- :math:`V_j^t` is the synaptic potential of the neuron :math:`j` at time :math:`t`.
+		- :math:`\\Delta t` is the integration time step.
+		- :math:`z_j^t` is the spike of the neuron :math:`j` at time :math:`t`.
+		- :math:`\\alpha` is the decay constant of the potential over time (equation :eq:`lif_alpha` ).
+		- :math:`W_{ij}^{\\text{rec}}` is the recurrent weight of the neuron :math:`i` to the neuron :math:`j`.
+		- :math:`W_{ij}^{\\text{in}}` is the input weight of the neuron :math:`i` to the neuron :math:`j`.
+		- :math:`x_i^{t}` is the input of the neuron :math:`i` at time :math:`t`.
+	
+	.. math::
+		:label: lif_alpha
+		
+		\\alpha = e^{-\\frac{\\Delta t}{\\tau_m}}
+	
+	with :math:`\\tau_m` being the decay time constant of the membrane potential which is generally 20 ms.
+	
+	The output of neuron :math:`j` at time :math:`t` denoted :math:`z_j^t` is defined by the equation :eq:`lif_z` .
+	
+	.. math::
+		:label: lif_z
+		
+		z_j^t = H(V_j^t - V_{\\text{th}})
+	
+	where :math:``V_{\\text{th}} denotes the activation threshold of the neuron and the function :math:`H(\\cdot)`
+	is the Heaviside function defined as :math:`H(x) = 1` if :math:`x \\geq 0` and :math:`H(x) = 0` otherwise.
+
+	.. bibliography::
+	
+	:Attributes:
+		- :attr:`forward_weights` (torch.nn.Parameter): The weights used to compute the output of the layer :math:`W_{ij}^{\\text{in}}` in equation :eq:`lif_V`.
+		- :attr:`recurrent_weights` (torch.nn.Parameter): The weights used to compute the hidden state of the layer :math:`W_{ij}^{\\text{rec}}` in equation :eq:`lif_V`.
+		- :attr:`dt` (float): The time step of the layer :math:`\\Delta t` in equation :eq:`lif_V`.
+		- :attr:`use_rec_eye_mask` (bool): Whether to use the recurrent eye mask.
+		- :attr:`rec_mask` (torch.Tensor): The recurrent eye mask.
+		- :attr:`alpha` (torch.nn.Parameter): The decay constant of the potential over time. See equation :eq:`lif_alpha` .
+		- :attr:`threshold` (torch.nn.Parameter): The activation threshold of the neuron.
+		- :attr:`gamma` (torch.nn.Parameter): The gain of the neuron. The gain will increase the gradient of the neuron's output.
+	
+	"""
+	
+	@inherit_method_docstring
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -459,6 +564,13 @@ class LIFLayer(BaseNeuronsLayer):
 			device: Optional[torch.device] = None,
 			**kwargs
 	):
+		"""
+		:keyword float tau_m: The decay time constant of the membrane potential which is generally 20 ms. See equation
+			:eq:`lif_alpha` .
+		:keyword float threshold: The activation threshold of the neuron.
+		:keyword float gamma: The gain of the neuron. The gain will increase the gradient of the neuron's output.
+		:keyword float spikes_regularization_factor: The regularization factor of the spikes.
+		"""
 		self.spike_func = spike_func
 		super(LIFLayer, self).__init__(
 			input_size=input_size,

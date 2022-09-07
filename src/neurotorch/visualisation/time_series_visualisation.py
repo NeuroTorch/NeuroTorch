@@ -27,6 +27,7 @@ class Visualise:
 		4. Plot all the neuronal activity in one figure
 	Further visualisation are already added. You can visualise the time series with clustering methods. You can
 	then visualise those clustered time series in scatter/trajectory in their clustered space.
+	TODO : Add axis and optional figure to Visualise. The user can therefore create its custom figures.
 	"""
 
 	def __init__(
@@ -82,7 +83,7 @@ class Visualise:
 		
 		if shape[0].dtype == DimensionProperty.NONE:
 			self.timeseries = self.timeseries.T
-			self.shape = Size(shape.dimensions[::-1])
+			shape = Size(shape.dimensions[::-1])
 		return shape
 
 	def animate(

@@ -251,7 +251,7 @@ class BaseLayer(torch.nn.Module):
 	) -> Tuple[torch.Tensor, ...]:
 		if state is None:
 			state = self.create_empty_state(batch_size)
-		elif any([e is None for e in state]):
+		elif isinstance(state, (list, tuple)) and any([e is None for e in state]):
 			empty_state = self.create_empty_state(batch_size)
 			state = list(state)
 			for i, e in enumerate(state):

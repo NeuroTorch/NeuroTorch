@@ -13,10 +13,11 @@ import neurotorch
 
 
 _html_folders_formatted = {}
+_allowed_special_methods = ["__init__", "__call__"]
 
 
 def skip(app, what, name, obj, would_skip, options):
-    if name == "__init__":
+    if name in _allowed_special_methods:
         return False
     return would_skip
 

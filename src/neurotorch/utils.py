@@ -1,11 +1,12 @@
 import collections.abc
+import inspect
 import enum
 import functools
 import hashlib
 import os
 import pickle
 from collections import defaultdict
-from typing import Callable, Dict, List, NamedTuple, Any, Tuple, Union, Iterable
+from typing import Callable, Dict, List, NamedTuple, Any, Tuple, Union, Iterable, Optional, Type
 import torch
 
 import numpy as np
@@ -215,17 +216,46 @@ def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Se
 	])
 
 
-def inherit_method_docstring(_func=None, *, sep: str = '\n'):
-	# decorator to add the docstring of the parent class
-	def decorator_func(func):
-		bases = func.__class__.__bases__
-		func.__doc__ = sep.join([p.__doc__ for p in bases]) + func.__doc__
-		return func
+def inherit_docstring(
+		_obj=None,
+		*,
+		sep: str = '\n',
+		bases: Optional[List[Type]] = None
+):
+	"""
+	Decorator to add the docstring of the parent class to the child class.
 	
-	if _func is None:
+	:param _obj: The object to decorate.
+	:param sep: The separator to use between the docstring of the parent and the child.
+	:type sep: str
+	:param bases: The list of base classes to inherit the docstring from.
+	:type bases: List[Type]
+	
+	:return: The decorated object.
+	"""
+	def decorator_func(__obj):
+		__bases = bases
+		if inspect.isclass(__obj):
+			cls = __obj
+		elif inspect.ismethod(__obj):
+			cls = __obj.__self__.__class__
+		else:
+			self = getattr(__obj, "__self__", __obj)
+			cls = self.__class__
+		if __bases is None:
+			__bases = cls.__bases__
+		print(f"{inspect.isfunction(__obj) = }, {inspect.ismethod(__obj) = }, {inspect.isclass(__obj) = }")
+		print(f"{__obj}")
+		print(f"{__obj.__name__}({cls}).bases = {__bases}")
+		if __obj.__doc__ is None:
+			__obj.__doc__ = ""
+		__obj.__doc__ = sep.join(filter(None, [p.__doc__ for p in __bases])) + __obj.__doc__
+		return __obj
+	
+	if _obj is None:
 		return decorator_func
 	else:
-		return decorator_func(_func)
+		return decorator_func(_obj)
 
 
 def inherit_class_docstring(_class=None, *, sep: str = '\n'):

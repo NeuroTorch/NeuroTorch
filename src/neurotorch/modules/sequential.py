@@ -35,11 +35,15 @@ class SequentialModel(BaseModel):
 		:width: 300
 		:align: center
 	
+	.. image:: ../../images/neurotorch_logo.png
+		:width: 300
+		:align: center
+	
 	:Attributes:
-		- **input_layers** (torch.nn.ModuleDict): The input layers of the model.
-		- **hidden_layers** (torch.nn.ModuleList): The hidden layers of the model.
-		- **output_layers** (torch.nn.ModuleDict): The output layers of the model.
-		- **foresight_time_steps** (int): The number of time steps that the model will forecast.
+		- :attr:`input_layers` (torch.nn.ModuleDict): The input layers of the model.
+		- :attr:`hidden_layers` (torch.nn.ModuleList): The hidden layers of the model.
+		- :attr:`output_layers` (torch.nn.ModuleDict): The output layers of the model.
+		- :attr:`foresight_time_steps` (int): The number of time steps that the model will forecast.
 	"""
 
 	@staticmethod
@@ -52,6 +56,7 @@ class SequentialModel(BaseModel):
 		trace can be a list of :
 			- Tensor -> list[torch.Tensor]
 			- Tuple or list of Tensor or None -> Iterable[torch.Tensor] or Iterable[None]
+		
 		If the list has those format, it will be converted to a dictionary of shape {layer_name: (tensor, ...)}
 		However, if you decide to format trace differently (empty list, numpy array ...) it won't be reshape into
 		a dict. The new hidden states will therefore stay the same as the hidden_state.

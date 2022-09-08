@@ -10,7 +10,7 @@ from torch import nn
 from . import HeavisideSigmoidApprox, SpikeFunction
 from ..dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 from ..transforms import to_tensor
-from ..utils import inherit_method_docstring
+from ..utils import inherit_docstring
 
 
 class LearningType(enum.Enum):
@@ -495,6 +495,7 @@ class BaseNeuronsLayer(BaseLayer):
 		return _repr
 
 
+@inherit_docstring
 class LIFLayer(BaseNeuronsLayer):
 	"""
 	LIF dynamics, inspired by :cite:t:`neftci_surrogate_2019` , :cite:t:`bellec_solution_2020` , models the synaptic
@@ -550,6 +551,7 @@ class LIFLayer(BaseNeuronsLayer):
 	
 	"""
 	
+	@inherit_docstring
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -604,7 +606,8 @@ class LIFLayer(BaseNeuronsLayer):
 		else:
 			self.kwargs.setdefault("gamma", 1.0)
 		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
-
+	
+	@inherit_docstring()
 	def initialize_weights_(self):
 		if "forward_weights" in self.kwargs:
 			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)

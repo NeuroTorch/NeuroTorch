@@ -8,3 +8,6 @@ tqdm==4.64.0
 scikit-learn~=1.1.1
 psutil~=5.9.1
 pytest~=7.1.2
+docutils~=0.17.1
+scipy~=1.8.1
+six~=1.16.0

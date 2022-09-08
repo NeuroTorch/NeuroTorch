@@ -10,7 +10,7 @@ from torch import nn
 from . import HeavisideSigmoidApprox, SpikeFunction
 from ..dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 from ..transforms import to_tensor
-from ..utils import inherit_docstring
+from pythonbasictools.docstring import inherit_docstring, inherit_fields_docstring
 
 
 class LearningType(enum.Enum):
@@ -52,10 +52,10 @@ class BaseLayer(torch.nn.Module):
 	Base class for all layers.
 	
 	:Attributes:
-		- **input_size** (Optional[Dimension]): The input size of the layer.
-		- **output_size** (Optional[Dimension]): The output size of the layer.
-		- **name** (str): The name of the layer.
-		- **kwargs** (dict): Additional keyword arguments.
+		- :attr:`input_size` (Optional[Dimension]): The input size of the layer.
+		- :attr:`output_size` (Optional[Dimension]): The output size of the layer.
+		- :attr:`name` (str): The name of the layer.
+		- :attr:`kwargs` (dict): Additional keyword arguments.
 	
 	"""
 	def __init__(
@@ -276,7 +276,7 @@ class BaseLayer(torch.nn.Module):
 	def __call__(self, inputs: torch.Tensor, *args, **kwargs):
 		"""
 		Call the forward method of the layer. If the layer is not built, it will be built automatically.
-		In addition, if :attr: `kwargs['regularize']` is set to True, the :meth: `update_regularization_loss` method
+		In addition, if :attr:`kwargs['regularize']` is set to True, the :meth: `update_regularization_loss` method
 		will be called.
 		
 		:param inputs: The inputs to the layer.
@@ -364,18 +364,21 @@ class BaseLayer(torch.nn.Module):
 		return self._regularization_loss
 
 
+@inherit_fields_docstring(fields=["Attributes"], bases=[BaseLayer])
 class BaseNeuronsLayer(BaseLayer):
 	"""
-	A base class for layers that have neurons. This class provides two importants Parameters: the forward_weights and
-	the recurrent_weights. Child classes must implement the forward method and the `create_empty_state` method.
+	A base class for layers that have neurons. This class provides two importants Parameters: the
+	:attr:`forward_weights` and the :attr:`recurrent_weights`. Child classes must implement the :method:`forward`
+	method and the :mth:`create_empty_state` method.
 	
 	:Attributes:
-		- **forward_weights** (torch.nn.Parameter): The weights used to compute the output of the layer.
-		- **recurrent_weights** (torch.nn.Parameter): The weights used to compute the hidden state of the layer.
-		- **dt** (float): The time step of the layer.
-		- **use_rec_eye_mask** (torch.Tensor): Whether to use the recurrent eye mask.
-		- **rec_mask** (torch.Tensor): The recurrent eye mask.
+		- :attr:`forward_weights` (torch.nn.Parameter): The weights used to compute the output of the layer.
+		- :attr:`recurrent_weights` (torch.nn.Parameter): The weights used to compute the hidden state of the layer.
+		- :attr:`dt` (float): The time step of the layer.
+		- :attr:`use_rec_eye_mask` (torch.Tensor): Whether to use the recurrent eye mask.
+		- :attr:`rec_mask` (torch.Tensor): The recurrent eye mask.
 	"""
+	
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -389,9 +392,9 @@ class BaseNeuronsLayer(BaseLayer):
 			**kwargs
 	):
 		"""
-		Initialize the layer.
+		Initialize the layer.; See the :class:`BaseLayer` class for more details.;
 		
-		:param input_size: The input size of the layer.
+		:param input_size: The input size of the layer;
 		:type input_size: Optional[SizeTypes]
 		:param output_size: The output size of the layer.
 		:type output_size: Optional[SizeTypes]
@@ -406,12 +409,10 @@ class BaseNeuronsLayer(BaseLayer):
 		:type learning_type: LearningType
 		:param dt: The time step of the layer. Default is 1e-3.
 		:type dt: float
-		:param device: The device of the layer. Default is the current available device.
-		:type device: Optional[torch.device]
 		:param kwargs: Other keyword arguments.
 		
-		:keyword bool regularize: Whether to regularize the layer. If True, the method `update_regularization_loss` will be
-		called after each forward pass. Defaults to False.
+		:keyword bool regularize: Whether to regularize the layer. If True, the method `update_regularization_loss` will
+			be called after each forward pass. Defaults to False.
 		"""
 		self.dt = dt
 		self.use_recurrent_connection = use_recurrent_connection
@@ -551,7 +552,7 @@ class LIFLayer(BaseNeuronsLayer):
 	
 	"""
 	
-	@inherit_docstring
+	@inherit_docstring(bases=BaseNeuronsLayer)
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,

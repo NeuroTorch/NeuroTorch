@@ -1,5 +1,10 @@
 import collections.abc
 import inspect
+from collections import defaultdict
+from copy import deepcopy
+
+from docutils.core import publish_doctree
+import docutils.nodes
 import enum
 import functools
 import hashlib
@@ -18,6 +23,7 @@ def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 	"""
 	:param x: (batch_size, time_steps, ...)
 	:param decay:
+	
 	:return:
 	"""
 	batch_size, time_steps, *_ = x.shape
@@ -34,8 +40,10 @@ def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 def mapping_update_recursively(d, u):
 	"""
 	from https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+	
 	:param d: mapping item that wil be updated
 	:param u: mapping item updater
+	
 	:return: updated mapping recursively
 	"""
 	for k, v in u.items():
@@ -96,6 +104,7 @@ def hash_params(params: Dict[str, Any]):
 	Hash the parameters to get a unique and persistent id.
 	
 	:param params: The parameters to hash.
+	
 	:return: The hash of the parameters.
 	"""
 	return int(hashlib.md5(get_meta_name(params).encode('utf-8')).hexdigest(), 16)
@@ -124,8 +133,10 @@ def ravel_compose_transforms(
 def save_params(params: Dict[str, Any], save_path: str):
 	"""
 	Save the parameters in a file.
+	
 	:param save_path: The path to save the parameters.
 	:param params: The parameters to save.
+	
 	:return: The path to the saved parameters.
 	"""
 	pickle.dump(params, open(save_path, "wb"))
@@ -144,9 +155,11 @@ def get_transform_from_str(transform_name: str, **kwargs):
 
 	:param transform_name: The name of the transform.
 	:param kwargs: The arguments for the transform.
+	
 	:keyword Arguments:
 		* <dt>: float -> The time step of the transform.
 		* <n_steps>: float -> The number of times steps of the transform.
+	
 	:return: The transform.
 	"""
 	from torchvision.transforms import Compose
@@ -178,6 +191,7 @@ def get_all_params_combinations(params_space: Dict[str, Any]) -> List[Dict[str, 
 	Get all possible combinations of parameters.
 	
 	:param params_space: Dictionary of parameters.
+	
 	:return: List of dictionaries of parameters.
 	"""
 	import itertools
@@ -194,6 +208,7 @@ def get_all_params_combinations(params_space: Dict[str, Any]) -> List[Dict[str, 
 def set_seed(seed: int):
 	"""
 	Set the seed of the random number generator.
+	
 	:param seed: The seed to set.
 	"""
 	import random
@@ -206,7 +221,9 @@ def set_seed(seed: int):
 def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Sequential:
 	"""
 	Convert a list of callable to a list of modules.
+	
 	:param callable_list: List of callable.
+	
 	:return: List of modules.
 	"""
 	from neurotorch.transforms.wrappers import CallableToModuleWrapper
@@ -214,59 +231,4 @@ def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Se
 		c if isinstance(c, torch.nn.Module) else CallableToModuleWrapper(c)
 		for c in callable_list
 	])
-
-
-def inherit_docstring(
-		_obj=None,
-		*,
-		sep: str = '\n',
-		bases: Optional[List[Type]] = None
-):
-	"""
-	Decorator to add the docstring of the parent class to the child class.
-	
-	:param _obj: The object to decorate.
-	:param sep: The separator to use between the docstring of the parent and the child.
-	:type sep: str
-	:param bases: The list of base classes to inherit the docstring from.
-	:type bases: List[Type]
-	
-	:return: The decorated object.
-	"""
-	def decorator_func(__obj):
-		__bases = bases
-		if inspect.isclass(__obj):
-			cls = __obj
-		elif inspect.ismethod(__obj):
-			cls = __obj.__self__.__class__
-		else:
-			self = getattr(__obj, "__self__", __obj)
-			cls = self.__class__
-		if __bases is None:
-			__bases = cls.__bases__
-		print(f"{inspect.isfunction(__obj) = }, {inspect.ismethod(__obj) = }, {inspect.isclass(__obj) = }")
-		print(f"{__obj}")
-		print(f"{__obj.__name__}({cls}).bases = {__bases}")
-		if __obj.__doc__ is None:
-			__obj.__doc__ = ""
-		__obj.__doc__ = sep.join(filter(None, [p.__doc__ for p in __bases])) + __obj.__doc__
-		return __obj
-	
-	if _obj is None:
-		return decorator_func
-	else:
-		return decorator_func(_obj)
-
-
-def inherit_class_docstring(_class=None, *, sep: str = '\n'):
-	# decorator to add the docstring of the parent class
-	def decorator_func(__class):
-		bases = __class.__bases__
-		__class.__doc__ = sep.join([p.__doc__ for p in bases]) + __class.__doc__
-		return __class
-	
-	if _class is None:
-		return decorator_func
-	else:
-		return decorator_func(_class)
 

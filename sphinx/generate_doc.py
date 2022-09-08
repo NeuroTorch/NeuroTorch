@@ -16,5 +16,5 @@ def generate_doc(path_to_root_dir: str = '.'):
 
 
 if __name__ == '__main__':
-	root_dir = sys.argv[1] if len(sys.argv) > 1 else '.'
+	root_dir = sys.argv[1] if len(sys.argv) > 1 else '..'
 	generate_doc(root_dir)

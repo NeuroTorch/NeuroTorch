@@ -496,7 +496,6 @@ class BaseNeuronsLayer(BaseLayer):
 		return _repr
 
 
-@inherit_docstring
 class LIFLayer(BaseNeuronsLayer):
 	"""
 	LIF dynamics, inspired by :cite:t:`neftci_surrogate_2019` , :cite:t:`bellec_solution_2020` , models the synaptic
@@ -505,10 +504,12 @@ class LIFLayer(BaseNeuronsLayer):
 	This potential is found by the recurrent equation :eq:`lif_V` .
 	
 	.. math::
+		\\begin{equation}
+			V_j^{t+\\Delta t} = \\left(\\alpha V_j^t + \\sum_{i}^{N} W_{ij}^{\\text{rec}} z_i^t +
+			\\sum_i^{N} W_{ij}^{\\text{in}} x_i^{t+\\Delta t}\\right) \\left(1 - z_j^t\\right)
+		\\end{equation}
 		:label: lif_V
 		
-		V_j^{t+\\Delta t} = \\left(\\alpha V_j^t + \\sum_{i}^{N} W_{ij}^{\\text{rec}} z_i^t +
-		\\sum_i^{N} W_{ij}^{\\text{in}} x_i^{t+\\Delta t}\\right) \\left(1 - z_j^t\\right)
 	
 	The variables of the equation :eq:`lif_V` are described by the following definitions:
 		
@@ -524,7 +525,11 @@ class LIFLayer(BaseNeuronsLayer):
 	.. math::
 		:label: lif_alpha
 		
-		\\alpha = e^{-\\frac{\\Delta t}{\\tau_m}}
+		\\begin{equation}
+			\\alpha = e^{-\\frac{\\Delta t}{\\tau_m}}
+		\\end{equation}
+		
+		
 	
 	with :math:`\\tau_m` being the decay time constant of the membrane potential which is generally 20 ms.
 	
@@ -535,7 +540,7 @@ class LIFLayer(BaseNeuronsLayer):
 		
 		z_j^t = H(V_j^t - V_{\\text{th}})
 	
-	where :math:``V_{\\text{th}} denotes the activation threshold of the neuron and the function :math:`H(\\cdot)`
+	where :math:`V_{\\text{th}}` denotes the activation threshold of the neuron and the function :math:`H(\\cdot)`
 	is the Heaviside function defined as :math:`H(x) = 1` if :math:`x \\geq 0` and :math:`H(x) = 0` otherwise.
 
 	.. bibliography::
@@ -608,7 +613,7 @@ class LIFLayer(BaseNeuronsLayer):
 			self.kwargs.setdefault("gamma", 1.0)
 		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
 	
-	@inherit_docstring()
+	@inherit_docstring(bases=BaseNeuronsLayer)
 	def initialize_weights_(self):
 		if "forward_weights" in self.kwargs:
 			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
@@ -649,7 +654,8 @@ class LIFLayer(BaseNeuronsLayer):
 		self._regularization_loss += self.kwargs["spikes_regularization_factor"]*torch.sum(next_Z)
 		# self._regularization_loss += 2e-6*torch.mean(torch.sum(next_Z, dim=-1)**2)
 		return self._regularization_loss
-
+	
+	@inherit_docstring(bases=BaseNeuronsLayer)
 	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape

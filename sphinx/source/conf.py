@@ -73,8 +73,9 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
     'sphinx.ext.githubpages',
-    'sphinx_rtd_theme',
+    # 'sphinx_rtd_theme',
     'sphinxcontrib.bibtex',
+    'sphinx_mdinclude',
 ]
 
 bibtex_bibfiles = ['references.bib']
@@ -86,5 +87,8 @@ exclude_patterns = []
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'karma_sphinx_theme'
 html_static_path = ['_static']
+# html_css_files = [
+#     'css/float_right.css',
+# ]

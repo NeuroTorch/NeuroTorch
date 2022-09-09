@@ -25,6 +25,8 @@ Welcome to NeuroTorch's documentation!
 
 .. include:: readme.rst
 
+.. .. include:: ../../applications/heidelberg/tutoriel.ipynb
+
 
 Indices and tables
 ==================

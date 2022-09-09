@@ -128,6 +128,8 @@ class HeavisidePhiApprox(SpikeFunction):
 		\\end{equation}
 		:label: heaviside_phi_approx
 	
+	.. bibliography::
+	
 	"""
 	epsilon = 1e-5
 	

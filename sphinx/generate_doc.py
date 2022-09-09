@@ -6,9 +6,6 @@ def generate_doc(path_to_root_dir: str = '.'):
 		rf"sphinx-apidoc -f -o {path_to_root_dir}/sphinx/source {path_to_root_dir}/src/neurotorch",
 		rf"{path_to_root_dir}\sphinx\make clean html",
 		rf"{path_to_root_dir}\sphinx\make html",
-		# r"rmdir ../docs",
-		# r"mkdir ../docs",
-		# r"move ./build/html/* ../docs/"
 	]
 	for command in commands:
 		print(f"Executing: {command}")

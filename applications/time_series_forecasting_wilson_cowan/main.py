@@ -55,8 +55,8 @@ def train_with_params(
 	)
 	model = nt.SequentialModel(layers=[ws_layer], device=device, foresight_time_steps=x.shape[1] - 1)
 	model.build()
-	regularisation = DaleLawL2([ws_layer.forward_weights], alpha=0,
-							   reference_weights=nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99))
+	regularisation = DaleLawL2([ws_layer.forward_weights], alpha=0.3,
+							   reference_weights=[nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)])
 	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.1)
 	optimizer_regul = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
 	criterion = nn.MSELoss()
@@ -119,12 +119,12 @@ for neuron in range(data.shape[0]):
 	data[neuron, :] = data[neuron, :] - np.min(data[neuron, :])
 	data[neuron, :] = data[neuron, :] / np.max(data[neuron, :])
 
-forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)
+forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.2)
 
 res = train_with_params(
 	true_time_series=data,
 	learning_rate=1e-2,
-	epochs=750,
+	epochs=500,
 	forward_weights=forward_weights,
 	std_weights=1,
 	dt=0.02,
@@ -144,7 +144,7 @@ res = train_with_params(
 plt.imshow(res["W0"], cmap="RdBu_r")
 plt.colorbar()
 plt.show()
-plt.imshow(res["W"], cmap="RdBu_r")
+plt.imshow(res["W"], cmap="RdBu_r", vmin=-1, vmax=1)
 plt.colorbar()
 plt.show()
 

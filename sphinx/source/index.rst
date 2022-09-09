@@ -11,10 +11,19 @@ Welcome to NeuroTorch's documentation!
    :align: center
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+    :maxdepth: 2
+    :caption: Contents:
 
-   modules
+    readme
+
+.. toctree::
+   :maxdepth: 4
+   :caption: Modules:
+
+   neurotorch
+
+
+.. include:: readme.rst
 
 
 Indices and tables

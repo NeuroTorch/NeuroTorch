@@ -76,6 +76,10 @@ extensions = [
     # 'sphinx_rtd_theme',
     'sphinxcontrib.bibtex',
     'sphinx_mdinclude',
+    # 'nbsphinx',
+    'sphinx.ext.mathjax',
+    # 'sphinx.ext.mathbase',
+    'sphinx.ext.todo',
 ]
 
 bibtex_bibfiles = ['references.bib']
@@ -92,3 +96,12 @@ html_static_path = ['_static']
 # html_css_files = [
 #     'css/float_right.css',
 # ]
+# mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+mathjax_path = "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+latex_engine = 'xelatex'
+latex_elements = {
+    'preamble': r'\usepackage{physics}'
+                r'\usepackage{mathtools}'
+                r'\usepackage{amsmath}'
+                r'\usepackage{nicefrac}'
+}

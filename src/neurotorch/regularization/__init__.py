@@ -9,8 +9,7 @@ class BaseRegularization(torch.nn.Module):
 
 	:Attributes:
 		- :attr:`params` (torch.nn.ParameterList): The parameters which are regularized.
-		- :attr:`Lambda` (float): The weight of the regularization. In other words, the coefficient that multiplies
-			the loss.
+		- :attr:`Lambda` (float): The weight of the regularization. In other words, the coefficient that multiplies the loss.
 
 	"""
 	def __init__(

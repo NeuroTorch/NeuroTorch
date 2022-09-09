@@ -113,7 +113,6 @@ class TestWilsonCowanLayer(unittest.TestCase):
 		input_ = torch.rand(1, 3, device="cpu")
 		output = layer(input_)
 		self.assertIsInstance(output[0], torch.Tensor)
-		self.assertEqual(output[1], (None,))
 		self.assertEqual(output[0].shape, (1, 3))
 		self.assertEqual(output[0].device.type, layer.device.type)
 		self.assertEqual(layer.mu.device.type, layer.device.type)
@@ -126,7 +125,6 @@ class TestWilsonCowanLayer(unittest.TestCase):
 			input_ = torch.rand(1, 3, device="cpu")
 			output = layer(input_)
 			self.assertIsInstance(output[0], torch.Tensor)
-			self.assertEqual(output[1], (None,))
 			self.assertEqual(output[0].shape, (1, 3))
 			self.assertEqual(output[0].device, layer.device)
 			self.assertEqual(layer.mu.device, layer.device)
@@ -138,7 +136,6 @@ class TestWilsonCowanLayer(unittest.TestCase):
 			input_ = torch.rand(1, 3, device=torch.device(type="cuda", index=0))
 			output = layer(input_)
 			self.assertIsInstance(output[0], torch.Tensor)
-			self.assertEqual(output[1], (None,))
 			self.assertEqual(output[0].shape, (1, 3))
 			self.assertEqual(output[0].device, layer.device)
 			self.assertEqual(layer.mu.device, layer.device)
@@ -159,7 +156,6 @@ class TestWilsonCowanLayer(unittest.TestCase):
 		input_ = torch.rand(1, 3)
 		output = layer(input_)
 		self.assertIsInstance(output[0], torch.Tensor)
-		self.assertEqual(output[1], (None,))
 		self.assertEqual(output[0].shape, (1, 3))
 
 	def test_intialize_weights(self):

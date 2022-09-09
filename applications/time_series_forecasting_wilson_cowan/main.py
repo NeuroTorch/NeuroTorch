@@ -31,6 +31,7 @@ def train_with_params(
 		learn_r: bool = False,
 		learn_tau: bool = False,
 		device: torch.device = torch.device("cpu"),
+		hh_init: str = "inputs"
 ):
 	if not torch.is_tensor(true_time_series):
 		true_time_series = torch.tensor(true_time_series, dtype=torch.float32, device=device)
@@ -50,10 +51,13 @@ def train_with_params(
 		learn_r=learn_r,
 		learn_mu=learn_mu,
 		learn_tau=learn_tau,
+		hh_init=hh_init,
 		device=device,
 		name="WilsonCowan"
 	)
-	model = nt.SequentialModel(layers=[ws_layer], device=device, foresight_time_steps=x.shape[1] - 1)
+	ws_layer_2 = deepcopy(ws_layer)
+	ws_layer_2.name = "Yo"
+	model = nt.SequentialModel(layers=[ws_layer, ws_layer_2], device=device, foresight_time_steps=x.shape[1] - 1)
 	model.build()
 	regularisation = DaleLawL2([ws_layer.forward_weights], alpha=0.3,
 							   reference_weights=[nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)])
@@ -138,7 +142,8 @@ res = train_with_params(
 	learn_mu=True,
 	learn_r=True,
 	learn_tau=True,
-	device=torch.device("cpu")
+	device=torch.device("cpu"),
+	hh_init="inputs"
 )
 
 plt.imshow(res["W0"], cmap="RdBu_r")

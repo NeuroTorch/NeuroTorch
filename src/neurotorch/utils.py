@@ -1,11 +1,17 @@
 import collections.abc
+import inspect
+from collections import defaultdict
+from copy import deepcopy
+
+from docutils.core import publish_doctree
+import docutils.nodes
 import enum
 import functools
 import hashlib
 import os
 import pickle
 from collections import defaultdict
-from typing import Callable, Dict, List, NamedTuple, Any, Tuple, Union, Iterable
+from typing import Callable, Dict, List, NamedTuple, Any, Tuple, Union, Iterable, Optional, Type
 import torch
 
 import numpy as np
@@ -17,6 +23,7 @@ def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 	"""
 	:param x: (batch_size, time_steps, ...)
 	:param decay:
+	
 	:return:
 	"""
 	batch_size, time_steps, *_ = x.shape
@@ -33,8 +40,10 @@ def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 def mapping_update_recursively(d, u):
 	"""
 	from https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+	
 	:param d: mapping item that wil be updated
 	:param u: mapping item updater
+	
 	:return: updated mapping recursively
 	"""
 	for k, v in u.items():
@@ -95,6 +104,7 @@ def hash_params(params: Dict[str, Any]):
 	Hash the parameters to get a unique and persistent id.
 	
 	:param params: The parameters to hash.
+	
 	:return: The hash of the parameters.
 	"""
 	return int(hashlib.md5(get_meta_name(params).encode('utf-8')).hexdigest(), 16)
@@ -123,8 +133,10 @@ def ravel_compose_transforms(
 def save_params(params: Dict[str, Any], save_path: str):
 	"""
 	Save the parameters in a file.
+	
 	:param save_path: The path to save the parameters.
 	:param params: The parameters to save.
+	
 	:return: The path to the saved parameters.
 	"""
 	pickle.dump(params, open(save_path, "wb"))
@@ -143,9 +155,11 @@ def get_transform_from_str(transform_name: str, **kwargs):
 
 	:param transform_name: The name of the transform.
 	:param kwargs: The arguments for the transform.
+	
 	:keyword Arguments:
 		* <dt>: float -> The time step of the transform.
 		* <n_steps>: float -> The number of times steps of the transform.
+	
 	:return: The transform.
 	"""
 	from torchvision.transforms import Compose
@@ -177,6 +191,7 @@ def get_all_params_combinations(params_space: Dict[str, Any]) -> List[Dict[str, 
 	Get all possible combinations of parameters.
 	
 	:param params_space: Dictionary of parameters.
+	
 	:return: List of dictionaries of parameters.
 	"""
 	import itertools
@@ -193,6 +208,7 @@ def get_all_params_combinations(params_space: Dict[str, Any]) -> List[Dict[str, 
 def set_seed(seed: int):
 	"""
 	Set the seed of the random number generator.
+	
 	:param seed: The seed to set.
 	"""
 	import random
@@ -205,7 +221,9 @@ def set_seed(seed: int):
 def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Sequential:
 	"""
 	Convert a list of callable to a list of modules.
+	
 	:param callable_list: List of callable.
+	
 	:return: List of modules.
 	"""
 	from neurotorch.transforms.wrappers import CallableToModuleWrapper
@@ -213,30 +231,4 @@ def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Se
 		c if isinstance(c, torch.nn.Module) else CallableToModuleWrapper(c)
 		for c in callable_list
 	])
-
-
-def inherit_method_docstring(_func=None, *, sep: str = '\n'):
-	# decorator to add the docstring of the parent class
-	def decorator_func(func):
-		bases = func.__class__.__bases__
-		func.__doc__ = sep.join([p.__doc__ for p in bases]) + func.__doc__
-		return func
-	
-	if _func is None:
-		return decorator_func
-	else:
-		return decorator_func(_func)
-
-
-def inherit_class_docstring(_class=None, *, sep: str = '\n'):
-	# decorator to add the docstring of the parent class
-	def decorator_func(__class):
-		bases = __class.__bases__
-		__class.__doc__ = sep.join([p.__doc__ for p in bases]) + __class.__doc__
-		return __class
-	
-	if _class is None:
-		return decorator_func
-	else:
-		return decorator_func(_class)
 

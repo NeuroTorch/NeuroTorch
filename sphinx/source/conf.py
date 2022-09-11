@@ -13,10 +13,11 @@ import neurotorch
 
 
 _html_folders_formatted = {}
+_allowed_special_methods = ["__init__", "__call__"]
 
 
 def skip(app, what, name, obj, would_skip, options):
-    if name == "__init__":
+    if name in _allowed_special_methods:
         return False
     return would_skip
 
@@ -72,8 +73,13 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
     'sphinx.ext.githubpages',
-    'sphinx_rtd_theme',
+    # 'sphinx_rtd_theme',
     'sphinxcontrib.bibtex',
+    'sphinx_mdinclude',
+    # 'nbsphinx',
+    'sphinx.ext.mathjax',
+    # 'sphinx.ext.mathbase',
+    'sphinx.ext.todo',
 ]
 
 bibtex_bibfiles = ['references.bib']
@@ -85,5 +91,17 @@ exclude_patterns = []
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'karma_sphinx_theme'
 html_static_path = ['_static']
+# html_css_files = [
+#     'css/float_right.css',
+# ]
+# mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+mathjax_path = "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+latex_engine = 'xelatex'
+latex_elements = {
+    'preamble': r'\usepackage{physics}'
+                r'\usepackage{mathtools}'
+                r'\usepackage{amsmath}'
+                r'\usepackage{nicefrac}'
+}

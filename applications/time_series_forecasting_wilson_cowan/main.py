@@ -1,40 +1,16 @@
-from typing import *
-
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset
-from neurotorch.metrics import RegressionMetrics
 from scipy.ndimage import gaussian_filter1d
-from neurotorch.visualisation.time_series_visualisation import VisualiseKMeans, Visualise
-
-import matplotlib.pyplot as plt
-
-from tqdm.auto import tqdm
+from torch.utils.data import DataLoader
 
 import neurotorch as nt
-from neurotorch.transforms import to_tensor
-from neurotorch.visualisation.time_series_visualisation import *
-from neurotorch.regularization.connectome import DaleLawL2
-from neurotorch import WilsonCowanLayer
 from dataset import WSDataset
-
-def random_matrix(N, rho):
-    """Half excitatory, half inhibitory."""
-    W = np.zeros((N, N))
-    i, j = np.triu_indices(N, 1)
-    N_0 = int((1 - rho) * len(i)) # Number of zero values
-    valuesUpper = np.append(np.array([0] * N_0),
-    np.random.normal(0, (1 / np.sqrt(N * rho * (1 - rho))), (len(i) - N_0, )))
-    valuesLower = np.append(np.array([0] * N_0),
-    np.random.normal(0, (1 / np.sqrt(N * rho * (1 - rho))), (len(i) - N_0, )))
-    np.random.shuffle(valuesUpper)
-    np.random.shuffle(valuesLower)
-    W[i, j] = valuesUpper
-    W[j, i] = valuesLower
-    W = np.abs(W)
-    W[:, int(N / 2):] *= -1
-    return torch.tensor(W, dtype=torch.float32, device=torch.device("cpu"))
+from neurotorch import WilsonCowanLayer
+from neurotorch.metrics import RegressionMetrics
+from neurotorch.regularization.connectome import DaleLawL2
+from neurotorch.visualisation.time_series_visualisation import *
 
 
 def train_with_params(
@@ -45,7 +21,7 @@ def train_with_params(
 		std_weights: float = 1,
 		dt: float = 1e-3,
 		mu: Optional[float or torch.Tensor or np.ndarray] = 0.0,
-		mean_mu : Optional[float] = 0.0,
+		mean_mu: Optional[float] = 0.0,
 		std_mu: Optional[float] = 1.0,
 		r: Optional[float or torch.Tensor or np.ndarray] = 1.0,
 		mean_r: Optional[float] = 1.0,
@@ -55,6 +31,7 @@ def train_with_params(
 		learn_r: bool = False,
 		learn_tau: bool = False,
 		device: torch.device = torch.device("cpu"),
+		hh_init: str = "inputs"
 ):
 	if not torch.is_tensor(true_time_series):
 		true_time_series = torch.tensor(true_time_series, dtype=torch.float32, device=device)
@@ -74,12 +51,16 @@ def train_with_params(
 		learn_r=learn_r,
 		learn_mu=learn_mu,
 		learn_tau=learn_tau,
+		hh_init=hh_init,
 		device=device,
 		name="WilsonCowan"
 	)
-	model = nt.SequentialModel(layers=[ws_layer], device=device, foresight_time_steps=x.shape[1]-1)
+	ws_layer_2 = deepcopy(ws_layer)
+	ws_layer_2.name = "Yo"
+	model = nt.SequentialModel(layers=[ws_layer, ws_layer_2], device=device, foresight_time_steps=x.shape[1] - 1)
 	model.build()
-	regularisation = DaleLawL2([ws_layer.forward_weights], alpha=0, reference_weights=random_matrix(x.shape[-1], 0.99).T)
+	regularisation = DaleLawL2([ws_layer.forward_weights], alpha=0.3,
+							   reference_weights=[nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)])
 	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.1)
 	optimizer_regul = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
 	criterion = nn.MSELoss()
@@ -112,7 +93,7 @@ def train_with_params(
 	x_pred.append(model.get_prediction_trace(x_pred[0]))
 	x_pred = torch.concat(x_pred, dim=1)
 	mse_loss = criterion(x_pred, x)
-	loss = 1 - mse_loss/torch.var(x)
+	loss = 1 - mse_loss / torch.var(x)
 
 	out = {}
 	out["pVar"] = loss.detach().item()
@@ -142,7 +123,7 @@ for neuron in range(data.shape[0]):
 	data[neuron, :] = data[neuron, :] - np.min(data[neuron, :])
 	data[neuron, :] = data[neuron, :] / np.max(data[neuron, :])
 
-forward_weights = random_matrix(200, 0.2).T
+forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.2)
 
 res = train_with_params(
 	true_time_series=data,
@@ -161,13 +142,14 @@ res = train_with_params(
 	learn_mu=True,
 	learn_r=True,
 	learn_tau=True,
-	device=torch.device("cpu")
+	device=torch.device("cpu"),
+	hh_init="inputs"
 )
 
 plt.imshow(res["W0"], cmap="RdBu_r")
 plt.colorbar()
 plt.show()
-plt.imshow(res["W"], cmap="RdBu_r")
+plt.imshow(res["W"], cmap="RdBu_r", vmin=-1, vmax=1)
 plt.colorbar()
 plt.show()
 
@@ -178,9 +160,15 @@ plt.ylabel("Error L2 [-]")
 plt.title(f"pVar: {res['pVar']:.4f}")
 plt.show()
 
-VisualiseKMeans(data).heatmap(show_axis=False)
-VisualiseKMeans(res["x_pred"]).heatmap(show_axis=False)
-Visualise(res["x_pred"]).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1)
+VisualiseKMeans(data, nt.Size([nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
+							   nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])).heatmap(show=True)
+VisualiseKMeans(res["x_pred"], nt.Size([nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
+										nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])).heatmap(show=True)
+Visualise(res["x_pred"], nt.Size([nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
+								  nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])).animate(time_interval=0.1,
+																									  forward_weights=
+																									  res["W"], dt=0.1,
+																									  show=True)
 
 for i in range(sample_size):
 	plt.plot(data[i, :], label="True")

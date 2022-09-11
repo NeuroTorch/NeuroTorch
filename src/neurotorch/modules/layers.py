@@ -232,7 +232,7 @@ class BaseLayer(torch.nn.Module):
 		self.reset_regularization_loss()
 		return self
 
-	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
+	def create_empty_state(self, batch_size: int = 1, **kwargs) -> Tuple[torch.Tensor, ...]:
 		"""
 		Create an empty state for the layer. This method must be implemented by the child class.
 		
@@ -247,12 +247,13 @@ class BaseLayer(torch.nn.Module):
 	def _init_forward_state(
 			self,
 			state: Tuple[torch.Tensor, ...] = None,
-			batch_size: int = 1
+			batch_size: int = 1,
+			**kwargs
 	) -> Tuple[torch.Tensor, ...]:
 		if state is None:
-			state = self.create_empty_state(batch_size)
-		elif any([e is None for e in state]):
-			empty_state = self.create_empty_state(batch_size)
+			state = self.create_empty_state(batch_size, **kwargs)
+		elif isinstance(state, (list, tuple)) and any([e is None for e in state]):
+			empty_state = self.create_empty_state(batch_size, **kwargs)
 			state = list(state)
 			for i, e in enumerate(state):
 				if e is None:
@@ -1050,6 +1051,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			output_size: Optional[SizeTypes] = None,
 			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,
+			use_recurrent_connection: bool = False,
 			device=None,
 			**kwargs
 	):
@@ -1082,7 +1084,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		super(WilsonCowanLayer, self).__init__(
 			input_size=input_size,
 			output_size=output_size,
-			use_recurrent_connection=False,
+			use_recurrent_connection=use_recurrent_connection,
 			learning_type=learning_type,
 			dt=dt,
 			device=device,
@@ -1112,6 +1114,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("learn_r", False)
 		self.kwargs.setdefault("mean_r", 2.0)
 		self.kwargs.setdefault("std_r", 0.0)
+		self.kwargs.setdefault("hh_init", "inputs")
 
 	def _assert_kwargs(self):
 		assert self.std_weight >= 0.0, "std_weight must be greater or equal to 0.0"
@@ -1134,6 +1137,12 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
 			torch.nn.init.normal_(self.forward_weights, mean=0.0, std=self.std_weight)
+
+		if "recurrent_weights" in self.kwargs and self.use_recurrent_connection:
+			self.recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
+		elif self.use_recurrent_connection:
+			torch.nn.init.xavier_normal_(self.recurrent_weights)
+
 		# If mu is not a parameter, it takes the value 0.0 unless stated otherwise by user
 		# If mu is a parameter, it is initialized as a vector with the correct mean and std
 		# unless stated otherwise by user.
@@ -1149,15 +1158,43 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		if self.learn_tau:
 			self.tau = torch.nn.Parameter(self.tau, requires_grad=self.requires_grad)
 
-	def create_empty_state(self, batch_size: int = 1) -> None:
+	def create_empty_state(self, batch_size: int = 1, **kwargs) -> Tuple[torch.Tensor]:
 		"""
 		Create an empty state. With RNN, this function is not use
 		:param batch_size: The size of the current batch
 		:return: None
 		"""
-		return None
+		if self.kwargs["hh_init"] == "zeros":
+			state = [torch.zeros(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+			) for _ in range(1)]
+		elif self.kwargs["hh_init"] == "random":
+			mu, std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", 1.0)
+			gen = torch.Generator()
+			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
+			state = [(torch.rand(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+				generator=gen,
+			)*std + mu) for _ in range(1)]
+		elif self.kwargs["hh_init"] == "inputs":
+			assert "inputs" in kwargs, "inputs must be provided to initialize the state"
+			assert kwargs["inputs"].shape == (batch_size, int(self.output_size))
+			state = (kwargs["inputs"].clone(), )
+		else:
+			raise ValueError("Hidden state init method not known. Please use 'zeros', 'inputs' or 'random'")
+		return tuple(state)
 
-	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Tuple[None]]:
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Optional[torch.Tensor] = None
+	) -> Tuple[torch.Tensor, Tuple[torch.Tensor]]:
 		"""
 		Forward pass
 		With Euler discretisation, Wilson-Cowan equation becomes:
@@ -1167,11 +1204,19 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		:param state: State of the layer (only for SNN -> not use for RNN)
 		:return: (time series at a time t+1, State of the layer -> None)
 		"""
+		batch_size, nb_features = inputs.shape
+		hh, = self._init_forward_state(state, batch_size, inputs=inputs)
 		ratio_dt_tau = self.dt / self.tau
-		transition_rate = (1 - inputs * self.r)
-		sigmoid = torch.sigmoid(torch.matmul(inputs, self.forward_weights) - self.mu)
-		output = inputs * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
-		return output, (None, )
+
+		if self.use_recurrent_connection:
+			rec_inputs = torch.matmul(hh, torch.mul(self.recurrent_weights, self.rec_mask))
+		else:
+			rec_inputs = 0.0
+
+		transition_rate = (1 - hh * self.r)
+		sigmoid = torch.sigmoid(rec_inputs + torch.matmul(inputs, self.forward_weights) - self.mu)
+		output = hh * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
+		return output, (output, )
 
 
 class LILayer(BaseNeuronsLayer):

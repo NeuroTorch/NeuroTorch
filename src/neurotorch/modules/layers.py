@@ -307,7 +307,12 @@ class BaseLayer(torch.nn.Module):
 			self.update_regularization_loss(hidden_state)
 		return call_output
 
-	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: torch.Tensor = None,
+			**kwargs
+	) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
 		raise NotImplementedError()
 
 	def initialize_weights_(self):
@@ -414,6 +419,9 @@ class BaseNeuronsLayer(BaseLayer):
 		
 		:keyword bool regularize: Whether to regularize the layer. If True, the method `update_regularization_loss` will
 			be called after each forward pass. Defaults to False.
+		:keyword str hh_init: The initialization method for the hidden state. Defaults to "zeros".
+		:keyword float hh_init_mu: The mean of the hidden state initialization when hh_init is random . Defaults to 0.0.
+		:keyword float hh_init_std: The standard deviation of the hidden state initialization when hh_init is random. Defaults to 1.0.
 		"""
 		self.dt = dt
 		self.use_recurrent_connection = use_recurrent_connection
@@ -430,10 +438,50 @@ class BaseNeuronsLayer(BaseLayer):
 			**kwargs
 		)
 
-	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
-		raise NotImplementedError()
+	def create_empty_state(
+			self,
+			batch_size: int = 1,
+			**kwargs
+	) -> Tuple[torch.Tensor, ...]:
+		self.kwargs.setdefault("hh_init", "zeros")
+		self.kwargs.setdefault("hh_init_mu", 0.0)
+		self.kwargs.setdefault("hh_init_std", 1.0)
+		
+		n_hh = kwargs.get("n_hh", 1)
+		if self.kwargs["hh_init"] == "zeros":
+			state = tuple(
+				[torch.zeros(
+					(batch_size, int(self._output_size)),
+					device=self._device,
+					dtype=torch.float32,
+					requires_grad=True,
+				) for _ in range(n_hh)]
+			)
+		elif self.kwargs["hh_init"] == "random":
+			mu, std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", 1.0)
+			gen = torch.Generator()
+			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
+			state = [(torch.rand(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+				generator=gen,
+			) * std + mu) for _ in range(n_hh)]
+		elif self.kwargs["hh_init"] == "inputs":
+			assert "inputs" in kwargs, "inputs must be provided to initialize the state"
+			assert kwargs["inputs"].shape == (batch_size, int(self.output_size))
+			state = (kwargs["inputs"].clone(),)
+		else:
+			raise ValueError("Hidden state init method not known. Please use 'zeros', 'inputs' or 'random'")
+		return tuple(state)
 
-	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: torch.Tensor = None,
+			**kwargs
+	) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
 		raise NotImplementedError()
 
 	def initialize_weights_(self):
@@ -497,6 +545,7 @@ class BaseNeuronsLayer(BaseLayer):
 		return _repr
 
 
+@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class LIFLayer(BaseNeuronsLayer):
 	"""
 	LIF dynamics, inspired by :cite:t:`neftci_surrogate_2019` , :cite:t:`bellec_solution_2020` , models the synaptic
@@ -543,8 +592,6 @@ class LIFLayer(BaseNeuronsLayer):
 	
 	where :math:`V_{\\text{th}}` denotes the activation threshold of the neuron and the function :math:`H(\\cdot)`
 	is the Heaviside function defined as :math:`H(x) = 1` if :math:`x \\geq 0` and :math:`H(x) = 0` otherwise.
-
-	.. bibliography::
 	
 	:Attributes:
 		- :attr:`forward_weights` (torch.nn.Parameter): The weights used to compute the output of the layer :math:`W_{ij}^{\\text{in}}` in equation :eq:`lif_V`.
@@ -626,7 +673,11 @@ class LIFLayer(BaseNeuronsLayer):
 		elif self.use_recurrent_connection:
 			torch.nn.init.xavier_normal_(self.recurrent_weights)
 
-	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
+	def create_empty_state(
+			self,
+			batch_size: int = 1,
+			**kwargs
+	) -> Tuple[torch.Tensor, ...]:
 		"""
 		Create an empty state in the following form:
 			([membrane potential of shape (batch_size, self.output_size)],
@@ -635,13 +686,8 @@ class LIFLayer(BaseNeuronsLayer):
 		:param batch_size: The size of the current batch.
 		:return: The current state.
 		"""
-		state = tuple([torch.zeros(
-			(batch_size, int(self._output_size)),
-			device=self._device,
-			dtype=torch.float32,
-			requires_grad=True,
-		) for _ in range(2)])
-		return state
+		kwargs.setdefault("n_hh", 2)
+		return super(LIFLayer, self).create_empty_state(batch_size=batch_size, **kwargs)
 
 	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
 		"""
@@ -657,7 +703,12 @@ class LIFLayer(BaseNeuronsLayer):
 		return self._regularization_loss
 	
 	@inherit_docstring(bases=BaseNeuronsLayer)
-	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Tuple[torch.Tensor, ...] = None,
+			**kwargs
+	):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape
 		V, Z = self._init_forward_state(state, batch_size)
@@ -671,13 +722,80 @@ class LIFLayer(BaseNeuronsLayer):
 		return next_Z, (next_V, next_Z)
 
 
+@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class SpyLIFLayer(BaseNeuronsLayer):
 	"""
-	The SpyLIF layer is a LIF layer implemented by the SpyTorch library
-	(https://github.com/surrogate-gradient-learning/spytorch) from the
-	paper: https://ieeexplore.ieee.org/document/8891809. In this LIF varient they are using a second differential
-	equation to model the synaptic current. The second hidden state of the layer add more memory to the model since
-	it is not reset every spike like the membrane potential.
+	The SpyLIF dynamics is a more complex variant of the LIF dynamics (class :class:`LIFLayer`) allowing it to have a
+	greater power of expression. This variant is also inspired by Neftci :cite:t:`neftci_surrogate_2019` and also
+	contains  two differential equations like the SpyLI dynamics :class:`SpyLI`. The equation :eq:`SpyLIF_I` presents
+	the synaptic current update equation with euler integration while the equation :eq:`SpyLIF_V` presents the
+	synaptic potential update.
+	
+	.. math::
+		:label: SpyLIF_I
+		
+		\\begin{equation}
+			I_{\\text{syn}, j}^{t+\\Delta t} = \\alpha I_{\text{syn}, j}^{t} + \\sum_{i}^{N} W_{ij}^{\\text{rec}} z_i^t
+			+ \\sum_i^{N} W_{ij}^{\\text{in}} x_i^{t+\\Delta t}
+		\\end{equation}
+		
+		
+	.. math::
+		:label: SpyLIF_V
+		
+		\\begin{equation}
+			V_j^{t+\\Delta t} = \\left(\\beta V_j^t + I_{\\text{syn}, j}^{t+\\Delta t}\\right) \\left(1 - z_j^t\\right)
+		\\end{equation}
+		
+		
+	.. math::
+		:label: spylif_alpha
+		
+		\\begin{equation}
+			\\alpha = e^{-\\frac{\\Delta t}{\\tau_{\\text{syn}}}}
+		\\end{equation}
+	
+	with :math:`\\tau_{\\text{syn}}` being the decay time constant of the synaptic current.
+	
+	.. math::
+		:label: spylif_beta
+		
+		\\begin{equation}
+			\\beta = e^{-\\frac{\\Delta t}{\\tau_{\\text{mem}}}}
+		\\end{equation}
+	
+	with :math:`\\tau_{\\text{syn}}` being the decay time constant of the synaptic current.
+	
+	The output of neuron :math:`j` at time :math:`t` denoted :math:`z_j^t` is defined by the equation :eq:`spylif_z` .
+	
+	.. math::
+		:label: spylif_z
+		
+		z_j^t = H(V_j^t - V_{\\text{th}})
+	
+	where :math:`V_{\\text{th}}` denotes the activation threshold of the neuron and the function :math:`H(\\cdot)`
+	is the Heaviside function defined as :math:`H(x) = 1` if :math:`x \\geq 0` and :math:`H(x) = 0` otherwise.
+	
+	SpyTorch library: https://github.com/surrogate-gradient-learning/spytorch.
+	
+	The variables of the equations :eq:`SpyLIF_I` and :eq:`SpyLIF_V` are described by the following definitions:
+		
+		- :math:`N` is the number of neurons in the layer.
+		- :math:`I_{\\text{syn}, j}^{t}` is the synaptic current of neuron :math:`j` at time :math:`t`.
+		- :math:`V_j^t` is the synaptic potential of the neuron :math:`j` at time :math:`t`.
+		- :math:`\\Delta t` is the integration time step.
+		- :math:`z_j^t` is the spike of the neuron :math:`j` at time :math:`t`.
+		- :math:`\\alpha` is the decay constant of the synaptic current over time (equation :eq:`spylif_alpha`).
+		- :math:`\\beta` is the decay constant of the membrane potential over time (equation :eq:`spylif_beta`).
+		- :math:`W_{ij}^{\\text{rec}}` is the recurrent weight of the neuron :math:`i` to the neuron :math:`j`.
+		- :math:`W_{ij}^{\\text{in}}` is the input weight of the neuron :math:`i` to the neuron :math:`j`.
+		- :math:`x_i^{t}` is the input of the neuron :math:`i` at time :math:`t`.
+	
+	:Attributes:
+		- :attr:`alpha` (torch.nn.Parameter): Decay constant of the synaptic current over time (equation :eq:`spylif_alpha`).
+		- :attr:`beta` (torch.nn.Parameter): Decay constant of the membrane potential over time (equation :eq:`spylif_beta`).
+		- :attr:`threshold` (torch.nn.Parameter): Activation threshold of the neuron (:math:`V_{\\text{th}}`).
+		- :attr:`gamma` (torch.nn.Parameter): Slope of the Heaviside function (:math:`\\gamma`).
 	"""
 	def __init__(
 			self,
@@ -695,23 +813,32 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		Constructor for the SpyLIF layer.
 
 		:param input_size: The size of the input.
+		:type input_size: Optional[SizeTypes]
 		:param output_size: The size of the output.
+		:type output_size: Optional[SizeTypes]
 		:param name: The name of the layer.
+		:type name: Optional[str]
 		:param use_recurrent_connection: Whether to use the recurrent connection.
+		:type use_recurrent_connection: bool
 		:param use_rec_eye_mask: Whether to use the recurrent eye mask.
+		:type use_rec_eye_mask: bool
 		:param spike_func: The spike function to use.
+		:type spike_func: Callable[[torch.Tensor], torch.Tensor]
 		:param learning_type: The learning type to use.
+		:type learning_type: LearningType
 		:param dt: Time step (Euler's discretisation).
+		:type dt: float
 		:param device: The device to use.
+		:type device: Optional[torch.device]
 		:param kwargs: The keyword arguments for the layer.
 
-		:Keyword Arguments:
-			* <tau_syn>: float -> The synaptic time constant. Default: 5.0 * dt.
-			* <tau_mem>: float -> The membrane time constant. Default: 10.0 * dt.
-			* <threshold>: float -> The threshold of the layer. Default: 1.0.
-			* <gamma>: float -> The multiplier of the derivative of the spike function. Default: 100.0.
-			* <spikes_regularization_factor>: float -> The regularization factor for the spikes. Higher this factor is,
+		:keyword float tau_syn: The synaptic time constant :math:`\\tau_{\\text{syn}}`. Default: 5.0 * dt.
+		:keyword float tau_mem: The membrane time constant :math:`\\tau_{\\text{mem}}`. Default: 10.0 * dt.
+		:keyword float threshold: The threshold potential :math:`V_{\\text{th}}`. Default: 1.0.
+		:keyword float gamma: The multiplier of the derivative of the spike function :math:`\\gamma`. Default: 100.0.
+		:keyword float spikes_regularization_factor: The regularization factor for the spikes. Higher this factor is,
 			the more the network will tend to spike less. Default: 0.0.
+
 		"""
 		self.spike_func = HeavisideSigmoidApprox
 		super(SpyLIFLayer, self).__init__(
@@ -765,22 +892,22 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		elif self.use_recurrent_connection:
 			torch.nn.init.normal_(self.recurrent_weights, mean=0.0, std=weight_scale/np.sqrt(int(self.output_size)))
 
-	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
+	def create_empty_state(
+			self,
+			batch_size: int = 1,
+			**kwargs
+	) -> Tuple[torch.Tensor, ...]:
 		"""
 		Create an empty state in the following form:
 			([membrane potential of shape (batch_size, self.output_size)],
 			[synaptic current of shape (batch_size, self.output_size)],
 			[spikes of shape (batch_size, self.output_size)])
+		
 		:param batch_size: The size of the current batch.
 		:return: The current state.
 		"""
-		state = tuple([torch.zeros(
-			(batch_size, int(self._output_size)),
-			device=self._device,
-			dtype=torch.float32,
-			requires_grad=True,
-		) for _ in range(3)])
-		return state
+		kwargs.setdefault("n_hh", 3)
+		return super(SpyLIFLayer, self).create_empty_state(batch_size=batch_size, **kwargs)
 
 	def reset_regularization_loss(self):
 		super(SpyLIFLayer, self).reset_regularization_loss()
@@ -806,7 +933,12 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		self._regularization_loss = self._regularization_l1
 		return self._regularization_loss
 
-	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Tuple[torch.Tensor, ...] = None,
+			**kwargs
+	):
 		assert inputs.ndim == 2, f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
 		batch_size, nb_features = inputs.shape
 		V, I_syn, Z = self._init_forward_state(state, batch_size)
@@ -821,7 +953,58 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		return next_Z, (next_V, next_I_syn, next_Z)
 
 
+@inherit_fields_docstring(fields=["Attributes"], bases=[LIFLayer])
 class ALIFLayer(LIFLayer):
+	"""
+	The ALIF dynamic, inspired by Bellec and \\textit{al.} :cite:t:`bellec_solution_2020`, is very
+	similar to the LIF dynamics (class :class:`LIFLayer`). In fact, ALIF has exactly the same potential
+	update equation as LIF. The difference comes
+	from the fact that the threshold potential varies with time and neuron input. Indeed, the threshold
+	is increased at each output pulse and is then decreased with a certain rate in order to come back to
+	its starting threshold :math:`V_{\\text{th}}`. The threshold equation from :class:`LIFLayer` is thus slightly
+	modified by changing :math:`V_{\\text{th}} \\to A_j^t`. Thus, the output of neuron :math:`j` at time :math:`t`
+	denoted :math:`z_j^t` is redefined by the equation :eq:`alif_z`.
+	
+	.. math::
+		:label: alif_z
+		
+		\\begin{equation}
+			z_j^t = H(V_j^t - A_j^t)
+		\\end{equation}
+	
+	The update of the activation threshold is then described by :eq:`alif_A`.
+	
+	.. math::
+		:label: alif_A
+	
+		\\begin{equation}
+			A_j^t = V_{\\text{th}} + \\beta a_j^t
+		\\end{equation}
+	
+	with the adaptation variable :math:`a_j^t` described by :eq:`alif_a` and :math:`\\beta` an amplification
+	factor greater than 1 and typically equivalent to :math:`\\beta\\approx 1.6` :cite:t:`bellec_solution_2020`.
+	
+	.. math::
+		:label: alif_a
+	
+		\\begin{equation}
+			a_j^{t+1} = \\rho a_j + z_j^t
+		\\end{equation}
+	
+	With the decay factor :math:`\\rho` as:
+	
+	.. math::
+		:label: alif_rho
+		
+		\\begin{equation}
+			\\rho = e^{-\\frac{\\Delta t}{\\tau_a}}
+		\\end{equation}
+		
+	:Attributes:
+		- :attr:`beta`: The amplification factor of the threshold potential :math:`\\beta`.
+		- :attr:`rho`: The decay factor of the adaptation variable :math:`\\rho`.
+		
+	"""
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -869,24 +1052,32 @@ class ALIFLayer(LIFLayer):
 		self.kwargs.setdefault("learn_beta", False)
 		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
 
-	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
+	def create_empty_state(
+			self,
+			batch_size: int = 1,
+			**kwargs
+	) -> Tuple[torch.Tensor, ...]:
 		"""
 		Create an empty state in the following form:
 			[[membrane potential of shape (batch_size, self.output_size)]
 			[current threshold of shape (batch_size, self.output_size)]
 			[spikes of shape (batch_size, self.output_size)]]
+		
 		:param batch_size: The size of the current batch.
+		:type batch_size: int
+		
 		:return: The current state.
+		:rtype: Tuple[torch.Tensor, ...]
 		"""
-		state = [torch.zeros(
-			(batch_size, int(self._output_size)),
-			device=self._device,
-			dtype=torch.float32,
-			requires_grad=True,
-		) for _ in range(3)]
-		return tuple(state)
+		kwargs.setdefault("n_hh", 3)
+		return super(ALIFLayer, self).create_empty_state(batch_size=batch_size, **kwargs)
 
-	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Tuple[torch.Tensor, ...] = None,
+			**kwargs
+	):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape
 		V, a, Z = self._init_forward_state(state, batch_size)
@@ -906,8 +1097,12 @@ class ALIFLayer(LIFLayer):
 		"""
 		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
 		the regularization loss will be the sum of all calls to this function.
+		
 		:param state: The current state of the layer.
+		:type state: Optional[Any]
+		
 		:return: The updated regularization loss.
+		:rtype: torch.Tensor
 		"""
 		next_V, next_a, next_Z = state
 		self._regularization_loss += self.kwargs["spikes_regularization_factor"]*torch.sum(next_Z)
@@ -915,10 +1110,12 @@ class ALIFLayer(LIFLayer):
 		return self._regularization_loss
 
 
+@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class IzhikevichLayer(BaseNeuronsLayer):
 	"""
 	Izhikevich p.274
-
+	
+	Not usable for now, stay tuned.
 	"""
 	def __init__(
 			self,
@@ -981,7 +1178,11 @@ class IzhikevichLayer(BaseNeuronsLayer):
 			else:
 				torch.nn.init.normal_(param, std=gain)
 
-	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
+	def create_empty_state(
+			self,
+			batch_size: int = 1,
+			**kwargs
+	) -> Tuple[torch.Tensor, ...]:
 		"""
 		Create an empty state in the following form:
 			([membrane potential of shape (batch_size, self.output_size)],
@@ -1010,7 +1211,12 @@ class IzhikevichLayer(BaseNeuronsLayer):
 		)
 		return V, u, Z
 
-	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Tuple[torch.Tensor, ...] = None,
+			**kwargs
+	):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape
 		V, u, Z = self._init_forward_state(state, batch_size)
@@ -1029,31 +1235,27 @@ class IzhikevichLayer(BaseNeuronsLayer):
 		return next_Z, (next_V, next_u, next_Z)
 
 
+@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class WilsonCowanLayer(BaseNeuronsLayer):
 	"""
 	This layer is use for Wilson-Cowan neuronal dynamics.
 	This dynamic is also referred to as firing rate model.
 	Wilson-Cowan dynamic is great for neuronal calcium activity.
-	This layer use recurrent neural network (RNN)
+	This layer use recurrent neural network (RNN).
 	The number of parameters that are trained is N^2 (+2N if mu and r is train)
 	where N is the number of neurons.
+	
 	For references, please read:
-	* Wilson HR, Cowan JD (1972) Excitatory and Inhibitory Interactions in
-	Localized Populations of Model Neurons :
-	https://doi.org/10.1016/S0006-3495(72)86068-5
-
-	* Painchaud V, Doyon N, Desrosiers P (2022) Beyond Wilson-Cowan dynamics: oscillations
-	and chaos without inhibitions :
-	https://doi.org/10.48550/arXiv.2204.00583
-
-	* Vogels TP, Rajan K, Abbott LF (2005) Neural Network dynamic:
-	https://doi.org/10.1146/annurev.neuro.28.061604.135637
+		
+		- Excitatory and Inhibitory Interactions in Localized Populations of Model Neurons :cite:t:`wilson1972excitatory`
+		- Beyond Wilson-Cowan dynamics: oscillations and chaos without inhibitions :cite:t:`PainchaudDoyonDesrosiers2022`
+		- Neural Network dynamic :cite:t:`VogelsTimRajanAbbott2005NeuralNetworkDynamics`.
 
 	The Wilson-Cowan dynamic is one of many dynamical models that can be used
 	to model neuronal activity. To explore more continuous and Non-linear dynamics,
-	please read:
-	* Grossberg S (1987) Nonlinear Neural Network: Principles, Mechanisms, and Architecture :
-	https://doi.org/10.1016/0893-6080(88)90021-4
+	please read Nonlinear Neural Network: Principles, Mechanisms, and Architecture :cite:t:`GROSSBERG198817`.
+	
+
 	"""
 	def __init__(
 			self,
@@ -1067,27 +1269,30 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 	):
 		"""
 		:param input_size: size of the input
+		:type input_size: Optional[SizeTypes]
 		:param output_size: size of the output
 			If we are predicting time series -> input_size = output_size
+		:type output_size: Optional[SizeTypes]
 		:param learning_type: Type of learning for the gradient descent
+		:type learning_type: LearningType
 		:param dt: Time step (Euler's discretisation)
+		:type dt: float
 		:param device: device for computation
-		:param kwargs: Dict -> see below
-		:keyword Arguments:
-			* <forward_weights>: torch.Tensor or np.ndarray -> set custom forward weights
-			* <std_weight>: float -> Instability of the initial random matrix
-			* <mu>: float or torch.Tensor -> Activation threshold
-				If torch.Tensor -> shape (1, number of neurons)
-			* <mean_mu>: float -> Mean of the activation threshold (if learn_mu is True)
-			* <std_mu>: float -> Standard deviation of the activation threshold (if learn_mu is True)
-			* <learn_mu>: bool -> Whether to train the activation threshold
-			* <tau>: float -> Decay constant of RNN unit
-			* <learn_tau> -> bool -> Wheter to train the decay constant
-			* <r>: float or torch.Tensor -> Transition rate of the RNN unit
-				If torch.Tensor -> shape (1, number of neurons)
-			* <mean_r>: float -> Mean of the transition rate (if learn_r is True)
-			* <std_r>: float -> Standard deviation of the transition rate (if learn_r is True)
-			* <learn_r>: bool -> Whether to train the transition rate
+		:type device: torch.device
+		:param kwargs: Additional parameters for the Wilson-Cowan dynamic.
+		
+		:keyword Union[torch.Tensor, np.ndarray] forward_weights: Forward weights of the layer.
+		:keyword float std_weight: Instability of the initial random matrix.
+		:keyword Union[float, torch.Tensor] mu: Activation threshold. If torch.Tensor -> shape (1, number of neurons).
+		:keyword float mean_mu: Mean of the activation threshold (if learn_mu is True).
+		:keyword float std_mu: Standard deviation of the activation threshold (if learn_mu is True).
+		:keyword bool learn_mu: Whether to train the activation threshold.
+		:keyword float tau: Decay constant of RNN unit.
+		:keyword bool learn_tau: Whether to train the decay constant.
+		:keyword float r: Transition rate of the RNN unit. If torch.Tensor -> shape (1, number of neurons).
+		:keyword float mean_r: Mean of the transition rate (if learn_r is True).
+		:keyword float std_r: Standard deviation of the transition rate (if learn_r is True).
+		:keyword bool learn_r: Whether to train the transition rate.
 
 		Remarks: Parameter mu and r can only be a parameter as a vector.
 		"""
@@ -1169,11 +1374,6 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			self.tau = torch.nn.Parameter(self.tau, requires_grad=self.requires_grad)
 
 	def create_empty_state(self, batch_size: int = 1, **kwargs) -> Tuple[torch.Tensor]:
-		"""
-		Create an empty state. With RNN, this function is not use
-		:param batch_size: The size of the current batch
-		:return: None
-		"""
 		if self.kwargs["hh_init"] == "zeros":
 			state = [torch.zeros(
 				(batch_size, int(self.output_size)),
@@ -1203,16 +1403,23 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 	def forward(
 			self,
 			inputs: torch.Tensor,
-			state: Optional[torch.Tensor] = None
+			state: Optional[Tuple[torch.Tensor, ...]] = None,
+			**kwargs
 	) -> Tuple[torch.Tensor, Tuple[torch.Tensor]]:
 		"""
-		Forward pass
+		Forward pass.
 		With Euler discretisation, Wilson-Cowan equation becomes:
+		
 		output = input * (1 - dt/tau) + dt/tau * (1 - input @ r) * sigmoid(input @ forward_weight - mu)
+		
 		:param inputs: time series at a time t of shape (batch_size, number of neurons)
-			Remark: if you use to compute a time series, use batch_size = 1
+			Remark: if you use to compute a time series, use batch_size = 1.
+		:type inputs: torch.Tensor
 		:param state: State of the layer (only for SNN -> not use for RNN)
+		:type state: Optional[Tuple[torch.Tensor, ...]]
+		
 		:return: (time series at a time t+1, State of the layer -> None)
+		:rtype: Tuple[torch.Tensor, Tuple[torch.Tensor, ...]]
 		"""
 		batch_size, nb_features = inputs.shape
 		hh, = self._init_forward_state(state, batch_size, inputs=inputs)
@@ -1229,7 +1436,42 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		return output, (output, )
 
 
+@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class LILayer(BaseNeuronsLayer):
+	"""
+	The integration in time of these dynamics is done using the equation
+	:eq:`li_v` inspired by Bellec and al. :cite:t:`bellec_solution_2020`.
+	
+	.. math::
+		:label: li_v
+		
+		\\begin{equation}
+			V_j^{t+\\Delta t} = \\kappa V_j^{t} + \\sum_{i}^N W_{ij}x_i^{t+\\Delta t} + b_j
+		\\end{equation}
+	
+	.. math::
+		:label: li_kappa
+		
+		\\begin{equation}
+			\\kappa = e^{-\\frac{\\Delta t}{\\tau_{\\text{mem}}}}
+		\\end{equation}
+	
+	
+	The parameters of the equation :eq:`li_v` are:
+		
+		- :math:`N` is the number of neurons in the layer.
+		- :math:`V_j^t` is the synaptic potential of the neuron :math:`j` at time :math:`t`.
+		- :math:`\\Delta t` is the integration time step.
+		- :math:`\\kappa` is the decay constant of the synaptic current over time (equation :eq:`li_kappa`).
+		- :math:`W_{ij}^{\\text{rec}}` is the recurrent weight of the neuron :math:`i` to the neuron :math:`j`.
+		- :math:`W_{ij}^{\\text{in}}` is the input weight of the neuron :math:`i` to the neuron :math:`j`.
+		- :math:`x_i^{t}` is the input of the neuron :math:`i` at time :math:`t`.
+	
+	:Attributes:
+		- :attr:`bias_weights` (torch.nn.Parameter): Bias weights of the layer.
+		- :attr:`kappa` (torch.nn.Parameter): Decay constant of the synaptic current over time see equation :eq:`li_kappa`.
+	
+	"""
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -1276,22 +1518,27 @@ class LILayer(BaseNeuronsLayer):
 		else:
 			torch.nn.init.constant_(self.bias_weights, 0.0)
 
-	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
+	def create_empty_state(
+			self,
+			batch_size: int = 1,
+			**kwargs
+	) -> Tuple[torch.Tensor, ...]:
 		"""
 		Create an empty state in the following form:
 			[membrane potential of shape (batch_size, self.output_size)]
+		
 		:param batch_size: The size of the current batch.
 		:return: The current state.
 		"""
-		state = [torch.zeros(
-			(batch_size, int(self._output_size)),
-			device=self._device,
-			dtype=torch.float32,
-			requires_grad=True,
-		)]
-		return tuple(state)
+		kwargs.setdefault("n_hh", 1)
+		return super(LILayer, self).create_empty_state(batch_size=batch_size, **kwargs)
 
-	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Tuple[torch.Tensor, ...] = None,
+			**kwargs
+	):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape
 		# state = self._init_forward_state(state, batch_size)
@@ -1300,12 +1547,69 @@ class LILayer(BaseNeuronsLayer):
 		return next_V, (next_V, )
 
 
+@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class SpyLILayer(BaseNeuronsLayer):
 	"""
-	The SpyLI layer is a LI layer implemented by the SpyTorch library
-	(https://github.com/surrogate-gradient-learning/spytorch) from the
-	paper: https://ieeexplore.ieee.org/document/8891809. In this LI varient they are using a second differential
-	equation to model the synaptic current.
+	The SpyLI dynamics is a more complex variant of the LI dynamics (class :class:`LILayer`) allowing it to have a
+	greater power of expression. This variant is also inspired by Neftci :cite:t:`neftci_surrogate_2019` and also
+	contains  two differential equations like the SpyLIF dynamics :class:`SpyLIFLayer`. The equation :eq:`SpyLI_I`
+	presents the synaptic current update equation with euler integration while the equation :eq:`SpyLI_V` presents the
+	synaptic potential update.
+
+	.. math::
+		:label: SpyLI_I
+
+		\\begin{equation}
+			I_{\\text{syn}, j}^{t+\\Delta t} = \\alpha I_{\text{syn}, j}^{t} +
+			\\sum_{i}^{N} W_{ij}^{\\text{rec}} I_{\\text{syn}, j}^{t}
+			+ \\sum_i^{N} W_{ij}^{\\text{in}} x_i^{t+\\Delta t}
+		\\end{equation}
+
+
+	.. math::
+		:label: SpyLI_V
+
+		\\begin{equation}
+			V_j^{t+\\Delta t} = \\beta V_j^t + I_{\\text{syn}, j}^{t+\\Delta t} + b_j
+		\\end{equation}
+
+
+	.. math::
+		:label: spyli_alpha
+
+		\\begin{equation}
+			\\alpha = e^{-\\frac{\\Delta t}{\\tau_{\\text{syn}}}}
+		\\end{equation}
+
+	with :math:`\\tau_{\\text{syn}}` being the decay time constant of the synaptic current.
+
+	.. math::
+		:label: spyli_beta
+
+		\\begin{equation}
+			\\beta = e^{-\\frac{\\Delta t}{\\tau_{\\text{mem}}}}
+		\\end{equation}
+
+	with :math:`\\tau_{\\text{syn}}` being the decay time constant of the synaptic current.
+
+	SpyTorch library: https://github.com/surrogate-gradient-learning/spytorch.
+
+	The variables of the equations :eq:`SpyLI_I` and :eq:`SpyLI_V` are described by the following definitions:
+
+		- :math:`N` is the number of neurons in the layer.
+		- :math:`I_{\\text{syn}, j}^{t}` is the synaptic current of neuron :math:`j` at time :math:`t`.
+		- :math:`V_j^t` is the synaptic potential of the neuron :math:`j` at time :math:`t`.
+		- :math:`\\Delta t` is the integration time step.
+		- :math:`\\alpha` is the decay constant of the synaptic current over time (equation :eq:`spyli_alpha`).
+		- :math:`\\beta` is the decay constant of the membrane potential over time (equation :eq:`spyli_beta`).
+		- :math:`W_{ij}^{\\text{rec}}` is the recurrent weight of the neuron :math:`i` to the neuron :math:`j`.
+		- :math:`W_{ij}^{\\text{in}}` is the input weight of the neuron :math:`i` to the neuron :math:`j`.
+		- :math:`x_i^{t}` is the input of the neuron :math:`i` at time :math:`t`.
+
+	:Attributes:
+		- :attr:`alpha` (torch.nn.Parameter): Decay constant of the synaptic current over time (equation :eq:`spyli_alpha`).
+		- :attr:`beta` (torch.nn.Parameter): Decay constant of the membrane potential over time (equation :eq:`spyli_beta`).
+		- :attr:`gamma` (torch.nn.Parameter): Slope of the Heaviside function (:math:`\\gamma`).
 	"""
 	def __init__(
 			self,
@@ -1361,23 +1665,28 @@ class SpyLILayer(BaseNeuronsLayer):
 			else:
 				torch.nn.init.constant_(self.bias_weights, 0.0)
 
-	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
+	def create_empty_state(
+			self,
+			batch_size: int = 1,
+			**kwargs
+	) -> Tuple[torch.Tensor, ...]:
 		"""
 		Create an empty state in the following form:
 			[membrane potential of shape (batch_size, self.output_size),
 			synaptic current of shape (batch_size, self.output_size)]
+		
 		:param batch_size: The size of the current batch.
 		:return: The current state.
 		"""
-		state = [torch.zeros(
-			(batch_size, int(self._output_size)),
-			device=self._device,
-			dtype=torch.float32,
-			requires_grad=True,
-		) for _ in range(2)]
-		return tuple(state)
+		kwargs.setdefault("n_hh", 2)
+		return super(SpyLILayer, self).create_empty_state(batch_size=batch_size, **kwargs)
 
-	def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None):
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Tuple[torch.Tensor, ...] = None,
+			**kwargs
+	):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape
 		V, I_syn = self._init_forward_state(state, batch_size)

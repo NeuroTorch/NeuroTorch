@@ -9,6 +9,24 @@ It's time to bring together deep learning and neuroscience together. In this lib
 tools to neuroscientists and we offer neuroscience tools to computer scientists. These two domains were created 
 to be one.
 
+What can we do with NeuroTorch in the alpha version? 
+- Image classification with spiking networks; 
+- Classification of spiking time series with spiking networks; 
+- Time series classification with spiking or Wilson-Cowan; 
+- Reconstruction/Prediction of time series with Wilson-Cowan;
+- Anything you are able to do using the modules already created.
+
+What can we almost do with NeuroTorch? 
+- Reconstruction/Prediction of continuous time series with spiking networks.  
+
+Which algorithm is used to train the networks at the moment? 
+- Backpropagation Through Time; 
+- Others to come like FullForce!  
+
+NeuroTorch is developed to be easy to use, so that you can do simple things in a few lines of code. 
+Moreover NeuroTorch is modular so you can adapt it to your needs relatively quickly. Thanks and stay tuned, 
+because it's coming!  
+
 # Important Links
 
   - Documentation at [https://jeremiegince.github.io/NeuroTorch/](https://jeremiegince.github.io/NeuroTorch/).
@@ -28,6 +46,26 @@ to be one.
 ```bash
 pip install git+https://github.com/JeremieGince/NeuroTorch
 ```
+
+# Exemples / Applications
+
+See the readme of the applications folder [here](applications/README.md).
+
+## Image classification with spiking networks
+
+- Jupyter Notebook: [Mnist/Fashion-Mnist classification with spiking networks](applications/mnist/tutoriel.ipynb).
+
+## Classification of spiking time series
+
+- Jupyter Notebook: [Heidelberg classification](applications/heidelberg/tutoriel.ipynb).
+
+## Time series classification with spiking networks
+
+- Jupyter Notebook: [Time series classification with spiking networks](applications/time_series_forecasting_spiking/tutoriel.ipynb).
+
+## Time series classification with Wilson-Cowan
+
+- Jupyter Notebook: [Time series classification with Wilson-Cowan](applications/time_series_forecasting_wilson_cowan/tutoriel.ipynb).
 
 
 # Quick usage preview

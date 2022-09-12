@@ -46,8 +46,6 @@ class TestBaseNeuronLayer(unittest.TestCase):
 		layer = BaseNeuronsLayer()
 		with self.assertRaises(NotImplementedError):
 			layer.forward(None)
-		with self.assertRaises(NotImplementedError):
-			layer.create_empty_state()
 
 	def test_build(self):
 		"""

@@ -35,10 +35,6 @@ class SequentialModel(BaseModel):
 		:width: 300
 		:align: center
 	
-	.. image:: ../../images/neurotorch_logo.png
-		:width: 300
-		:align: center
-	
 	:Attributes:
 		- :attr:`input_layers` (torch.nn.ModuleDict): The input layers of the model.
 		- :attr:`hidden_layers` (torch.nn.ModuleList): The hidden layers of the model.

@@ -451,7 +451,7 @@ class BaseNeuronsLayer(BaseLayer):
 		if self.kwargs["hh_init"] == "zeros":
 			state = tuple(
 				[torch.zeros(
-					(batch_size, int(self._output_size)),
+					(batch_size, int(self.output_size)),
 					device=self._device,
 					dtype=torch.float32,
 					requires_grad=True,
@@ -459,7 +459,7 @@ class BaseNeuronsLayer(BaseLayer):
 			)
 		elif self.kwargs["hh_init"] == "random":
 			mu, std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", 1.0)
-			gen = torch.Generator()
+			gen = torch.Generator(device=self.device)
 			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
 			state = [(torch.rand(
 				(batch_size, int(self.output_size)),
@@ -471,7 +471,7 @@ class BaseNeuronsLayer(BaseLayer):
 		elif self.kwargs["hh_init"] == "inputs":
 			assert "inputs" in kwargs, "inputs must be provided to initialize the state"
 			assert kwargs["inputs"].shape == (batch_size, int(self.output_size))
-			state = (kwargs["inputs"].clone(),)
+			state = [kwargs["inputs"].clone() for _ in range(n_hh)]
 		else:
 			raise ValueError("Hidden state init method not known. Please use 'zeros', 'inputs' or 'random'")
 		return tuple(state)
@@ -711,7 +711,7 @@ class LIFLayer(BaseNeuronsLayer):
 	):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape
-		V, Z = self._init_forward_state(state, batch_size)
+		V, Z = self._init_forward_state(state, batch_size, inputs=inputs)
 		input_current = torch.matmul(inputs, self.forward_weights)
 		if self.use_recurrent_connection:
 			rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
@@ -872,6 +872,9 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
 		self._total_count = 0
+		
+		if self.kwargs["hh_init"] == "test_random":
+			print(f"SpyLIFLayer<{self.name}>: using {self.kwargs['hh_init']} hh_init")
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_syn", 5.0 * self.dt)
@@ -907,6 +910,51 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		:return: The current state.
 		"""
 		kwargs.setdefault("n_hh", 3)
+		thr = self.threshold.detach().cpu().item()
+		if self.kwargs["hh_init"] == "random":
+			V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
+			gen = torch.Generator(device=self.device)
+			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
+			V = torch.clamp_min(torch.rand(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+				generator=gen,
+			) * V_std + V_mu, min=0.0)
+			I = torch.rand(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+				generator=gen,
+			)
+			Z = self.spike_func.apply(V, self.threshold, self.gamma)
+			V = V * (1.0 - Z)
+			return tuple([V, I, Z])
+		elif self.kwargs["hh_init"] == "inputs":
+			# V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
+			V_mu, V_std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", thr)
+			gen = torch.Generator(device=self.device)
+			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
+			I = torch.rand(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+				generator=gen,
+			)
+			Z = kwargs["inputs"].clone()
+			V = (torch.rand(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+				generator=gen,
+			) * V_std + V_mu)
+			V = (self.beta * V + self.alpha * I) * (1.0 - Z)
+			
+			return tuple([V, I, Z])
 		return super(SpyLIFLayer, self).create_empty_state(batch_size=batch_size, **kwargs)
 
 	def reset_regularization_loss(self):
@@ -941,7 +989,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 	):
 		assert inputs.ndim == 2, f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
 		batch_size, nb_features = inputs.shape
-		V, I_syn, Z = self._init_forward_state(state, batch_size)
+		V, I_syn, Z = self._init_forward_state(state, batch_size, inputs=inputs)
 		input_current = torch.matmul(inputs, self.forward_weights)
 		if self.use_recurrent_connection:
 			rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
@@ -1080,7 +1128,7 @@ class ALIFLayer(LIFLayer):
 	):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape
-		V, a, Z = self._init_forward_state(state, batch_size)
+		V, a, Z = self._init_forward_state(state, batch_size, inputs=inputs)
 		input_current = torch.matmul(inputs, self.forward_weights)
 		if self.use_recurrent_connection:
 			rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
@@ -1542,7 +1590,7 @@ class LILayer(BaseNeuronsLayer):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape
 		# state = self._init_forward_state(state, batch_size)
-		V, = self._init_forward_state(state, batch_size)
+		V, = self._init_forward_state(state, batch_size, inputs=inputs)
 		next_V = self.kappa * V + torch.matmul(inputs, self.forward_weights) + self.bias_weights
 		return next_V, (next_V, )
 
@@ -1689,7 +1737,7 @@ class SpyLILayer(BaseNeuronsLayer):
 	):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape
-		V, I_syn = self._init_forward_state(state, batch_size)
+		V, I_syn = self._init_forward_state(state, batch_size, inputs=inputs)
 		next_I_syn = self.alpha * I_syn + torch.matmul(inputs, self.forward_weights)
 		next_V = self.beta * V + next_I_syn + self.bias_weights
 		return next_V, (next_V, next_I_syn)

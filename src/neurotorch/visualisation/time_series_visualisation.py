@@ -302,7 +302,7 @@ class Visualise:
 					x_scatter_zeros.append(xs)
 			ax.scatter(
 				x_scatter_spikes, y=[y_max * 1.1] * len(x_scatter_spikes),
-				label="Latent space", c='k', marker='|', linewidths=0.5
+				label="Latent space", c='k', marker='|', linewidths=0.5, alpha=0.5,
 			)
 		
 		ax.set_xlabel("Time [-]")
@@ -320,7 +320,8 @@ class Visualise:
 			desc: str = "Prediction",
 			filename: Optional[str] = None,
 			show: bool = False,
-	) -> plt.Figure:
+			**kwargs
+	) -> Tuple[plt.Figure, plt.Axes]:
 		predictions, target = to_tensor(self._given_timeseries), to_tensor(target)
 		target = torch.squeeze(target.detach().cpu())
 		
@@ -362,8 +363,9 @@ class Visualise:
 			fig.savefig(filename)
 		if show:
 			plt.show()
-		plt.close(fig)
-		return fig
+		if kwargs.get("close", True):
+			plt.close(fig)
+		return fig, axes
 
 
 class VisualiseKMeans(Visualise):

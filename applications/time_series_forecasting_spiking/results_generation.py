@@ -73,6 +73,11 @@ def get_training_params_space() -> Dict[str, Any]:
 			# nt.ALIFLayer,
 			nt.SpyLIFLayer,
 		],
+		"predictor_type": [
+			# nt.LIFLayer,
+			# nt.ALIFLayer,
+			nt.SpyLIFLayer,
+		],
 		"optimizer": [
 			# "SGD",
 			"Adam",
@@ -116,6 +121,7 @@ def set_default_params(params: Dict[str, Any], **kwargs) -> Dict[str, Any]:
 	params.setdefault("reg_lr", 1e-7)
 	params.setdefault("reg", None)
 	params.setdefault("dataset_length", 1)
+	params.setdefault("hh_init", "zeros")
 	return params
 
 
@@ -133,6 +139,7 @@ def train_and_get_autoencoder(
 	if encoder_data_folder is not None:
 		encoder_params["data_folder"] = encoder_data_folder
 		encoder_params["n_iterations"] = encoder_iterations
+		encoder_params["hh_init"] = "zeros"
 	auto_encoder_training_output = train_auto_encoder(**encoder_params, verbose=verbose)
 	visualize_reconstruction(
 		auto_encoder_training_output.dataset.data,
@@ -187,7 +194,7 @@ def train_with_params(
 	network = SequentialModel(
 		input_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_encoder],
 		layers=[
-			params["encoder_type"](
+			params["predictor_type"](
 				input_size=nt.Size(
 					[
 						nt.Dimension(None, nt.DimensionProperty.TIME),
@@ -198,6 +205,7 @@ def train_with_params(
 				use_recurrent_connection=params["use_recurrent_connection"],
 				learning_type=nt.LearningType.BPTT,
 				name="predictor",
+				hh_init=params["hh_init"],
 			),
 		],
 		output_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_decoder],
@@ -473,14 +481,14 @@ def make_figures(
 		filename=f"{checkpoint_folder}/figures/preds_timeseries.png",
 		show=False
 	)
-	if verbose:
-		viz.animate(
-			network.get_layer().forward_weights.detach().cpu().numpy(),
-			network.get_layer().dt,
-			filename=f"{checkpoint_folder}/figures/preds_animation.gif",
-			show=False,
-			fps=10,
-		)
+	# if verbose:
+	# 	viz.animate(
+	# 		network.get_layer().forward_weights.detach().cpu().numpy(),
+	# 		network.get_layer().dt,
+	# 		filename=f"{checkpoint_folder}/figures/preds_animation.gif",
+	# 		show=False,
+	# 		fps=10,
+	# 	)
 	viz.heatmap(
 		filename=f"{checkpoint_folder}/figures/preds_heatmap.png",
 		show=False

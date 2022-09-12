@@ -11,5 +11,3 @@ pytest~=7.1.2
 docutils~=0.17.1
 scipy~=1.8.1
 six~=1.16.0
-
-git+https://github.com/JeremieGince/PythonBasicTools

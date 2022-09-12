@@ -50,6 +50,66 @@ def try_big_predictions(**kwargs):
 		filename=f"{checkpoint_folder}/figures/full_forecasting_visualization.png",
 		show=False,
 	)
+	
+
+def try_all_small_predictions(**kwargs):
+	checkpoint_folder = kwargs["checkpoint_folder"]
+	spikes_auto_encoder = kwargs["auto_encoder_training_output"].spikes_auto_encoder
+	loader_params = deepcopy(kwargs["params"])
+	loader_params['n_time_steps'] = -1
+	loader_params['dataset_length'] = 1
+	dataloader = get_dataloader(
+		units=kwargs["auto_encoder_training_output"].dataset.units_indexes, **loader_params
+	)
+	n_time_steps = kwargs["params"]["n_time_steps"]
+	n_encoder_steps = kwargs["params"]["n_encoder_steps"]
+	t0, target = next(iter(dataloader))
+	n_complete_chunk = int(target.shape[1] / n_time_steps)
+	target = target[:, :n_complete_chunk * n_time_steps]
+	target_chunks = target.reshape(
+		n_complete_chunk, n_time_steps, target.shape[-1]
+	)
+	
+	preds, hh = kwargs["network"].get_prediction_trace(
+		target_chunks[:, None, 0], foresight_time_steps=(n_encoder_steps-1)*n_time_steps, return_hidden_states=True
+	)
+	preds = preds.reshape(1, -1, preds.shape[-1])
+	spikes_preds = hh[kwargs["network"].get_layer().name][-1]
+	spikes = torch.squeeze(spikes_preds).detach().cpu().numpy().reshape(
+		-1, spikes_auto_encoder.n_encoder_steps, spikes_auto_encoder.n_units
+	)
+	
+	viz = VisualiseKMeans(
+		preds.detach().cpu().numpy().squeeze(),
+		shape=nt.Size(
+			[
+				Dimension(preds.shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
+				Dimension(preds.shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
+			]
+		),
+	)
+	filename = f"{checkpoint_folder}/figures/full_chunks_forecasting_visualization.png"
+	fig, axes = viz.plot_timeseries_comparison(
+		target, spikes,
+		n_spikes_steps=results["params"]["n_encoder_steps"],
+		title=f"Predictor: {spikes_auto_encoder.encoder_type.__name__}"
+		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
+		desc="Prediction",
+		filename=None,
+		show=False,
+		close=False,
+	)
+	for i in range(1, n_complete_chunk):
+		for ax in axes[1:]:
+			ax.vlines(
+				i * n_encoder_steps,
+				ymin=torch.min(target).cpu(), ymax=torch.max(target).cpu(),
+				color="red", linestyle="-", linewidth=0.5, alpha=0.5,
+			)
+	os.makedirs(os.path.dirname(filename), exist_ok=True)
+	fig.savefig(filename)
+	plt.show()
+	plt.close(fig)
 
 
 if __name__ == '__main__':
@@ -65,23 +125,25 @@ if __name__ == '__main__':
 			"dataset_name": "timeSeries_2020_12_16_cr3_df.npy",
 			"dataset_length": -1,
 			"n_time_steps": 16,
-			"n_encoder_steps": 16,
-			"n_units": 512,
+			"n_encoder_steps": 64,
+			"n_units": 256,
 			"dt": 1e-3,
 			"optimizer": "Adam",
 			"learning_rate": 5e-4,
 			"min_lr": 5e-7,
 			"encoder_type": nt.SpyLIFLayer,
+			"predictor_type": nt.SpyLIFLayer,
 			"use_recurrent_connection": False,
 			"seed": seed,
 			"smoothing_sigma": 5,
 			"reg": "",
+			"hh_init": "inputs",
 		},
-		n_iterations=4096,
+		n_iterations=1024,
 		verbose=True,
 		show_training=False,
 		force_overwrite=False,
-		data_folder="full_dataset_checkpoints",
+		data_folder="test_checkpoints",
 		encoder_data_folder="spikes_autoencoder_checkpoints",
 		encoder_iterations=1024,
 		batch_size=256,
@@ -95,11 +157,11 @@ if __name__ == '__main__':
 	# 	show=True,
 	# )
 	viz_target = VisualiseKMeans(
-		results["target"][0].squeeze(),
+		results["targets"][0].squeeze(),
 		shape=nt.Size(
 			[
-				Dimension(results["target"].shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
-				Dimension(results["target"].shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
+				Dimension(results["targets"].shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
+				Dimension(results["targets"].shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
 			]
 		),
 	)
@@ -133,3 +195,4 @@ if __name__ == '__main__':
 	# 	show=False,
 	# )
 	try_big_predictions(**results)
+	try_all_small_predictions(**results)

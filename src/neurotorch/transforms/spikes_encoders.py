@@ -100,8 +100,10 @@ class LIFEncoder(SpikesEncoder):
 			device: Optional[torch.device] = None,
 			spikes_layer_kwargs: Optional[dict] = None,
 	):
+		if spikes_layer_kwargs is None:
+			spikes_layer_kwargs = {}
 		super().__init__(
-			n_steps, n_units, LIFLayer, dt, learning_type, device, spikes_layer_kwargs,
+			n_steps, n_units, LIFLayer, dt, learning_type, device, **spikes_layer_kwargs,
 		)
 
 
@@ -115,8 +117,10 @@ class SpyLIFEncoder(SpikesEncoder):
 			device: Optional[torch.device] = None,
 			spikes_layer_kwargs: Optional[dict] = None,
 	):
+		if spikes_layer_kwargs is None:
+			spikes_layer_kwargs = {}
 		super().__init__(
-			n_steps, n_units, SpyLIFLayer, dt, learning_type, device, spikes_layer_kwargs,
+			n_steps, n_units, SpyLIFLayer, dt, learning_type, device, **spikes_layer_kwargs,
 		)
 
 
@@ -130,8 +134,10 @@ class ALIFEncoder(SpikesEncoder):
 			device: Optional[torch.device] = None,
 			spikes_layer_kwargs: Optional[dict] = None,
 	):
+		if spikes_layer_kwargs is None:
+			spikes_layer_kwargs = {}
 		super().__init__(
-			n_steps, n_units, ALIFLayer, dt, learning_type, device, spikes_layer_kwargs,
+			n_steps, n_units, ALIFLayer, dt, learning_type, device, **spikes_layer_kwargs,
 		)
 
 

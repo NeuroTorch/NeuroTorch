@@ -241,10 +241,11 @@ class TrainingHistory(BaseCallback):
 				metric_basename = '_'.join(max_set_metrics_container[i-1].split('_')[1:])
 				for prefix in ['val', 'train', 'test']:
 					k = prefix + '_' + metric_basename
-					key = keys_lower_to_given[k]
-					if key in self:
-						lines[key] = ax.plot(self[key], label=key, linewidth=kwargs['linewidth'])[0]
-						axes_dict[key] = ax
+					if k in keys_lower_to_given:
+						key = keys_lower_to_given[k]
+						if key in self:
+							lines[key] = ax.plot(self[key], label=key, linewidth=kwargs['linewidth'])[0]
+							axes_dict[key] = ax
 				ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
 				ax.legend(fontsize=kwargs["fontsize"])
 			else:

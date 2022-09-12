@@ -131,6 +131,7 @@ class CheckpointManager(BaseCallback):
 		:param verbose: Whether to print out the trace of the checkpoint manager.
 		:type verbose: bool
 		"""
+		os.makedirs(checkpoint_folder, exist_ok=True)
 		self.checkpoint_folder = checkpoint_folder
 		self.meta_path_prefix = meta_path_prefix
 		self.verbose = verbose

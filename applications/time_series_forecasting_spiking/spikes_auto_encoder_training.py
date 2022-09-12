@@ -188,6 +188,7 @@ def train_auto_encoder(
 	kwargs.setdefault("use_recurrent_connection", True)
 	kwargs.setdefault("optimizer", "AdamW")
 	kwargs.setdefault("smoothing_sigma", 0.0)
+	kwargs["hh_init"] = "zeros"
 	set_seed(seed)
 	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed, filename=kwargs.get("dataset_name"), **kwargs)
 	n_units = dataset.n_units

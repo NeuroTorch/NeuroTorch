@@ -190,7 +190,7 @@ def train_with_params(
 	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
 	
 	dataloader = get_dataloader(
-		units=auto_encoder_training_output.dataset.units_indexes, batch_size=batch_size, **params
+		units=auto_encoder_training_output.dataset.units_indexes, batch_size=batch_size, verbose=verbose, **params
 	)
 	spiking_foresight_steps = (params["n_time_steps"]-1)*params["n_encoder_steps"]
 	network = SequentialModel(

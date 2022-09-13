@@ -122,6 +122,8 @@ def set_default_params(params: Dict[str, Any], **kwargs) -> Dict[str, Any]:
 	params.setdefault("reg", None)
 	params.setdefault("dataset_length", 1)
 	params.setdefault("hh_init", "zeros")
+	params.setdefault("learn_decoder", False)
+	params.setdefault("decoder_alpha_as_vec", False)
 	return params
 
 
@@ -138,8 +140,8 @@ def train_and_get_autoencoder(
 	encoder_params = deepcopy(params)
 	if encoder_data_folder is not None:
 		encoder_params["data_folder"] = encoder_data_folder
-		encoder_params["n_iterations"] = encoder_iterations
-		encoder_params["hh_init"] = "zeros"
+	encoder_params["n_iterations"] = encoder_iterations
+	encoder_params["hh_init"] = "zeros"
 	auto_encoder_training_output = train_auto_encoder(**encoder_params, verbose=verbose)
 	visualize_reconstruction(
 		auto_encoder_training_output.dataset.data,
@@ -152,7 +154,7 @@ def train_and_get_autoencoder(
 	spikes_encoder.spikes_layer.learning_type = nt.LearningType.NONE
 	spikes_encoder.requires_grad_(False)
 	spikes_decoder = auto_encoder_training_output.spikes_auto_encoder.spikes_decoder
-	spikes_decoder.requires_grad_(False)
+	spikes_decoder.requires_grad_(params.get("learn_decoder", False))
 	return auto_encoder_training_output
 
 
@@ -283,14 +285,14 @@ def train_with_params(
 		verbose=verbose,
 		desc="Compute predictions, spikes and targets",
 	)
-	make_figures(
-		params, network,
-		preds_targets_spikes=preds_targets_spikes,
-		auto_encoder_training_output=auto_encoder_training_output,
-		initial_weights=initial_weights,
-		checkpoint_folder=checkpoint_folder,
-		verbose=verbose,
-	)
+	# make_figures(
+	# 	params, network,
+	# 	preds_targets_spikes=preds_targets_spikes,
+	# 	auto_encoder_training_output=auto_encoder_training_output,
+	# 	initial_weights=initial_weights,
+	# 	checkpoint_folder=checkpoint_folder,
+	# 	verbose=verbose,
+	# )
 	
 	return OrderedDict(dict(
 		params=params,

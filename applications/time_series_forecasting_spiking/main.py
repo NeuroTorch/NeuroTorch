@@ -23,7 +23,7 @@ def try_big_predictions(**kwargs):
 	loader_params['n_time_steps'] = -1
 	loader_params['dataset_length'] = 1
 	dataloader = get_dataloader(
-		units=kwargs["auto_encoder_training_output"].dataset.units_indexes, **loader_params
+		units=kwargs["auto_encoder_training_output"].dataset.units_indexes, verbose=True, shuffle=False, **loader_params
 	)
 	t0, target = next(iter(dataloader))
 	preds, hh = kwargs["network"].get_prediction_trace(
@@ -49,19 +49,19 @@ def try_big_predictions(**kwargs):
 		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
 		desc="Prediction",
 		filename=f"{checkpoint_folder}/figures/full_forecasting_visualization.png",
-		show=False,
+		show=True,
 	)
 	
 
 @torch.no_grad()
-def try_all_small_predictions(**kwargs):
+def try_all_chunks_predictions(**kwargs):
 	checkpoint_folder = kwargs["checkpoint_folder"]
 	spikes_auto_encoder = kwargs["auto_encoder_training_output"].spikes_auto_encoder
 	loader_params = deepcopy(kwargs["params"])
 	loader_params['n_time_steps'] = -1
 	loader_params['dataset_length'] = 1
 	dataloader = get_dataloader(
-		units=kwargs["auto_encoder_training_output"].dataset.units_indexes, **loader_params
+		units=kwargs["auto_encoder_training_output"].dataset.units_indexes, verbose=True, shuffle=False, **loader_params
 	)
 	n_time_steps = kwargs["params"]["n_time_steps"]
 	n_encoder_steps = kwargs["params"]["n_encoder_steps"]
@@ -131,7 +131,7 @@ if __name__ == '__main__':
 			"n_units": 256,
 			"dt": 1e-3,
 			"optimizer": "Adam",
-			"learning_rate": 5e-4,
+			"learning_rate": 5e-5,
 			"min_lr": 5e-7,
 			"encoder_type": nt.SpyLIFLayer,
 			"predictor_type": nt.SpyLIFLayer,
@@ -140,17 +140,17 @@ if __name__ == '__main__':
 			"smoothing_sigma": 5,
 			"reg": "",
 			"hh_init": "inputs",
-			"learn_decoder": True,
+			"learn_decoder": False,
 			"decoder_alpha_as_vec": True,
 		},
 		n_iterations=2048,
 		verbose=True,
 		show_training=False,
-		force_overwrite=True,
+		force_overwrite=False,
 		data_folder="test_checkpoints",
 		encoder_data_folder="spikes_autoencoder_checkpoints",
 		encoder_iterations=2048,
-		batch_size=2048,
+		batch_size=512,
 		save_best_only=True,
 	)
 	pprint.pprint(results, indent=4)
@@ -198,5 +198,5 @@ if __name__ == '__main__':
 	# 	results["dataloader"],
 	# 	show=False,
 	# )
-	# try_big_predictions(**results)
-	try_all_small_predictions(**results)
+	try_big_predictions(**results)
+	try_all_chunks_predictions(**results)

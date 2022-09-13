@@ -5,7 +5,7 @@ import time
 import warnings
 from collections import OrderedDict, defaultdict
 from copy import deepcopy
-from typing import Any, Dict, Iterable, Type, Optional, Union, Tuple
+from typing import Any, Dict, Iterable, Type, Optional, Union, Tuple, Sequence
 
 import numpy as np
 import pandas as pd
@@ -297,18 +297,26 @@ def train_with_params(
 		if verbose:
 			logging.info("No best checkpoint found. Loading last checkpoint instead.")
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.LAST_ITR, verbose=verbose)
-	preds_targets_spikes = compute_preds_targets_spikes(
-		network,
-		get_dataloader(
-			units=auto_encoder_training_output.dataset.units_indexes, batch_size=batch_size, shuffle=False, **params,
-			verbose=False
-		),
+	# preds_targets_spikes = compute_preds_targets_spikes(
+	# 	network,
+	# 	get_dataloader(
+	# 		units=auto_encoder_training_output.dataset.units_indexes, batch_size=batch_size, shuffle=False, **params,
+	# 		verbose=False
+	# 	),
+	# 	verbose=verbose,
+	# 	desc="Compute predictions, spikes and targets",
+	# )
+	preds_targets_spikes_chunks = compute_preds_targets_spikes_chunks(
+		network=network,
+		n_time_steps=params["n_time_steps"],
+		n_encoder_steps=params["n_encoder_steps"],
+		auto_encoder_training_output=auto_encoder_training_output,
+		params=params,
 		verbose=verbose,
-		desc="Compute predictions, spikes and targets",
 	)
 	make_figures(
 		params, network,
-		preds_targets_spikes=preds_targets_spikes,
+		preds_targets_spikes=preds_targets_spikes_chunks,
 		auto_encoder_training_output=auto_encoder_training_output,
 		initial_weights=initial_weights,
 		checkpoint_folder=checkpoint_folder,
@@ -323,15 +331,21 @@ def train_with_params(
 		history=history,
 		training_time=training_time,
 		dataloader=dataloader,
-		predictions=preds_targets_spikes["predictions"],
-		targets=preds_targets_spikes["targets"],
-		pVar=nt.to_numpy(nt.losses.PVarianceLoss()(
-			nt.to_tensor(preds_targets_spikes["predictions"]).to("cpu"),
-			nt.to_tensor(preds_targets_spikes["targets"]).to("cpu")
-		)),
+		predictions=preds_targets_spikes_chunks["predictions"],
+		targets=preds_targets_spikes_chunks["targets"],
+		pVar_chunks=nt.to_numpy(nt.losses.PVarianceLoss()(
+			nt.to_tensor(preds_targets_spikes_chunks["predictions_chunks"]).to("cpu"),
+			nt.to_tensor(preds_targets_spikes_chunks["targets_chunks"]).to("cpu")
+		)).item(),
+		pVar=nt.to_numpy(
+			nt.losses.PVarianceLoss()(
+				nt.to_tensor(preds_targets_spikes_chunks["predictions"]).to("cpu"),
+				nt.to_tensor(preds_targets_spikes_chunks["targets"]).to("cpu")
+			)
+		).item(),
 	))
-	try_big_predictions(**results)
-	try_all_chunks_predictions(**results)
+	# try_big_predictions(**results)
+	viz_all_chunks_predictions(preds_targets_spikes_chunks=preds_targets_spikes_chunks, **results)
 	return results
 
 
@@ -366,11 +380,63 @@ def compute_preds_targets_spikes(
 			predictions.extend(nt.to_numpy(preds))
 			targets.extend(nt.to_numpy(y_true))
 			spikes.extend(nt.to_numpy(spikes_preds))
-			
+	
 	predictions = np.asarray(predictions)
 	targets = np.asarray(targets)
 	spikes = np.asarray(spikes)
 	return dict(predictions=predictions, targets=targets, spikes=spikes)
+
+
+@torch.no_grad()
+def compute_preds_targets_spikes_chunks(
+		network: SequentialModel,
+		n_time_steps: int,
+		n_encoder_steps: int,
+		*,
+		dataloader: Optional[DataLoader] = None,
+		auto_encoder_training_output: Optional[AutoEncoderTrainingOutput] = None,
+		units_indexes: Optional[Sequence[int]] = None,
+		**kwargs,
+):
+	if dataloader is None:
+		assert auto_encoder_training_output is not None or units_indexes is not None, \
+			"If dataloader is None, auto_encoder_training_output or units_indexes must be provided"
+		if units_indexes is None:
+			units_indexes = auto_encoder_training_output.dataset.units_indexes
+		loader_params = deepcopy(kwargs["params"])
+		loader_params['n_time_steps'] = -1
+		loader_params['dataset_length'] = 1
+		dataloader = get_dataloader(
+			units=units_indexes, verbose=kwargs.get("verbose", False), shuffle=False, **loader_params
+		)
+	t0, target = next(iter(dataloader))
+	n_chunks = int(target.shape[1] / n_time_steps)
+	target_shorted = target[:, :n_chunks * n_time_steps]
+	target_chunks = target_shorted.reshape(n_chunks, n_time_steps, target_shorted.shape[-1])
+	
+	# compute long prediction
+	preds, hh = network.get_prediction_trace(
+		t0, foresight_time_steps=(target.shape[1] - 1) * n_encoder_steps, return_hidden_states=True
+	)
+	spikes_preds = hh[network.get_layer().name][-1]
+	spikes = torch.squeeze(spikes_preds).detach().cpu().numpy().reshape(
+		-1, n_encoder_steps, target.shape[-1]
+	)
+	
+	# compute prediction in chunks
+	preds_chunks, hh = network.get_prediction_trace(
+		target_chunks[:, None, 0], foresight_time_steps=(n_time_steps - 1) * n_encoder_steps, return_hidden_states=True
+	)
+	preds_chunks = preds_chunks.reshape(target_chunks.shape)
+	spikes_preds_chunks = hh[network.get_layer().name][-1]
+	spikes_chunks = torch.squeeze(spikes_preds_chunks).detach().cpu().numpy().reshape(
+		-1, n_encoder_steps, preds_chunks.shape[-1]
+	)
+	return dict(
+		predictions=preds, targets=target, spikes=spikes,
+		predictions_chunks=preds_chunks, spikes_chunks=spikes_chunks, targets_chunks=target_chunks,
+		network=network, n_time_steps=n_time_steps, n_encoder_steps=n_encoder_steps, n_chunks=n_chunks,
+	)
 
 
 @torch.no_grad()
@@ -532,6 +598,11 @@ def make_figures(
 		filename=f"{checkpoint_folder}/figures/init_final_weights.png",
 		show=False
 	)
+	viz_all_chunks_predictions(
+		preds_targets_spikes_chunks=preds_targets_spikes,
+		checkpoint_folder=checkpoint_folder,
+		verbose=verbose
+	)
 
 
 @torch.no_grad()
@@ -574,36 +645,29 @@ def try_big_predictions(**kwargs):
 
 
 @torch.no_grad()
-def try_all_chunks_predictions(**kwargs):
-	checkpoint_folder = kwargs["checkpoint_folder"]
-	spikes_auto_encoder = kwargs["auto_encoder_training_output"].spikes_auto_encoder
-	loader_params = deepcopy(kwargs["params"])
-	loader_params['n_time_steps'] = -1
-	loader_params['dataset_length'] = 1
-	dataloader = get_dataloader(
-		units=kwargs["auto_encoder_training_output"].dataset.units_indexes,
-		verbose=kwargs.get("verbose", False), shuffle=False, **loader_params
-	)
-	n_time_steps = kwargs["params"]["n_time_steps"]
-	n_encoder_steps = kwargs["params"]["n_encoder_steps"]
-	t0, target = next(iter(dataloader))
-	n_complete_chunk = int(target.shape[1] / n_time_steps)
-	target = target[:, :n_complete_chunk * n_time_steps]
-	target_chunks = target.reshape(
-		n_complete_chunk, n_time_steps, target.shape[-1]
-	)
+def viz_all_chunks_predictions(preds_targets_spikes_chunks: Optional[dict] = None, **kwargs):
+	checkpoint_folder = kwargs.get("checkpoint_folder", None)
 	
-	preds, hh = kwargs["network"].get_prediction_trace(
-		target_chunks[:, None, 0], foresight_time_steps=(n_time_steps - 1) * n_encoder_steps, return_hidden_states=True
+	if preds_targets_spikes_chunks is None:
+		preds_targets_spikes_chunks = compute_preds_targets_spikes_chunks(
+			network=kwargs["network"],
+			n_time_steps=kwargs["params"]["n_time_steps"],
+			n_encoder_steps=kwargs["params"]["n_encoder_steps"],
+			auto_encoder_training_output=kwargs["auto_encoder_training_output"],
+			params=kwargs["params"],
+			verbose=kwargs.get("verbose", False),
+		)
+	preds, targets, spikes = (
+		preds_targets_spikes_chunks["predictions_chunks"],
+		preds_targets_spikes_chunks["targets_chunks"],
+		preds_targets_spikes_chunks["spikes_chunks"]
 	)
-	preds = preds.reshape(1, -1, preds.shape[-1])
-	spikes_preds = hh[kwargs["network"].get_layer().name][-1]
-	spikes = torch.squeeze(spikes_preds).detach().cpu().numpy().reshape(
-		-1, spikes_auto_encoder.n_encoder_steps, spikes_auto_encoder.n_units
-	)
+	network = preds_targets_spikes_chunks["network"]
+	n_encoder_steps, n_time_steps, n_units = spikes.shape[1], targets.shape[1], targets.shape[-1]
+	preds, targets = preds.reshape(-1, n_units), targets.reshape(-1, n_units)
 	
 	viz = VisualiseKMeans(
-		preds.detach().cpu().numpy().squeeze(),
+		nt.to_numpy(preds),
 		shape=nt.Size(
 			[
 				Dimension(preds.shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
@@ -611,26 +675,28 @@ def try_all_chunks_predictions(**kwargs):
 			]
 		),
 	)
-	filename = f"{checkpoint_folder}/figures/full_chunks_forecasting_visualization.png"
 	fig, axes = viz.plot_timeseries_comparison(
-		target, spikes,
-		n_spikes_steps=kwargs["params"]["n_encoder_steps"],
-		title=f"Predictor: {kwargs['network'].get_layer().__class__.__name__}"
-		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
+		targets, spikes,
+		n_spikes_steps=n_encoder_steps,
+		title=f"Predictor: {network.get_layer().__class__.__name__}"
+		f"<{n_units}u, {n_encoder_steps}t>",
 		desc="Prediction",
 		filename=None,
 		show=False,
 		close=False,
 	)
-	for i in range(1, n_complete_chunk):
+	for i in range(1, preds_targets_spikes_chunks["n_chunks"]):
 		for ax in axes[1:]:
 			ax.vlines(
 				i * n_time_steps,
-				ymin=torch.min(target).cpu(), ymax=torch.max(target).cpu(),
+				ymin=torch.min(targets).cpu(), ymax=torch.max(targets).cpu(),
 				color="red", linestyle="-", linewidth=0.5, alpha=0.5,
 			)
-	os.makedirs(os.path.dirname(filename), exist_ok=True)
-	fig.savefig(filename)
+	
+	if checkpoint_folder is not None:
+		filename = f"{checkpoint_folder}/figures/full_chunks_forecasting_visualization.png"
+		os.makedirs(os.path.dirname(filename), exist_ok=True)
+		fig.savefig(filename)
 	if kwargs.get("show", False):
 		plt.show()
 	plt.close(fig)
@@ -675,6 +741,7 @@ def train_all_params(
 		'checkpoints',
 		*list(training_params.keys()),
 		'pVar',
+		'pVar_chunks',
 	]
 
 	# load dataframe if exists
@@ -712,12 +779,14 @@ def train_all_params(
 						**{k: [v] for k, v in params.items()},
 						training_time=training_time,
 						pVar=[result["pVar"]],
+						pVar_chunks=[result["pVar_chunks"]],
 					))],  ignore_index=True,
 				)
 				df.to_csv(results_path, index=False)
 				p_bar.set_postfix(
-					params=params,
 					pVar=result["pVar"],
+					pVar_chunks=result["pVar_chunks"],
+					params=params,
 				)
 			except Exception as e:
 				logging.error(e)

@@ -1,6 +1,6 @@
 import os.path
 import pprint
-from copy import deepcopy
+from copy import deepcopy, copy
 
 import matplotlib.pyplot as plt
 import torch
@@ -8,7 +8,7 @@ from pythonbasictools import DeepLib, log_device_setup, logs_file_setup
 
 from applications.time_series_forecasting_spiking.dataset import get_dataloader
 from applications.time_series_forecasting_spiking.results_generation import train_with_params, visualize_forecasting, \
-	try_big_predictions, try_all_chunks_predictions
+	try_big_predictions, viz_all_chunks_predictions
 from applications.time_series_forecasting_spiking.spikes_auto_encoder_training import visualize_reconstruction
 from neurotorch import DimensionProperty, Dimension
 from neurotorch.utils import set_seed
@@ -45,60 +45,22 @@ if __name__ == '__main__':
 			"learn_decoder": True,
 			"decoder_alpha_as_vec": True,
 		},
-		n_iterations=2048,
+		n_iterations=1024,
 		verbose=True,
 		show_training=False,
-		force_overwrite=False,
-		data_folder="test_checkpoints",
-		encoder_data_folder="spikes_autoencoder_checkpoints",
+		force_overwrite=True,
+		data_folder="test_fig_checkpoints",
+		encoder_data_folder="test_fig_autoencoder_checkpoints",
 		encoder_iterations=2048,
 		batch_size=512,
 		save_best_only=True,
 	)
-	pprint.pprint({k: v for k, v in results.items() if k not in ["predictions", "targets"]}, indent=4)
-	# results["history"].plot(show=True)
-	# visualize_reconstruction(
-	# 	results["auto_encoder_training_output"].dataset.data,
-	# 	results["auto_encoder_training_output"].spikes_auto_encoder,
-	# 	show=True,
-	# )
-	# viz_target = VisualiseKMeans(
-	# 	results["targets"][0].squeeze(),
-	# 	shape=nt.Size(
-	# 		[
-	# 			Dimension(results["targets"].shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
-	# 			Dimension(results["targets"].shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
-	# 		]
-	# 	),
-	# )
-	# viz_target.heatmap(
-	# 	filename=f"{results['checkpoint_folder']}/figures/target_heatmap.png",
-	# 	show=False
-	# )
-	# viz_full_target = VisualiseKMeans(
-	# 	results["auto_encoder_training_output"].dataset.data.squeeze(),
-	# 	shape=nt.Size(
-	# 		[
-	# 			Dimension(
-	# 				results["auto_encoder_training_output"].dataset.data.shape[1],
-	# 				dtype=DimensionProperty.TIME, name="Time Steps"
-	# 			),
-	# 			Dimension(
-	# 				results["auto_encoder_training_output"].dataset.data.shape[-1],
-	# 				dtype=DimensionProperty.NONE, name="Neurons"
-	# 			),
-	# 		]
-	# 	),
-	# )
-	# viz_full_target.heatmap(
-	# 	filename=f"{results['checkpoint_folder']}/figures/full_target_heatmap.png",
-	# 	show=False
-	# )
-	# visualize_forecasting(
-	# 	results["network"],
-	# 	results["auto_encoder_training_output"].spikes_auto_encoder,
-	# 	results["dataloader"],
-	# 	show=False,
-	# )
+	
+	results_view = copy(results)
+	for key in results_view:
+		if isinstance(results_view[key], torch.Tensor):
+			results_view[key] = results_view[key].shape
+	pprint.pprint(results_view, indent=4)
+	
 	try_big_predictions(**results, show=True)
-	try_all_chunks_predictions(**results, show=True)
+	viz_all_chunks_predictions(**results, show=True)

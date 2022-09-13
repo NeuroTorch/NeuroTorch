@@ -52,32 +52,34 @@ def get_training_params_space() -> Dict[str, Any]:
 			8,
 			16,
 			32,
-			64,
-			128,
-			256,
+			# 64,
+			# 128,
+			# 256,
 			# -1
 		],
 		"n_encoder_steps": [
-			# 8,
+			8,
 			16,
-			# 32,
-			# 64,
+			32,
+			64,
 		],
 		"n_units": [
 			# 32,
-			128,
+			# 128,
+			256,
+			# 512,
 			# 1024,
 		],
 		"encoder_type": [
-			# nt.LIFLayer,
-			# nt.ALIFLayer,
+			nt.LIFLayer,
+			nt.ALIFLayer,
 			nt.SpyLIFLayer,
 		],
-		"predictor_type": [
-			# nt.LIFLayer,
-			# nt.ALIFLayer,
-			nt.SpyLIFLayer,
-		],
+		# "predictor_type": [
+		# 	nt.LIFLayer,
+		# 	nt.ALIFLayer,
+		# 	nt.SpyLIFLayer,
+		# ],
 		"optimizer": [
 			# "SGD",
 			"Adam",
@@ -108,6 +110,22 @@ def get_training_params_space() -> Dict[str, Any]:
 		],
 		"seed": [
 			0,
+		],
+		"reg": [
+			"",
+		],
+		"hh_init": [
+			"inputs",
+			"zeros",
+			"random",
+		],
+		"learn_decoder": [
+			True,
+			# False
+		],
+		"decoder_alpha_as_vec": [
+			True,
+			# False
 		],
 	}
 
@@ -196,7 +214,7 @@ def train_with_params(
 	network = SequentialModel(
 		input_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_encoder],
 		layers=[
-			params["predictor_type"](
+			params.get("predictor_type", params["encoder_type"])(
 				input_size=nt.Size(
 					[
 						nt.Dimension(None, nt.DimensionProperty.TIME),
@@ -285,16 +303,15 @@ def train_with_params(
 		verbose=verbose,
 		desc="Compute predictions, spikes and targets",
 	)
-	# make_figures(
-	# 	params, network,
-	# 	preds_targets_spikes=preds_targets_spikes,
-	# 	auto_encoder_training_output=auto_encoder_training_output,
-	# 	initial_weights=initial_weights,
-	# 	checkpoint_folder=checkpoint_folder,
-	# 	verbose=verbose,
-	# )
-	
-	return OrderedDict(dict(
+	make_figures(
+		params, network,
+		preds_targets_spikes=preds_targets_spikes,
+		auto_encoder_training_output=auto_encoder_training_output,
+		initial_weights=initial_weights,
+		checkpoint_folder=checkpoint_folder,
+		verbose=verbose,
+	)
+	results = OrderedDict(dict(
 		params=params,
 		network=network,
 		auto_encoder_training_output=auto_encoder_training_output,
@@ -310,8 +327,12 @@ def train_with_params(
 			nt.to_tensor(preds_targets_spikes["targets"]).to("cpu")
 		)),
 	))
+	try_big_predictions(**results)
+	try_all_chunks_predictions(**results)
+	return results
 
 
+@torch.no_grad()
 def compute_preds_targets_spikes(
 		network: SequentialModel,
 		dataloader: DataLoader,
@@ -349,6 +370,7 @@ def compute_preds_targets_spikes(
 	return dict(predictions=predictions, targets=targets, spikes=spikes)
 
 
+@torch.no_grad()
 def visualize_forecasting(
 		network: nt.SequentialModel,
 		spikes_auto_encoder: SpikesAutoEncoder,
@@ -406,6 +428,7 @@ def visualize_forecasting(
 	return fig
 
 
+@torch.no_grad()
 def visualize_init_final_weights(
 		initial_wights: Any,
 		final_weights: Any,
@@ -441,6 +464,7 @@ def visualize_init_final_weights(
 	return fig
 
 
+@torch.no_grad()
 def make_figures(
 		params: Dict[str, Any],
 		network: nt.SequentialModel,
@@ -505,6 +529,106 @@ def make_figures(
 		filename=f"{checkpoint_folder}/figures/init_final_weights.png",
 		show=False
 	)
+
+
+@torch.no_grad()
+def try_big_predictions(**kwargs):
+	checkpoint_folder = kwargs["checkpoint_folder"]
+	spikes_auto_encoder = kwargs["auto_encoder_training_output"].spikes_auto_encoder
+	loader_params = deepcopy(kwargs["params"])
+	loader_params['n_time_steps'] = -1
+	loader_params['dataset_length'] = 1
+	dataloader = get_dataloader(
+		units=kwargs["auto_encoder_training_output"].dataset.units_indexes, verbose=True, shuffle=False, **loader_params
+	)
+	t0, target = next(iter(dataloader))
+	preds, hh = kwargs["network"].get_prediction_trace(
+		t0, foresight_time_steps=(target.shape[1] - 1) * kwargs["params"]["n_encoder_steps"], return_hidden_states=True
+	)
+	spikes_preds = hh[kwargs["network"].get_layer().name][-1]
+	spikes = torch.squeeze(spikes_preds).detach().cpu().numpy().reshape(
+		-1, spikes_auto_encoder.n_encoder_steps, spikes_auto_encoder.n_units
+	)
+	viz = VisualiseKMeans(
+		preds.detach().cpu().numpy().squeeze(),
+		shape=nt.Size(
+			[
+				Dimension(preds.shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
+				Dimension(preds.shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
+			]
+		),
+	)
+	viz.plot_timeseries_comparison(
+		target, spikes,
+		n_spikes_steps=kwargs["params"]["n_encoder_steps"],
+		title=f"Predictor: {spikes_auto_encoder.encoder_type.__name__}"
+	      f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
+		desc="Prediction",
+		filename=f"{checkpoint_folder}/figures/full_forecasting_visualization.png",
+		show=kwargs.get("show", False),
+	)
+
+
+@torch.no_grad()
+def try_all_chunks_predictions(**kwargs):
+	checkpoint_folder = kwargs["checkpoint_folder"]
+	spikes_auto_encoder = kwargs["auto_encoder_training_output"].spikes_auto_encoder
+	loader_params = deepcopy(kwargs["params"])
+	loader_params['n_time_steps'] = -1
+	loader_params['dataset_length'] = 1
+	dataloader = get_dataloader(
+		units=kwargs["auto_encoder_training_output"].dataset.units_indexes, verbose=True, shuffle=False, **loader_params
+	)
+	n_time_steps = kwargs["params"]["n_time_steps"]
+	n_encoder_steps = kwargs["params"]["n_encoder_steps"]
+	t0, target = next(iter(dataloader))
+	n_complete_chunk = int(target.shape[1] / n_time_steps)
+	target = target[:, :n_complete_chunk * n_time_steps]
+	target_chunks = target.reshape(
+		n_complete_chunk, n_time_steps, target.shape[-1]
+	)
+	
+	preds, hh = kwargs["network"].get_prediction_trace(
+		target_chunks[:, None, 0], foresight_time_steps=(n_time_steps - 1) * n_encoder_steps, return_hidden_states=True
+	)
+	preds = preds.reshape(1, -1, preds.shape[-1])
+	spikes_preds = hh[kwargs["network"].get_layer().name][-1]
+	spikes = torch.squeeze(spikes_preds).detach().cpu().numpy().reshape(
+		-1, spikes_auto_encoder.n_encoder_steps, spikes_auto_encoder.n_units
+	)
+	
+	viz = VisualiseKMeans(
+		preds.detach().cpu().numpy().squeeze(),
+		shape=nt.Size(
+			[
+				Dimension(preds.shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
+				Dimension(preds.shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
+			]
+		),
+	)
+	filename = f"{checkpoint_folder}/figures/full_chunks_forecasting_visualization.png"
+	fig, axes = viz.plot_timeseries_comparison(
+		target, spikes,
+		n_spikes_steps=kwargs["params"]["n_encoder_steps"],
+		title=f"Predictor: {spikes_auto_encoder.encoder_type.__name__}"
+		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
+		desc="Prediction",
+		filename=None,
+		show=False,
+		close=False,
+	)
+	for i in range(1, n_complete_chunk):
+		for ax in axes[1:]:
+			ax.vlines(
+				i * n_time_steps,
+				ymin=torch.min(target).cpu(), ymax=torch.max(target).cpu(),
+				color="red", linestyle="-", linewidth=0.5, alpha=0.5,
+			)
+	os.makedirs(os.path.dirname(filename), exist_ok=True)
+	fig.savefig(filename)
+	if kwargs.get("show", False):
+		plt.show()
+	plt.close(fig)
 
 
 def train_all_params(

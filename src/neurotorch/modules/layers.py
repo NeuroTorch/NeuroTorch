@@ -370,7 +370,7 @@ class BaseLayer(torch.nn.Module):
 		return self._regularization_loss
 
 
-@inherit_fields_docstring(fields=["Attributes"], bases=[BaseLayer])
+# @inherit_fields_docstring(fields=["Attributes"], bases=[BaseLayer])
 class BaseNeuronsLayer(BaseLayer):
 	"""
 	A base class for layers that have neurons. This class provides two importants Parameters: the
@@ -545,7 +545,7 @@ class BaseNeuronsLayer(BaseLayer):
 		return _repr
 
 
-@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
+# @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class LIFLayer(BaseNeuronsLayer):
 	"""
 	LIF dynamics, inspired by :cite:t:`neftci_surrogate_2019` , :cite:t:`bellec_solution_2020` , models the synaptic
@@ -605,7 +605,7 @@ class LIFLayer(BaseNeuronsLayer):
 	
 	"""
 	
-	@inherit_docstring(bases=BaseNeuronsLayer)
+	# @inherit_docstring(bases=BaseNeuronsLayer)
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -661,7 +661,7 @@ class LIFLayer(BaseNeuronsLayer):
 			self.kwargs.setdefault("gamma", 1.0)
 		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
 	
-	@inherit_docstring(bases=BaseNeuronsLayer)
+	# @inherit_docstring(bases=BaseNeuronsLayer)
 	def initialize_weights_(self):
 		if "forward_weights" in self.kwargs:
 			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
@@ -702,7 +702,7 @@ class LIFLayer(BaseNeuronsLayer):
 		# self._regularization_loss += 2e-6*torch.mean(torch.sum(next_Z, dim=-1)**2)
 		return self._regularization_loss
 	
-	@inherit_docstring(bases=BaseNeuronsLayer)
+	# @inherit_docstring(bases=BaseNeuronsLayer)
 	def forward(
 			self,
 			inputs: torch.Tensor,
@@ -722,7 +722,7 @@ class LIFLayer(BaseNeuronsLayer):
 		return next_Z, (next_V, next_Z)
 
 
-@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
+# @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class SpyLIFLayer(BaseNeuronsLayer):
 	"""
 	The SpyLIF dynamics is a more complex variant of the LIF dynamics (class :class:`LIFLayer`) allowing it to have a
@@ -1001,7 +1001,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		return next_Z, (next_V, next_I_syn, next_Z)
 
 
-@inherit_fields_docstring(fields=["Attributes"], bases=[LIFLayer])
+# @inherit_fields_docstring(fields=["Attributes"], bases=[LIFLayer])
 class ALIFLayer(LIFLayer):
 	"""
 	The ALIF dynamic, inspired by Bellec and \\textit{al.} :cite:t:`bellec_solution_2020`, is very
@@ -1158,7 +1158,7 @@ class ALIFLayer(LIFLayer):
 		return self._regularization_loss
 
 
-@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
+# @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class IzhikevichLayer(BaseNeuronsLayer):
 	"""
 	Izhikevich p.274
@@ -1283,7 +1283,7 @@ class IzhikevichLayer(BaseNeuronsLayer):
 		return next_Z, (next_V, next_u, next_Z)
 
 
-@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
+# @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class WilsonCowanLayer(BaseNeuronsLayer):
 	"""
 	This layer is use for Wilson-Cowan neuronal dynamics.
@@ -1484,7 +1484,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		return output, (output, )
 
 
-@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
+# @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class LILayer(BaseNeuronsLayer):
 	"""
 	The integration in time of these dynamics is done using the equation
@@ -1595,7 +1595,7 @@ class LILayer(BaseNeuronsLayer):
 		return next_V, (next_V, )
 
 
-@inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
+# @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class SpyLILayer(BaseNeuronsLayer):
 	"""
 	The SpyLI dynamics is a more complex variant of the LI dynamics (class :class:`LILayer`) allowing it to have a

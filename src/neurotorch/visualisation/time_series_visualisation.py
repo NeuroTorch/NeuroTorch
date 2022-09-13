@@ -334,8 +334,11 @@ class Visualise:
 		axes[0].set_ylabel("Squared Error [-]")
 		axes[0].set_title(f"{title}, pVar: {pVar.detach().cpu().item():.3f}")
 		
-		mean_errors = torch.mean(errors, dim=0)
-		mean_error_sort, indices = torch.sort(mean_errors)
+		errors_per_feature = errors.reshape(-1, errors.shape[-1])
+		mean_errors = torch.mean(errors_per_feature, dim=0)
+		pVar_per_feature = PVarianceLoss(reduction='feature')(predictions, target.to(predictions.device))
+		# mean_error_sort, indices = torch.sort(mean_errors)
+		mean_error_sort, indices = torch.sort(pVar_per_feature, descending=True)
 		target = torch.squeeze(target).numpy().T
 		
 		best_idx, worst_idx = indices[0], indices[-1]

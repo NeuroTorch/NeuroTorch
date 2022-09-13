@@ -40,19 +40,30 @@ class PVarianceLoss(torch.nn.Module):
 	:math:`\\text{P-Variance}(x, y) = 1 - \\frac{\\text{MSE}(x, y)}{\\text{Var}(y)}`
 	
 	:Attributes:
-		- **criterion** (nn.MSELoss): The MSE loss.
-		- **negative** (bool): Whether to return the negative P-Variance loss.
+		- :attr:`criterion` (nn.MSELoss): The MSE loss.
+		- :attr:`negative` (bool): Whether to return the negative P-Variance loss.
+		- :attr:`reduction` (str): The reduction method to use. If 'mean', the output will be averaged. If 'feature', the
+			output will be the shape of the last dimension of the input. If 'none', the output will be the same shape as
+			the input.
 	
 	"""
-	def __init__(self, negative: bool = False):
+	def __init__(self, negative: bool = False, reduction: str = 'mean'):
 		"""
 		Constructor for the PVarianceLoss class.
 		
 		:param negative: Whether to return the negative P-Variance loss.
 		:type negative: bool
+		:param reduction: The reduction method to use. If 'mean', the output will be averaged. If 'feature', the output
+			will be the shape of the last dimension of the input. If 'none', the output will be the same shape as the
+			input. Defaults to 'mean'.
+		:type reduction: str
 		"""
 		super(PVarianceLoss, self).__init__()
-		self.criterion = nn.MSELoss()
+		assert reduction in ['mean', 'feature', 'none'], 'Reduction must be one of "mean", "feature", or "none".'
+		self.reduction = reduction
+		self.criterion = nn.MSELoss(
+			reduction=reduction if reduction != 'feature' else 'none'
+		)
 		self.negative = negative
 
 	def forward(self, x, y):
@@ -64,6 +75,8 @@ class PVarianceLoss(torch.nn.Module):
 		
 		:return: The P-Variance loss.
 		"""
+		if self.reduction == 'feature':
+			x, y = x.reshape(-1, x.shape[-1]), y.reshape(-1, y.shape[-1])
 		mse_loss = self.criterion(x, y)
 		loss = 1 - mse_loss / torch.var(y)
 		if self.negative:

@@ -300,7 +300,8 @@ def train_with_params(
 	preds_targets_spikes = compute_preds_targets_spikes(
 		network,
 		get_dataloader(
-			units=auto_encoder_training_output.dataset.units_indexes, batch_size=batch_size, shuffle=False, **params
+			units=auto_encoder_training_output.dataset.units_indexes, batch_size=batch_size, shuffle=False, **params,
+			verbose=False
 		),
 		verbose=verbose,
 		desc="Compute predictions, spikes and targets",
@@ -541,7 +542,8 @@ def try_big_predictions(**kwargs):
 	loader_params['n_time_steps'] = -1
 	loader_params['dataset_length'] = 1
 	dataloader = get_dataloader(
-		units=kwargs["auto_encoder_training_output"].dataset.units_indexes, verbose=True, shuffle=False, **loader_params
+		units=kwargs["auto_encoder_training_output"].dataset.units_indexes,
+		verbose=kwargs.get("verbose", False), shuffle=False, **loader_params
 	)
 	t0, target = next(iter(dataloader))
 	preds, hh = kwargs["network"].get_prediction_trace(
@@ -579,7 +581,8 @@ def try_all_chunks_predictions(**kwargs):
 	loader_params['n_time_steps'] = -1
 	loader_params['dataset_length'] = 1
 	dataloader = get_dataloader(
-		units=kwargs["auto_encoder_training_output"].dataset.units_indexes, verbose=True, shuffle=False, **loader_params
+		units=kwargs["auto_encoder_training_output"].dataset.units_indexes,
+		verbose=kwargs.get("verbose", False), shuffle=False, **loader_params
 	)
 	n_time_steps = kwargs["params"]["n_time_steps"]
 	n_encoder_steps = kwargs["params"]["n_encoder_steps"]

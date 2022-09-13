@@ -107,7 +107,7 @@ class RegularizationList(BaseRegularization):
 		return loss
 
 
-@pybt.docstring.inherit_fields_docstring(fields=["Attributes"], bases=[BaseRegularization])
+# @pybt.docstring.inherit_fields_docstring(fields=["Attributes"], bases=[BaseRegularization])
 class Lp(BaseRegularization):
 	"""
 	Regularization that applies LP norm.
@@ -150,7 +150,7 @@ class Lp(BaseRegularization):
 		return loss
 
 
-@pybt.docstring.inherit_fields_docstring(fields=["Attributes"], bases=[Lp])
+# @pybt.docstring.inherit_fields_docstring(fields=["Attributes"], bases=[Lp])
 class L1(Lp):
 	"""
 	Regularization that applies L1 norm.
@@ -171,7 +171,7 @@ class L1(Lp):
 		super(L1, self).__init__(params, Lambda, p=1)
 
 
-@pybt.docstring.inherit_fields_docstring(fields=["Attributes"], bases=[Lp])
+# @pybt.docstring.inherit_fields_docstring(fields=["Attributes"], bases=[Lp])
 class L2(Lp):
 	"""
 	Regularization that applies L2 norm.

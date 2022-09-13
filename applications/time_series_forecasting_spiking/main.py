@@ -15,6 +15,7 @@ import neurotorch as nt
 from neurotorch.visualisation.time_series_visualisation import VisualiseKMeans
 
 
+@torch.no_grad()
 def try_big_predictions(**kwargs):
 	checkpoint_folder = kwargs["checkpoint_folder"]
 	spikes_auto_encoder = kwargs["auto_encoder_training_output"].spikes_auto_encoder
@@ -52,6 +53,7 @@ def try_big_predictions(**kwargs):
 	)
 	
 
+@torch.no_grad()
 def try_all_small_predictions(**kwargs):
 	checkpoint_folder = kwargs["checkpoint_folder"]
 	spikes_auto_encoder = kwargs["auto_encoder_training_output"].spikes_auto_encoder
@@ -71,7 +73,7 @@ def try_all_small_predictions(**kwargs):
 	)
 	
 	preds, hh = kwargs["network"].get_prediction_trace(
-		target_chunks[:, None, 0], foresight_time_steps=(n_encoder_steps-1)*n_time_steps, return_hidden_states=True
+		target_chunks[:, None, 0], foresight_time_steps=(n_time_steps-1)*n_encoder_steps, return_hidden_states=True
 	)
 	preds = preds.reshape(1, -1, preds.shape[-1])
 	spikes_preds = hh[kwargs["network"].get_layer().name][-1]
@@ -102,7 +104,7 @@ def try_all_small_predictions(**kwargs):
 	for i in range(1, n_complete_chunk):
 		for ax in axes[1:]:
 			ax.vlines(
-				i * n_encoder_steps,
+				i * n_time_steps,
 				ymin=torch.min(target).cpu(), ymax=torch.max(target).cpu(),
 				color="red", linestyle="-", linewidth=0.5, alpha=0.5,
 			)
@@ -115,7 +117,7 @@ def try_all_small_predictions(**kwargs):
 if __name__ == '__main__':
 	logs_file_setup(__file__, add_stdout=False)
 	log_device_setup(deepLib=DeepLib.Pytorch)
-	torch.cuda.set_per_process_memory_fraction(0.5)
+	torch.cuda.set_per_process_memory_fraction(0.8)
 	
 	seed = 0
 	set_seed(seed)
@@ -125,7 +127,7 @@ if __name__ == '__main__':
 			"dataset_name": "timeSeries_2020_12_16_cr3_df.npy",
 			"dataset_length": -1,
 			"n_time_steps": 16,
-			"n_encoder_steps": 64,
+			"n_encoder_steps": 32,
 			"n_units": 256,
 			"dt": 1e-3,
 			"optimizer": "Adam",
@@ -137,7 +139,7 @@ if __name__ == '__main__':
 			"seed": seed,
 			"smoothing_sigma": 5,
 			"reg": "",
-			"hh_init": "inputs",
+			"hh_init": "random",
 		},
 		n_iterations=1024,
 		verbose=True,
@@ -156,43 +158,43 @@ if __name__ == '__main__':
 	# 	results["auto_encoder_training_output"].spikes_auto_encoder,
 	# 	show=True,
 	# )
-	viz_target = VisualiseKMeans(
-		results["targets"][0].squeeze(),
-		shape=nt.Size(
-			[
-				Dimension(results["targets"].shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
-				Dimension(results["targets"].shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
-			]
-		),
-	)
-	viz_target.heatmap(
-		filename=f"{results['checkpoint_folder']}/figures/target_heatmap.png",
-		show=False
-	)
-	viz_full_target = VisualiseKMeans(
-		results["auto_encoder_training_output"].dataset.data.squeeze(),
-		shape=nt.Size(
-			[
-				Dimension(
-					results["auto_encoder_training_output"].dataset.data.shape[1],
-					dtype=DimensionProperty.TIME, name="Time Steps"
-				),
-				Dimension(
-					results["auto_encoder_training_output"].dataset.data.shape[-1],
-					dtype=DimensionProperty.NONE, name="Neurons"
-				),
-			]
-		),
-	)
-	viz_full_target.heatmap(
-		filename=f"{results['checkpoint_folder']}/figures/full_target_heatmap.png",
-		show=False
-	)
+	# viz_target = VisualiseKMeans(
+	# 	results["targets"][0].squeeze(),
+	# 	shape=nt.Size(
+	# 		[
+	# 			Dimension(results["targets"].shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
+	# 			Dimension(results["targets"].shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
+	# 		]
+	# 	),
+	# )
+	# viz_target.heatmap(
+	# 	filename=f"{results['checkpoint_folder']}/figures/target_heatmap.png",
+	# 	show=False
+	# )
+	# viz_full_target = VisualiseKMeans(
+	# 	results["auto_encoder_training_output"].dataset.data.squeeze(),
+	# 	shape=nt.Size(
+	# 		[
+	# 			Dimension(
+	# 				results["auto_encoder_training_output"].dataset.data.shape[1],
+	# 				dtype=DimensionProperty.TIME, name="Time Steps"
+	# 			),
+	# 			Dimension(
+	# 				results["auto_encoder_training_output"].dataset.data.shape[-1],
+	# 				dtype=DimensionProperty.NONE, name="Neurons"
+	# 			),
+	# 		]
+	# 	),
+	# )
+	# viz_full_target.heatmap(
+	# 	filename=f"{results['checkpoint_folder']}/figures/full_target_heatmap.png",
+	# 	show=False
+	# )
 	# visualize_forecasting(
 	# 	results["network"],
 	# 	results["auto_encoder_training_output"].spikes_auto_encoder,
 	# 	results["dataloader"],
 	# 	show=False,
 	# )
-	try_big_predictions(**results)
+	# try_big_predictions(**results)
 	try_all_small_predictions(**results)

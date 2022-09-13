@@ -71,8 +71,8 @@ def get_training_params_space() -> Dict[str, Any]:
 			# 1024,
 		],
 		"encoder_type": [
-			nt.LIFLayer,
-			nt.ALIFLayer,
+			# nt.LIFLayer,
+			# nt.ALIFLayer,
 			nt.SpyLIFLayer,
 		],
 		# "predictor_type": [
@@ -138,7 +138,7 @@ def set_default_params(params: Dict[str, Any], **kwargs) -> Dict[str, Any]:
 	params.setdefault("min_lr", 5e-7)
 	params.setdefault("reg_lr", 1e-7)
 	params.setdefault("reg", None)
-	params.setdefault("dataset_length", 1)
+	params.setdefault("dataset_length", -1)
 	params.setdefault("hh_init", "zeros")
 	params.setdefault("learn_decoder", False)
 	params.setdefault("decoder_alpha_as_vec", False)
@@ -204,6 +204,7 @@ def train_with_params(
 		checkpoint_folder=checkpoint_folder,
 		encoder_data_folder=encoder_data_folder,
 		encoder_iterations=encoder_iterations,
+		verbose=verbose,
 	)
 	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
 	
@@ -211,10 +212,11 @@ def train_with_params(
 		units=auto_encoder_training_output.dataset.units_indexes, batch_size=batch_size, verbose=verbose, **params
 	)
 	spiking_foresight_steps = (params["n_time_steps"]-1)*params["n_encoder_steps"]
+	predictor_type = params.get("predictor_type", params["encoder_type"])
 	network = SequentialModel(
 		input_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_encoder],
 		layers=[
-			params.get("predictor_type", params["encoder_type"])(
+			predictor_type(
 				input_size=nt.Size(
 					[
 						nt.Dimension(None, nt.DimensionProperty.TIME),
@@ -284,7 +286,7 @@ def train_with_params(
 		load_checkpoint_mode=LoadCheckpointMode.LAST_ITR if not force_overwrite else None,
 		force_overwrite=force_overwrite,
 		exec_metrics_on_train=False,
-		desc=f"Training {checkpoints_name}:{spikes_auto_encoder.encoder_type.__name__}"
+		desc=f"Training {checkpoints_name}:{predictor_type.__name__}"
 		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
 	)
 	training_time = time.time() - start_time
@@ -497,7 +499,7 @@ def make_figures(
 	viz.plot_timeseries_comparison(
 		targets, spikes,
 		n_spikes_steps=params["n_encoder_steps"],
-		title=f"Predictor: {spikes_auto_encoder.encoder_type.__name__}"
+		title=f"Predictor: {network.get_layer().__class__.__name__}"
 		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
 		desc="Prediction",
 		filename=f"{checkpoint_folder}/figures/forecasting_visualization.png",
@@ -561,8 +563,8 @@ def try_big_predictions(**kwargs):
 	viz.plot_timeseries_comparison(
 		target, spikes,
 		n_spikes_steps=kwargs["params"]["n_encoder_steps"],
-		title=f"Predictor: {spikes_auto_encoder.encoder_type.__name__}"
-	      f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
+		title=f"Predictor: {kwargs['network'].get_layer().__class__.__name__}"
+		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
 		desc="Prediction",
 		filename=f"{checkpoint_folder}/figures/full_forecasting_visualization.png",
 		show=kwargs.get("show", False),
@@ -610,7 +612,7 @@ def try_all_chunks_predictions(**kwargs):
 	fig, axes = viz.plot_timeseries_comparison(
 		target, spikes,
 		n_spikes_steps=kwargs["params"]["n_encoder_steps"],
-		title=f"Predictor: {spikes_auto_encoder.encoder_type.__name__}"
+		title=f"Predictor: {kwargs['network'].get_layer().__class__.__name__}"
 		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
 		desc="Prediction",
 		filename=None,
@@ -641,6 +643,7 @@ def train_all_params(
 		skip_if_exists: bool = False,
 		encoder_data_folder: Optional[str] = None,
 		encoder_iterations: int = 4096,
+		**train_with_params_kwargs,
 ):
 	"""
 	Train the network with all the parameters.
@@ -692,6 +695,7 @@ def train_all_params(
 					force_overwrite=force_overwrite,
 					encoder_data_folder=encoder_data_folder,
 					encoder_iterations=encoder_iterations,
+					**train_with_params_kwargs
 				)
 				params.update(result["params"])
 				training_time = result["training_time"]

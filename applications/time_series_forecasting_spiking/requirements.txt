@@ -5,7 +5,6 @@ scikit-learn~=1.1.2
 umap~=0.1.1
 scipy~=1.9.0
 setuptools~=60.2.0
-git+https://github.com/JeremieGince/PythonBasicTools
 pandas~=1.4.3
 plotly~=5.10.0
 seaborn~=0.11.2
@@ -13,5 +12,5 @@ psutil~=5.9.1
 six~=1.16.0
 networkx~=2.8.6
 
-torch~=1.12.1+cu113
-torchvision~=0.13.1+cu113
+torch>=1.12.1
+torchvision>=0.13.1

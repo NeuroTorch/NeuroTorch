@@ -21,6 +21,7 @@ from scipy.ndimage import gaussian_filter1d
 from applications.util import get_optimizer
 from neurotorch import to_tensor
 from neurotorch.transforms.spikes_auto_encoder import SpikesAutoEncoder
+from neurotorch.transforms.spikes_decoders import MeanConv
 from neurotorch.transforms.spikes_encoders import SpikesEncoder
 from neurotorch.utils import hash_params, set_seed, save_params, get_all_params_combinations
 
@@ -188,6 +189,7 @@ def train_auto_encoder(
 	kwargs.setdefault("use_recurrent_connection", True)
 	kwargs.setdefault("optimizer", "AdamW")
 	kwargs.setdefault("smoothing_sigma", 0.0)
+	kwargs.setdefault("decoder_alpha_as_vec", False)
 	kwargs["hh_init"] = "zeros"
 	set_seed(seed)
 	dataset = TimeSeriesAutoEncoderDataset(n_units=n_units, seed=seed, filename=kwargs.get("dataset_name"), **kwargs)
@@ -204,6 +206,7 @@ def train_auto_encoder(
 		use_recurrent_connection=kwargs.get("use_recurrent_connection"),
 		dataset_name=kwargs.get("dataset_name"),
 		smoothing_sigma=kwargs.get("smoothing_sigma"),
+		decoder_alpha_as_vec=kwargs.get("decoder_alpha_as_vec"),
 	)
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{data_folder}/{checkpoints_name}"
@@ -215,6 +218,16 @@ def train_auto_encoder(
 	dataloader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=0)
 	spikes_auto_encoder = SpikesAutoEncoder(
 		n_units, n_encoder_steps=n_encoder_steps, encoder_type=encoder_type, checkpoint_folder=checkpoint_folder, dt=dt,
+		spikes_decoder=MeanConv(
+			n_encoder_steps,
+			alpha=2.0*np.ones(n_units) if kwargs.get("decoder_alpha_as_vec") else 2.0,
+			learn_alpha=True,
+			learn_kernel=True,
+			activation=torch.nn.Hardtanh(
+				min_val=kwargs.get("hard_tanh.min_val", 0.0),
+				max_val=kwargs.get("hard_tanh.max_val", 1.0)
+			),
+		),
 		**kwargs
 	).build()
 	if verbose:

@@ -32,6 +32,7 @@ class TimeSeriesDataset(Dataset):
 		super().__init__()
 		if filename is None:
 			filename = 'timeSeries_2020_12_16_cr3_df.npy'
+		self.filename = filename
 		self.ts = np.load(filename)
 		self.total_n_neurons, self.total_n_time_steps = self.ts.shape
 		
@@ -99,6 +100,18 @@ class TimeSeriesDataset(Dataset):
 		else:
 			self.target_transformed = self.transform(self.target)
 		return self.t0_transformed, self.target_transformed
+	
+	def __repr__(self):
+		repr_str = f"{self.__class__.__name__}"
+		repr_str += f"<{self.filename}>"
+		repr_str += f"("
+		repr_str += f"n_units={self.n_units}, "
+		repr_str += f"n_time_steps={self.n_time_steps}, "
+		repr_str += f"dataset_length={self.dataset_length}, "
+		repr_str += f"sigma={self.sigma}, "
+		# repr_str += f"units={self.units_indexes}"
+		repr_str += ")"
+		return repr_str
 
 
 class WilsonCowanTimeSeries(Dataset):
@@ -217,6 +230,8 @@ def get_dataloader(
 		return DataLoader(WilsonCowanTimeSeries(*args, **kwargs), batch_size=1, shuffle=False)
 	elif dataset_name.lower().endswith('.npy'):
 		dataset = TimeSeriesDataset(filename=dataset_name, *args, **kwargs)
+		if kwargs.get("verbose", False):
+			print(f"Loaded dataset:\n\t{dataset}\n\tSamples: {len(dataset)}")
 		batch_size = min(len(dataset), kwargs.setdefault("batch_size", 32))
 		return DataLoader(dataset, batch_size=batch_size, shuffle=kwargs.get("shuffle", len(dataset) > 1))
 	raise ValueError(f"Unknown dataset name: {dataset_name}")

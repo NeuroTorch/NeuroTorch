@@ -53,14 +53,21 @@ def train_with_params(
 		learn_tau=learn_tau,
 		hh_init=hh_init,
 		device=device,
-		name="WilsonCowan"
+		name="WilsonCowan_layer1"
 	)
-	ws_layer_2 = deepcopy(ws_layer)
-	ws_layer_2.name = "Yo"
-	model = nt.SequentialModel(layers=[ws_layer, ws_layer_2], device=device, foresight_time_steps=x.shape[1] - 1)
+
+	ws_layer_2 = deepcopy(ws_layer)  # only usefull if you're planning to use the second layer
+	ws_layer_2.name = "WilsonCowan_layer2"
+
+	# The first model is for one layer while the second one is for two layers. Layers can be added as much as desired.
+	model = nt.SequentialModel(layers=[ws_layer], device=device, foresight_time_steps=x.shape[1] - 1)
+	#model = nt.SequentialModel(layers=[ws_layer, ws_layer_2], device=device, foresight_time_steps=x.shape[1] - 1)
 	model.build()
+
+	# Regularization on the connectome can be applied on one connectome or on all connectomes (or none).
 	regularisation = DaleLawL2([ws_layer.forward_weights], alpha=0.3,
 							   reference_weights=[nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)])
+
 	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.1)
 	optimizer_regul = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
 	criterion = nn.MSELoss()

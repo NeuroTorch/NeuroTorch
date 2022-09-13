@@ -61,8 +61,9 @@ class PVarianceLoss(torch.nn.Module):
 		super(PVarianceLoss, self).__init__()
 		assert reduction in ['mean', 'feature', 'none'], 'Reduction must be one of "mean", "feature", or "none".'
 		self.reduction = reduction
+		mse_reduction = 'mean' if reduction == 'mean' else 'none'
 		self.criterion = nn.MSELoss(
-			reduction=reduction if reduction != 'feature' else 'none'
+			reduction=mse_reduction
 		)
 		self.negative = negative
 
@@ -76,9 +77,16 @@ class PVarianceLoss(torch.nn.Module):
 		:return: The P-Variance loss.
 		"""
 		if self.reduction == 'feature':
-			x, y = x.reshape(-1, x.shape[-1]), y.reshape(-1, y.shape[-1])
-		mse_loss = self.criterion(x, y)
-		loss = 1 - mse_loss / torch.var(y)
+			x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(-1, y.shape[-1])
+		else:
+			x_reshape, y_reshape = x, y
+		mse_loss = self.criterion(x_reshape, y_reshape)
+		if self.reduction == 'feature':
+			mse_loss = mse_loss.mean(dim=0)
+			var = y_reshape.var(dim=0)
+		else:
+			var = y_reshape.var()
+		loss = 1 - mse_loss / var
 		if self.negative:
 			loss = -loss
 		return loss

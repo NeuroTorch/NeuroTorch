@@ -17,6 +17,8 @@ if __name__ == '__main__':
 		rm_data_folder_and_restart_all_training=False,
 		encoder_data_folder="spikes_autoencoder_checkpoints_004",
 		encoder_iterations=2048,
+		batch_size=512,
+		save_best_only=True,
 	)
 	logging.info(df)
 

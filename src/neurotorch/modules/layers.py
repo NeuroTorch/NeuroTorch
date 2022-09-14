@@ -873,9 +873,6 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
 		self._total_count = 0
-		
-		if self.kwargs["hh_init"] == "test_random":
-			print(f"SpyLIFLayer<{self.name}>: using {self.kwargs['hh_init']} hh_init")
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_syn", 5.0 * self.dt)
@@ -883,6 +880,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("threshold", 1.0)
 		self.kwargs.setdefault("gamma", 100.0)
 		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
+		self.kwargs.setdefault("hh_init", "zeros")
 
 	def initialize_weights_(self):
 		weight_scale = 0.2
@@ -1184,6 +1182,7 @@ class SpyALIFLayer(SpyLIFLayer):
 		self.kwargs.setdefault("kappa", 1.6)
 		self.kwargs.setdefault("learn_kappa", False)
 		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
+		self.kwargs.setdefault("hh_init", "zeros")
 	
 	def initialize_weights_(self):
 		weight_scale = 0.2

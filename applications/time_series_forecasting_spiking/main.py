@@ -1,6 +1,7 @@
 import os.path
 import pprint
 from copy import deepcopy, copy
+import psutil
 
 import matplotlib.pyplot as plt
 import torch
@@ -43,7 +44,7 @@ if __name__ == '__main__':
 			"smoothing_sigma": 5,
 			"reg": "",
 			"hh_init": "random",
-			"learn_decoder": False,
+			"learn_decoder": True,
 			"decoder_alpha_as_vec": True,
 		},
 		n_iterations=4096,
@@ -55,6 +56,7 @@ if __name__ == '__main__':
 		encoder_iterations=2048,
 		batch_size=512,
 		save_best_only=True,
+		n_workers=max(0, psutil.cpu_count(logical=False) - 2),
 	)
 	
 	results_view = copy(results)

@@ -7,7 +7,7 @@ from applications.time_series_forecasting_spiking.results_generation import get_
 
 if __name__ == '__main__':
 	logs_file_setup(__file__, add_stdout=False)
-	torch.cuda.set_per_process_memory_fraction(0.5)
+	torch.cuda.set_per_process_memory_fraction(0.9)
 	log_device_setup(deepLib=DeepLib.Pytorch)
 	df = train_all_params(
 		training_params=get_training_params_space(),

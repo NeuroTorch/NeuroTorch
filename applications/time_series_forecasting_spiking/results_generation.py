@@ -74,6 +74,7 @@ def get_training_params_space() -> Dict[str, Any]:
 			# nt.LIFLayer,
 			# nt.ALIFLayer,
 			nt.SpyLIFLayer,
+			# nt.SpyALIFLayer,
 		],
 		# "predictor_type": [
 		# 	nt.LIFLayer,

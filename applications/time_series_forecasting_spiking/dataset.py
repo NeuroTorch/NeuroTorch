@@ -260,18 +260,25 @@ class WilsonCowanTimeSeries(Dataset):
 
 def get_dataloader(
 		dataset_name: str,
+		n_workers: int = 0,
 		*args,
 		**kwargs
 ):
 	randomize_indexes = kwargs.pop("randomize_indexes", kwargs.pop("dataset_randomize_indexes", False))
 	if dataset_name.lower() in ["wilsoncowan", "wc"]:
-		return DataLoader(WilsonCowanTimeSeries(*args, **kwargs), batch_size=1, shuffle=False)
+		return DataLoader(
+			WilsonCowanTimeSeries(*args, **kwargs), batch_size=1, shuffle=False,
+			num_workers=n_workers,
+		)
 	elif dataset_name.lower().endswith('.npy'):
 		dataset = TimeSeriesDataset(filename=dataset_name, randomize_indexes=randomize_indexes, *args, **kwargs)
 		if kwargs.get("verbose", False):
 			print(f"Loaded dataset:\n\t{dataset}\n\tSamples: {len(dataset)}")
 		batch_size = min(len(dataset), kwargs.setdefault("batch_size", 32))
-		return DataLoader(dataset, batch_size=batch_size, shuffle=kwargs.get("shuffle", len(dataset) > 1))
+		return DataLoader(
+			dataset, batch_size=batch_size, shuffle=kwargs.get("shuffle", len(dataset) > 1),
+			num_workers=n_workers,
+		)
 	raise ValueError(f"Unknown dataset name: {dataset_name}")
 
 

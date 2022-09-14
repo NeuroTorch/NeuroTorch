@@ -57,7 +57,7 @@ See the readme of the applications folder [here](applications/README.md).
 
 ## Classification of spiking time series
 
-- Jupyter Notebook: [Heidelberg classification](applications/heidelberg/tutoriel.ipynb).
+- Jupyter Notebook: [Heidelberg classification](applications/heidelberg/tutorial.ipynb).
 
 ## Time series classification with spiking networks
 

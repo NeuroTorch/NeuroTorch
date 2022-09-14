@@ -27,8 +27,9 @@ if __name__ == '__main__':
 	results = train_with_params(
 		{
 			"dataset_name": "timeSeries_2020_12_16_cr3_df.npy",
-			"dataset_length": 128,
-			"n_time_steps": 128,
+			"dataset_length": 342,
+			"dataset_randomize_indexes": True,
+			"n_time_steps": 64,
 			"n_encoder_steps": 16,
 			"n_units": 256,
 			"dt": 1e-3,
@@ -45,14 +46,14 @@ if __name__ == '__main__':
 			"learn_decoder": False,
 			"decoder_alpha_as_vec": True,
 		},
-		n_iterations=256,
+		n_iterations=4096,
 		verbose=True,
 		show_training=False,
 		force_overwrite=True,
 		data_folder="test_checkpoints",
 		encoder_data_folder="test_autoencoder_checkpoints",
-		encoder_iterations=4096,
-		batch_size=128,
+		encoder_iterations=2048,
+		batch_size=512,
 		save_best_only=True,
 	)
 	

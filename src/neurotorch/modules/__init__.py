@@ -15,6 +15,9 @@ from .layers import (
 	IzhikevichLayer,
 	LILayer,
 	LayerType2Layer,
+	SpyLIFLayer,
+	SpyALIFLayer,
+	SpyLILayer,
 )
 
 

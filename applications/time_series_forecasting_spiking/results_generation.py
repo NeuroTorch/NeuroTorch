@@ -52,10 +52,10 @@ def get_training_params_space() -> Dict[str, Any]:
 			8,
 			16,
 			32,
-			# 64,
-			# 128,
-			# 256,
-			# -1
+			64,
+			128,
+			256,
+			-1
 		],
 		"n_encoder_steps": [
 			8,
@@ -64,17 +64,17 @@ def get_training_params_space() -> Dict[str, Any]:
 			64,
 		],
 		"n_units": [
-			# 32,
-			# 128,
+			32,
+			128,
 			256,
-			# 512,
-			# 1024,
+			512,
+			1024,
 		],
 		"encoder_type": [
-			# nt.LIFLayer,
-			# nt.ALIFLayer,
+			nt.LIFLayer,
+			nt.ALIFLayer,
 			nt.SpyLIFLayer,
-			# nt.SpyALIFLayer,
+			nt.SpyALIFLayer,
 		],
 		# "predictor_type": [
 		# 	nt.LIFLayer,
@@ -82,13 +82,13 @@ def get_training_params_space() -> Dict[str, Any]:
 		# 	nt.SpyLIFLayer,
 		# ],
 		"optimizer": [
-			# "SGD",
+			"SGD",
 			"Adam",
-			# "Adamax",
-			# "RMSprop",
-			# "Adagrad",
-			# "Adadelta",
-			# "AdamW",
+			"Adamax",
+			"RMSprop",
+			"Adagrad",
+			"Adadelta",
+			"AdamW",
 		],
 		"learning_rate": [
 			5e-5
@@ -97,17 +97,17 @@ def get_training_params_space() -> Dict[str, Any]:
 			5e-7
 		],
 		"use_recurrent_connection": [
-			# True,
+			True,
 			False,
 		],
 		"dt": [
 			1e-3,
-			# 2e-2,
+			2e-2,
 		],
 		"smoothing_sigma": [
-			# 0,
+			0,
 			5,
-			# 10,
+			10,
 		],
 		"seed": [
 			0,
@@ -122,11 +122,11 @@ def get_training_params_space() -> Dict[str, Any]:
 		],
 		"learn_decoder": [
 			True,
-			# False
+			False
 		],
 		"decoder_alpha_as_vec": [
 			True,
-			# False
+			False
 		],
 	}
 

@@ -104,9 +104,10 @@ def gen_predictor_figures(
 		for k, v in dict_param_name.items()
 		if result[k].nunique() > 1
 	}
-	non_unique_cols = list(set(list(non_unique_dict_params.keys()) + metrics_cols))
+	non_unique_cols = list(set(non_unique_dict_params.keys()) - set(metrics_cols)) + metrics_cols
+	
 	filtered_result = format_table(
-		result,
+		result[non_unique_cols],
 		cols=non_unique_cols,
 		metrics_to_maximize=['pVar', 'pVar_chunks'],
 		metrics_to_minimize=['training_time'],
@@ -114,7 +115,7 @@ def gen_predictor_figures(
 		value_rename=value_rename,
 	)
 	filtered_best_result = format_table(
-		best_result,
+		best_result[non_unique_cols],
 		cols=non_unique_cols,
 		metrics_to_maximize=['pVar', 'pVar_chunks'],
 		metrics_to_minimize=['training_time'],
@@ -122,7 +123,7 @@ def gen_predictor_figures(
 		value_rename=value_rename,
 	)
 	filtered_best_result_sort_by_chunks = format_table(
-		best_result_sort_by_chunks,
+		best_result_sort_by_chunks[non_unique_cols],
 		cols=non_unique_cols,
 		metrics_to_maximize=['pVar', 'pVar_chunks'],
 		metrics_to_minimize=['training_time'],
@@ -152,6 +153,8 @@ def gen_predictor_figures(
 			if result[result["dataset_name"] == dataset_name][k].nunique() > 1 and k not in metrics_cols
 		}
 		fig, axes = plt.subplots(nrows=len(temp_dict_params), ncols=3, figsize=(20, 10))
+		if axes.ndim == 1:
+			axes = axes[np.newaxis, :]
 		axes[0, 0].set_title("pVar [-]")
 		metric_per_all_variable(
 			result, 'pVar',
@@ -272,7 +275,7 @@ def gen_autoencoder_figures(filename: str):
 
 if __name__ == '__main__':
 	# gen_autoencoder_figures('spikes_autoencoder_checkpoints_004/results.csv')
-	gen_predictor_figures('predictor_checkpoints_004/results.csv')
+	gen_predictor_figures('predictor_checkpoints_hh_init/results.csv')
 	
 
 

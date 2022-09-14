@@ -27,8 +27,37 @@ class TimeSeriesDataset(Dataset):
 			filename: Optional[str] = None,
 			smoothing_sigma: float = 0.0,
 			dataset_length: Optional[int] = 1,
+			randomize_indexes: bool = False,
+			rn_indexes_seed: int = 0,
 			**kwargs
 	):
+		"""
+		Create a dataset of time series data.
+		
+		:param input_transform: transform to apply to the input data
+		:type input_transform: Optional[torch.nn.Module]
+		:param target_transform: transform to apply to the target data
+		:type target_transform: Optional[torch.nn.Module]
+		:param n_units: number of units to use
+		:type n_units: Optional[int]
+		:param units: indexes of the units to use
+		:type units: Optional[Iterable[int]]
+		:param n_time_steps: number of time steps to use
+		:type n_time_steps: Optional[int]
+		:param seed: seed for the random number generator for the units
+		:type seed: int
+		:param filename: filename of the dataset
+		:type filename: Optional[str]
+		:param smoothing_sigma: sigma for the gaussian smoothing
+		:type smoothing_sigma: float
+		:param dataset_length: number of samples to generate
+		:type dataset_length: Optional[int]
+		:param randomize_indexes: if True, the indexes are randomized else they are equally spaced
+		:type randomize_indexes: bool
+		:param rn_indexes_seed: seed for the random number generator used to generate the indexes
+		:type rn_indexes_seed: int
+		:param kwargs: additional arguments
+		"""
 		super().__init__()
 		if filename is None:
 			filename = 'timeSeries_2020_12_16_cr3_df.npy'
@@ -71,7 +100,7 @@ class TimeSeriesDataset(Dataset):
 		self.dataset_length = dataset_length
 		if self.dataset_length is None or self.dataset_length <= 0:
 			self.dataset_length = self.total_n_time_steps - self.n_time_steps
-		assert self.dataset_length <= self.total_n_time_steps - self.n_time_steps, \
+		assert self.dataset_length - 1 <= self.total_n_time_steps - self.n_time_steps, \
 			f"Dataset length must be less than total number of time steps " \
 			f"({self.total_n_time_steps - self.n_time_steps})"
 		# if self.transform is None:
@@ -84,12 +113,18 @@ class TimeSeriesDataset(Dataset):
 		# 	self.target_transformed = self.target
 		# else:
 		# 	self.target_transformed = self.transform(self.target)
+		self.randomize_indexes = randomize_indexes
+		self.rn_indexes_seed = rn_indexes_seed
+		self.rn_index_generator = np.random.RandomState(rn_indexes_seed)
 	
 	def __len__(self):
 		return self.dataset_length
 	
 	def __getitem__(self, item):
-		index = int((item / len(self)) * (self.total_n_time_steps - self.n_time_steps))
+		if self.randomize_indexes:
+			index = self.rn_index_generator.randint(self.total_n_time_steps - self.n_time_steps + 1)
+		else:
+			index = int((item / len(self)) * (self.total_n_time_steps - self.n_time_steps))
 		if self.transform is None:
 			self.t0_transformed = torch.unsqueeze(self.data[index], dim=0)
 		else:
@@ -108,8 +143,9 @@ class TimeSeriesDataset(Dataset):
 		repr_str += f"("
 		repr_str += f"n_units={self.n_units}, "
 		repr_str += f"n_time_steps={self.n_time_steps}, "
-		repr_str += f"dataset_length={self.dataset_length}/{self.total_n_time_steps - self.n_time_steps}, "
+		repr_str += f"dataset_length={self.dataset_length}/{self.total_n_time_steps - self.n_time_steps + 1}, "
 		repr_str += f"sigma={self.sigma}, "
+		repr_str += f"rn_idx={self.randomize_indexes}, "
 		# repr_str += f"units={self.units_indexes}"
 		repr_str += ")"
 		return repr_str
@@ -227,10 +263,11 @@ def get_dataloader(
 		*args,
 		**kwargs
 ):
+	randomize_indexes = kwargs.pop("randomize_indexes", kwargs.pop("dataset_randomize_indexes", False))
 	if dataset_name.lower() in ["wilsoncowan", "wc"]:
 		return DataLoader(WilsonCowanTimeSeries(*args, **kwargs), batch_size=1, shuffle=False)
 	elif dataset_name.lower().endswith('.npy'):
-		dataset = TimeSeriesDataset(filename=dataset_name, *args, **kwargs)
+		dataset = TimeSeriesDataset(filename=dataset_name, randomize_indexes=randomize_indexes, *args, **kwargs)
 		if kwargs.get("verbose", False):
 			print(f"Loaded dataset:\n\t{dataset}\n\tSamples: {len(dataset)}")
 		batch_size = min(len(dataset), kwargs.setdefault("batch_size", 32))

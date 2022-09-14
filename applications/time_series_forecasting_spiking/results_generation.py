@@ -143,6 +143,7 @@ def set_default_params(params: Dict[str, Any], **kwargs) -> Dict[str, Any]:
 	params.setdefault("hh_init", "zeros")
 	params.setdefault("learn_decoder", False)
 	params.setdefault("decoder_alpha_as_vec", False)
+	params.setdefault("dataset_randomize_indexes", False)
 	return params
 
 
@@ -407,6 +408,7 @@ def compute_preds_targets_spikes_chunks(
 		loader_params = deepcopy(kwargs["params"])
 		loader_params['n_time_steps'] = -1
 		loader_params['dataset_length'] = 1
+		loader_params['dataset_randomize_indexes'] = False
 		dataloader = get_dataloader(
 			units=units_indexes, verbose=kwargs.get("verbose", False), shuffle=False, **loader_params
 		)
@@ -613,6 +615,7 @@ def try_big_predictions(**kwargs):
 	loader_params = deepcopy(kwargs["params"])
 	loader_params['n_time_steps'] = -1
 	loader_params['dataset_length'] = 1
+	loader_params['dataset_randomize_indexes'] = False
 	dataloader = get_dataloader(
 		units=kwargs["auto_encoder_training_output"].dataset.units_indexes,
 		verbose=kwargs.get("verbose", False), shuffle=False, **loader_params

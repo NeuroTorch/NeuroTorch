@@ -48,7 +48,7 @@ class TimeSeriesDataset(Dataset):
 			n_units = 128
 			units = random_generator.randint(self.total_n_neurons, size=n_units)
 		
-		if n_time_steps is None:
+		if n_time_steps is None or n_time_steps > self.total_n_time_steps or n_time_steps < 0:
 			self.n_time_steps = self.total_n_time_steps
 		else:
 			self.n_time_steps = n_time_steps

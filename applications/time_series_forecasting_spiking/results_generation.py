@@ -143,7 +143,7 @@ def set_default_params(params: Dict[str, Any], **kwargs) -> Dict[str, Any]:
 	params.setdefault("hh_init", "zeros")
 	params.setdefault("learn_decoder", False)
 	params.setdefault("decoder_alpha_as_vec", False)
-	params.setdefault("dataset_randomize_indexes", False)
+	params.setdefault("dataset_randomize_indexes", True)
 	return params
 
 
@@ -190,6 +190,7 @@ def train_with_params(
 		encoder_iterations: int = 4096,
 		batch_size: int = 32,
 		save_best_only: bool = True,
+		n_workers: int = 0,
 ):
 	params = set_default_params(params, seed=seed)
 	set_seed(seed)
@@ -211,7 +212,8 @@ def train_with_params(
 	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
 	
 	dataloader = get_dataloader(
-		units=auto_encoder_training_output.dataset.units_indexes, batch_size=batch_size, verbose=verbose, **params
+		units=auto_encoder_training_output.dataset.units_indexes, batch_size=batch_size,
+		verbose=verbose, n_workers=n_workers, **params
 	)
 	spiking_foresight_steps = (params["n_time_steps"]-1)*params["n_encoder_steps"]
 	predictor_type = params.get("predictor_type", params["encoder_type"])

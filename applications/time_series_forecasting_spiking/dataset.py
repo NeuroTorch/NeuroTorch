@@ -23,7 +23,7 @@ class TimeSeriesDataset(Dataset):
 			n_units: Optional[int] = None,
 			units: Optional[Iterable[int]] = None,
 			n_time_steps: Optional[int] = None,
-			seed : int = 0,
+			seed: int = 0,
 			filename: Optional[str] = None,
 			smoothing_sigma: float = 0.0,
 			dataset_length: Optional[int] = 1,
@@ -89,12 +89,13 @@ class TimeSeriesDataset(Dataset):
 		return self.dataset_length
 	
 	def __getitem__(self, item):
+		index = int((item / len(self)) * (self.total_n_time_steps - self.n_time_steps))
 		if self.transform is None:
-			self.t0_transformed = torch.unsqueeze(self.data[item], dim=0)
+			self.t0_transformed = torch.unsqueeze(self.data[index], dim=0)
 		else:
-			self.t0_transformed = self.transform(torch.unsqueeze(self.data[item], dim=0))
+			self.t0_transformed = self.transform(torch.unsqueeze(self.data[index], dim=0))
 		
-		self.target = self.data[item:self.n_time_steps + item]
+		self.target = self.data[index:self.n_time_steps + index]
 		if self.target_transform is None:
 			self.target_transformed = self.target
 		else:
@@ -107,7 +108,7 @@ class TimeSeriesDataset(Dataset):
 		repr_str += f"("
 		repr_str += f"n_units={self.n_units}, "
 		repr_str += f"n_time_steps={self.n_time_steps}, "
-		repr_str += f"dataset_length={self.dataset_length}, "
+		repr_str += f"dataset_length={self.dataset_length}/{self.total_n_time_steps - self.n_time_steps}, "
 		repr_str += f"sigma={self.sigma}, "
 		# repr_str += f"units={self.units_indexes}"
 		repr_str += ")"

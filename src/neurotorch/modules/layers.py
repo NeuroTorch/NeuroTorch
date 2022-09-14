@@ -26,6 +26,7 @@ class LayerType(enum.Enum):
 	LI = 3
 	SpyLIF = 4
 	SpyLI = 5
+	SpyALIF = 6
 
 	@classmethod
 	def from_str(cls, name: str) -> Optional['LayerType']:
@@ -1001,6 +1002,324 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		return next_Z, (next_V, next_I_syn, next_Z)
 
 
+class SpyALIFLayer(SpyLIFLayer):
+	"""
+	The SpyALIF dynamic, inspired by Bellec and \\textit{al.} :cite:t:`bellec_solution_2020` and bye the
+	:class:`SpyLIFLayer` from the work of Neftci :cite:t:`neftci_surrogate_2019`, is very
+	similar to the SpyLIF dynamics (class :class:`SpyLIFLayer`). In fact, SpyALIF has exactly the same potential
+	update equation as SpyLIF. The difference comes
+	from the fact that the threshold potential varies with time and neuron input. Indeed, the threshold
+	is increased at each output spike and is then decreased with a certain rate in order to come back to
+	its starting threshold :math:`V_{\\text{th}}`. The threshold equation from :class:`SpyLIFLayer` is thus slightly
+	modified by changing :math:`V_{\\text{th}} \\to A_j^t`. Thus, the output of neuron :math:`j` at time :math:`t`
+	denoted :math:`z_j^t` is redefined by the equation :eq:`alif_z`.
+
+	.. math::
+		:label: SpyALIF_I
+
+		\\begin{equation}
+			I_{\\text{syn}, j}^{t+\\Delta t} = \\alpha I_{\text{syn}, j}^{t} + \\sum_{i}^{N} W_{ij}^{\\text{rec}} z_i^t
+			+ \\sum_i^{N} W_{ij}^{\\text{in}} x_i^{t+\\Delta t}
+		\\end{equation}
+
+
+	.. math::
+		:label: SpyALIF_V
+
+		\\begin{equation}
+			V_j^{t+\\Delta t} = \\left(\\beta V_j^t + I_{\\text{syn}, j}^{t+\\Delta t}\\right) \\left(1 - z_j^t\\right)
+		\\end{equation}
+
+
+	.. math::
+		:label: spyalif_alpha
+
+		\\begin{equation}
+			\\alpha = e^{-\\frac{\\Delta t}{\\tau_{\\text{syn}}}}
+		\\end{equation}
+
+	with :math:`\\tau_{\\text{syn}}` being the decay time constant of the synaptic current.
+
+	.. math::
+		:label: spyalif_beta
+
+		\\begin{equation}
+			\\beta = e^{-\\frac{\\Delta t}{\\tau_{\\text{mem}}}}
+		\\end{equation}
+
+	with :math:`\\tau_{\\text{syn}}` being the decay time constant of the synaptic current.
+
+	The output of neuron :math:`j` at time :math:`t` denoted :math:`z_j^t` is defined by the equation :eq:`spyalif_z` .
+
+	.. math::
+		:label: spyalif_z
+
+		z_j^t = H(V_j^t - A_j^t)
+
+	where :math:`A_j^t` denotes the activation threshold of the neuron and the function :math:`H(\\cdot)`
+	is the Heaviside function defined as :math:`H(x) = 1` if :math:`x \\geq 0` and :math:`H(x) = 0` otherwise.
+	The update of the activation threshold is then described by :eq:`alif_A`.
+	
+	.. math::
+		:label: alif_A
+	
+		\\begin{equation}
+			A_j^t = V_{\\text{th}} + \\kappa a_j^t
+		\\end{equation}
+	
+	with the adaptation variable :math:`a_j^t` described by :eq:`alif_a` and :math:`\\kappa` an amplification
+	factor greater than 1 and typically equivalent to :math:`\\kappa\\approx 1.6` :cite:t:`bellec_solution_2020`.
+	
+	.. math::
+		:label: alif_a
+	
+		\\begin{equation}
+			a_j^{t+1} = \\rho a_j + z_j^t
+		\\end{equation}
+	
+	With the decay factor :math:`\\rho` as:
+	
+	.. math::
+		:label: alif_rho
+		
+		\\begin{equation}
+			\\rho = e^{-\\frac{\\Delta t}{\\tau_a}}
+		\\end{equation}
+
+	SpyTorch library: https://github.com/surrogate-gradient-learning/spytorch.
+
+	The variables of the equations :eq:`SpyALIF_I` and :eq:`SpyALIF_V` are described by the following definitions:
+
+		- :math:`N` is the number of neurons in the layer.
+		- :math:`I_{\\text{syn}, j}^{t}` is the synaptic current of neuron :math:`j` at time :math:`t`.
+		- :math:`V_j^t` is the synaptic potential of the neuron :math:`j` at time :math:`t`.
+		- :math:`\\Delta t` is the integration time step.
+		- :math:`z_j^t` is the spike of the neuron :math:`j` at time :math:`t`.
+		- :math:`\\alpha` is the decay constant of the synaptic current over time (equation :eq:`spylif_alpha`).
+		- :math:`\\beta` is the decay constant of the membrane potential over time (equation :eq:`spylif_beta`).
+		- :math:`W_{ij}^{\\text{rec}}` is the recurrent weight of the neuron :math:`i` to the neuron :math:`j`.
+		- :math:`W_{ij}^{\\text{in}}` is the input weight of the neuron :math:`i` to the neuron :math:`j`.
+		- :math:`x_i^{t}` is the input of the neuron :math:`i` at time :math:`t`.
+
+	:Attributes:
+		- :attr:`alpha` (torch.nn.Parameter): Decay constant of the synaptic current over time (equation :eq:`spyalif_alpha`).
+		- :attr:`beta` (torch.nn.Parameter): Decay constant of the membrane potential over time (equation :eq:`spyalif_beta`).
+		- :attr:`threshold` (torch.nn.Parameter): Activation threshold of the neuron (:math:`V_{\\text{th}}`).
+		- :attr:`gamma` (torch.nn.Parameter): Slope of the Heaviside function (:math:`\\gamma`).
+		- :attr:`kappa`: The amplification factor of the threshold potential (:math:`\\kappa`).
+		- :attr:`rho`: The decay factor of the adaptation variable (:math:`\\rho`).
+	"""
+	
+	def __init__(
+			self,
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
+			use_recurrent_connection: bool = True,
+			use_rec_eye_mask: bool = False,
+			learning_type: LearningType = LearningType.BPTT,
+			dt: float = 1e-3,
+			device: Optional[torch.device] = None,
+			**kwargs
+	):
+		"""
+		Constructor for the SpyLIF layer.
+
+		:param input_size: The size of the input.
+		:type input_size: Optional[SizeTypes]
+		:param output_size: The size of the output.
+		:type output_size: Optional[SizeTypes]
+		:param name: The name of the layer.
+		:type name: Optional[str]
+		:param use_recurrent_connection: Whether to use the recurrent connection.
+		:type use_recurrent_connection: bool
+		:param use_rec_eye_mask: Whether to use the recurrent eye mask.
+		:type use_rec_eye_mask: bool
+		:param spike_func: The spike function to use.
+		:type spike_func: Callable[[torch.Tensor], torch.Tensor]
+		:param learning_type: The learning type to use.
+		:type learning_type: LearningType
+		:param dt: Time step (Euler's discretisation).
+		:type dt: float
+		:param device: The device to use.
+		:type device: Optional[torch.device]
+		:param kwargs: The keyword arguments for the layer.
+
+		:keyword float tau_syn: The synaptic time constant :math:`\\tau_{\\text{syn}}`. Default: 5.0 * dt.
+		:keyword float tau_mem: The membrane time constant :math:`\\tau_{\\text{mem}}`. Default: 10.0 * dt.
+		:keyword float threshold: The threshold potential :math:`V_{\\text{th}}`. Default: 1.0.
+		:keyword float gamma: The multiplier of the derivative of the spike function :math:`\\gamma`. Default: 100.0.
+		:keyword float spikes_regularization_factor: The regularization factor for the spikes. Higher this factor is,
+			the more the network will tend to spike less. Default: 0.0.
+
+		"""
+		self.spike_func = HeavisideSigmoidApprox
+		super(SpyALIFLayer, self).__init__(
+			input_size=input_size,
+			output_size=output_size,
+			name=name,
+			use_recurrent_connection=use_recurrent_connection,
+			use_rec_eye_mask=use_rec_eye_mask,
+			learning_type=learning_type,
+			dt=dt,
+			device=device,
+			**kwargs
+		)
+		
+		self.kappa = nn.Parameter(
+			torch.tensor(self.kwargs["kappa"], dtype=torch.float32, device=self.device),
+			requires_grad=self.kwargs["learn_kappa"]
+		)
+		self.rho = nn.Parameter(
+			torch.tensor(np.exp(-dt / self.kwargs["tau_a"]), dtype=torch.float32, device=self.device),
+			requires_grad=False
+		)
+	
+	def _set_default_kwargs(self):
+		self.kwargs.setdefault("tau_syn", 5.0 * self.dt)
+		self.kwargs.setdefault("tau_mem", 10.0 * self.dt)
+		self.kwargs.setdefault("tau_a", 200.0 * self.dt)
+		self.kwargs.setdefault("threshold", 0.03)
+		self.kwargs.setdefault("gamma", 100.0)
+		self.kwargs.setdefault("kappa", 1.6)
+		self.kwargs.setdefault("learn_kappa", False)
+		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
+	
+	def initialize_weights_(self):
+		weight_scale = 0.2
+		if "forward_weights" in self.kwargs:
+			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+		else:
+			torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.input_size)))
+		
+		if "recurrent_weights" in self.kwargs and self.use_recurrent_connection:
+			self.recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
+		elif self.use_recurrent_connection:
+			torch.nn.init.normal_(self.recurrent_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.output_size)))
+	
+	def create_empty_state(
+			self,
+			batch_size: int = 1,
+			**kwargs
+	) -> Tuple[torch.Tensor, ...]:
+		"""
+		Create an empty state in the following form:
+			([membrane potential of shape (batch_size, self.output_size)],
+			[synaptic current of shape (batch_size, self.output_size)],
+			[spikes of shape (batch_size, self.output_size)])
+
+		:param batch_size: The size of the current batch.
+		:return: The current state.
+		"""
+		kwargs.setdefault("n_hh", 4)
+		thr = self.threshold.detach().cpu().item()
+		if self.kwargs["hh_init"] == "random":
+			V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
+			gen = torch.Generator(device=self.device)
+			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
+			V = torch.clamp_min(
+				torch.rand(
+					(batch_size, int(self.output_size)),
+					device=self.device,
+					dtype=torch.float32,
+					requires_grad=True,
+					generator=gen,
+				) * V_std + V_mu, min=0.0
+				)
+			I = torch.rand(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+				generator=gen,
+			)
+			Z = self.spike_func.apply(V, self.threshold, self.gamma)
+			V = V * (1.0 - Z)
+			a = torch.rand(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+				generator=gen,
+			)
+			return tuple([V, I, a, Z])
+		elif self.kwargs["hh_init"] == "inputs":
+			# V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
+			V_mu, V_std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", thr)
+			gen = torch.Generator(device=self.device)
+			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
+			I = torch.rand(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+				generator=gen,
+			)
+			Z = kwargs["inputs"].clone()
+			V = (torch.rand(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+				generator=gen,
+			) * V_std + V_mu)
+			V = (self.beta * V + self.alpha * I) * (1.0 - Z)
+			a = self.rho * torch.rand(
+				(batch_size, int(self.output_size)),
+				device=self.device,
+				dtype=torch.float32,
+				requires_grad=True,
+				generator=gen,
+			) + Z
+			return tuple([V, I, a, Z])
+		return super(SpyLIFLayer, self).create_empty_state(batch_size=batch_size, **kwargs)
+	
+	def reset_regularization_loss(self):
+		super(SpyLIFLayer, self).reset_regularization_loss()
+		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
+		self._total_count = 0
+	
+	def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
+		"""
+		Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
+		the regularization loss will be the sum of all calls to this function.
+
+		:param state: The current state of the layer.
+		:return: The updated regularization loss.
+		"""
+		next_V, next_I_syn, next_Z = state
+		self._regularization_l1 += self.kwargs["spikes_regularization_factor"] * torch.sum(next_Z)
+		# self._n_spike_per_neuron += torch.sum(torch.sum(next_Z, dim=0), dim=0)
+		# self._total_count += next_Z.shape[0]*next_Z.shape[1]
+		# current_l2 = self.kwargs["spikes_regularization_factor"]*torch.sum(self._n_spike_per_neuron ** 2) / (self._total_count + 1e-6)
+		# self._regularization_loss = self._regularization_l1 + current_l2
+		self._regularization_loss = self._regularization_l1
+		return self._regularization_loss
+	
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Tuple[torch.Tensor, ...] = None,
+			**kwargs
+	):
+		assert inputs.ndim == 2, f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
+		batch_size, nb_features = inputs.shape
+		V, I_syn, a, Z = self._init_forward_state(state, batch_size, inputs=inputs)
+		input_current = torch.matmul(inputs, self.forward_weights)
+		if self.use_recurrent_connection:
+			rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+		else:
+			rec_current = 0.0
+		next_I_syn = self.alpha * I_syn + input_current + rec_current
+		next_V = (self.beta * V + next_I_syn) * (1.0 - Z.detach())
+		next_a = self.rho * a + Z  # a^{t+1} = \rho * a_j^t + z_j^t
+		A = self.threshold + self.kappa * next_a  # A_j^t = v_{th} + \kappa * a_j^t
+		next_Z = self.spike_func.apply(next_V, A, self.gamma)  # z_j^t = H(v_j^t - A_j^t)
+		return next_Z, (next_V, next_I_syn, next_a, next_Z)
+
+
 # @inherit_fields_docstring(fields=["Attributes"], bases=[LIFLayer])
 class ALIFLayer(LIFLayer):
 	"""
@@ -1749,6 +2068,7 @@ LayerType2Layer = {
 	LayerType.Izhikevich: IzhikevichLayer,
 	LayerType.LI: LILayer,
 	LayerType.SpyLIF: SpyLIFLayer,
+	LayerType.SpyALIF: SpyALIFLayer,
 	LayerType.SpyLI: SpyLILayer,
 }
 

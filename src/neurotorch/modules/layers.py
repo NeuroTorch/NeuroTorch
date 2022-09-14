@@ -1,4 +1,5 @@
 import enum
+import time
 import warnings
 from copy import deepcopy
 from typing import Any, List, Optional, Sized, Tuple, Type, Union, Iterable
@@ -11,6 +12,8 @@ from . import HeavisideSigmoidApprox, SpikeFunction
 from ..dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 from ..transforms import to_tensor
 from pythonbasictools.docstring import inherit_docstring, inherit_fields_docstring
+
+from ..utils import format_pseudo_rn_seed
 
 
 class LearningType(enum.Enum):
@@ -423,6 +426,7 @@ class BaseNeuronsLayer(BaseLayer):
 		:keyword str hh_init: The initialization method for the hidden state. Defaults to "zeros".
 		:keyword float hh_init_mu: The mean of the hidden state initialization when hh_init is random . Defaults to 0.0.
 		:keyword float hh_init_std: The standard deviation of the hidden state initialization when hh_init is random. Defaults to 1.0.
+		:keyword int hh_init_seed: The seed of the hidden state initialization when hh_init is random. Defaults to 0.
 		"""
 		self.dt = dt
 		self.use_recurrent_connection = use_recurrent_connection
@@ -461,7 +465,7 @@ class BaseNeuronsLayer(BaseLayer):
 		elif self.kwargs["hh_init"] == "random":
 			mu, std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", 1.0)
 			gen = torch.Generator(device=self.device)
-			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
+			gen.manual_seed(format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None)))
 			state = [(torch.rand(
 				(batch_size, int(self.output_size)),
 				device=self.device,
@@ -913,7 +917,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 		if self.kwargs["hh_init"] == "random":
 			V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
 			gen = torch.Generator(device=self.device)
-			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
+			gen.manual_seed(format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None)))
 			V = torch.clamp_min(torch.rand(
 				(batch_size, int(self.output_size)),
 				device=self.device,
@@ -935,7 +939,7 @@ class SpyLIFLayer(BaseNeuronsLayer):
 			# V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
 			V_mu, V_std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", thr)
 			gen = torch.Generator(device=self.device)
-			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
+			gen.manual_seed(format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None)))
 			I = torch.rand(
 				(batch_size, int(self.output_size)),
 				device=self.device,
@@ -1215,7 +1219,7 @@ class SpyALIFLayer(SpyLIFLayer):
 		if self.kwargs["hh_init"] == "random":
 			V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
 			gen = torch.Generator(device=self.device)
-			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
+			gen.manual_seed(format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None)))
 			V = torch.clamp_min(
 				torch.rand(
 					(batch_size, int(self.output_size)),
@@ -1246,7 +1250,7 @@ class SpyALIFLayer(SpyLIFLayer):
 			# V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
 			V_mu, V_std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", thr)
 			gen = torch.Generator(device=self.device)
-			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
+			gen.manual_seed(format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None)))
 			I = torch.rand(
 				(batch_size, int(self.output_size)),
 				device=self.device,

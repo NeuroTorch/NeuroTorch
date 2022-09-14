@@ -1179,7 +1179,7 @@ class SpyALIFLayer(SpyLIFLayer):
 		self.kwargs.setdefault("tau_syn", 5.0 * self.dt)
 		self.kwargs.setdefault("tau_mem", 10.0 * self.dt)
 		self.kwargs.setdefault("tau_a", 200.0 * self.dt)
-		self.kwargs.setdefault("threshold", 0.03)
+		self.kwargs.setdefault("threshold", 1.0)
 		self.kwargs.setdefault("gamma", 100.0)
 		self.kwargs.setdefault("kappa", 1.6)
 		self.kwargs.setdefault("learn_kappa", False)
@@ -1270,7 +1270,7 @@ class SpyALIFLayer(SpyLIFLayer):
 				dtype=torch.float32,
 				requires_grad=True,
 				generator=gen,
-			) + Z
+			) * thr + Z
 			return tuple([V, I, a, Z])
 		return super(SpyLIFLayer, self).create_empty_state(batch_size=batch_size, **kwargs)
 	

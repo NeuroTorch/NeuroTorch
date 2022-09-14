@@ -53,8 +53,14 @@ def gen_predictor_figures(
 		"learning_rate"           : 'Learning rate [-]',
 		"dt"                      : "Time step [s]",
 		"smoothing_sigma"         : "Smoothing sigma [-]",
-		# "training_time"           : "Training time [s]",
+		"reg"                     : "Regularization [-]",
+		"hh_init"                 : "HH init [-]",
+		"learn_decoder"           : "Learn decoder [-]",
+		"decoder_alpha_as_vec"    : "Decoder alpha as vec [-]",
 		"seed"                    : "Seed [-]",
+		"training_time"           : "Training time [s]",
+		"pVar"                    : "pVar [-]",
+		"pVar_chunks"                : "pVar chunks [-]",
 	}
 	dict_param_surname = dict(
 		n_time_steps='T',
@@ -70,8 +76,9 @@ def gen_predictor_figures(
 		seed='Seed',
 	)
 	result = load_results(filename).sort_values(by='pVar', ascending=False)
-	
 	best_result = result.iloc[:3]
+	result_sort_by_chunks = load_results(filename).sort_values(by='pVar_chunks', ascending=False)
+	best_result_sort_by_chunks = result_sort_by_chunks.iloc[:3]
 	cols_oi = [
 		'n_time_steps',
 		'n_encoder_steps',
@@ -83,23 +90,42 @@ def gen_predictor_figures(
 		'smoothing_sigma',
 		# 'training_time',
 		'pVar',
+		'pVar_chunks',
 	]
+	metrics_cols = ["pVar", "pVar_chunks", "training_time"]
 	value_rename = {
 		str(nt.SpyLIFLayer): 'SpyLIF',
+		str(nt.SpyALIFLayer): 'SpyALIF',
 		str(nt.ALIFLayer)  : 'ALIF',
 		str(nt.LIFLayer)   : 'LIF',
 	}
+	non_unique_dict_params = {
+		k: v
+		for k, v in dict_param_name.items()
+		if result[k].nunique() > 1
+	}
+	non_unique_cols = list(set(list(non_unique_dict_params.keys()) + metrics_cols))
 	filtered_result = format_table(
 		result,
-		cols=cols_oi,
-		metrics_to_maximize=['pVar'],
+		cols=non_unique_cols,
+		metrics_to_maximize=['pVar', 'pVar_chunks'],
+		metrics_to_minimize=['training_time'],
 		cols_rename=dict_param_name,
 		value_rename=value_rename,
 	)
 	filtered_best_result = format_table(
 		best_result,
-		cols=cols_oi,
-		metrics_to_maximize=['pVar'],
+		cols=non_unique_cols,
+		metrics_to_maximize=['pVar', 'pVar_chunks'],
+		metrics_to_minimize=['training_time'],
+		cols_rename=dict_param_name,
+		value_rename=value_rename,
+	)
+	filtered_best_result_sort_by_chunks = format_table(
+		best_result_sort_by_chunks,
+		cols=non_unique_cols,
+		metrics_to_maximize=['pVar', 'pVar_chunks'],
+		metrics_to_minimize=['training_time'],
 		cols_rename=dict_param_name,
 		value_rename=value_rename,
 	)
@@ -107,6 +133,8 @@ def gen_predictor_figures(
 		print(f"result:\n{filtered_result.to_latex(index=False, escape=False)}")
 	with pd.option_context('display.max_rows', None, 'display.max_columns', None):
 		print(f"best_result:\n{filtered_best_result.to_latex(index=False, escape=False)}")
+	with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+		print(f"best_result_sort_by_chunks:\n{filtered_best_result_sort_by_chunks.to_latex(index=False, escape=False)}")
 	for dataset_name in [
 		'timeSeries_2020_12_16_cr3_df.npy'
 	]:
@@ -121,27 +149,40 @@ def gen_predictor_figures(
 		temp_dict_params = {
 			k: v
 			for k, v in dict_param_name.items()
-			if result[result["dataset_name"] == dataset_name][k].nunique() > 1
+			if result[result["dataset_name"] == dataset_name][k].nunique() > 1 and k not in metrics_cols
 		}
-		fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 3))
+		fig, axes = plt.subplots(nrows=len(temp_dict_params), ncols=3, figsize=(20, 10))
+		axes[0, 0].set_title("pVar [-]")
 		metric_per_all_variable(
 			result, 'pVar',
 			dataset_name=dataset_name,
 			dict_param_name=temp_dict_params,
 			value_rename=value_rename,
-			metric_rename="pVar [-]",
-			fig=fig, axes=axes[0],
+			metric_rename="",
+			fig=fig, axes=axes[:, 0],
 			# filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_pVar_per_all_variable.png"),
-			# show=True,
+			show=False,
 		)
+		axes[0, 1].set_title("pVar chunks [-]")
+		metric_per_all_variable(
+			result, 'pVar_chunks',
+			dataset_name=dataset_name,
+			dict_param_name=temp_dict_params,
+			value_rename=value_rename,
+			metric_rename="",
+			fig=fig, axes=axes[:, 1],
+			# filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_pVar_per_all_variable.png"),
+			show=False,
+		)
+		axes[0, 2].set_title("Training time [s]")
 		metric_per_all_variable(
 			result, 'training_time',
 			dataset_name=dataset_name,
 			dict_param_name=temp_dict_params,
 			value_rename=value_rename,
-			metric_rename='Training time [s]',
-			fig=fig, axes=axes[1],
-			# filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_tr_time_per_all_variable.png"),
+			metric_rename='',
+			fig=fig, axes=axes[:, 2],
+			filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_metrics_per_all_variable.png"),
 			show=True,
 		)
 		
@@ -230,8 +271,8 @@ def gen_autoencoder_figures(filename: str):
 
 
 if __name__ == '__main__':
-	# gen_autoencoder_figures('spikes_autoencoder_checkpoints_002/results.csv')
-	gen_predictor_figures('predictor_checkpoints_pVar_vs_time_steps/results.csv')
+	# gen_autoencoder_figures('spikes_autoencoder_checkpoints_004/results.csv')
+	gen_predictor_figures('predictor_checkpoints_004/results.csv')
 	
 
 

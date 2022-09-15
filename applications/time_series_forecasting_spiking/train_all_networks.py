@@ -71,7 +71,8 @@ if __name__ == '__main__':
 				5e-5
 			],
 			"min_lr"                  : [
-				5e-7
+				1e-5,
+				5e-7,
 			],
 			"use_recurrent_connection": [
 				True,

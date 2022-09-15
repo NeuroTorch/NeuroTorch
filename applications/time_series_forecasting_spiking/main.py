@@ -8,8 +8,7 @@ import torch
 from pythonbasictools import DeepLib, log_device_setup, logs_file_setup
 
 from applications.time_series_forecasting_spiking.dataset import get_dataloader
-from applications.time_series_forecasting_spiking.results_generation import train_with_params, visualize_forecasting, \
-	try_big_predictions, viz_all_chunks_predictions
+from applications.time_series_forecasting_spiking.results_generation import train_with_params, viz_all_chunks_predictions
 from applications.time_series_forecasting_spiking.spikes_auto_encoder_training import visualize_reconstruction
 from neurotorch import DimensionProperty, Dimension
 from neurotorch.utils import set_seed
@@ -20,7 +19,7 @@ from neurotorch.visualisation.time_series_visualisation import VisualiseKMeans
 if __name__ == '__main__':
 	logs_file_setup(__file__, add_stdout=False)
 	log_device_setup(deepLib=DeepLib.Pytorch)
-	torch.cuda.set_per_process_memory_fraction(0.5)
+	torch.cuda.set_per_process_memory_fraction(0.9)
 	
 	seed = 0
 	set_seed(seed)
@@ -32,11 +31,11 @@ if __name__ == '__main__':
 			"dataset_randomize_indexes": False,
 			"n_time_steps": 16,
 			"n_encoder_steps": 16,
-			"n_units": 256,
-			"hidden_units": 512,
+			"n_units": 512,
+			"hidden_units": 0,
 			"dt": 1e-3,
 			"optimizer": "AdamW",
-			"learning_rate": 5e-5,
+			"learning_rate": 1e-3,
 			"min_lr": 1e-5,
 			"encoder_type": nt.SpyLIFLayer,
 			# "predictor_type": nt.SpyLIFLayer,
@@ -48,16 +47,17 @@ if __name__ == '__main__':
 			"learn_decoder": False,
 			"decoder_alpha_as_vec": False,
 		},
-		n_iterations=4096,
+		n_iterations=1024,
 		verbose=True,
 		show_training=False,
 		force_overwrite=False,
-		data_folder="test_checkpoints",
+		data_folder="test_viz_checkpoints",
 		encoder_data_folder="test_autoencoder_checkpoints",
 		encoder_iterations=2048,
 		batch_size=512,
 		save_best_only=True,
 		n_workers=2,
+		n_preds_repetitions=10,
 	)
 	
 	results_view = copy(results)
@@ -66,5 +66,5 @@ if __name__ == '__main__':
 			results_view[key] = results_view[key].shape
 	pprint.pprint(results_view, indent=4)
 	
-	try_big_predictions(**results, show=True)
-	viz_all_chunks_predictions(**results, show=True)
+	# try_big_predictions(**results, show=True)
+	viz_all_chunks_predictions(**results, show=True, n_preds=10, name="test_viz_chunks")

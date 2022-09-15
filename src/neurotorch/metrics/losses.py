@@ -105,7 +105,7 @@ class PVarianceLoss(torch.nn.Module):
 		"""
 		x, y = to_tensor(x), to_tensor(y)
 		x_reshape, y_reshape = x.reshape(x.shape[0], -1), y.reshape(y.shape[0], -1)
-		mse_loss = nn.MSELoss(reduction='none')(x_reshape, y_reshape).mean(dim=-1)
+		mse_loss = torch.mean((x_reshape - y_reshape)**2, dim=-1)
 		var = y_reshape.var(dim=-1)
 		loss = 1 - mse_loss / var
 		if self.negative:

@@ -679,8 +679,13 @@ def make_figures(
 				]
 			),
 		)
+		batch_spikes = nt.to_numpy(batch_preds_targets_spikes["spikes"])
+		batch_spikes = np.mean(
+			batch_spikes.reshape(batch_spikes.shape[0], -1, batch_spikes.shape[-2], batch_spikes.shape[-1]),
+			axis=0
+		)
 		viz.plot_timeseries_comparison(
-			targets, spikes=None,
+			targets, spikes=batch_spikes,
 			n_spikes_steps=params["n_encoder_steps"],
 			title=f"Predictor: {network.get_layer().__class__.__name__}"
 			f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
@@ -758,6 +763,9 @@ def viz_all_chunks_predictions(preds_targets_spikes_chunks: Optional[dict] = Non
 		preds = preds.reshape(-1, n_units)
 		targets = targets.reshape(-1, n_units)
 	
+	if spikes.ndim > 3:
+		spikes = np.mean(spikes.reshape(spikes.shape[0], -1, n_encoder_steps, n_units), axis=0)
+	
 	viz = VisualiseKMeans(
 		nt.to_numpy(preds),
 		shape=nt.Size(
@@ -769,7 +777,7 @@ def viz_all_chunks_predictions(preds_targets_spikes_chunks: Optional[dict] = Non
 	)
 	fig, axes = viz.plot_timeseries_comparison(
 		targets,
-		spikes=spikes if spikes.ndim <= 3 else None,
+		spikes=spikes,
 		n_spikes_steps=n_encoder_steps,
 		title=f"Predictor: {network.get_layer().__class__.__name__}"
 		f"<{n_units}u, {n_encoder_steps}t>",

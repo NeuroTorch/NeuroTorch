@@ -17,10 +17,10 @@ if __name__ == '__main__':
 				"timeSeries_2020_12_16_cr3_df.npy"
 			],
 			"n_time_steps"            : [
-				4,
+				# 4,
 				# 8,
 				16,
-				32,
+				# 32,
 				64,
 				# 128,
 				# 256,
@@ -38,12 +38,12 @@ if __name__ == '__main__':
 				# 128,
 				256,
 				512,
-				1024,
+				# 1024,
 			],
 			"hidden_units"            : [
 				0,
-				128,
-				256,
+				# 128,
+				# 256,
 				512,
 				# 1024,
 			],
@@ -60,7 +60,7 @@ if __name__ == '__main__':
 			# ],
 			"optimizer"               : [
 				# "SGD",
-				"Adam",
+				# "Adam",
 				# "Adamax",
 				# "RMSprop",
 				# "Adagrad",
@@ -72,7 +72,7 @@ if __name__ == '__main__':
 				5e-5,
 			],
 			"min_lr"                  : [
-				1e-5,
+				# 1e-5,
 				5e-7,
 			],
 			"use_recurrent_connection": [

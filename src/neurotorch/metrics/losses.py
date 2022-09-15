@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from ..transforms.base import to_tensor
+
 
 class RMSELoss(torch.nn.Module):
 	"""
@@ -76,6 +78,7 @@ class PVarianceLoss(torch.nn.Module):
 		
 		:return: The P-Variance loss.
 		"""
+		x, y = to_tensor(x), to_tensor(y)
 		if self.reduction == 'feature':
 			x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(-1, y.shape[-1])
 		else:
@@ -90,4 +93,21 @@ class PVarianceLoss(torch.nn.Module):
 		if self.negative:
 			loss = -loss
 		return loss
-
+	
+	def mean_std_over_batch(self, x, y):
+		"""
+		Calculate the mean and standard deviation of the P-Variance loss over the batch.
+		
+		:param x: The first input.
+		:param y: The second input.
+		
+		:return: The mean and standard deviation of the P-Variance loss over the batch.
+		"""
+		x, y = to_tensor(x), to_tensor(y)
+		x_reshape, y_reshape = x.reshape(x.shape[0], -1), y.reshape(y.shape[0], -1)
+		mse_loss = nn.MSELoss(reduction='none')(x_reshape, y_reshape).mean(dim=-1)
+		var = y_reshape.var(dim=-1)
+		loss = 1 - mse_loss / var
+		if self.negative:
+			loss = -loss
+		return loss.mean(), loss.std()

@@ -321,18 +321,21 @@ class Visualise:
 			y_max = max(target.max(), predictions.max())
 			x_scatter_space = np.linspace(0, len(target), num=n_spikes_steps * len(target))
 			x_scatter_spikes = []
+			x_scatter_values = []
 			x_scatter_zeros = []
 			for i, xs in enumerate(x_scatter_space):
 				if np.isclose(
 						spikes[i // n_spikes_steps][i % n_spikes_steps],
-						1.0
+						0.0
 				):
-					x_scatter_spikes.append(xs)
-				else:
 					x_scatter_zeros.append(xs)
+				else:
+					x_scatter_spikes.append(xs)
+					x_scatter_values.append(spikes[i // n_spikes_steps][i % n_spikes_steps])
+			x_scatter_values = np.clip(x_scatter_values, 0.0, 1.0)
 			ax.scatter(
 				x_scatter_spikes, y=[y_max * 1.1] * len(x_scatter_spikes),
-				label="Latent space", c='k', marker='|', linewidths=0.5, alpha=0.5,
+				label="Latent space", c='k', marker='|', linewidths=0.5, alpha=x_scatter_values,
 			)
 		
 		ax.set_xlabel("Time [-]")

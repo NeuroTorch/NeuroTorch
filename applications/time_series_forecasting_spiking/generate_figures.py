@@ -40,6 +40,7 @@ plot_layout = dict(
 
 def gen_predictor_figures(
 		filename: str,
+		metrics_as_cols_layout: bool = True,
 ):
 	figures_folder = os.path.join(os.path.dirname(filename), 'figures')
 	os.makedirs(figures_folder, exist_ok=True)
@@ -59,8 +60,8 @@ def gen_predictor_figures(
 		"decoder_alpha_as_vec"    : "Decoder alpha as vec [-]",
 		"seed"                    : "Seed [-]",
 		"training_time"           : "Training time [s]",
-		"pVar"                    : "pVar [-]",
-		"pVar_chunks"                : "pVar chunks [-]",
+		"mean_pVar"               : "pVar [-]",
+		"mean_pVar_chunks"        : "pVar chunks [-]",
 	}
 	dict_param_surname = dict(
 		n_time_steps='T',
@@ -92,7 +93,7 @@ def gen_predictor_figures(
 		'pVar',
 		'pVar_chunks',
 	]
-	metrics_cols = ["pVar", "pVar_chunks", "training_time"]
+	metrics_cols = ["mean_pVar", "mean_pVar_chunks", "training_time"]
 	value_rename = {
 		str(nt.SpyLIFLayer): 'SpyLIF',
 		str(nt.SpyALIFLayer): 'SpyALIF',
@@ -109,7 +110,7 @@ def gen_predictor_figures(
 	filtered_result = format_table(
 		result[non_unique_cols],
 		cols=non_unique_cols,
-		metrics_to_maximize=['pVar', 'pVar_chunks'],
+		metrics_to_maximize=['mean_pVar', 'mean_pVar_chunks'],
 		metrics_to_minimize=['training_time'],
 		cols_rename=dict_param_name,
 		value_rename=value_rename,
@@ -117,7 +118,7 @@ def gen_predictor_figures(
 	filtered_best_result = format_table(
 		best_result[non_unique_cols],
 		cols=non_unique_cols,
-		metrics_to_maximize=['pVar', 'pVar_chunks'],
+		metrics_to_maximize=['mean_pVar', 'mean_pVar_chunks'],
 		metrics_to_minimize=['training_time'],
 		cols_rename=dict_param_name,
 		value_rename=value_rename,
@@ -125,7 +126,7 @@ def gen_predictor_figures(
 	filtered_best_result_sort_by_chunks = format_table(
 		best_result_sort_by_chunks[non_unique_cols],
 		cols=non_unique_cols,
-		metrics_to_maximize=['pVar', 'pVar_chunks'],
+		metrics_to_maximize=['mean_pVar', 'mean_pVar_chunks'],
 		metrics_to_minimize=['training_time'],
 		cols_rename=dict_param_name,
 		value_rename=value_rename,
@@ -152,42 +153,35 @@ def gen_predictor_figures(
 			for k, v in dict_param_name.items()
 			if result[result["dataset_name"] == dataset_name][k].nunique() > 1 and k not in metrics_cols
 		}
-		fig, axes = plt.subplots(nrows=len(temp_dict_params), ncols=3, figsize=(20, 10))
-		if axes.ndim == 1:
-			axes = axes[np.newaxis, :]
-		axes[0, 0].set_title("pVar [-]")
-		metric_per_all_variable(
-			result, 'pVar',
-			dataset_name=dataset_name,
-			dict_param_name=temp_dict_params,
-			value_rename=value_rename,
-			metric_rename="",
-			fig=fig, axes=axes[:, 0],
-			# filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_pVar_per_all_variable.png"),
-			show=False,
-		)
-		axes[0, 1].set_title("pVar chunks [-]")
-		metric_per_all_variable(
-			result, 'pVar_chunks',
-			dataset_name=dataset_name,
-			dict_param_name=temp_dict_params,
-			value_rename=value_rename,
-			metric_rename="",
-			fig=fig, axes=axes[:, 1],
-			# filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_pVar_per_all_variable.png"),
-			show=False,
-		)
-		axes[0, 2].set_title("Training time [s]")
-		metric_per_all_variable(
-			result, 'training_time',
-			dataset_name=dataset_name,
-			dict_param_name=temp_dict_params,
-			value_rename=value_rename,
-			metric_rename='',
-			fig=fig, axes=axes[:, 2],
-			filename=os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_metrics_per_all_variable.png"),
-			show=True,
-		)
+		if metrics_as_cols_layout:
+			fig, axes = plt.subplots(nrows=len(temp_dict_params), ncols=3, figsize=(20, 10))
+			if axes.ndim == 1:
+				axes = axes[np.newaxis, :]
+			axes[0, 0].set_title("pVar [-]")
+			axes[0, 1].set_title("pVar chunks [-]")
+			axes[0, 2].set_title("Training time [s]")
+			metrics_rename = {k: '' for k in metrics_cols}
+			axes = axes.T
+		else:
+			fig, axes = plt.subplots(nrows=3, ncols=len(temp_dict_params), figsize=(20, 10))
+			if axes.ndim == 1:
+				axes = axes[:, np.newaxis]
+			metrics_rename = {k: dict_param_name[k] for k in metrics_cols}
+		
+		for i, metric in enumerate(metrics_cols):
+			metric_per_all_variable(
+				result, metric,
+				dataset_name=dataset_name,
+				dict_param_name=temp_dict_params,
+				value_rename=value_rename,
+				metric_rename=metrics_rename[metric],
+				fig=fig, axes=axes[i],
+				filename=(
+					os.path.join(figures_folder, f"{dataset_name.split('.')[0]}_metrics_per_all_variable.png")
+					if i == len(metrics_cols) - 1 else None
+				),
+				show=i == len(metrics_cols) - 1,
+			)
 		
 
 def gen_autoencoder_figures(filename: str):
@@ -275,7 +269,7 @@ def gen_autoencoder_figures(filename: str):
 
 if __name__ == '__main__':
 	# gen_autoencoder_figures('spikes_autoencoder_checkpoints_004/results.csv')
-	gen_predictor_figures('predictor_checkpoints_hh_init/results.csv')
+	gen_predictor_figures('predictor_checkpoints_005/results.csv', metrics_as_cols_layout=False)
 	
 
 

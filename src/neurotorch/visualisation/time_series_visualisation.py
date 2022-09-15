@@ -333,6 +333,8 @@ class Visualise:
 					x_scatter_spikes.append(xs)
 					x_scatter_values.append(spikes[i // n_spikes_steps][i % n_spikes_steps])
 			x_scatter_values = np.clip(x_scatter_values, 0.0, 1.0)
+			if x_scatter_values.size == 0:
+				x_scatter_values = 0.0
 			ax.scatter(
 				x_scatter_spikes, y=[y_max * 1.1] * len(x_scatter_spikes),
 				label="Latent space", c='k', marker='|', linewidths=0.5, alpha=x_scatter_values,

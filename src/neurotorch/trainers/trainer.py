@@ -290,7 +290,7 @@ class Trainer:
 			postfix = {f"{k}": f"{v:.5e}" for k, v in itr_metrics.items()}
 			self.current_training_state = self.current_training_state.update(itr_metrics=itr_metrics)
 			self.callbacks.on_iteration_end(self)
-			p_bar.set_postfix(postfix, stop_flag=self.current_training_state.stop_training_flag)
+			p_bar.set_postfix(postfix)
 			if self.current_training_state.stop_training_flag:
 				p_bar.set_postfix(OrderedDict(**{"stop_flag": "True"}, **postfix))
 				break

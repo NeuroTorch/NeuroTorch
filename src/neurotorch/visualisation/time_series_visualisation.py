@@ -37,16 +37,38 @@ class Visualise:
 			apply_zscore: bool = False
 		):
 		"""
-		:param timeseries: Time series of shape (Time Steps, Features).
+		:param timeseries: Time series of shape (Batch size, Time Steps, Features).
 		:param shape: Shape of the time series. If shape is None, the shape is inferred from the time series. Useful
 		to identify the dtype of the time series. If the shape is Size, make sure to set the name of the dimensions as
 		you want them to be displayed.
+		
+		:Note: If the times series is 3 dimensional, the first dimension is assumed to be the batch size.
+			The time series will be mean over the batch size.
 		"""
 		self.timeseries = to_numpy(timeseries)
 		self._given_timeseries = deepcopy(self.timeseries)
+		if len(self.timeseries.shape) == 3:
+			self.timeseries = np.mean(self.timeseries, axis=0)
+			self._mean_given_timeseries = np.mean(self._given_timeseries, axis=0)
+			self._std_given_timeseries = np.std(self._given_timeseries, axis=0)
+			self.is_mean = True
+		else:
+			self._mean_given_timeseries = self._given_timeseries
+			self._std_given_timeseries = np.zeros_like(self._given_timeseries)
+			self.is_mean = False
+		
+		self._is_transposed = False
 		self.shape = self._set_dimension(shape)
+		self._transpose_given_time_series_if_needed()
 		if apply_zscore:
 			self._zscore_timeseries()
+	
+	def _transpose_given_time_series_if_needed(self):
+		if self._is_transposed:
+			if self.is_mean:
+				self._given_timeseries = self._given_timeseries.transpose(0, 2, 1)
+			else:
+				self._given_timeseries = self._given_timeseries.transpose(1, 0)
 	
 	def _zscore_timeseries(self):
 		"""
@@ -69,7 +91,8 @@ class Visualise:
 			shape = self.timeseries.shape
 
 		shape = Size(shape)
-		assert len(shape) == 2, "The shape of the time series must be 2 dimensional"
+		assert len(shape) == 2, "The shape of the time series must be 2 dimensional. If the time series includes a " \
+			"batch dimension, the batch must not be included in the shape. "
 		if all(dim.dtype == DimensionProperty.NONE for dim in shape):
 			shape[0].dtype = DimensionProperty.TIME
 			for dim in shape:
@@ -83,6 +106,7 @@ class Visualise:
 		
 		if shape[0].dtype == DimensionProperty.NONE:
 			self.timeseries = self.timeseries.T
+			self._is_transposed = True
 			shape = Size(shape.dimensions[::-1])
 		return shape
 
@@ -277,12 +301,18 @@ class Visualise:
 			title: str = "",
 			desc: str = "Prediction",
 	) -> plt.Axes:
-		predictions, target = to_tensor(self._given_timeseries[:, feature_index]), to_tensor(target)
-		mse_loss = torch.nn.MSELoss()(predictions, target.to(predictions.device))
-		pVar = 1 - mse_loss / torch.var(target.to(mse_loss.device))
+		predictions, target = to_tensor(self._mean_given_timeseries[:, feature_index]), to_tensor(target)
+		if self.is_mean:
+			ax.fill_between(
+				np.arange(predictions.shape[0]),
+				to_numpy(predictions) - to_numpy(self._std_given_timeseries[:, feature_index]),
+				to_numpy(predictions) + to_numpy(self._std_given_timeseries[:, feature_index]),
+				alpha=0.2, color="blue"
+			)
 		
-		ax.plot(predictions.detach().cpu().numpy(), label=f"{desc} (pVar: {pVar.detach().cpu().item():.3f})")
-		ax.plot(target.detach().cpu().numpy(), label="Target")
+		pVar = PVarianceLoss()(predictions, target)
+		ax.plot(to_numpy(predictions), label=f"{desc} (pVar: {to_numpy(pVar).item():.3f})", c="blue")
+		ax.plot(to_numpy(target), label="Target", c="orange")
 		
 		if spikes is not None:
 			spikes = to_tensor(spikes)
@@ -322,17 +352,24 @@ class Visualise:
 			show: bool = False,
 			**kwargs
 	) -> Tuple[plt.Figure, plt.Axes]:
-		predictions, target = to_tensor(self._given_timeseries), to_tensor(target)
+		predictions, target = to_tensor(self._mean_given_timeseries), to_tensor(target)
 		target = torch.squeeze(target.detach().cpu())
 		
 		errors = torch.squeeze(predictions - target.to(predictions.device))**2
-		pVar = PVarianceLoss()(predictions, target.to(predictions.device))
+		if self.is_mean:
+			mean_pVar, std_pVar = PVarianceLoss().mean_std_over_batch(self._given_timeseries, target[np.newaxis, ...])
+			mean_pVar, std_pVar = to_numpy(mean_pVar), to_numpy(std_pVar)
+			batch_size = self._given_timeseries.shape[0]
+			title = f"{title} (pVar[{batch_size}]: {mean_pVar:.3f} ± {std_pVar:.3f})"
+		else:
+			pVar = PVarianceLoss()(predictions, target.to(predictions.device))
+			title = f"{title} (pVar: {to_numpy(pVar):.3f})"
 		
 		fig, axes = plt.subplots(4, 1, figsize=(15, 8))
 		axes[0].plot(errors.detach().cpu().numpy())
 		axes[0].set_xlabel("Time [-]")
 		axes[0].set_ylabel("Squared Error [-]")
-		axes[0].set_title(f"{title}, pVar: {pVar.detach().cpu().item():.3f}")
+		axes[0].set_title(title)
 		
 		pVar_per_feature = PVarianceLoss(reduction='feature')(predictions, target.to(predictions.device))
 		mean_error_sort, indices = torch.sort(pVar_per_feature, descending=True)

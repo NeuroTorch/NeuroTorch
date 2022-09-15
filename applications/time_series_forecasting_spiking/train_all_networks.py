@@ -38,14 +38,14 @@ if __name__ == '__main__':
 				# 128,
 				256,
 				512,
-				# 1024,
+				1024,
 			],
 			"hidden_units"            : [
 				0,
 				128,
 				256,
 				512,
-				# 1024,
+				1024,
 			],
 			"encoder_type"            : [
 				# nt.LIFLayer,
@@ -68,7 +68,8 @@ if __name__ == '__main__':
 				"AdamW",
 			],
 			"learning_rate"           : [
-				5e-5
+				1e-3,
+				5e-5,
 			],
 			"min_lr"                  : [
 				1e-5,

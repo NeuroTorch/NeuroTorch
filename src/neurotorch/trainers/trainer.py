@@ -234,6 +234,9 @@ class Trainer:
 		if not any([isinstance(callback, TrainingHistory) for callback in callbacks]):
 			callbacks.append(TrainingHistory())
 		return CallbacksList(callbacks)
+	
+	def update_state_(self, **kwargs):
+		self.current_training_state = self.current_training_state.update(**kwargs)
 
 	def sort_callbacks_(self) -> CallbacksList:
 		histories = list(filter(lambda c: isinstance(c, TrainingHistory), self.callbacks))
@@ -287,7 +290,7 @@ class Trainer:
 			postfix = {f"{k}": f"{v:.5e}" for k, v in itr_metrics.items()}
 			self.current_training_state = self.current_training_state.update(itr_metrics=itr_metrics)
 			self.callbacks.on_iteration_end(self)
-			p_bar.set_postfix(postfix)
+			p_bar.set_postfix(postfix, stop_flag=self.current_training_state.stop_training_flag)
 			if self.current_training_state.stop_training_flag:
 				p_bar.set_postfix(OrderedDict(**{"stop_flag": "True"}, **postfix))
 				break

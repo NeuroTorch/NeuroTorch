@@ -358,12 +358,12 @@ class Visualise:
 		errors = torch.squeeze(predictions - target.to(predictions.device))**2
 		if self.is_mean:
 			mean_pVar, std_pVar = PVarianceLoss().mean_std_over_batch(self._given_timeseries, target[np.newaxis, ...])
-			mean_pVar, std_pVar = to_numpy(mean_pVar), to_numpy(std_pVar)
+			mean_pVar, std_pVar = to_numpy(mean_pVar).item(), to_numpy(std_pVar).item()
 			batch_size = self._given_timeseries.shape[0]
 			title = f"{title} (pVar[{batch_size}]: {mean_pVar:.3f} ± {std_pVar:.3f})"
 		else:
 			pVar = PVarianceLoss()(predictions, target.to(predictions.device))
-			title = f"{title} (pVar: {to_numpy(pVar):.3f})"
+			title = f"{title} (pVar: {to_numpy(pVar).item():.3f})"
 		
 		fig, axes = plt.subplots(4, 1, figsize=(15, 8))
 		axes[0].plot(errors.detach().cpu().numpy())

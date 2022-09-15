@@ -143,7 +143,7 @@ class TimeSeriesDataset(Dataset):
 		repr_str += f"("
 		repr_str += f"n_units={self.n_units}, "
 		repr_str += f"n_time_steps={self.n_time_steps}, "
-		repr_str += f"dataset_length={self.dataset_length}/{self.total_n_time_steps - self.n_time_steps + 1}, "
+		repr_str += f"dataset_length={self.dataset_length}/{max(1, self.total_n_time_steps - self.n_time_steps)}, "
 		repr_str += f"sigma={self.sigma}, "
 		repr_str += f"rn_idx={self.randomize_indexes}, "
 		# repr_str += f"units={self.units_indexes}"
@@ -277,7 +277,7 @@ def get_dataloader(
 		batch_size = min(len(dataset), kwargs.setdefault("batch_size", 32))
 		return DataLoader(
 			dataset, batch_size=batch_size, shuffle=kwargs.get("shuffle", len(dataset) > 1),
-			num_workers=n_workers,
+			num_workers=n_workers, pin_memory=True, persistent_workers=n_workers > 0,
 		)
 	raise ValueError(f"Unknown dataset name: {dataset_name}")
 

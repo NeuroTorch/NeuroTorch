@@ -23,7 +23,7 @@ from applications.time_series_forecasting_spiking.spikes_auto_encoder_training i
 	show_single_preds,
 	visualize_reconstruction, AutoEncoderTrainingOutput,
 )
-from applications.util import get_optimizer, get_regularization
+from applications.util import get_optimizer, get_regularization, ConvergenceTimeGetter
 from neurotorch import Dimension, DimensionProperty, RegressionTrainer
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
 from neurotorch.callbacks.lr_schedulers import LinearLRScheduler, LRSchedulerOnMetric
@@ -144,6 +144,7 @@ def set_default_params(params: Dict[str, Any], **kwargs) -> Dict[str, Any]:
 	params.setdefault("learn_decoder", False)
 	params.setdefault("decoder_alpha_as_vec", False)
 	params.setdefault("dataset_randomize_indexes", True)
+	params.setdefault("hidden_units", 0)
 	return params
 
 
@@ -217,6 +218,13 @@ def train_with_params(
 	)
 	spiking_foresight_steps = (params["n_time_steps"]-1)*params["n_encoder_steps"]
 	predictor_type = params.get("predictor_type", params["encoder_type"])
+	hidden_units = params["hidden_units"]
+	if isinstance(hidden_units, int) and hidden_units > 0:
+		hidden_units = [hidden_units]
+	if not hidden_units:
+		hidden_units = []
+	hidden_units.insert(0, params["n_units"])
+	hidden_units.append(params["n_units"])
 	network = SequentialModel(
 		input_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_encoder],
 		layers=[
@@ -224,15 +232,15 @@ def train_with_params(
 				input_size=nt.Size(
 					[
 						nt.Dimension(None, nt.DimensionProperty.TIME),
-						nt.Dimension(params["n_units"], nt.DimensionProperty.NONE)
+						nt.Dimension(n, nt.DimensionProperty.NONE)
 					]
 				),
-				output_size=params["n_units"],
+				output_size=hidden_units[i+1],
 				use_recurrent_connection=params["use_recurrent_connection"],
 				learning_type=nt.LearningType.BPTT,
-				name="predictor",
-				hh_init=params["hh_init"],
-			),
+				name=f"predictor{i}",
+				hh_init=params["hh_init"] if i == 0 else "random",
+			) for i, n in enumerate(hidden_units[:-1])
 		],
 		output_transform=[auto_encoder_training_output.spikes_auto_encoder.spikes_decoder],
 		name=f"network_{checkpoints_name}",
@@ -250,6 +258,7 @@ def train_with_params(
 		save_best_only=save_best_only,
 		start_save_at=int(0.98*n_iterations),
 	)
+	convergence_time_getter = ConvergenceTimeGetter(metric='train_loss', threshold=0.6, minimize_metric=False)
 	callbacks = [
 		# LinearLRScheduler(params.get("learning_rate", 5e-5), params.get("min_lr", 1e-7), n_iterations),
 		LRSchedulerOnMetric(
@@ -259,6 +268,7 @@ def train_with_params(
 			retain_progress=True,
 		),
 		checkpoint_manager,
+		convergence_time_getter,
 	]
 	if show_training:
 		callbacks.append(TrainingHistoryVisualizationCallback("./temp/"))
@@ -283,7 +293,6 @@ def train_with_params(
 		metrics=[],
 		verbose=verbose,
 	)
-	start_time = time.time()
 	history = trainer.train(
 		dataloader,
 		n_iterations=n_iterations,
@@ -293,7 +302,6 @@ def train_with_params(
 		desc=f"Training {checkpoints_name}:{predictor_type.__name__}"
 		f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
 	)
-	training_time = time.time() - start_time
 	history.plot(save_path=f"{checkpoint_folder}/figures/training_history.png")
 	try:
 		network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, LoadCheckpointMode.BEST_ITR, verbose=verbose)
@@ -333,8 +341,8 @@ def train_with_params(
 		checkpoint_folder=checkpoint_folder,
 		checkpoints_name=checkpoints_name,
 		history=history,
-		training_time=training_time,
 		dataloader=dataloader,
+		convergence_time_getter=convergence_time_getter,
 		predictions=preds_targets_spikes_chunks["predictions"],
 		targets=preds_targets_spikes_chunks["targets"],
 		pVar_chunks=nt.to_numpy(nt.losses.PVarianceLoss()(
@@ -349,7 +357,7 @@ def train_with_params(
 		).item(),
 	))
 	# try_big_predictions(**results)
-	viz_all_chunks_predictions(preds_targets_spikes_chunks=preds_targets_spikes_chunks, **results)
+	# viz_all_chunks_predictions(preds_targets_spikes_chunks=preds_targets_spikes_chunks, **results)
 	return results
 
 
@@ -597,12 +605,13 @@ def make_figures(
 		filename=f"{checkpoint_folder}/figures/preds_rigidplot.png",
 		show=False
 	)
-	visualize_init_final_weights(
-		initial_weights,
-		network.get_layer().forward_weights,
-		filename=f"{checkpoint_folder}/figures/init_final_weights.png",
-		show=False
-	)
+	if all([dim == initial_weights.shape[0] for dim in initial_weights.shape]):
+		visualize_init_final_weights(
+			initial_weights,
+			network.get_layer().forward_weights,
+			filename=f"{checkpoint_folder}/figures/init_final_weights.png",
+			show=False
+		)
 	viz_all_chunks_predictions(
 		preds_targets_spikes_chunks=preds_targets_spikes,
 		checkpoint_folder=checkpoint_folder,
@@ -774,9 +783,14 @@ def train_all_params(
 					**train_with_params_kwargs
 				)
 				params.update(result["params"])
-				training_time = result["training_time"]
+				convergence_time_getter = result["convergence_time_getter"]
+				training_time = convergence_time_getter.training_time
+				itr_convergence = convergence_time_getter.itr_convergence
+				time_convergence = convergence_time_getter.time_convergence
 				if result["checkpoints_name"] in df["checkpoints"].values:
 					training_time = df.loc[df["checkpoints"] == result["checkpoints_name"], "training_time"].values[0]
+					itr_convergence = df.loc[df["checkpoints"] == result["checkpoints_name"], "itr_convergence"].values[0]
+					time_convergence = df.loc[df["checkpoints"] == result["checkpoints_name"], "time_convergence"].values[0]
 					# remove from df if already exists
 					df = df[df["checkpoints"] != result["checkpoints_name"]]
 				df = pd.concat([df, pd.DataFrame(
@@ -784,6 +798,8 @@ def train_all_params(
 						checkpoints=[result["checkpoints_name"]],
 						**{k: [v] for k, v in params.items()},
 						training_time=training_time,
+						itr_convergence=itr_convergence,
+						time_convergence=time_convergence,
 						pVar=[result["pVar"]],
 						pVar_chunks=[result["pVar_chunks"]],
 					))],  ignore_index=True,
@@ -792,6 +808,7 @@ def train_all_params(
 				p_bar.set_postfix(
 					pVar=result["pVar"],
 					pVar_chunks=result["pVar_chunks"],
+					itr_convergence=itr_convergence,
 					params=params,
 				)
 			except Exception as e:

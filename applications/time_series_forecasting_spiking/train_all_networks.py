@@ -37,7 +37,14 @@ if __name__ == '__main__':
 				# 32,
 				# 128,
 				256,
-				# 512,
+				512,
+				# 1024,
+			],
+			"hidden_units"            : [
+				0,
+				128,
+				256,
+				512,
 				# 1024,
 			],
 			"encoder_type"            : [
@@ -58,7 +65,7 @@ if __name__ == '__main__':
 				# "RMSprop",
 				# "Adagrad",
 				# "Adadelta",
-				# "AdamW",
+				"AdamW",
 			],
 			"learning_rate"           : [
 				5e-5
@@ -67,7 +74,7 @@ if __name__ == '__main__':
 				5e-7
 			],
 			"use_recurrent_connection": [
-				# True,
+				True,
 				False,
 			],
 			"dt"                      : [
@@ -86,17 +93,17 @@ if __name__ == '__main__':
 				"",
 			],
 			"hh_init"                 : [
-				"inputs",
+				# "inputs",
 				"zeros",
 				"random",
 			],
 			"learn_decoder"           : [
 				True,
-				# False
+				False
 			],
 			"decoder_alpha_as_vec"    : [
 				True,
-				# False
+				False
 			],
 		},
 		n_iterations=4096,
@@ -104,8 +111,9 @@ if __name__ == '__main__':
 		verbose=False,
 		rm_data_folder_and_restart_all_training=False,
 		encoder_data_folder="spikes_autoencoder_checkpoints_005",
-		encoder_iterations=4096,
+		encoder_iterations=2048,
 		batch_size=512,
 		save_best_only=True,
+		n_workers=2,
 	)
 	logging.info(df)

@@ -350,11 +350,11 @@ def train_with_params(
 	mean_pVar, std_pVar = nt.losses.PVarianceLoss().mean_std_over_batch(
 		batch_preds_targets_spikes_chunks["predictions"], batch_preds_targets_spikes_chunks["targets"]
 	)
-	mean_pVar, std_pVar = nt.to_numpy(mean_pVar), nt.to_numpy(std_pVar)
+	mean_pVar, std_pVar = nt.to_numpy(mean_pVar).item(), nt.to_numpy(std_pVar).item()
 	mean_pVar_chunks, std_pVar_chunks = nt.losses.PVarianceLoss().mean_std_over_batch(
 		batch_preds_targets_spikes_chunks["predictions_chunks"], batch_preds_targets_spikes_chunks["targets_chunks"]
 	)
-	mean_pVar_chunks, std_pVar_chunks = nt.to_numpy(mean_pVar_chunks), nt.to_numpy(std_pVar_chunks)
+	mean_pVar_chunks, std_pVar_chunks = nt.to_numpy(mean_pVar_chunks).item(), nt.to_numpy(std_pVar_chunks).item()
 	results = OrderedDict(dict(
 		params=params,
 		network=network,
@@ -769,7 +769,7 @@ def viz_all_chunks_predictions(preds_targets_spikes_chunks: Optional[dict] = Non
 	)
 	fig, axes = viz.plot_timeseries_comparison(
 		targets,
-		spikes=spikes if spikes.ndim < 3 else None,
+		spikes=spikes if spikes.ndim <= 3 else None,
 		n_spikes_steps=n_encoder_steps,
 		title=f"Predictor: {network.get_layer().__class__.__name__}"
 		f"<{n_units}u, {n_encoder_steps}t>",

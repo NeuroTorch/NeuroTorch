@@ -23,9 +23,11 @@ from applications.time_series_forecasting_spiking.spikes_auto_encoder_training i
 	show_single_preds,
 	visualize_reconstruction, AutoEncoderTrainingOutput,
 )
-from applications.util import get_optimizer, get_regularization, ConvergenceTimeGetter
+from applications.util import get_optimizer, get_regularization
 from neurotorch import Dimension, DimensionProperty, RegressionTrainer
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
+from neurotorch.callbacks.convergence import ConvergenceTimeGetter
+from neurotorch.callbacks.early_stopping import EarlyStoppingThreshold
 from neurotorch.callbacks.lr_schedulers import LinearLRScheduler, LRSchedulerOnMetric
 from neurotorch.callbacks.training_visualization import TrainingHistoryVisualizationCallback
 from neurotorch.metrics import ClassificationMetrics, RegressionMetrics
@@ -260,7 +262,6 @@ def train_with_params(
 	)
 	convergence_time_getter = ConvergenceTimeGetter(metric='train_loss', threshold=0.6, minimize_metric=False)
 	callbacks = [
-		# LinearLRScheduler(params.get("learning_rate", 5e-5), params.get("min_lr", 1e-7), n_iterations),
 		LRSchedulerOnMetric(
 			'train_loss',
 			metric_schedule=np.linspace(-1.5, 0.99, 100),
@@ -269,6 +270,7 @@ def train_with_params(
 		),
 		checkpoint_manager,
 		convergence_time_getter,
+		EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
 	]
 	if show_training:
 		callbacks.append(TrainingHistoryVisualizationCallback("./temp/"))
@@ -783,14 +785,16 @@ def train_all_params(
 					**train_with_params_kwargs
 				)
 				params.update(result["params"])
-				convergence_time_getter = result["convergence_time_getter"]
+				convergence_time_getter: ConvergenceTimeGetter = result["convergence_time_getter"]
 				training_time = convergence_time_getter.training_time
 				itr_convergence = convergence_time_getter.itr_convergence
 				time_convergence = convergence_time_getter.time_convergence
+				convergence_thr = convergence_time_getter.threshold
 				if result["checkpoints_name"] in df["checkpoints"].values:
 					training_time = df.loc[df["checkpoints"] == result["checkpoints_name"], "training_time"].values[0]
 					itr_convergence = df.loc[df["checkpoints"] == result["checkpoints_name"], "itr_convergence"].values[0]
 					time_convergence = df.loc[df["checkpoints"] == result["checkpoints_name"], "time_convergence"].values[0]
+					convergence_thr = df.loc[df["checkpoints"] == result["checkpoints_name"], "convergence_thr"].values[0]
 					# remove from df if already exists
 					df = df[df["checkpoints"] != result["checkpoints_name"]]
 				df = pd.concat([df, pd.DataFrame(
@@ -800,6 +804,7 @@ def train_all_params(
 						training_time=training_time,
 						itr_convergence=itr_convergence,
 						time_convergence=time_convergence,
+						convergence_thr=convergence_thr,
 						pVar=[result["pVar"]],
 						pVar_chunks=[result["pVar_chunks"]],
 					))],  ignore_index=True,

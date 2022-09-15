@@ -37,7 +37,7 @@ if __name__ == '__main__':
 			"dt": 1e-3,
 			"optimizer": "AdamW",
 			"learning_rate": 5e-5,
-			"min_lr": 5e-7,
+			"min_lr": 1e-5,
 			"encoder_type": nt.SpyLIFLayer,
 			# "predictor_type": nt.SpyLIFLayer,
 			"use_recurrent_connection": False,

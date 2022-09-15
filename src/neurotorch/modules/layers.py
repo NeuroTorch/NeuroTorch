@@ -187,7 +187,7 @@ class BaseLayer(torch.nn.Module):
 		:return: None
 		"""
 		self._device = device
-		self.to(device)
+		self.to(device, non_blocking=True)
 
 	def __repr__(self):
 		_repr = f"{self.__class__.__name__}"
@@ -291,7 +291,7 @@ class BaseLayer(torch.nn.Module):
 		
 		:return: The output of the layer.
 		"""
-		inputs = inputs.to(self.device)
+		inputs = inputs.to(self.device, non_blocking=True)
 		if not self.is_built:
 			if not self.is_ready_to_build:
 				self.infer_sizes_from_inputs(inputs)
@@ -936,6 +936,9 @@ class SpyLIFLayer(BaseNeuronsLayer):
 			V = V * (1.0 - Z)
 			return tuple([V, I, Z])
 		elif self.kwargs["hh_init"] == "inputs":
+			assert "inputs" in kwargs, "The inputs must be provided to initialize the state."
+			assert int(self.input_size) == int(self.output_size), \
+				"The input and output size must be the same with inputs initialization."
 			# V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
 			V_mu, V_std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", thr)
 			gen = torch.Generator(device=self.device)

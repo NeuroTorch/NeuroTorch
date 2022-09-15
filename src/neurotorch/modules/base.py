@@ -158,7 +158,7 @@ class BaseModel(torch.nn.Module):
 		self._device = device
 		self._remove_to_device_transform_()
 		self._add_to_device_transform_()
-		self.to(device)
+		self.to(device, non_blocking=True)
 
 	def _make_input_transform(
 			self,

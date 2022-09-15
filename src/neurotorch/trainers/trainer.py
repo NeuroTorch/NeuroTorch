@@ -422,7 +422,7 @@ class Trainer:
 		if isinstance(batch, dict):
 			return {k: self._batch_to_device(v) for k, v in batch.items()}
 		if isinstance(batch, torch.Tensor):
-			return batch.to(self.device)
+			return batch.to(self.device, non_blocking=True)
 		return batch
 
 

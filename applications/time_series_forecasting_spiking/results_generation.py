@@ -194,6 +194,7 @@ def train_with_params(
 		batch_size: int = 32,
 		save_best_only: bool = True,
 		n_workers: int = 0,
+		n_preds_repetitions: int = 2,
 ):
 	params = set_default_params(params, seed=seed)
 	set_seed(seed)
@@ -328,14 +329,32 @@ def train_with_params(
 		params=params,
 		verbose=verbose,
 	)
+	batch_preds_targets_spikes_chunks = compute_preds_targets_spikes_chunks(
+		network=network,
+		n_time_steps=params["n_time_steps"],
+		n_encoder_steps=params["n_encoder_steps"],
+		auto_encoder_training_output=auto_encoder_training_output,
+		params=params,
+		verbose=verbose,
+		n_preds=n_preds_repetitions,
+	)
 	make_figures(
 		params, network,
 		preds_targets_spikes=preds_targets_spikes_chunks,
+		batch_preds_targets_spikes=batch_preds_targets_spikes_chunks,
 		auto_encoder_training_output=auto_encoder_training_output,
 		initial_weights=initial_weights,
 		checkpoint_folder=checkpoint_folder,
 		verbose=verbose,
 	)
+	mean_pVar, std_pVar = nt.losses.PVarianceLoss().mean_std_over_batch(
+		batch_preds_targets_spikes_chunks["predictions"], batch_preds_targets_spikes_chunks["targets"]
+	)
+	mean_pVar, std_pVar = nt.to_numpy(mean_pVar), nt.to_numpy(std_pVar)
+	mean_pVar_chunks, std_pVar_chunks = nt.losses.PVarianceLoss().mean_std_over_batch(
+		batch_preds_targets_spikes_chunks["predictions_chunks"], batch_preds_targets_spikes_chunks["targets_chunks"]
+	)
+	mean_pVar_chunks, std_pVar_chunks = nt.to_numpy(mean_pVar_chunks), nt.to_numpy(std_pVar_chunks)
 	results = OrderedDict(dict(
 		params=params,
 		network=network,
@@ -357,6 +376,10 @@ def train_with_params(
 				nt.to_tensor(preds_targets_spikes_chunks["targets"]).to("cpu")
 			)
 		).item(),
+		mean_pVar=mean_pVar,
+		std_pVar=std_pVar,
+		mean_pVar_chunks=mean_pVar_chunks,
+		std_pVar_chunks=std_pVar_chunks,
 	))
 	# try_big_predictions(**results)
 	# viz_all_chunks_predictions(preds_targets_spikes_chunks=preds_targets_spikes_chunks, **results)
@@ -410,8 +433,25 @@ def compute_preds_targets_spikes_chunks(
 		dataloader: Optional[DataLoader] = None,
 		auto_encoder_training_output: Optional[AutoEncoderTrainingOutput] = None,
 		units_indexes: Optional[Sequence[int]] = None,
+		n_preds: int = 1,
 		**kwargs,
 ):
+	if n_preds > 1:
+		dicts = [compute_preds_targets_spikes_chunks(
+			network=network,
+			n_time_steps=n_time_steps,
+			n_encoder_steps=n_encoder_steps,
+			dataloader=dataloader,
+			auto_encoder_training_output=auto_encoder_training_output,
+			units_indexes=units_indexes,
+			n_preds=1,
+			**kwargs,
+		) for _ in range(n_preds)]
+		singles = ["network", "n_chunks", "n_time_steps", "n_encoder_steps", "n_units"]
+		dict_stacks = {k: np.stack([nt.to_numpy(d[k]) for d in dicts], axis=0) for k in dicts[0] if k not in singles}
+		dict_stacks.update({k: v for k, v in dicts[0].items() if k in singles})
+		return dict_stacks
+	
 	if dataloader is None:
 		assert auto_encoder_training_output is not None or units_indexes is not None, \
 			"If dataloader is None, auto_encoder_training_output or units_indexes must be provided"
@@ -558,6 +598,7 @@ def make_figures(
 		initial_weights,
 		checkpoint_folder: str,
 		verbose: bool,
+		batch_preds_targets_spikes: Optional[dict] = None,
 ):
 	spikes_auto_encoder = auto_encoder_training_output.spikes_auto_encoder
 	preds = preds_targets_spikes["predictions"].reshape(
@@ -617,8 +658,36 @@ def make_figures(
 	viz_all_chunks_predictions(
 		preds_targets_spikes_chunks=preds_targets_spikes,
 		checkpoint_folder=checkpoint_folder,
-		verbose=verbose
+		verbose=verbose,
+		show=False,
 	)
+	if batch_preds_targets_spikes is not None:
+		viz_all_chunks_predictions(
+			preds_targets_spikes_chunks=batch_preds_targets_spikes,
+			checkpoint_folder=checkpoint_folder,
+			verbose=verbose,
+			name="batch_full_chunks_forecasting_visualization",
+			show=False,
+		)
+		batch_preds_shape = batch_preds_targets_spikes["predictions"].shape
+		viz = VisualiseKMeans(
+			batch_preds_targets_spikes["predictions"].reshape(batch_preds_shape[0], -1, batch_preds_shape[-1]),
+			shape=nt.Size(
+				[
+					Dimension(preds.shape[-2], dtype=DimensionProperty.TIME, name="Time Steps"),
+					Dimension(preds.shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
+				]
+			),
+		)
+		viz.plot_timeseries_comparison(
+			targets, spikes=None,
+			n_spikes_steps=params["n_encoder_steps"],
+			title=f"Predictor: {network.get_layer().__class__.__name__}"
+			f"<{spikes_auto_encoder.n_units}u, {spikes_auto_encoder.n_encoder_steps}t>",
+			desc="Prediction",
+			filename=f"{checkpoint_folder}/figures/batch_forecasting_visualization.png",
+			show=False,
+		)
 
 
 @torch.no_grad()
@@ -673,27 +742,34 @@ def viz_all_chunks_predictions(preds_targets_spikes_chunks: Optional[dict] = Non
 			auto_encoder_training_output=kwargs["auto_encoder_training_output"],
 			params=kwargs["params"],
 			verbose=kwargs.get("verbose", False),
+			n_preds=kwargs.get("n_preds", 1),
 		)
 	preds, targets, spikes = (
-		preds_targets_spikes_chunks["predictions_chunks"],
-		preds_targets_spikes_chunks["targets_chunks"],
-		preds_targets_spikes_chunks["spikes_chunks"]
+		nt.to_numpy(preds_targets_spikes_chunks["predictions_chunks"]),
+		nt.to_numpy(preds_targets_spikes_chunks["targets_chunks"]),
+		nt.to_numpy(preds_targets_spikes_chunks["spikes_chunks"]),
 	)
 	network = preds_targets_spikes_chunks["network"]
-	n_encoder_steps, n_time_steps, n_units = spikes.shape[1], targets.shape[1], targets.shape[-1]
-	preds, targets = preds.reshape(-1, n_units), targets.reshape(-1, n_units)
+	n_encoder_steps, n_time_steps, n_units = spikes.shape[-2], targets.shape[-2], targets.shape[-1]
+	if preds.ndim > 3:
+		preds = preds.reshape(preds.shape[0], -1, n_units)
+		targets = np.mean(targets, axis=0).reshape(-1, n_units)
+	else:
+		preds = preds.reshape(-1, n_units)
+		targets = targets.reshape(-1, n_units)
 	
 	viz = VisualiseKMeans(
 		nt.to_numpy(preds),
 		shape=nt.Size(
 			[
-				Dimension(preds.shape[1], dtype=DimensionProperty.TIME, name="Time Steps"),
+				Dimension(preds.shape[-2], dtype=DimensionProperty.TIME, name="Time Steps"),
 				Dimension(preds.shape[-1], dtype=DimensionProperty.NONE, name="Neurons"),
 			]
 		),
 	)
 	fig, axes = viz.plot_timeseries_comparison(
-		targets, spikes,
+		targets,
+		spikes=spikes if spikes.ndim < 3 else None,
 		n_spikes_steps=n_encoder_steps,
 		title=f"Predictor: {network.get_layer().__class__.__name__}"
 		f"<{n_units}u, {n_encoder_steps}t>",
@@ -706,12 +782,13 @@ def viz_all_chunks_predictions(preds_targets_spikes_chunks: Optional[dict] = Non
 		for ax in axes[1:]:
 			ax.vlines(
 				i * n_time_steps,
-				ymin=torch.min(targets).cpu(), ymax=torch.max(targets).cpu(),
+				ymin=np.min(targets), ymax=np.max(targets),
 				color="red", linestyle="-", linewidth=0.5, alpha=0.5,
 			)
 	
 	if checkpoint_folder is not None:
-		filename = f"{checkpoint_folder}/figures/full_chunks_forecasting_visualization.png"
+		name = kwargs.get("name", f"full_chunks_forecasting_visualization")
+		filename = f"{checkpoint_folder}/figures/{name}.png"
 		os.makedirs(os.path.dirname(filename), exist_ok=True)
 		fig.savefig(filename)
 	if kwargs.get("show", False):
@@ -759,6 +836,10 @@ def train_all_params(
 		*list(training_params.keys()),
 		'pVar',
 		'pVar_chunks',
+		'mean_pVar',
+		'std_pVar',
+		'mean_pVar_chunks',
+		'std_pVar_chunks',
 	]
 
 	# load dataframe if exists
@@ -807,6 +888,10 @@ def train_all_params(
 						convergence_thr=convergence_thr,
 						pVar=[result["pVar"]],
 						pVar_chunks=[result["pVar_chunks"]],
+						mean_pVar=[result["mean_pVar"]],
+						std_pVar=[result["std_pVar"]],
+						mean_pVar_chunks=[result["mean_pVar_chunks"]],
+						std_pVar_chunks=[result["std_pVar_chunks"]],
 					))],  ignore_index=True,
 				)
 				df.to_csv(results_path, index=False)

@@ -4,7 +4,7 @@ import shutil
 import time
 import warnings
 from collections import OrderedDict, defaultdict
-from copy import deepcopy
+from copy import deepcopy, copy
 from typing import Any, Dict, Iterable, Type, Optional, Union, Tuple, Sequence
 
 import numpy as np
@@ -854,56 +854,97 @@ def train_all_params(
 				continue
 			# p_bar.set_description(f"Training {params}")
 			try:
-				result = train_with_params(
+				df = _do_iteration_of_all_params(
+					df, p_bar, results_path,
 					params,
-					n_iterations=n_iterations,
-					data_folder=data_folder,
-					verbose=verbose,
-					show_training=False,
-					force_overwrite=force_overwrite,
-					encoder_data_folder=encoder_data_folder,
-					encoder_iterations=encoder_iterations,
+					n_iterations,
+					data_folder,
+					verbose,
+					force_overwrite,
+					encoder_data_folder,
+					encoder_iterations,
 					**train_with_params_kwargs
 				)
-				params.update(result["params"])
-				convergence_time_getter: ConvergenceTimeGetter = result["convergence_time_getter"]
-				training_time = convergence_time_getter.training_time
-				itr_convergence = convergence_time_getter.itr_convergence
-				time_convergence = convergence_time_getter.time_convergence
-				convergence_thr = convergence_time_getter.threshold
-				if result["checkpoints_name"] in df["checkpoints"].values:
-					training_time = df.loc[df["checkpoints"] == result["checkpoints_name"], "training_time"].values[0]
-					itr_convergence = df.loc[df["checkpoints"] == result["checkpoints_name"], "itr_convergence"].values[0]
-					time_convergence = df.loc[df["checkpoints"] == result["checkpoints_name"], "time_convergence"].values[0]
-					convergence_thr = df.loc[df["checkpoints"] == result["checkpoints_name"], "convergence_thr"].values[0]
-					# remove from df if already exists
-					df = df[df["checkpoints"] != result["checkpoints_name"]]
-				df = pd.concat([df, pd.DataFrame(
-					dict(
-						checkpoints=[result["checkpoints_name"]],
-						**{k: [v] for k, v in params.items()},
-						training_time=training_time,
-						itr_convergence=itr_convergence,
-						time_convergence=time_convergence,
-						convergence_thr=convergence_thr,
-						pVar=[result["pVar"]],
-						pVar_chunks=[result["pVar_chunks"]],
-						mean_pVar=[result["mean_pVar"]],
-						std_pVar=[result["std_pVar"]],
-						mean_pVar_chunks=[result["mean_pVar_chunks"]],
-						std_pVar_chunks=[result["std_pVar_chunks"]],
-					))],  ignore_index=True,
-				)
-				df.to_csv(results_path, index=False)
-				p_bar.set_postfix(
-					pVar=result["pVar"],
-					pVar_chunks=result["pVar_chunks"],
-					itr_convergence=itr_convergence,
-					params=params,
+			except RuntimeError as e:
+				smaller_params = copy(train_with_params_kwargs)
+				smaller_params["batch_size"] = 128
+				df = _do_iteration_of_all_params(
+					df, p_bar, results_path,
+					params,
+					n_iterations,
+					data_folder,
+					verbose,
+					force_overwrite,
+					encoder_data_folder,
+					encoder_iterations,
+					**smaller_params
 				)
 			except Exception as e:
 				logging.error(e)
 				continue
+	return df
+
+
+def _do_iteration_of_all_params(
+		df, p_bar, results_path,
+		params,
+		n_iterations,
+		data_folder,
+		verbose,
+		force_overwrite,
+		encoder_data_folder,
+		encoder_iterations,
+		**train_with_params_kwargs
+):
+	result = train_with_params(
+		params,
+		n_iterations=n_iterations,
+		data_folder=data_folder,
+		verbose=verbose,
+		show_training=False,
+		force_overwrite=force_overwrite,
+		encoder_data_folder=encoder_data_folder,
+		encoder_iterations=encoder_iterations,
+		**train_with_params_kwargs
+	)
+	params.update(result["params"])
+	convergence_time_getter: ConvergenceTimeGetter = result["convergence_time_getter"]
+	training_time = convergence_time_getter.training_time
+	itr_convergence = convergence_time_getter.itr_convergence
+	time_convergence = convergence_time_getter.time_convergence
+	convergence_thr = convergence_time_getter.threshold
+	if result["checkpoints_name"] in df["checkpoints"].values:
+		training_time = df.loc[df["checkpoints"] == result["checkpoints_name"], "training_time"].values[0]
+		itr_convergence = df.loc[df["checkpoints"] == result["checkpoints_name"], "itr_convergence"].values[0]
+		time_convergence = df.loc[df["checkpoints"] == result["checkpoints_name"], "time_convergence"].values[0]
+		convergence_thr = df.loc[df["checkpoints"] == result["checkpoints_name"], "convergence_thr"].values[0]
+		# remove from df if already exists
+		df = df[df["checkpoints"] != result["checkpoints_name"]]
+	df = pd.concat(
+		[df, pd.DataFrame(
+			dict(
+				checkpoints=[result["checkpoints_name"]],
+				**{k: [v] for k, v in params.items()},
+				training_time=training_time,
+				itr_convergence=itr_convergence,
+				time_convergence=time_convergence,
+				convergence_thr=convergence_thr,
+				pVar=[result["pVar"]],
+				pVar_chunks=[result["pVar_chunks"]],
+				mean_pVar=[result["mean_pVar"]],
+				std_pVar=[result["std_pVar"]],
+				mean_pVar_chunks=[result["mean_pVar_chunks"]],
+				std_pVar_chunks=[result["std_pVar_chunks"]],
+			)
+		)], ignore_index=True,
+		)
+	df.to_csv(results_path, index=False)
+	p_bar.set_postfix(
+		pVar=result["pVar"],
+		pVar_chunks=result["pVar_chunks"],
+		itr_convergence=itr_convergence,
+		params=params,
+	)
 	return df
 
 

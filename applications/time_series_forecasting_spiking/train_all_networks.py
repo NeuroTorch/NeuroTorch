@@ -20,7 +20,7 @@ if __name__ == '__main__':
 				4,
 				# 8,
 				16,
-				# 32,
+				32,
 				64,
 				# 128,
 				# 256,
@@ -45,7 +45,7 @@ if __name__ == '__main__':
 				128,
 				256,
 				512,
-				1024,
+				# 1024,
 			],
 			"encoder_type"            : [
 				# nt.LIFLayer,
@@ -76,7 +76,7 @@ if __name__ == '__main__':
 				5e-7,
 			],
 			"use_recurrent_connection": [
-				True,
+				# True,
 				False,
 			],
 			"dt"                      : [
@@ -108,7 +108,7 @@ if __name__ == '__main__':
 				False
 			],
 		},
-		n_iterations=4096,
+		n_iterations=2048,
 		data_folder="predictor_checkpoints_005",
 		verbose=False,
 		rm_data_folder_and_restart_all_training=False,
@@ -117,5 +117,6 @@ if __name__ == '__main__':
 		batch_size=512,
 		save_best_only=True,
 		n_workers=2,
+		n_preds_repetitions=10,
 	)
 	logging.info(df)

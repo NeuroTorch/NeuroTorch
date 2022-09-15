@@ -5,41 +5,6 @@ import numpy as np
 import torch
 import neurotorch as nt
 from neurotorch.regularization import BaseRegularization
-from neurotorch.callbacks.base_callback import BaseCallback
-
-
-class ConvergenceTimeGetter(BaseCallback):
-	def __init__(
-			self,
-			*,
-			metric: str,
-			threshold: float,
-			minimize_metric: bool,
-	):
-		super().__init__()
-		self.threshold = threshold
-		self.metric = metric
-		self.minimize_metric = minimize_metric
-		self.time_convergence = None
-		self.itr_convergence = None
-		self.training_time = None
-		self.start_time = None
-	
-	def start(self, trainer):
-		self.start_time = time.time()
-
-	def close(self, trainer):
-		self.training_time = time.time() - self.start_time
-	
-	def on_iteration_end(self, trainer):
-		if self.time_convergence is None:
-			if self.minimize_metric:
-				threshold_met = trainer.training_history[self.metric][-1] < self.threshold
-			else:
-				threshold_met = trainer.training_history[self.metric][-1] > self.threshold
-			if threshold_met:
-				self.time_convergence = time.time() - self.start_time
-				self.itr_convergence = trainer.current_training_state.iteration
 
 
 def get_optimizer(optimizer_name: str) -> Type[torch.optim.Optimizer]:

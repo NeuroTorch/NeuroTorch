@@ -32,9 +32,9 @@ class ConvergenceTimeGetter(BaseCallback):
 	def on_iteration_end(self, trainer):
 		if not self.threshold_met:
 			if self.minimize_metric:
-				self.threshold_met = trainer.training_history[self.metric][-1] < self.threshold
+				self.threshold_met = trainer.current_training_state.itr_metrics[self.metric] < self.threshold
 			else:
-				self.threshold_met = trainer.training_history[self.metric][-1] > self.threshold
+				self.threshold_met = trainer.current_training_state.itr_metrics[self.metric] > self.threshold
 			if self.threshold_met:
 				self.time_convergence = time.time() - self.start_time
 				self.itr_convergence = trainer.current_training_state.iteration

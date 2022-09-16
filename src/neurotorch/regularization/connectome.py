@@ -6,7 +6,7 @@ from . import BaseRegularization
 from ..init import dale_
 
 
-@pybt.docstring.inherit_fields_docstring(fields=["Attributes"], bases=[BaseRegularization])
+# @pybt.docstring.inherit_fields_docstring(fields=["Attributes"], bases=[BaseRegularization])
 class DaleLawL2(BaseRegularization):
 	"""
 	Regularisation of the connectome to apply Dale's law and L2. In a nutshell, the Dale's law

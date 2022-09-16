@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from typing import Iterable, Optional, List, Callable, Dict, Any, Union, NamedTuple
 
 import numpy as np
@@ -23,6 +24,7 @@ class CurrentTrainingState(NamedTuple):
 	train_metrics: Optional[Any]
 	val_metrics: Optional[Any]
 	itr_metrics: Optional[Dict[str, Any]]
+	stop_training_flag: bool = False
 	
 	@staticmethod
 	def get_null_state() -> "CurrentTrainingState":
@@ -38,6 +40,7 @@ class CurrentTrainingState(NamedTuple):
 			train_metrics=None,
 			val_metrics=None,
 			itr_metrics=None,
+			stop_training_flag=False,
 		)
 	
 	def update(
@@ -54,6 +57,7 @@ class CurrentTrainingState(NamedTuple):
 			train_metrics: Optional[Any] = None,
 			val_metrics: Optional[Any] = None,
 			itr_metrics: Optional[Dict[str, Any]] = None,
+			stop_training_flag: Optional[bool] = None,
 	) -> "CurrentTrainingState":
 		return CurrentTrainingState(
 			iteration=iteration if iteration is not None else self.iteration,
@@ -67,6 +71,7 @@ class CurrentTrainingState(NamedTuple):
 			train_metrics=train_metrics if train_metrics is not None else self.train_metrics,
 			val_metrics=val_metrics if val_metrics is not None else self.val_metrics,
 			itr_metrics=itr_metrics if itr_metrics is not None else self.itr_metrics,
+			stop_training_flag=stop_training_flag if stop_training_flag is not None else self.stop_training_flag,
 		)
 
 
@@ -229,6 +234,9 @@ class Trainer:
 		if not any([isinstance(callback, TrainingHistory) for callback in callbacks]):
 			callbacks.append(TrainingHistory())
 		return CallbacksList(callbacks)
+	
+	def update_state_(self, **kwargs):
+		self.current_training_state = self.current_training_state.update(**kwargs)
 
 	def sort_callbacks_(self) -> CallbacksList:
 		histories = list(filter(lambda c: isinstance(c, TrainingHistory), self.callbacks))
@@ -283,6 +291,9 @@ class Trainer:
 			self.current_training_state = self.current_training_state.update(itr_metrics=itr_metrics)
 			self.callbacks.on_iteration_end(self)
 			p_bar.set_postfix(postfix)
+			if self.current_training_state.stop_training_flag:
+				p_bar.set_postfix(OrderedDict(**{"stop_flag": "True"}, **postfix))
+				break
 		self.callbacks.close(self)
 		p_bar.close()
 		return self.training_history
@@ -422,7 +433,7 @@ class Trainer:
 		if isinstance(batch, dict):
 			return {k: self._batch_to_device(v) for k, v in batch.items()}
 		if isinstance(batch, torch.Tensor):
-			return batch.to(self.device)
+			return batch.to(self.device, non_blocking=True)
 		return batch
 
 

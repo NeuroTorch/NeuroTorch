@@ -1,5 +1,7 @@
+import time
 from typing import Type, Optional
 
+import numpy as np
 import torch
 import neurotorch as nt
 from neurotorch.regularization import BaseRegularization

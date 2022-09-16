@@ -37,16 +37,38 @@ class Visualise:
 			apply_zscore: bool = False
 		):
 		"""
-		:param timeseries: Time series of shape (Time Steps, Features).
+		:param timeseries: Time series of shape (Batch size, Time Steps, Features).
 		:param shape: Shape of the time series. If shape is None, the shape is inferred from the time series. Useful
 		to identify the dtype of the time series. If the shape is Size, make sure to set the name of the dimensions as
 		you want them to be displayed.
+		
+		:Note: If the times series is 3 dimensional, the first dimension is assumed to be the batch size.
+			The time series will be mean over the batch size.
 		"""
 		self.timeseries = to_numpy(timeseries)
 		self._given_timeseries = deepcopy(self.timeseries)
+		if len(self.timeseries.shape) == 3:
+			self.timeseries = np.mean(self.timeseries, axis=0)
+			self._mean_given_timeseries = np.mean(self._given_timeseries, axis=0)
+			self._std_given_timeseries = np.std(self._given_timeseries, axis=0)
+			self.is_mean = True
+		else:
+			self._mean_given_timeseries = self._given_timeseries
+			self._std_given_timeseries = np.zeros_like(self._given_timeseries)
+			self.is_mean = False
+		
+		self._is_transposed = False
 		self.shape = self._set_dimension(shape)
+		self._transpose_given_time_series_if_needed()
 		if apply_zscore:
 			self._zscore_timeseries()
+	
+	def _transpose_given_time_series_if_needed(self):
+		if self._is_transposed:
+			if self.is_mean:
+				self._given_timeseries = self._given_timeseries.transpose(0, 2, 1)
+			else:
+				self._given_timeseries = self._given_timeseries.transpose(1, 0)
 	
 	def _zscore_timeseries(self):
 		"""
@@ -69,7 +91,8 @@ class Visualise:
 			shape = self.timeseries.shape
 
 		shape = Size(shape)
-		assert len(shape) == 2, "The shape of the time series must be 2 dimensional"
+		assert len(shape) == 2, "The shape of the time series must be 2 dimensional. If the time series includes a " \
+			"batch dimension, the batch must not be included in the shape. "
 		if all(dim.dtype == DimensionProperty.NONE for dim in shape):
 			shape[0].dtype = DimensionProperty.TIME
 			for dim in shape:
@@ -83,6 +106,7 @@ class Visualise:
 		
 		if shape[0].dtype == DimensionProperty.NONE:
 			self.timeseries = self.timeseries.T
+			self._is_transposed = True
 			shape = Size(shape.dimensions[::-1])
 		return shape
 
@@ -277,12 +301,18 @@ class Visualise:
 			title: str = "",
 			desc: str = "Prediction",
 	) -> plt.Axes:
-		predictions, target = to_tensor(self._given_timeseries[:, feature_index]), to_tensor(target)
-		mse_loss = torch.nn.MSELoss()(predictions, target.to(predictions.device))
-		pVar = 1 - mse_loss / torch.var(target.to(mse_loss.device))
+		predictions, target = to_tensor(self._mean_given_timeseries[:, feature_index]), to_tensor(target)
+		if self.is_mean:
+			ax.fill_between(
+				np.arange(predictions.shape[0]),
+				to_numpy(predictions) - to_numpy(self._std_given_timeseries[:, feature_index]),
+				to_numpy(predictions) + to_numpy(self._std_given_timeseries[:, feature_index]),
+				alpha=0.2, color="blue"
+			)
 		
-		ax.plot(predictions.detach().cpu().numpy(), label=f"{desc} (pVar: {pVar.detach().cpu().item():.3f})")
-		ax.plot(target.detach().cpu().numpy(), label="Target")
+		pVar = PVarianceLoss()(predictions, target)
+		ax.plot(to_numpy(predictions), label=f"{desc} (pVar: {to_numpy(pVar).item():.3f})", c="blue")
+		ax.plot(to_numpy(target), label="Target", c="orange")
 		
 		if spikes is not None:
 			spikes = to_tensor(spikes)
@@ -291,18 +321,23 @@ class Visualise:
 			y_max = max(target.max(), predictions.max())
 			x_scatter_space = np.linspace(0, len(target), num=n_spikes_steps * len(target))
 			x_scatter_spikes = []
+			x_scatter_values = []
 			x_scatter_zeros = []
 			for i, xs in enumerate(x_scatter_space):
 				if np.isclose(
 						spikes[i // n_spikes_steps][i % n_spikes_steps],
-						1.0
+						0.0
 				):
-					x_scatter_spikes.append(xs)
-				else:
 					x_scatter_zeros.append(xs)
+				else:
+					x_scatter_spikes.append(xs)
+					x_scatter_values.append(spikes[i // n_spikes_steps][i % n_spikes_steps])
+			x_scatter_values = np.clip(x_scatter_values, 0.0, 1.0)
+			if x_scatter_values.size == 0:
+				x_scatter_values = 0.0
 			ax.scatter(
 				x_scatter_spikes, y=[y_max * 1.1] * len(x_scatter_spikes),
-				label="Latent space", c='k', marker='|', linewidths=0.5
+				label="Latent space", c='k', marker='|', linewidths=0.5, alpha=x_scatter_values,
 			)
 		
 		ax.set_xlabel("Time [-]")
@@ -320,30 +355,41 @@ class Visualise:
 			desc: str = "Prediction",
 			filename: Optional[str] = None,
 			show: bool = False,
-	) -> plt.Figure:
-		predictions, target = to_tensor(self._given_timeseries), to_tensor(target)
+			**kwargs
+	) -> Tuple[plt.Figure, plt.Axes]:
+		predictions, target = to_tensor(self._mean_given_timeseries), to_tensor(target)
 		target = torch.squeeze(target.detach().cpu())
 		
 		errors = torch.squeeze(predictions - target.to(predictions.device))**2
-		pVar = PVarianceLoss()(predictions, target.to(predictions.device))
+		if self.is_mean:
+			mean_pVar, std_pVar = PVarianceLoss().mean_std_over_batch(self._given_timeseries, target[np.newaxis, ...])
+			mean_pVar, std_pVar = to_numpy(mean_pVar).item(), to_numpy(std_pVar).item()
+			batch_size = self._given_timeseries.shape[0]
+			title = f"{title} (pVar[{batch_size}]: {mean_pVar:.3f} ± {std_pVar:.3f})"
+		else:
+			pVar = PVarianceLoss()(predictions, target.to(predictions.device))
+			title = f"{title} (pVar: {to_numpy(pVar).item():.3f})"
 		
-		fig, axes = plt.subplots(3, 1, figsize=(15, 8))
+		fig, axes = plt.subplots(4, 1, figsize=(15, 8))
 		axes[0].plot(errors.detach().cpu().numpy())
 		axes[0].set_xlabel("Time [-]")
 		axes[0].set_ylabel("Squared Error [-]")
-		axes[0].set_title(f"{title}, pVar: {pVar.detach().cpu().item():.3f}")
+		axes[0].set_title(title)
 		
-		mean_errors = torch.mean(errors, dim=0)
-		mean_error_sort, indices = torch.sort(mean_errors)
+		pVar_per_feature = PVarianceLoss(reduction='feature')(predictions, target.to(predictions.device))
+		mean_error_sort, indices = torch.sort(pVar_per_feature, descending=True)
+		var_diff, var_diff_indices = torch.sort(torch.var(torch.diff(target, dim=0), dim=0), descending=True)
 		target = torch.squeeze(target).numpy().T
 		
-		best_idx, worst_idx = indices[0], indices[-1]
+		best_idx, most_var_idx, worst_idx = indices[0], var_diff_indices[0], indices[-1]
 		if spikes is not None:
 			spikes = np.squeeze(to_numpy(spikes))
 			best_spikes = spikes[:, :, best_idx]
+			most_var_spikes = spikes[:, :, most_var_idx]
 			worst_spikes = spikes[:, :, worst_idx]
 		else:
 			best_spikes = None
+			most_var_spikes = None
 			worst_spikes = None
 		self.plot_single_timeseries_comparison(
 			best_idx, axes[1], target[best_idx], best_spikes,
@@ -351,7 +397,12 @@ class Visualise:
 			title=f"Best {desc}", desc=desc,
 		)
 		self.plot_single_timeseries_comparison(
-			worst_idx, axes[2], target[worst_idx], worst_spikes,
+			most_var_idx, axes[2], target[most_var_idx], most_var_spikes,
+			n_spikes_steps=n_spikes_steps,
+			title=f"Most Var {desc}", desc=desc,
+		)
+		self.plot_single_timeseries_comparison(
+			worst_idx, axes[3], target[worst_idx], worst_spikes,
 			n_spikes_steps=n_spikes_steps,
 			title=f"Worst {desc}", desc=desc,
 		)
@@ -362,8 +413,9 @@ class Visualise:
 			fig.savefig(filename)
 		if show:
 			plt.show()
-		plt.close(fig)
-		return fig
+		if kwargs.get("close", True):
+			plt.close(fig)
+		return fig, axes
 
 
 class VisualiseKMeans(Visualise):

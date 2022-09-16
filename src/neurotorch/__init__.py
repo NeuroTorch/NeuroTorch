@@ -29,6 +29,7 @@ from .modules.layers import (
 	LIFLayer,
 	SpyLILayer,
 	SpyLIFLayer,
+	SpyALIFLayer,
 	ALIFLayer,
 	WilsonCowanLayer,
 )
@@ -71,3 +72,7 @@ from .callbacks import (
 
 from . import init
 
+import warnings
+
+warnings.filterwarnings("ignore", category=Warning, module="docutils")
+warnings.filterwarnings("ignore", category=Warning, module="sphinx")

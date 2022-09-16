@@ -1,5 +1,6 @@
 import collections.abc
 import inspect
+import time
 from collections import defaultdict
 from copy import deepcopy
 
@@ -231,4 +232,23 @@ def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Se
 		c if isinstance(c, torch.nn.Module) else CallableToModuleWrapper(c)
 		for c in callable_list
 	])
+
+
+def format_pseudo_rn_seed(seed: Optional[int] = None) -> int:
+	"""
+	Format the pseudo random number generator seed. If the seed is None, return a pseudo random seed
+	else return the given seed.
+	
+	:param seed: The seed to format.
+	:type seed: int or None
+	
+	:return: The formatted seed.
+	:rtype: int
+	"""
+	import random
+	if seed is None:
+		seed = int(time.time()) + random.randint(0, np.iinfo(int).max)
+	assert isinstance(seed, int), "Seed must be an integer."
+	return seed
+
 

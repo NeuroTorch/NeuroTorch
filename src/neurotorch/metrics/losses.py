@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from ..transforms.base import to_tensor
+
 
 class RMSELoss(torch.nn.Module):
 	"""
@@ -40,19 +42,31 @@ class PVarianceLoss(torch.nn.Module):
 	:math:`\\text{P-Variance}(x, y) = 1 - \\frac{\\text{MSE}(x, y)}{\\text{Var}(y)}`
 	
 	:Attributes:
-		- **criterion** (nn.MSELoss): The MSE loss.
-		- **negative** (bool): Whether to return the negative P-Variance loss.
+		- :attr:`criterion` (nn.MSELoss): The MSE loss.
+		- :attr:`negative` (bool): Whether to return the negative P-Variance loss.
+		- :attr:`reduction` (str): The reduction method to use. If 'mean', the output will be averaged. If 'feature', the
+			output will be the shape of the last dimension of the input. If 'none', the output will be the same shape as
+			the input.
 	
 	"""
-	def __init__(self, negative: bool = False):
+	def __init__(self, negative: bool = False, reduction: str = 'mean'):
 		"""
 		Constructor for the PVarianceLoss class.
 		
 		:param negative: Whether to return the negative P-Variance loss.
 		:type negative: bool
+		:param reduction: The reduction method to use. If 'mean', the output will be averaged. If 'feature', the output
+			will be the shape of the last dimension of the input. If 'none', the output will be the same shape as the
+			input. Defaults to 'mean'.
+		:type reduction: str
 		"""
 		super(PVarianceLoss, self).__init__()
-		self.criterion = nn.MSELoss()
+		assert reduction in ['mean', 'feature', 'none'], 'Reduction must be one of "mean", "feature", or "none".'
+		self.reduction = reduction
+		mse_reduction = 'mean' if reduction == 'mean' else 'none'
+		self.criterion = nn.MSELoss(
+			reduction=mse_reduction
+		)
 		self.negative = negative
 
 	def forward(self, x, y):
@@ -64,9 +78,36 @@ class PVarianceLoss(torch.nn.Module):
 		
 		:return: The P-Variance loss.
 		"""
-		mse_loss = self.criterion(x, y)
-		loss = 1 - mse_loss / torch.var(y)
+		x, y = to_tensor(x), to_tensor(y)
+		if self.reduction == 'feature':
+			x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(-1, y.shape[-1])
+		else:
+			x_reshape, y_reshape = x, y
+		mse_loss = self.criterion(x_reshape, y_reshape)
+		if self.reduction == 'feature':
+			mse_loss = mse_loss.mean(dim=0)
+			var = y_reshape.var(dim=0)
+		else:
+			var = y_reshape.var()
+		loss = 1 - mse_loss / var
 		if self.negative:
 			loss = -loss
 		return loss
-
+	
+	def mean_std_over_batch(self, x, y):
+		"""
+		Calculate the mean and standard deviation of the P-Variance loss over the batch.
+		
+		:param x: The first input.
+		:param y: The second input.
+		
+		:return: The mean and standard deviation of the P-Variance loss over the batch.
+		"""
+		x, y = to_tensor(x), to_tensor(y)
+		x_reshape, y_reshape = x.reshape(x.shape[0], -1), y.reshape(y.shape[0], -1)
+		mse_loss = torch.mean((x_reshape - y_reshape)**2, dim=-1)
+		var = y_reshape.var(dim=-1)
+		loss = 1 - mse_loss / var
+		if self.negative:
+			loss = -loss
+		return loss.mean(), loss.std()

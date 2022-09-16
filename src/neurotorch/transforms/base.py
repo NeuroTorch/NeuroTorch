@@ -25,15 +25,16 @@ def to_numpy(x: Any, dtype=np.float32):
 
 
 class ToDevice(torch.nn.Module):
-	def __init__(self, device: torch.device):
+	def __init__(self, device: torch.device, non_blocking: bool = True):
 		super().__init__()
 		self.device = device
+		self.non_blocking = non_blocking
 
 	def forward(self, x: torch.Tensor):
-		return x.to(self.device)
+		return x.to(self.device, non_blocking=self.non_blocking)
 	
 	def __repr__(self):
-		return f"ToDevice({self.device})"
+		return f"ToDevice({self.device}, async={self.non_blocking})"
 
 
 class ToTensor(torch.nn.Module):

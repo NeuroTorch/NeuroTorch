@@ -23,4 +23,23 @@ class EarlyStopping(BaseCallback):
 		return np.all(np.abs(np.diff(losses)) < tol)
 		
 
-
+class EarlyStoppingThreshold(BaseCallback):
+	def __init__(
+			self,
+			*,
+			metric: str,
+			threshold: float,
+			minimize_metric: bool,
+	):
+		super().__init__()
+		self.threshold = threshold
+		self.metric = metric
+		self.minimize_metric = minimize_metric
+	
+	def on_iteration_end(self, trainer):
+		if self.minimize_metric:
+			threshold_met = trainer.current_training_state.itr_metrics[self.metric] < self.threshold
+		else:
+			threshold_met = trainer.current_training_state.itr_metrics[self.metric] > self.threshold
+		if threshold_met:
+			trainer.update_state_(stop_training_flag=True)

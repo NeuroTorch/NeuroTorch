@@ -3,10 +3,10 @@ from copy import deepcopy
 from typing import Optional, Tuple, Any
 
 import matplotlib.pyplot as plt
-import networkx as nx
+
 import numpy as np
 import torch
-import umap
+
 from matplotlib import animation
 from scipy import interpolate
 from sklearn.cluster import KMeans, DBSCAN
@@ -123,6 +123,7 @@ class Visualise:
 			show: bool = False,
 			**kwargs
 	):
+		import networkx as nx
 		"""
 		Animate the time series. The position of the nodes are obtained using the spring layout.
 		Spring-Layout use the Fruchterman-Reingold force-directed algorithm. For more information,
@@ -632,6 +633,7 @@ class VisualiseUMAP(Visualise):
 		self.reduced_timeseries = self._compute_umap()
 
 	def _compute_umap(self):
+		import umap
 		fit = umap.UMAP(
 			n_neighbors=self.n_neighbors,
 			min_dist=self.min_dist,

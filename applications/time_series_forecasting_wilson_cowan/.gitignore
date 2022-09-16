@@ -1,3 +1,4 @@
 *.npy
 *.pth
 tr_results
+checkpoints

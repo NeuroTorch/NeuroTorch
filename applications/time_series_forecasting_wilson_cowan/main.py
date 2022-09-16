@@ -10,13 +10,14 @@ from dataset import WSDataset
 from neurotorch import WilsonCowanLayer
 from neurotorch.metrics import RegressionMetrics
 from neurotorch.regularization.connectome import DaleLawL2
+from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
 from neurotorch.visualisation.time_series_visualisation import *
 
 
 def train_with_params(
 		true_time_series: np.ndarray or torch.Tensor,
 		learning_rate: float = 1e-3,
-		epochs: int = 100,
+		n_iterations: int = 100,
 		forward_weights: Optional[torch.Tensor or np.ndarray] = None,
 		std_weights: float = 1,
 		dt: float = 1e-3,
@@ -31,7 +32,8 @@ def train_with_params(
 		learn_r: bool = False,
 		learn_tau: bool = False,
 		device: torch.device = torch.device("cpu"),
-		hh_init: str = "inputs"
+		hh_init: str = "inputs",
+		checkpoint_folder="./checkpoints",
 ):
 	if not torch.is_tensor(true_time_series):
 		true_time_series = torch.tensor(true_time_series, dtype=torch.float32, device=device)
@@ -72,6 +74,27 @@ def train_with_params(
 	optimizer_regul = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
 	criterion = nn.MSELoss()
 
+	checkpoint_manager = nt.CheckpointManager(
+		checkpoint_folder,
+		metric="train_loss",
+		minimise_metric=False,
+		save_freq=-1,
+		save_best_only=True,
+		start_save_at=int(0.98 * n_iterations),
+	)
+	# convergence_time_getter = ConvergenceTimeGetter(metric='train_loss', threshold=0.99, minimize_metric=False)
+	callbacks = [
+		LRSchedulerOnMetric(
+			'train_loss',
+			metric_schedule=np.linspace(0.97, 1.0, 100),
+			min_lr=learning_rate/10,
+			retain_progress=True,
+		),
+		checkpoint_manager,
+		# convergence_time_getter,
+		# EarlyStoppingThreshold(metric='train_loss', threshold=0.999, minimize_metric=False),
+	]
+
 	with torch.no_grad():
 		W0 = ws_layer.forward_weights.clone()
 		mu0 = ws_layer.mu.clone()
@@ -81,6 +104,7 @@ def train_with_params(
 	dataset = WSDataset(true_time_series.T)
 	trainer = nt.trainers.RegressionTrainer(
 		model,
+		callbacks=callbacks,
 		optimizer=optimizer,
 		regularization_optimizer=optimizer_regul,
 		criterion=lambda pred, y: RegressionMetrics.compute_p_var(y_true=y, y_pred=pred, reduction='mean'),
@@ -88,9 +112,11 @@ def train_with_params(
 		metrics=[regularisation],
 	)
 	trainer.train(
-		DataLoader(dataset, shuffle=False, num_workers=0),
-		n_iterations=epochs,
+		DataLoader(dataset, shuffle=False, num_workers=2, pin_memory=True),
+		n_iterations=n_iterations,
 		exec_metrics_on_train=True,
+		# load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
+		force_overwrite=True,
 	)
 
 	x_pred = []
@@ -133,7 +159,7 @@ forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.2)
 res = train_with_params(
 	true_time_series=data,
 	learning_rate=1e-2,
-	epochs=500,
+	n_iterations=500,
 	forward_weights=forward_weights,
 	std_weights=1,
 	dt=0.02,

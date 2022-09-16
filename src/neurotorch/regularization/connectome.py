@@ -145,3 +145,25 @@ class DaleLaw(DaleLawL2):
 		super(DaleLaw, self).__init__(params, 0.0, reference_weights, Lambda, **dale_kwargs)
 		self.__name__ = self.__class__.__name__
 
+
+class WeightsDistance(BaseRegularization):
+	def __init__(
+			self,
+			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+			reference_weights: Iterable[torch.Tensor],
+			Lambda: float = 1.0,
+			p: int = 1,
+	):
+		super(WeightsDistance, self).__init__(params, Lambda)
+		self.reference_weights = list(reference_weights)
+		self.p = p
+
+	def forward(self, *args, **kwargs) -> torch.Tensor:
+		loss_list = []
+		for param, ref in zip(self.params, self.reference_weights):
+			loss_list.append(torch.linalg.norm(torch.abs(param - ref), self.p))
+		if len(self.params) == 0:
+			loss = torch.tensor(0.0, dtype=torch.float32)
+		else:
+			loss = torch.sum(torch.stack(loss_list))
+		return loss

@@ -4,6 +4,7 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 
+from ..transforms.base import to_numpy
 from ..callbacks.base_callback import BaseCallback
 
 
@@ -335,7 +336,10 @@ class TrainingHistory(BaseCallback):
 		
 		:return: None
 		"""
-		self.insert(trainer.current_training_state.iteration, trainer.current_training_state.itr_metrics)
+		self.insert(
+			trainer.current_training_state.iteration,
+			{k: to_numpy(v) for k, v in trainer.current_training_state.itr_metrics.items()}
+		)
 
 
 

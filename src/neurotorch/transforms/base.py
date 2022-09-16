@@ -19,6 +19,8 @@ def to_numpy(x: Any, dtype=np.float32):
 		return np.asarray(x, dtype=dtype)
 	elif isinstance(x, torch.Tensor):
 		return x.detach().cpu().numpy()
+	elif isinstance(x, (int, float)):
+		return x
 	elif not isinstance(x, torch.Tensor):
 		return np.asarray(x, dtype=dtype)
 	raise ValueError(f"Unsupported type {type(x)}")

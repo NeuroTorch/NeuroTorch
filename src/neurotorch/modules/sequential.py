@@ -767,7 +767,7 @@ class SequentialModel(BaseModel):
 		features_list = []
 		for layer_name, layer in self.input_layers.items():
 			hh = hidden_states[layer.name][-1] if hidden_states[layer.name] else None
-			features, hh = layer(inputs[layer_name][:, t], hh)
+			features, hh = layer(inputs[layer_name][:, t], hh, t=t)
 			hidden_states[layer_name].append(hh)
 			features_list.append(features)
 		if features_list:
@@ -780,10 +780,11 @@ class SequentialModel(BaseModel):
 			self,
 			forward_tensor: torch.Tensor,
 			hidden_states: Dict[str, List],
+			t: int
 	) -> torch.Tensor:
 		for layer_idx, layer in enumerate(self.hidden_layers):
 			hh = hidden_states[layer.name][-1] if hidden_states[layer.name] else None
-			forward_tensor, hh = layer(forward_tensor, hh)
+			forward_tensor, hh = layer(forward_tensor, hh, t=t)
 			hidden_states[layer.name].append(hh)
 		return forward_tensor
 
@@ -791,11 +792,12 @@ class SequentialModel(BaseModel):
 			self,
 			forward_tensor: torch.Tensor,
 			hidden_states: Dict[str, List],
-			outputs_trace: Dict[str, List[torch.Tensor]]
+			outputs_trace: Dict[str, List[torch.Tensor]],
+			t: int
 	):
 		for layer_name, layer in self.output_layers.items():
 			hh = hidden_states[layer_name][-1] if hidden_states[layer_name] else None
-			out, hh = layer(forward_tensor, hh)
+			out, hh = layer(forward_tensor, hh, t=t)
 			outputs_trace[layer_name].append(out)
 			hidden_states[layer_name].append(hh)
 		return outputs_trace
@@ -823,9 +825,9 @@ class SequentialModel(BaseModel):
 		:rtype: Tuple[Dict[str, torch.Tensor], Dict[str, List]]
 		"""
 		for t in range(time_steps):
-			forward_tensor = self._inputs_forward_(inputs, hidden_states, t)
-			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
-			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace)
+			forward_tensor = self._inputs_forward_(inputs, hidden_states, t=t)
+			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states, t=t)
+			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace, t=t)
 
 			outputs_trace = {layer_name: self._pop_memory_(trace) for layer_name, trace in outputs_trace.items()}
 			hidden_states = {layer_name: self._pop_memory_(trace) for layer_name, trace in hidden_states.items()}
@@ -863,9 +865,9 @@ class SequentialModel(BaseModel):
 				self._outputs_to_inputs_names_map[layer_name]: torch.unsqueeze(trace[-1], dim=1)
 				for layer_name, trace in outputs_trace.items()
 			}
-			forward_tensor = self._inputs_forward_(foresight_inputs_tensor, hidden_states, -1)
-			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states)
-			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace)
+			forward_tensor = self._inputs_forward_(foresight_inputs_tensor, hidden_states, t=-1)
+			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states, t=t)
+			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace, t=t)
 		return outputs_trace, hidden_states
 
 	def forward(

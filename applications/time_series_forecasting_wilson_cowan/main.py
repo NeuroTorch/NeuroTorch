@@ -74,8 +74,6 @@ def train_with_params(
 
 	with torch.no_grad():
 		W0 = ws_layer.forward_weights.clone()
-		plt.imshow(W0.numpy(), cmap="RdBu_r")
-		plt.show()
 		mu0 = ws_layer.mu.clone()
 		r0 = ws_layer.r.clone()
 		tau0 = ws_layer.tau.clone()

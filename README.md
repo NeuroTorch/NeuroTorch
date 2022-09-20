@@ -28,7 +28,7 @@ Moreover NeuroTorch is modular so you can adapt it to your needs relatively quic
 because it's coming!  
 
 
-This package is part of a postgraduate research project realised by [Jérémie Gince](https://github.com/JeremieGince) and supervised by [Simon Hardy]() and [Patrick Desrosiers](https://github.com/pdesrosiers). Our work was supported by: (1) [UNIQUE](https://www.unique.quebec/home), a FRQNT-funded research center, (2) the [Sentinelle Nord](https://sentinellenord.ulaval.ca/en) program of Université Laval, funded by the Canada First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
+This package is part of a postgraduate research project realized by [Jérémie Gince](https://github.com/JeremieGince) and supervised by [Simon Hardy]() and [Patrick Desrosiers](https://github.com/pdesrosiers). Our work was supported by: (1) [UNIQUE](https://www.unique.quebec/home), a FRQNT-funded research center, (2) the [Sentinelle Nord](https://sentinellenord.ulaval.ca/en) program of Université Laval, funded by the Canada First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
 
 
 

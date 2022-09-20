@@ -1,21 +1,11 @@
 import collections.abc
-import inspect
-import time
-from collections import defaultdict
-from copy import deepcopy
-
-from docutils.core import publish_doctree
-import docutils.nodes
-import enum
-import functools
 import hashlib
-import os
 import pickle
-from collections import defaultdict
-from typing import Callable, Dict, List, NamedTuple, Any, Tuple, Union, Iterable, Optional, Type
-import torch
+import time
+from typing import Callable, Dict, List, Any, Tuple, Union, Iterable, Optional
 
 import numpy as np
+import torch
 import torchvision
 from matplotlib import pyplot as plt
 
@@ -29,10 +19,10 @@ def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 	"""
 	batch_size, time_steps, *_ = x.shape
 	assert time_steps >= 1
-
+	
 	powers = torch.arange(time_steps, dtype=torch.float32, device=x.device).flip(0)
 	weighs = torch.pow(decay, powers)
-
+	
 	x = torch.mul(x, weighs.unsqueeze(0).unsqueeze(-1))
 	x = torch.sum(x, dim=1)
 	return x
@@ -55,17 +45,17 @@ def mapping_update_recursively(d, u):
 	return d
 
 
-def plot_confusion_matrix(cm, classes,):
+def plot_confusion_matrix(cm, classes, ):
 	import matplotlib.pyplot as plt
 	import itertools
-
+	
 	plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
 	plt.title('Confusion matrix')
 	plt.colorbar()
 	tick_marks = np.arange(len(classes))
 	plt.xticks(tick_marks, classes, rotation=45)
 	plt.yticks(tick_marks, classes)
-
+	
 	fmt = 'd'
 	thresh = cm.max() / 2.
 	for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
@@ -75,7 +65,7 @@ def plot_confusion_matrix(cm, classes,):
 			horizontalalignment="center",
 			color="white" if cm[i, j] > thresh else "black"
 		)
-
+	
 	plt.ylabel('True label')
 	plt.xlabel('Predicted label')
 	plt.tight_layout()
@@ -89,7 +79,7 @@ def legend_without_duplicate_labels_(ax: plt.Axes):
 
 
 def linear_decay(init_value, min_value, decay_value, current_itr):
-	return max(init_value * decay_value ** current_itr, min_value)
+	return max(init_value * decay_value**current_itr, min_value)
 
 
 def get_meta_name(params: Dict[str, Any]):
@@ -144,49 +134,6 @@ def save_params(params: Dict[str, Any], save_path: str):
 	return save_path
 
 
-def get_transform_from_str(transform_name: str, **kwargs):
-	"""
-	Get a transform from a string. The string should be one of the following:
-	- "none": No transform.
-	- "linear": Linear transform.
-	- "ImgToSpikes": Image to spikes transform.
-	- "NorseConstCurrLIF": Norse constant current LIF transform.
-	- "flatten": Flatten transform.
-	- "constant": Constant transform.
-
-	:param transform_name: The name of the transform.
-	:param kwargs: The arguments for the transform.
-	
-	:keyword Arguments:
-		* <dt>: float -> The time step of the transform.
-		* <n_steps>: float -> The number of times steps of the transform.
-	
-	:return: The transform.
-	"""
-	from torchvision.transforms import Compose
-	from neurotorch.transforms import LinearRateToSpikes
-	import norse
-	from neurotorch.transforms.vision import ImgToSpikes
-	from torchvision.transforms import Lambda
-	from neurotorch.transforms import ConstantValuesTransform
-
-	kwargs.setdefault("dt", 1e-3)
-	kwargs.setdefault("n_steps", 10)
-
-	name_to_transform = {
-		"none": None,
-		"linear": Compose([torch.flatten, LinearRateToSpikes(n_steps=kwargs["n_steps"])]),
-		"NorseConstCurrLIF": Compose([
-			torch.flatten, norse.torch.ConstantCurrentLIFEncoder(seq_length=kwargs["n_steps"], dt=kwargs["dt"])
-		]),
-		"ImgToSpikes": Compose([torch.flatten, ImgToSpikes(n_steps=kwargs["n_steps"], use_periods=True)]),
-		"flatten": Compose([torch.flatten, Lambda(lambda x: x[np.newaxis, :])]),
-		"const": Compose([torch.flatten, ConstantValuesTransform(n_steps=kwargs["n_steps"])]),
-	}
-	name_to_transform = {k.lower(): v for k, v in name_to_transform.items()}
-	return name_to_transform[transform_name.lower()]
-
-
 def get_all_params_combinations(params_space: Dict[str, Any]) -> List[Dict[str, Any]]:
 	"""
 	Get all possible combinations of parameters.
@@ -200,7 +147,7 @@ def get_all_params_combinations(params_space: Dict[str, Any]) -> List[Dict[str, 
 	all_params = list(params_space.keys())
 	all_params_values = list(params_space.values())
 	all_params_combinaison = list(map(lambda x: list(x), list(itertools.product(*all_params_values))))
-
+	
 	# create a list of dict of all the combinaison
 	all_params_combinaison_dict = list(map(lambda x: dict(zip(all_params, x)), all_params_combinaison))
 	return all_params_combinaison_dict
@@ -229,9 +176,9 @@ def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Se
 	"""
 	from neurotorch.transforms.wrappers import CallableToModuleWrapper
 	return torch.nn.Sequential(*[
-		c if isinstance(c, torch.nn.Module) else CallableToModuleWrapper(c)
-		for c in callable_list
-	])
+			c if isinstance(c, torch.nn.Module) else CallableToModuleWrapper(c)
+			for c in callable_list
+		])
 
 
 def format_pseudo_rn_seed(seed: Optional[int] = None) -> int:
@@ -250,5 +197,3 @@ def format_pseudo_rn_seed(seed: Optional[int] = None) -> int:
 		seed = int(time.time()) + random.randint(0, np.iinfo(int).max)
 	assert isinstance(seed, int), "Seed must be an integer."
 	return seed
-
-

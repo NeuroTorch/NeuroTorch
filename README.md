@@ -53,25 +53,28 @@ This package is part of a postgraduate research project realized by [Jérémie G
 pip install git+https://github.com/NeuroTorch/NeuroTorch
 ```
 
-# Exemples / Applications
+# Tutorials / Applications
 
-See the readme of the applications folder [here](applications/README.md).
+See the readme of the tutorials folder [here](tutorials/README.md).
 
-## Image classification with spiking networks
+## Image classification with spiking networks (Mnist/Fashion-Mnist)
 
-- Jupyter Notebook: [Mnist/Fashion-Mnist classification with spiking networks](applications/mnist/tutoriel.ipynb).
+- Tutorial: [Jupyter Notebook](tutorials/mnist/tutorial.ipynb).
+- Project: [Repository](https://github.com/NeuroTorch/MnistClassification_NeuroTorch).
 
-## Classification of spiking time series
+## Classification of spiking time series (Heidelberg)
 
-- Jupyter Notebook: [Heidelberg classification](applications/heidelberg/tutorial.ipynb).
+- Tutorial: [Jupyter Notebook](tutorials/heidelberg/tutorial.ipynb).
+- Project: [Repository](https://github.com/NeuroTorch/HeidelbergClassification_NeuroTorch).
 
 ## Time series classification with spiking networks
 
-- Jupyter Notebook: [Time series classification with spiking networks](applications/time_series_forecasting_spiking/tutoriel.ipynb).
+- Tutorial: [Jupyter Notebook](tutorials/time_series_forecasting_spiking/tutorial.ipynb).
+- Project: [Repository](https://github.com/NeuroTorch/SNN_TS_Forecasting_NeuroTorch).
 
 ## Time series classification with Wilson-Cowan
 
-- Jupyter Notebook: [Time series classification with Wilson-Cowan](applications/time_series_forecasting_wilson_cowan/tutoriel.ipynb).
+- Tutorial: [Jupyter Notebook](tutorials/time_series_forecasting_wilson_cowan/tutorial.ipynb).
 
 
 # Quick usage preview

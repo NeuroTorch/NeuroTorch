@@ -2,7 +2,7 @@
 
 
 In this application we are using NeuroTorch to classify the MNIST dataset or the Fashion-MNIST dataset. In the folder 
-you can find the jupyter notebook [tutoriel.ipynb](tutoriel.ipynb) which contains a simple tutorial on how to use NeuroTorch
+you can find the jupyter notebook [tutorial.ipynb](tutorial.ipynb) which contains a simple tutorial on how to use NeuroTorch
 for image classification.
 
 For the one who want more statistical information about the dynamics of NeuroTorch on classification task, you

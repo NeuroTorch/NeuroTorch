@@ -1,11 +1,11 @@
 <p align="center" width="100%">
-    <img width="75%" src="images/neurotorch_logo.png">
+    <img width="40%" src="images/neurotorch_logo.png">
 </p>
 
 
 # Description
 
-It's time to bring together deep learning and neuroscience together. In this library, we offer machine learning 
+It's time to bring deep learning and neuroscience together. In this library, we offer machine learning 
 tools to neuroscientists and we offer neuroscience tools to computer scientists. These two domains were created 
 to be one.
 
@@ -27,24 +27,30 @@ NeuroTorch is developed to be easy to use, so that you can do simple things in a
 Moreover NeuroTorch is modular so you can adapt it to your needs relatively quickly. Thanks and stay tuned, 
 because it's coming!  
 
+
+This package is part of a postgraduate research project realised by [Jérémie Gince](https://github.com/JeremieGince) and supervised by [Simon Hardy]() and [Patrick Desrosiers](https://github.com/pdesrosiers). Our work was supported by: (1) [UNIQUE](https://www.unique.quebec/home), a FRQNT-funded research center, (2) the [Sentinelle Nord](https://sentinellenord.ulaval.ca/en) program of Université Laval, funded by the Canada First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
+
+
+
+
 # Important Links
 
-  - Documentation at [https://jeremiegince.github.io/NeuroTorch/](https://jeremiegince.github.io/NeuroTorch/).
-  - Github at [https://github.com/JeremieGince/NeuroTorch/](https://github.com/JeremieGince/NeuroTorch/).
+  - Documentation at [https://NeuroTorch.github.io/NeuroTorch/](https://NeuroTorch.github.io/NeuroTorch/).
+  - Github at [https://github.com/NeuroTorch/NeuroTorch/](https://github.com/NeuroTorch/NeuroTorch/).
 
 
 # Installation
 
 ## With wheel:
 
-   1. Download the .whl file [here](https://github.com/JeremieGince/NeuroTorch/tree/main/dist/NeuroTorch-0.0.0.1-py3-none-any.whl);
+   1. Download the .whl file [here](https://github.com/NeuroTorch/NeuroTorch/tree/main/dist/NeuroTorch-0.0.0.1-py3-none-any.whl);
    2. Copy the path of this file on your computer;
    3. pip install it with ``` pip install [path].whl ```
 
 ## With pip+git:
 
 ```bash
-pip install git+https://github.com/JeremieGince/NeuroTorch
+pip install git+https://github.com/NeuroTorch/NeuroTorch
 ```
 
 # Exemples / Applications

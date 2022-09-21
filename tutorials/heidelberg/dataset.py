@@ -305,6 +305,7 @@ def get_dataloaders(
 		as_sparse: bool = False,
 		download: bool = True,
 		nb_workers: int = 0,
+		pin_memory: bool = False,
 ):
 	"""
 	Get the dataloaders for the dataset.
@@ -345,13 +346,13 @@ def get_dataloaders(
 	train_set, val_set = torch.utils.data.random_split(train_dataset, [train_length, val_length])
 
 	train_dataloader = DataLoader(
-		train_set, batch_size=batch_size, shuffle=True, num_workers=nb_workers
+		train_set, batch_size=batch_size, shuffle=True, num_workers=nb_workers, pin_memory=pin_memory,
 	)
 	val_dataloader = DataLoader(
-		val_set, batch_size=batch_size, shuffle=False, num_workers=nb_workers
+		val_set, batch_size=batch_size, shuffle=False, num_workers=nb_workers, pin_memory=pin_memory,
 	)
 	test_dataloader = DataLoader(
-		test_dataset, batch_size=batch_size, shuffle=False, num_workers=nb_workers
+		test_dataset, batch_size=batch_size, shuffle=False, num_workers=nb_workers, pin_memory=pin_memory,
 	)
 	return dict(train=train_dataloader, val=val_dataloader, test=test_dataloader)
 

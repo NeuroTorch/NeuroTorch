@@ -94,7 +94,7 @@ dataloaders = get_dataloaders(
 
 network = nt.SequentialModel(
 	layers=[
-		nt.SpyLIFLayer(
+		nt.LIFLayer(
 			input_size=nt.Size([
 				nt.Dimension(None, nt.DimensionProperty.TIME),
 				nt.Dimension(dataloaders["test"].dataset.n_units, nt.DimensionProperty.NONE)

@@ -135,6 +135,10 @@ pprint.pprint(accuracies)
 ```
 
 
+# Thanks
+- [Anthony Drouin](https://github.com/AnthoDrouin) who helped develop the Wilson-Cowan application during his 2022 summer internship.
+- To my dog Chewy who has been a great help during the whole development.
+
 
 
 ---------------------------------------------------------------------------

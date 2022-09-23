@@ -519,7 +519,7 @@ class BaseNeuronsLayer(BaseLayer):
 		:param value: The forward sign.
 		"""
 		if not isinstance(value, torch.nn.Parameter):
-			value = torch.nn.Parameter(value, requires_grad=self.force_dale_law)
+			value = torch.nn.Parameter(value, requires_grad=self.force_dale_law and self.requires_grad)
 		self._forward_sign = value
 		
 	@property
@@ -596,12 +596,12 @@ class BaseNeuronsLayer(BaseLayer):
 			self._forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
 			torch.nn.init.xavier_normal_(self._forward_weights)
-			
+		
 		if "forward_sign" in self.kwargs and self.force_dale_law:
 			self._forward_sign.data = to_tensor(self.kwargs["forward_sign"]).to(self.device)
 			with torch.no_grad():
 				self._forward_weights.data = torch.sqrt(torch.abs(self._forward_weights.data))
-		else:
+		elif self.force_dale_law:
 			torch.nn.init.xavier_normal_(self._forward_sign)
 
 		if "recurrent_weights" in self.kwargs and self.use_recurrent_connection:
@@ -1852,10 +1852,10 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		Initialize the parameters (weights) that will be trained.
 		"""
 		super().initialize_weights_()
-		# if "forward_weights" in self.kwargs:
-		# 	self.forward_weights = to_tensor(self.kwargs["forward_weights"]).to(self.device)
-		# else:
-		# 	torch.nn.init.normal_(self._forward_weights, mean=0.0, std=self.std_weight)
+		if "forward_weights" in self.kwargs:
+			self.forward_weights = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+		else:
+			torch.nn.init.normal_(self._forward_weights, mean=0.0, std=self.std_weight)
 		#
 		# if "forward_sign" in self.kwargs and self.force_dale_law:
 		# 	self._forward_sign.data = to_tensor(self.kwargs["forward_sign"]).to(self.device)

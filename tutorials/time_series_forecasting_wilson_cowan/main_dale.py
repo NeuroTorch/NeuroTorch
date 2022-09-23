@@ -44,6 +44,7 @@ def train_with_params(
 		x.shape[-1], x.shape[-1],
 		forward_weights=forward_weights,
 		std_weights=std_weights,
+		forward_sign=torch.abs(torch.randn((x.shape[-1], 1))),
 		dt=dt,
 		r=r,
 		mean_r=mean_r,
@@ -59,7 +60,7 @@ def train_with_params(
 		device=device,
 		name="WilsonCowan_layer1",
 		force_dale_law=True
-	)
+	).build()
 
 	# ws_layer_2 = deepcopy(ws_layer)  # only usefull if you're planning to use the second layer
 	# ws_layer_2.name = "WilsonCowan_layer2"
@@ -73,7 +74,7 @@ def train_with_params(
 	#regularisation = DaleLawL2([ws_layer.forward_weights], alpha=0.3,
 	#						   reference_weights=[nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)])
 
-	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.5)
+	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.)
 	#optimizer_regul = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
 	criterion = nn.MSELoss()
 
@@ -106,9 +107,13 @@ def train_with_params(
 		ratio_sign_0 = np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy())
 		
 		from matplotlib import colors
-		divnorm = colors.TwoSlopeNorm(vmin=torch.min(W0), vcenter=0., vmax=torch.max(W0))
+		min_value, max_value = torch.min(W0), torch.max(W0)
+		if not np.isclose(min_value, max_value) and min_value < max_value and min_value < 0 < max_value:
+			divnorm = colors.TwoSlopeNorm(vmin=min_value, vcenter=0., vmax=max_value)
+			plt.imshow(W0, cmap="RdBu_r", norm=divnorm)
+		else:
+			plt.imshow(W0, cmap="RdBu_r")
 		plt.title(f"Initial weights, {ratio_sign_0 = :.3f}")
-		plt.imshow(W0, cmap="RdBu_r", norm=divnorm)
 		plt.colorbar()
 		plt.show()
 

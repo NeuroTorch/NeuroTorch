@@ -477,12 +477,17 @@ def visualize_init_final_weights(
 	final_dale = nt.to_numpy(nt.DaleLaw([nt.to_tensor(final_weights)], **dale_law_kwargs)())
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	if kwargs.get("cmp_zero_center", True):
-		divnorm = colors.TwoSlopeNorm(
-			vmin=min(np.min(initial_wights), np.min(final_weights)),
-			vcenter=0.0,
-			vmax=max(np.max(initial_wights), np.max(final_weights))
-		)
-		im = axes[0].imshow(initial_wights, cmap="RdBu_r", norm=divnorm)
+		min_value = min(np.min(initial_wights), np.min(final_weights))
+		max_value = max(np.max(initial_wights), np.max(final_weights))
+		if not np.isclose(min_value, max_value) and min_value < max_value and min_value < 0 < max_value:
+			divnorm = colors.TwoSlopeNorm(
+				vmin=min_value,
+				vcenter=0.0,
+				vmax=max_value
+			)
+			im = axes[0].imshow(initial_wights, cmap="RdBu_r", norm=divnorm)
+		else:
+			im = axes[0].imshow(initial_wights, cmap="RdBu_r")
 	else:
 		im = axes[0].imshow(initial_wights, cmap="RdBu_r")
 	axes[0].set_title(f"Initial Weights (Dale loss = {initial_dale:.3f})")

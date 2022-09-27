@@ -25,7 +25,7 @@ Which algorithm is used to train the networks at the moment?
 
 NeuroTorch is developed to be easy to use, so that you can do simple things in a few lines of code. 
 Moreover NeuroTorch is modular so you can adapt it to your needs relatively quickly. Thanks and stay tuned, 
-because it's coming!  
+because more is coming!  
 
 
 This package is part of a postgraduate research project realized by [Jérémie Gince](https://github.com/JeremieGince) and supervised by [Simon Hardy]() and [Patrick Desrosiers](https://github.com/pdesrosiers). Our work was supported by: (1) [UNIQUE](https://www.unique.quebec/home), a FRQNT-funded research center, (2) the [Sentinelle Nord](https://sentinellenord.ulaval.ca/en) program of Université Laval, funded by the Canada First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
@@ -43,7 +43,7 @@ This package is part of a postgraduate research project realized by [Jérémie G
 
 ## With wheel:
 
-   1. Download the .whl file [here](https://github.com/NeuroTorch/NeuroTorch/tree/main/dist/NeuroTorch-0.0.0.1-py3-none-any.whl);
+   1. Download the .whl file [here](https://github.com/NeuroTorch/NeuroTorch/tree/main/dist);
    2. Copy the path of this file on your computer;
    3. pip install it with ``` pip install [path].whl ```
 
@@ -68,6 +68,8 @@ See the readme of the tutorials folder [here](tutorials/README.md).
 - Project: [Repository](https://github.com/NeuroTorch/HeidelbergClassification_NeuroTorch).
 
 ## Time series classification with spiking networks
+
+**Sorry, it's a work in progress, so it's not publish yet.**
 
 - Tutorial: [Jupyter Notebook](tutorials/time_series_forecasting_spiking/tutorial.ipynb).
 - Project: [Repository](https://github.com/NeuroTorch/SNN_TS_Forecasting_NeuroTorch).

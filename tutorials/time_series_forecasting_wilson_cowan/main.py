@@ -55,7 +55,8 @@ def train_with_params(
 		learn_tau=learn_tau,
 		hh_init=hh_init,
 		device=device,
-		name="WilsonCowan_layer1"
+		name="WilsonCowan_layer1",
+		force_dale_law=True,
 	)
 
 	ws_layer_2 = deepcopy(ws_layer)  # only usefull if you're planning to use the second layer

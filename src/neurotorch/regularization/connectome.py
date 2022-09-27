@@ -69,7 +69,6 @@ class DaleLawL2(BaseRegularization):
 		:param Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
 		:type Lambda: float
 		:param dale_kwargs: kwargs of the Dale's law.
-		:type dale_kwargs: dict
 		
 		:keyword float inh_ratio: ratio of inhibitory connections. Must be between 0 and 1.
 		:keyword float rho: The connectivity ratio. Must be between 0 and 1. If rho = 1, the tensor will be fully connected.

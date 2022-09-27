@@ -7,11 +7,15 @@ from torch.utils.data import DataLoader
 
 import neurotorch as nt
 from dataset import WSDataset
-from neurotorch import WilsonCowanLayer
+from neurotorch.modules.functions import WeirdTanh
+from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.metrics import RegressionMetrics
 from neurotorch.regularization.connectome import DaleLawL2
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
 from neurotorch.visualisation.time_series_visualisation import *
+from tutorials.figure_generation_util import visualize_init_final_weights
+
+# TODO : fix visualisation of weights
 
 
 def train_with_params(
@@ -34,14 +38,18 @@ def train_with_params(
 		device: torch.device = torch.device("cpu"),
 		hh_init: str = "inputs",
 		checkpoint_folder="./checkpoints",
+		force_dale_law: bool = True
 ):
 	if not torch.is_tensor(true_time_series):
 		true_time_series = torch.tensor(true_time_series, dtype=torch.float32, device=device)
 	x = true_time_series.T[np.newaxis, :]
+	sign = torch.abs(torch.randn((x.shape[-1], 1)))
 	ws_layer = WilsonCowanLayer(
 		x.shape[-1], x.shape[-1],
-		forward_weights=forward_weights,
-		std_weights=std_weights,
+		# forward_weights=forward_weights,
+		# std_weights=std_weights,
+		# forward_sign=0.2,
+		sign_activation=WeirdTanh(d=0.8),
 		dt=dt,
 		r=r,
 		mean_r=mean_r,
@@ -56,11 +64,11 @@ def train_with_params(
 		hh_init=hh_init,
 		device=device,
 		name="WilsonCowan_layer1",
-		force_dale_law=True,
-	)
+		force_dale_law=True
+	).build()
 
-	ws_layer_2 = deepcopy(ws_layer)  # only usefull if you're planning to use the second layer
-	ws_layer_2.name = "WilsonCowan_layer2"
+	# ws_layer_2 = deepcopy(ws_layer)  # only usefull if you're planning to use the second layer
+	# ws_layer_2.name = "WilsonCowan_layer2"
 
 	# The first model is for one layer while the second one is for two layers. Layers can be added as much as desired.
 	model = nt.SequentialModel(layers=[ws_layer], device=device, foresight_time_steps=x.shape[1] - 1)
@@ -68,11 +76,11 @@ def train_with_params(
 	model.build()
 
 	# Regularization on the connectome can be applied on one connectome or on all connectomes (or none).
-	regularisation = DaleLawL2([ws_layer.forward_weights], alpha=0.3,
-							   reference_weights=[nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)])
+	#regularisation = DaleLawL2([ws_layer.forward_weights], alpha=1,
+	#						   reference_weights=[nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)])
 
 	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.1)
-	optimizer_regul = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
+	#optimizer_regul = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
 	criterion = nn.MSELoss()
 
 	checkpoint_manager = nt.CheckpointManager(
@@ -97,25 +105,28 @@ def train_with_params(
 	]
 
 	with torch.no_grad():
-		W0 = ws_layer.forward_weights.clone()
+		W0 = ws_layer.forward_weights.clone().detach().cpu().numpy()
 		mu0 = ws_layer.mu.clone()
 		r0 = ws_layer.r.clone()
 		tau0 = ws_layer.tau.clone()
+		ratio_sign_0 = np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy())
+		print(f"ratio exec init: {(ratio_sign_0 + 1)/2 :.3f}")
 
 	dataset = WSDataset(true_time_series.T)
 	trainer = nt.trainers.RegressionTrainer(
 		model,
 		callbacks=callbacks,
 		optimizer=optimizer,
-		regularization_optimizer=optimizer_regul,
-		criterion=lambda pred, y: RegressionMetrics.compute_p_var(y_true=y, y_pred=pred, reduction='mean'),
-		regularization=regularisation,
-		metrics=[regularisation],
+		#regularization_optimizer=optimizer_regul,
+		# criterion=lambda pred, y: RegressionMetrics.compute_p_var(y_true=y, y_pred=pred, reduction='mean'),
+		criterion=nt.losses.PVarianceLoss(),
+		#regularization=regularisation,
+		#metrics=[regularisation],
 	)
 	trainer.train(
-		DataLoader(dataset, shuffle=False, num_workers=2, pin_memory=True),
+		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),
 		n_iterations=n_iterations,
-		exec_metrics_on_train=True,
+		exec_metrics_on_train=False,
 		# load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
 		force_overwrite=True,
 	)
@@ -129,10 +140,12 @@ def train_with_params(
 
 	out = {}
 	out["pVar"] = loss.detach().item()
-	out["W"] = ws_layer.forward_weights.detach().numpy()
+	out["W"] = ws_layer.forward_weights.detach().cpu().numpy()
 	out["mu"] = ws_layer.mu.detach().numpy()
 	out["r"] = ws_layer.r.detach().numpy()
-	out["W0"] = W0.numpy()
+	out["W0"] = W0
+	out["ratio_0"] = (ratio_sign_0 + 1)/2
+	out["ratio_end"] = ((np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy())) + 1) / 2
 	out["mu0"] = mu0.numpy()
 	out["r0"] = r0.numpy()
 	out["tau0"] = tau0.numpy()
@@ -175,15 +188,21 @@ res = train_with_params(
 	learn_r=True,
 	learn_tau=True,
 	device=torch.device("cpu"),
-	hh_init="inputs"
+	hh_init="inputs",
+	force_dale_law=True
 )
 
-plt.imshow(res["W0"], cmap="RdBu_r")
-plt.colorbar()
+print(f"initiale ratio {res['ratio_0']:.3f}, finale ratio {res['ratio_end']:.3f}")
+#visualize_init_final_weights(res["W0"], res["W"], show=True, dale_law_kwargs={"inh_ratio": 1-((res['ratio_end'] + 1)/2)})
+
+fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+axes[0].imshow(res["W0"], cmap="RdBu_r")
+axes[0].set_title("Initial weights, ratio exec {:.3f}".format(res["ratio_0"]))
+im = axes[1].imshow(res["W"], cmap="RdBu_r", vmin=-1, vmax=1)
+axes[1].set_title("Final weights, ratio exec {:.3f}".format(res["ratio_end"]))
+plt.colorbar(im, ax=axes.ravel().tolist())
 plt.show()
-plt.imshow(res["W"], cmap="RdBu_r", vmin=-1, vmax=1)
-plt.colorbar()
-plt.show()
+
 
 error = (res["x_pred"] - data) ** 2
 plt.plot(error.T)
@@ -191,6 +210,16 @@ plt.xlabel("Time [-]")
 plt.ylabel("Error L2 [-]")
 plt.title(f"pVar: {res['pVar']:.4f}")
 plt.show()
+
+viz = VisualiseKMeans(
+	res["x_pred"].T,
+	shape=nt.Size([
+		nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]"),
+		nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
+	])
+)
+viz.plot_timeseries_comparison(data.T, show=True)
+
 
 VisualiseKMeans(data, nt.Size([nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
 							   nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])).heatmap(show=True)

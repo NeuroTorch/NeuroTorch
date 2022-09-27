@@ -428,6 +428,14 @@ class BaseNeuronsLayer(BaseLayer):
 		:keyword float hh_init_std: The standard deviation of the hidden state initialization when hh_init is random. Defaults to 1.0.
 		:keyword int hh_init_seed: The seed of the hidden state initialization when hh_init is random. Defaults to 0.
 		:keyword bool force_dale_law: Whether to force the Dale's law in the layer's weights. Defaults to False.
+		:keyword Union[torch.Tensor, float] forward_sign: If force_dale_law is True, this parameter will be used to
+			initialize the forward_sign vector. If it is a float, the forward_sign vector will be initialized with this
+			value as the ration of inhibitory neurons. If it is a tensor, it will be used as the forward_sign vector.
+		:keyword Union[torch.Tensor, float] recurrent_sign: If force_dale_law is True, this parameter will be used to
+			initialize the recurrent_sign vector. If it is a float, the recurrent_sign vector will be initialized with
+			this value as the ration of inhibitory neurons. If it is a tensor, it will be used as the recurrent_sign vector.
+		:keyword Callable sign_activation: The activation function used to compute the sign of the weights i.e. the
+			forward_sign and recurrent_sign vectors. Defaults to torch.nn.Tanh.
 		"""
 		self.dt = dt
 		self.use_recurrent_connection = use_recurrent_connection
@@ -446,7 +454,7 @@ class BaseNeuronsLayer(BaseLayer):
 			device=device,
 			**kwargs
 		)
-		self.sign_activation = torch.nn.Tanh()
+		self.sign_activation = self.kwargs.get("sign_activation", torch.nn.Tanh())
 	
 	@property
 	def forward_weights(self) -> torch.nn.Parameter:
@@ -594,26 +602,32 @@ class BaseNeuronsLayer(BaseLayer):
 	def _init_forward_sign_(self):
 		if "forward_sign" in self.kwargs and self.force_dale_law:
 			if isinstance(self.kwargs["forward_sign"], float):
+				assert 0.0 <= self.kwargs["forward_sign"] <= 1.0, "forward_sign must be in [0, 1]"
 				n_inh = int(int(self.input_size) * self.kwargs["forward_sign"])
 				inh_indexes = torch.randperm(int(self.input_size))[:n_inh]
 				self.kwargs["forward_sign"] = np.abs(np.random.normal(size=(int(self.input_size), 1)))
 				self.kwargs["forward_sign"][inh_indexes] *= -1
+			assert self.kwargs["forward_sign"].shape == (int(self.input_size), 1), \
+				"forward_sign must be a float or a tensor of shape (input_size, 1)"
 			self._forward_sign.data = to_tensor(self.kwargs["forward_sign"]).to(self.device)
 			with torch.no_grad():
 				self._forward_weights.data = torch.sqrt(torch.abs(self._forward_weights.data))
 		elif self.force_dale_law:
-			torch.nn.init.xavier_normal_(self._forward_sign)
+			torch.nn.init.normal_(self._forward_sign)
 
 	def _init_recurrent_sign_(self):
 		if "recurrent_sign" in self.kwargs and self.force_dale_law and self.use_recurrent_connection:
 			if isinstance(self.kwargs["recurrent_sign"], float):
-				n_inh = int(int(self.input_size) * self.kwargs["recurrent_sign"])
-				inh_indexes = torch.randperm(int(self.input_size))[:n_inh]
-				self.kwargs["recurrent_sign"] = np.abs(np.random.normal(size=(int(self.input_size), 1)))
+				assert 0.0 <= self.kwargs["recurrent_sign"] <= 1.0, "recurrent_sign must be in [0, 1]"
+				n_inh = int(int(self.output_size) * self.kwargs["recurrent_sign"])
+				inh_indexes = torch.randperm(int(self.output_size))[:n_inh]
+				self.kwargs["recurrent_sign"] = np.abs(np.random.normal(size=(int(self.output_size), 1)))
 				self.kwargs["recurrent_sign"][inh_indexes] *= -1
+			assert self.kwargs["recurrent_sign"].shape == (int(self.output_size), 1), \
+				"recurrent_sign must be a float or a tensor of shape (output_size, 1)"
 			self._recurrent_sign.data = to_tensor(self.kwargs["recurrent_sign"]).to(self.device)
 			with torch.no_grad():
-				self._recurrent_weights.data = torch.sqrt(torch.abs(self._forward_weights.data))
+				self._recurrent_weights.data = torch.sqrt(torch.abs(self._recurrent_weights.data))
 		elif self.force_dale_law and self.use_recurrent_connection:
 			torch.nn.init.xavier_normal_(self._recurrent_sign)
 
@@ -673,7 +687,7 @@ class BaseNeuronsLayer(BaseLayer):
 				)
 			if self.force_dale_law:
 				self._recurrent_sign = torch.nn.Parameter(
-					torch.empty((int(self.input_size), 1), dtype=torch.float32, device=self.device),
+					torch.empty((int(self.output_size), 1), dtype=torch.float32, device=self.device),
 					requires_grad=self.force_dale_law
 				)
 		self.initialize_weights_()

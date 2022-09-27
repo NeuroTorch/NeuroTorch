@@ -7,12 +7,14 @@ from torch.utils.data import DataLoader
 
 import neurotorch as nt
 from dataset import WSDataset
-from neurotorch.modules.layers import WilsonCowanLayerDale, WilsonCowanLayer
+from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.metrics import RegressionMetrics
 from neurotorch.regularization.connectome import DaleLawL2
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
 from neurotorch.visualisation.time_series_visualisation import *
 from tutorials.figure_generation_util import visualize_init_final_weights
+
+# TODO : fix visualisation of weights
 
 
 def train_with_params(
@@ -40,11 +42,12 @@ def train_with_params(
 	if not torch.is_tensor(true_time_series):
 		true_time_series = torch.tensor(true_time_series, dtype=torch.float32, device=device)
 	x = true_time_series.T[np.newaxis, :]
+	sign = torch.abs(torch.randn((x.shape[-1], 1)))
 	ws_layer = WilsonCowanLayer(
 		x.shape[-1], x.shape[-1],
-		forward_weights=forward_weights,
-		std_weights=std_weights,
-		forward_sign=torch.abs(torch.randn((x.shape[-1], 1))),
+		# forward_weights=forward_weights,
+		# std_weights=std_weights,
+		forward_sign=0.2,
 		dt=dt,
 		r=r,
 		mean_r=mean_r,
@@ -71,10 +74,10 @@ def train_with_params(
 	model.build()
 
 	# Regularization on the connectome can be applied on one connectome or on all connectomes (or none).
-	#regularisation = DaleLawL2([ws_layer.forward_weights], alpha=0.3,
+	#regularisation = DaleLawL2([ws_layer.forward_weights], alpha=1,
 	#						   reference_weights=[nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)])
 
-	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.)
+	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.1)
 	#optimizer_regul = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
 	criterion = nn.MSELoss()
 
@@ -100,22 +103,11 @@ def train_with_params(
 	]
 
 	with torch.no_grad():
-		W0 = ws_layer.forward_weights.clone()
+		W0 = ws_layer.forward_weights.clone().detach().cpu().numpy()
 		mu0 = ws_layer.mu.clone()
 		r0 = ws_layer.r.clone()
 		tau0 = ws_layer.tau.clone()
 		ratio_sign_0 = np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy())
-		
-		from matplotlib import colors
-		min_value, max_value = torch.min(W0), torch.max(W0)
-		if not np.isclose(min_value, max_value) and min_value < max_value and min_value < 0 < max_value:
-			divnorm = colors.TwoSlopeNorm(vmin=min_value, vcenter=0., vmax=max_value)
-			plt.imshow(W0, cmap="RdBu_r", norm=divnorm)
-		else:
-			plt.imshow(W0, cmap="RdBu_r")
-		plt.title(f"Initial weights, {ratio_sign_0 = :.3f}")
-		plt.colorbar()
-		plt.show()
 
 	dataset = WSDataset(true_time_series.T)
 	trainer = nt.trainers.RegressionTrainer(
@@ -145,12 +137,12 @@ def train_with_params(
 
 	out = {}
 	out["pVar"] = loss.detach().item()
-	out["W"] = ws_layer.forward_weights.detach().numpy()
+	out["W"] = ws_layer.forward_weights.detach().cpu().numpy()
 	out["mu"] = ws_layer.mu.detach().numpy()
 	out["r"] = ws_layer.r.detach().numpy()
-	out["W0"] = W0.numpy()
-	out["ratio_0"] = ratio_sign_0
-	out["ratio_end"] = np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy())
+	out["W0"] = W0
+	out["ratio_0"] = (ratio_sign_0 + 1)/2
+	out["ratio_end"] = ((np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy())) + 1) / 2
 	out["mu0"] = mu0.numpy()
 	out["r0"] = r0.numpy()
 	out["tau0"] = tau0.numpy()
@@ -173,7 +165,7 @@ for neuron in range(data.shape[0]):
 	data[neuron, :] = data[neuron, :] - np.min(data[neuron, :])
 	data[neuron, :] = data[neuron, :] / np.max(data[neuron, :])
 
-forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)
+forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.2)
 
 res = train_with_params(
 	true_time_series=data,
@@ -198,7 +190,16 @@ res = train_with_params(
 )
 
 print(f"initiale ratio {res['ratio_0']:.3f}, finale ratio {res['ratio_end']:.3f}")
-visualize_init_final_weights(res["W0"], res["W"], show=True, dale_law_kwargs={"inh_ratio": 1-((res['ratio_end'] + 1)/2)})
+#visualize_init_final_weights(res["W0"], res["W"], show=True, dale_law_kwargs={"inh_ratio": 1-((res['ratio_end'] + 1)/2)})
+
+fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+axes[0].imshow(res["W0"], cmap="RdBu_r")
+axes[0].set_title("Initial weights, ratio exc {:.3f}".format(res["ratio_0"]))
+im = axes[1].imshow(res["W"], cmap="RdBu_r", vmin=-1, vmax=1)
+axes[1].set_title("Final weights, ratio {:.3f}".format(res["ratio_end"]))
+plt.colorbar(im, ax=axes.ravel().tolist())
+plt.show()
+
 
 error = (res["x_pred"] - data) ** 2
 plt.plot(error.T)
@@ -227,9 +228,9 @@ Visualise(res["x_pred"], nt.Size([nt.Dimension(200, nt.DimensionProperty.NONE, "
 																									  res["W"], dt=0.1,
 																									  show=True)
 
-# for i in range(sample_size):
-# 	plt.plot(data[i, :], label="True")
-# 	plt.plot(res["x_pred"][i, :], label="Pred")
-# 	plt.ylim([0, 1])
-# 	plt.legend()
-# 	plt.show()
+for i in range(sample_size):
+	plt.plot(data[i, :], label="True")
+	plt.plot(res["x_pred"][i, :], label="Pred")
+	plt.ylim([0, 1])
+	plt.legend()
+	plt.show()

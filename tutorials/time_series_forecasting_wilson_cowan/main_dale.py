@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 
 import neurotorch as nt
 from dataset import WSDataset
+from neurotorch.modules.functions import WeirdTanh
 from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.metrics import RegressionMetrics
 from neurotorch.regularization.connectome import DaleLawL2
@@ -47,7 +48,8 @@ def train_with_params(
 		x.shape[-1], x.shape[-1],
 		# forward_weights=forward_weights,
 		# std_weights=std_weights,
-		forward_sign=0.2,
+		# forward_sign=0.2,
+		sign_activation=WeirdTanh(d=0.8),
 		dt=dt,
 		r=r,
 		mean_r=mean_r,
@@ -108,6 +110,7 @@ def train_with_params(
 		r0 = ws_layer.r.clone()
 		tau0 = ws_layer.tau.clone()
 		ratio_sign_0 = np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy())
+		print(f"ratio exec init: {(ratio_sign_0 + 1)/2 :.3f}")
 
 	dataset = WSDataset(true_time_series.T)
 	trainer = nt.trainers.RegressionTrainer(
@@ -121,7 +124,7 @@ def train_with_params(
 		#metrics=[regularisation],
 	)
 	trainer.train(
-		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=True),
+		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),
 		n_iterations=n_iterations,
 		exec_metrics_on_train=False,
 		# load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
@@ -194,9 +197,9 @@ print(f"initiale ratio {res['ratio_0']:.3f}, finale ratio {res['ratio_end']:.3f}
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 axes[0].imshow(res["W0"], cmap="RdBu_r")
-axes[0].set_title("Initial weights, ratio exc {:.3f}".format(res["ratio_0"]))
+axes[0].set_title("Initial weights, ratio exec {:.3f}".format(res["ratio_0"]))
 im = axes[1].imshow(res["W"], cmap="RdBu_r", vmin=-1, vmax=1)
-axes[1].set_title("Final weights, ratio {:.3f}".format(res["ratio_end"]))
+axes[1].set_title("Final weights, ratio exec {:.3f}".format(res["ratio_end"]))
 plt.colorbar(im, ax=axes.ravel().tolist())
 plt.show()
 

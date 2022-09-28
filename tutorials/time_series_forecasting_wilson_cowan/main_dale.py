@@ -192,7 +192,14 @@ res = train_with_params(
 )
 
 print(f"initiale ratio {res['ratio_0']:.3f}, finale ratio {res['ratio_end']:.3f}")
-visualize_init_final_weights(res["W0"], res["W"], show=True, dale_law_kwargs={"inh_ratio": 1-((res['ratio_end'] + 1)/2)})
+fig, axes = visualize_init_final_weights(
+	res["W0"], res["W"],
+	show=False,
+	dale_law_kwargs={"inh_ratio": 1-((res['ratio_end'] + 1)/2)}
+)
+axes[0].set_title("Initial weights, ratio exec {:.3f}".format(res["ratio_0"]))
+axes[1].set_title("Final weights, ratio exec {:.3f}".format(res["ratio_end"]))
+plt.show()
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 axes[0].imshow(res["W0"], cmap="RdBu_r")

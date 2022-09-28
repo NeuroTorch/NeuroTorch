@@ -193,19 +193,25 @@ class Visualise:
 			self,
 			filename: Optional[str] = None,
 			show: bool = False,
+			fig: Optional[plt.Figure] = None,
+			ax: Optional[plt.Axes] = None,
 			**kwargs
-	):
+	) -> Tuple[plt.Figure, plt.Axes]:
 		"""
 		Plot all the neuronal activity in one figure.
 		
 		:param filename: Name of the file to save the figure. If filename is None, the figure will not be saved.
 		:param show: If True, the figure will be displayed.
+		:param fig: Figure to plot the timeseries. If fig is None, a new figure will be created.
+		:param ax: Axes to plot the timeseries. If ax is None, a new axes will be created.
 		:param kwargs: Keyword arguments.
 		
 		:keyword figsize: Size of the figure. Default is (12, 8).
 		:keyword dpi: DPI of the figure. Default is 300.
 		"""
-		fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
+		assert (fig is None) == (ax is None), "fig and ax must be both None or both not None."
+		if fig is None or ax is None:
+			fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
 		ax.set_xlabel(self.shape[0].name)
 		ax.plot(self.timeseries)
 		ax.set_ylabel(self.shape[1].name)
@@ -214,7 +220,7 @@ class Visualise:
 			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
 		if show:
 			plt.show()
-		plt.close(fig)
+		return fig, ax
 
 	def heatmap(
 			self,
@@ -224,8 +230,10 @@ class Visualise:
 			v: Tuple[float, float] = (0.0, 1.0),
 			filename: Optional[str] = None,
 			show: bool = False,
+			fig: Optional[plt.Figure] = None,
+			ax: Optional[plt.Axes] = None,
 			**kwargs
-	):
+	) -> Tuple[plt.Figure, plt.Axes]:
 		"""
 		Plot the heatmap of the time series.
 		
@@ -235,44 +243,55 @@ class Visualise:
 		:param v: Range of the colorbar.
 		:param filename: Name of the file to save the figure. If filename is None, the figure will not be saved.
 		:param show: If True, the figure will be displayed.
+		:param fig: Figure to plot the heatmap. If fig is None, a new figure will be created.
+		:param ax: Axes to plot the heatmap. If ax is None, a new axes will be created.
 		:param kwargs: Keyword arguments.
 		
 		:keyword figsize: Size of the figure. Default is (12, 8).
 		:keyword dpi: DPI of the figure. Default is 300.
 		"""
-		fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
+		assert (fig is None) == (ax is None), "fig and ax must be both None or both not None."
+		if fig is None or ax is None:
+			fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
 		ax.set_xlabel(self.shape[0].name)
 		ax.set_ylabel(self.shape[1].name)
 		im = ax.imshow(self.timeseries.T, interpolation=interpolation, aspect="auto", cmap=cmap, vmin=v[0], vmax=v[1])
 		if not show_axis:
 			ax.axis("off")
+		ax.set_title(kwargs.get("title", ""))
 		fig.colorbar(im)
 		if filename is not None:
 			os.makedirs(os.path.dirname(filename), exist_ok=True)
 			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
 		if show:
 			plt.show()
-		plt.close(fig)
+		return fig, ax
 
 	def rigidplot(
 			self,
 			show_axis: bool = False,
 			filename: Optional[str] = None,
 			show: bool = False,
+			fig: Optional[plt.Figure] = None,
+			ax: Optional[plt.Axes] = None,
 			**kwargs
-	):
+	) -> Tuple[plt.Figure, plt.Axes]:
 		"""
 		Plot the rigid plot of the time series.
 		
 		:param show_axis: Whether to show the axis or not.
 		:param filename: Name of the file to save the figure. If filename is None, the figure will not be saved.
 		:param show: If True, the figure will be displayed.
+		:param fig: Figure to plot the rigid plot. If fig is None, a new figure will be created.
+		:param ax: Axes to plot the rigid plot. If ax is None, a new axes will be created.
 		:param kwargs: Keyword arguments.
 		
 		:keyword figsize: Size of the figure. Default is (12, 8).
 		:keyword dpi: DPI of the figure. Default is 300.
 		"""
-		fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
+		assert (fig is None) == (ax is None), "fig and ax must be both None or both not None."
+		if fig is None or ax is None:
+			fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
 		ax.set_xlabel(self.shape[0].name)
 		ax.set_ylabel(self.shape[1].name)
 		if not show_axis:
@@ -290,7 +309,7 @@ class Visualise:
 			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
 		if show:
 			plt.show()
-		plt.close(fig)
+		return fig, ax
 	
 	def plot_single_timeseries_comparison(
 			self,
@@ -356,8 +375,29 @@ class Visualise:
 			desc: str = "Prediction",
 			filename: Optional[str] = None,
 			show: bool = False,
+			fig: Optional[plt.Figure] = None,
+			axes: Optional[np.ndarray[plt.Axes]] = None,
 			**kwargs
 	) -> Tuple[plt.Figure, plt.Axes]:
+		"""
+		Plot the timeseries comparison.
+		
+		:param target: Target timeseries. Must be in shape (n_time_steps, n_features).
+		:param spikes: Spikes of the latent space. Must be in shape (n_time_steps, n_spikes_steps, n_spikes).
+		:param n_spikes_steps: Number of spikes steps. If None, spikes must be None.
+		:param title: Title of the plot.
+		:param desc: Description of the prediction.
+		:param filename: Filename to save the plot to.
+		:param show: Whether to show the plot.
+		:param fig: Figure to plot on. If None, a new figure is created.
+		:param axes: Axes to plot on. If None, new axes are created.
+		:param kwargs: Additional keyword arguments.
+		
+		:keyword bool close: Whether to close the figure after saving. Default: False.
+		
+		:return: Figure and axes.
+		"""
+		assert (fig is None) == (axes is None), "fig and axes must be both None or both not None"
 		predictions, target = to_tensor(self._mean_given_timeseries), to_tensor(target)
 		target = torch.squeeze(target.detach().cpu())
 		
@@ -371,7 +411,10 @@ class Visualise:
 			pVar = PVarianceLoss()(predictions, target.to(predictions.device))
 			title = f"{title} (pVar: {to_numpy(pVar).item():.3f})"
 		
-		fig, axes = plt.subplots(4, 1, figsize=(15, 8))
+		if fig is None:
+			fig, axes = plt.subplots(4, 1, figsize=(15, 8))
+		else:
+			assert len(axes) == 4, "axes must have length 4"
 		axes[0].plot(errors.detach().cpu().numpy())
 		axes[0].set_xlabel("Time [-]")
 		axes[0].set_ylabel("Squared Error [-]")
@@ -414,7 +457,7 @@ class Visualise:
 			fig.savefig(filename)
 		if show:
 			plt.show()
-		if kwargs.get("close", True):
+		if kwargs.get("close", False):
 			plt.close(fig)
 		return fig, axes
 

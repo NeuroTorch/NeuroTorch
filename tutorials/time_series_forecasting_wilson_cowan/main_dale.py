@@ -17,8 +17,8 @@ from neurotorch.metrics import RegressionMetrics
 from neurotorch.regularization import BaseRegularization
 from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
+from neurotorch.visualisation.connectome import visualize_init_final_weights
 from neurotorch.visualisation.time_series_visualisation import *
-from tutorials.figure_generation_util import visualize_init_final_weights
 
 # TODO : fix visualisation of weights
 
@@ -207,7 +207,7 @@ res = train_with_params(
 )
 
 print(f"initiale ratio {res['ratio_0']:.3f}, finale ratio {res['ratio_end']:.3f}")
-fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+fig, axes = plt.subplots(2, 2, figsize=(12, 8))
 visualize_init_final_weights(
 	res["W0"], res["W"],
 	fig=fig, axes=axes[0],
@@ -232,19 +232,21 @@ viz = VisualiseKMeans(
 )
 viz.plot_timeseries_comparison(data.T, title=f"Prediction", show=True)
 
-
+fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 VisualiseKMeans(
 	data,
 	nt.Size([
 		nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
 		nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])
-).heatmap(show=True)
+).heatmap(fig=fig, ax=axes[0], title="True time series")
 VisualiseKMeans(
 	res["x_pred"],
 	nt.Size([
 		nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
 		nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])
-).heatmap(show=True)
+).heatmap(fig=fig, ax=axes[1], title="Predicted time series")
+plt.show()
+
 Visualise(
 	res["x_pred"],
 	nt.Size([

@@ -9,19 +9,27 @@ It's time to bring deep learning and neuroscience together. In this library, we 
 tools to neuroscientists and we offer neuroscience tools to computer scientists. These two domains were created 
 to be one.
 
-What can we do with NeuroTorch in the alpha version? 
-- Image classification with spiking networks; 
-- Classification of spiking time series with spiking networks; 
-- Time series classification with spiking or Wilson-Cowan; 
+### Current Version (alpha)
+
+What can we do with NeuroTorch in the current version? 
+- Image classification with spiking networks.
+- Classification of spiking time series with spiking networks.
+- Time series classification with spiking or Wilson-Cowan.
 - Reconstruction/Prediction of time series with Wilson-Cowan;
+- Reconstruction/Prediction of continuous time series with spiking networks.  
+- Backpropagation Through Time.
 - Anything you are able to do using the modules already created.
 
-What can we almost do with NeuroTorch? 
-- Reconstruction/Prediction of continuous time series with spiking networks.  
 
-Which algorithm is used to train the networks at the moment? 
-- Backpropagation Through Time; 
-- Others to come like FullForce!  
+### Next Version (beta)
+
+- Learning Algorithm: FullForce.
+- Learning Algorithm: [Eligibility-Propagation](https://doi.org/10.1038/s41467-020-17236-y).
+
+### Upcoming Version (0.0.1)
+- Distributed on [PyPI](https://pypi.org/).
+- Reinforcement Learning.
+
 
 NeuroTorch is developed to be easy to use, so that you can do simple things in a few lines of code. 
 Moreover NeuroTorch is modular so you can adapt it to your needs relatively quickly. Thanks and stay tuned, 

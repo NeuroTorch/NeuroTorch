@@ -142,5 +142,20 @@ pprint.pprint(accuracies)
 - To my dog Chewy who has been a great help during the whole development.
 
 
+# License
+[Apache License 2.0](LICENSE.md)
+
+# Citation
+```
+@article{Gince2022,
+  title={NeuroTorch: Deep Learning Python Library for Machine Learning and Neuroscience.},
+  author={Jérémie Gince},
+  year={2022},
+  publisher={Université Laval},
+  url={https://github.com/NeuroTorch},
+}
+```
+
+
 
 ---------------------------------------------------------------------------

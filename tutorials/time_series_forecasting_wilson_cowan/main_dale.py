@@ -46,10 +46,9 @@ def train_with_params(
 	sign = torch.abs(torch.randn((x.shape[-1], 1)))
 	ws_layer = WilsonCowanLayer(
 		x.shape[-1], x.shape[-1],
-		# forward_weights=forward_weights,
-		# std_weights=std_weights,
-		# forward_sign=0.2,
-		sign_activation=WeirdTanh(d=0.8),
+		forward_weights=forward_weights,
+		std_weights=std_weights,
+		forward_sign=0.5,
 		dt=dt,
 		r=r,
 		mean_r=mean_r,
@@ -79,7 +78,7 @@ def train_with_params(
 	#regularisation = DaleLawL2([ws_layer.forward_weights], alpha=1,
 	#						   reference_weights=[nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)])
 
-	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.1)
+	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.01)
 	#optimizer_regul = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
 	criterion = nn.MSELoss()
 
@@ -193,7 +192,7 @@ res = train_with_params(
 )
 
 print(f"initiale ratio {res['ratio_0']:.3f}, finale ratio {res['ratio_end']:.3f}")
-#visualize_init_final_weights(res["W0"], res["W"], show=True, dale_law_kwargs={"inh_ratio": 1-((res['ratio_end'] + 1)/2)})
+visualize_init_final_weights(res["W0"], res["W"], show=True, dale_law_kwargs={"inh_ratio": 1-((res['ratio_end'] + 1)/2)})
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 axes[0].imshow(res["W0"], cmap="RdBu_r")

@@ -166,3 +166,59 @@ class WeightsDistance(BaseRegularization):
 		else:
 			loss = torch.sum(torch.stack(loss_list))
 		return loss
+
+
+class ExecRatioTargetRegularization(BaseRegularization):
+	r"""
+	Applies the function:
+
+	.. math::
+		\text{loss}(x) = \lambda \cdot \sum_{i=1}^N \left|(\text{mean}(\text{sign}(x_i)) + 1) - 2\cdot\text{target} \right|
+	
+	Where :math:`x` is the list of input parameters, :math:`N` is the number of parameter, :math:`\text{sign}(x_i)` is the
+	sign of the element :math:`x_i`, :math:`\text{mean}(\text{sign}(x_i))` is the mean of the signs of the elements in the
+	tensor, :math:`\text{target}` is the target value and :math:`\lambda` is the weight of the regularization.
+	
+	
+	Examples::
+		
+		>>> layer = WilsonCowanLayer(10, 10, force_dale_law=True)
+		>>> m = ExecRatioTargetRegularization(params=[layer.forward_sign], Lambda=1.0, target=0.5)
+		>>> loss = m()
+	"""
+	def __init__(
+			self,
+			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+			exec_target_ratio: float = 0.8,
+			Lambda: float = 1.0,
+	):
+		super(ExecRatioTargetRegularization, self).__init__(params, Lambda)
+		assert 0 < exec_target_ratio < 1, "exec_target_ratio must be between 0 and 1"
+		self.exec_target_ratio = exec_target_ratio
+		self.sign_func = torch.nn.Softsign()
+	
+	def forward(self, *args, **kwargs) -> torch.Tensor:
+		loss_list = []
+		for param in self.params:
+			param_ratio = torch.mean(self.sign_func(param)) + 1
+			loss_list.append(torch.abs(param_ratio - 2 * self.exec_target_ratio))
+		if len(self.params) == 0:
+			loss = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)
+		else:
+			loss = torch.sum(torch.stack(loss_list))
+		return loss
+	
+
+class InhRatioTargetRegularization(ExecRatioTargetRegularization):
+	def __init__(
+			self,
+			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+			inh_target_ratio: float = 0.2,
+			Lambda: float = 1.0,
+	):
+		assert 0 < inh_target_ratio < 1, "inh_target_ratio must be between 0 and 1"
+		super(InhRatioTargetRegularization, self).__init__(
+			params=params,
+			Lambda=Lambda,
+			exec_target_ratio=1 - inh_target_ratio,
+		)

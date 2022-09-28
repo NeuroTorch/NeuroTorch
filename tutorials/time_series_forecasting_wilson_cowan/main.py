@@ -12,6 +12,7 @@ from neurotorch.metrics import RegressionMetrics
 from neurotorch.regularization.connectome import DaleLawL2
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
 from neurotorch.visualisation.time_series_visualisation import *
+from tutorials.figure_generation_util import visualize_init_final_weights
 
 
 def train_with_params(
@@ -56,7 +57,7 @@ def train_with_params(
 		hh_init=hh_init,
 		device=device,
 		name="WilsonCowan_layer1",
-		force_dale_law=True,
+		force_dale_law=False,
 	)
 
 	ws_layer_2 = deepcopy(ws_layer)  # only usefull if you're planning to use the second layer
@@ -113,7 +114,7 @@ def train_with_params(
 		metrics=[regularisation],
 	)
 	trainer.train(
-		DataLoader(dataset, shuffle=False, num_workers=2, pin_memory=True),
+		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),
 		n_iterations=n_iterations,
 		exec_metrics_on_train=True,
 		# load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
@@ -178,11 +179,15 @@ res = train_with_params(
 	hh_init="inputs"
 )
 
-plt.imshow(res["W0"], cmap="RdBu_r")
-plt.colorbar()
-plt.show()
-plt.imshow(res["W"], cmap="RdBu_r", vmin=-1, vmax=1)
-plt.colorbar()
+# print(f"initiale ratio {res['ratio_0']:.3f}, finale ratio {res['ratio_end']:.3f}")
+fig, axes = visualize_init_final_weights(
+	res["W0"], res["W"],
+	show=False,
+	compute_dale=True,
+	# dale_law_kwargs={"inh_ratio": 1-((res['ratio_end'] + 1)/2)}
+)
+# axes[0].set_title("Initial weights, ratio exec {:.3f}".format(res["ratio_0"]))
+# axes[1].set_title("Final weights, ratio exec {:.3f}".format(res["ratio_end"]))
 plt.show()
 
 error = (res["x_pred"] - data) ** 2

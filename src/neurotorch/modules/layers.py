@@ -552,6 +552,30 @@ class BaseNeuronsLayer(BaseLayer):
 		if not isinstance(value, torch.nn.Parameter):
 			value = torch.nn.Parameter(value, requires_grad=self.force_dale_law)
 		self._recurrent_sign = value
+		
+	def get_weights_parameters(self) -> List[torch.nn.Parameter]:
+		"""
+		Get the weights parameters.
+		
+		:return: The weights parameters.
+		"""
+		parameters = [self._forward_weights]
+		if self.use_recurrent_connection:
+			parameters.append(self._recurrent_weights)
+		return parameters
+	
+	def get_sign_parameters(self) -> List[torch.nn.Parameter]:
+		"""
+		Get the sign parameters.
+		
+		:return: The sign parameters.
+		"""
+		parameters = []
+		if self.force_dale_law:
+			parameters.append(self._forward_sign)
+			if self.use_recurrent_connection:
+				parameters.append(self._recurrent_sign)
+		return parameters
 
 	def create_empty_state(
 			self,

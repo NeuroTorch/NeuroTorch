@@ -336,7 +336,12 @@ class Trainer:
 			if isinstance(m_out, dict):
 				metrics_dict.update({f"{prefix}_{k}": v for k, v in m_out.items()})
 			else:
-				metrics_dict[f"{prefix}_{metric.__name__}"] = m_out
+				metric_name = str(metric)
+				if hasattr(metric, "name"):
+					metric_name = metric.name
+				elif hasattr(metric, "__name__"):
+					metric_name = metric.__name__
+				metrics_dict[f"{prefix}_{metric_name}"] = m_out
 		return metrics_dict
 
 	def _exec_epoch(

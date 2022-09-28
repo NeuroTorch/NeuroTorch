@@ -1,3 +1,5 @@
+from typing import Union, Iterable, Dict
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -7,10 +9,13 @@ from torch.utils.data import DataLoader
 
 import neurotorch as nt
 from dataset import WSDataset
+from neurotorch.callbacks.convergence import ConvergenceTimeGetter
+from neurotorch.callbacks.early_stopping import EarlyStoppingThreshold
 from neurotorch.modules.functions import WeirdTanh
 from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.metrics import RegressionMetrics
-from neurotorch.regularization.connectome import DaleLawL2
+from neurotorch.regularization import BaseRegularization
+from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
 from neurotorch.visualisation.time_series_visualisation import *
 from tutorials.figure_generation_util import visualize_init_final_weights
@@ -43,7 +48,6 @@ def train_with_params(
 	if not torch.is_tensor(true_time_series):
 		true_time_series = torch.tensor(true_time_series, dtype=torch.float32, device=device)
 	x = true_time_series.T[np.newaxis, :]
-	sign = torch.abs(torch.randn((x.shape[-1], 1)))
 	ws_layer = WilsonCowanLayer(
 		x.shape[-1], x.shape[-1],
 		forward_weights=forward_weights,
@@ -63,7 +67,7 @@ def train_with_params(
 		hh_init=hh_init,
 		device=device,
 		name="WilsonCowan_layer1",
-		force_dale_law=True
+		force_dale_law=force_dale_law
 	).build()
 
 	# ws_layer_2 = deepcopy(ws_layer)  # only usefull if you're planning to use the second layer
@@ -77,9 +81,11 @@ def train_with_params(
 	# Regularization on the connectome can be applied on one connectome or on all connectomes (or none).
 	#regularisation = DaleLawL2([ws_layer.forward_weights], alpha=1,
 	#						   reference_weights=[nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.99)])
+	
+	regularisation = ExecRatioTargetRegularization(ws_layer.get_sign_parameters(), exec_target_ratio=0.8)
 
 	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.01)
-	#optimizer_regul = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
+	optimizer_reg = torch.optim.Adam(regularisation.parameters(), lr=5e-3)
 	criterion = nn.MSELoss()
 
 	checkpoint_manager = nt.CheckpointManager(
@@ -90,7 +96,7 @@ def train_with_params(
 		save_best_only=True,
 		start_save_at=int(0.98 * n_iterations),
 	)
-	# convergence_time_getter = ConvergenceTimeGetter(metric='train_loss', threshold=0.99, minimize_metric=False)
+	convergence_time_getter = ConvergenceTimeGetter(metric='train_loss', threshold=0.95, minimize_metric=False)
 	callbacks = [
 		LRSchedulerOnMetric(
 			'train_loss',
@@ -99,33 +105,36 @@ def train_with_params(
 			retain_progress=True,
 		),
 		checkpoint_manager,
-		# convergence_time_getter,
-		# EarlyStoppingThreshold(metric='train_loss', threshold=0.999, minimize_metric=False),
+		convergence_time_getter,
+		EarlyStoppingThreshold(metric='train_loss', threshold=0.999, minimize_metric=False),
 	]
 
 	with torch.no_grad():
 		W0 = ws_layer.forward_weights.clone().detach().cpu().numpy()
+		sign0 = ws_layer.forward_sign.clone().detach().cpu().numpy()
 		mu0 = ws_layer.mu.clone()
 		r0 = ws_layer.r.clone()
 		tau0 = ws_layer.tau.clone()
-		ratio_sign_0 = np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy())
-		print(f"ratio exec init: {(ratio_sign_0 + 1)/2 :.3f}")
+		if ws_layer.force_dale_law:
+			ratio_sign_0 = (np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy()) + 1)/2
+		else:
+			ratio_sign_0 = (np.mean(torch.sign(ws_layer.forward_weights).detach().cpu().numpy()) + 1)/2
+		print(f"ratio exec init: {ratio_sign_0 :.3f}")
 
 	dataset = WSDataset(true_time_series.T)
 	trainer = nt.trainers.RegressionTrainer(
 		model,
 		callbacks=callbacks,
 		optimizer=optimizer,
-		#regularization_optimizer=optimizer_regul,
-		# criterion=lambda pred, y: RegressionMetrics.compute_p_var(y_true=y, y_pred=pred, reduction='mean'),
+		regularization_optimizer=optimizer_reg,
 		criterion=nt.losses.PVarianceLoss(),
-		#regularization=regularisation,
-		#metrics=[regularisation],
+		regularization=regularisation,
+		metrics=[regularisation],
 	)
 	trainer.train(
 		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),
 		n_iterations=n_iterations,
-		exec_metrics_on_train=False,
+		exec_metrics_on_train=True,
 		# load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
 		force_overwrite=True,
 	)
@@ -137,19 +146,25 @@ def train_with_params(
 	mse_loss = criterion(x_pred, x)
 	loss = 1 - mse_loss / torch.var(x)
 
-	out = {}
-	out["pVar"] = loss.detach().item()
-	out["W"] = ws_layer.forward_weights.detach().cpu().numpy()
-	out["mu"] = ws_layer.mu.detach().numpy()
-	out["r"] = ws_layer.r.detach().numpy()
-	out["W0"] = W0
-	out["ratio_0"] = (ratio_sign_0 + 1)/2
-	out["ratio_end"] = ((np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy())) + 1) / 2
-	out["mu0"] = mu0.numpy()
-	out["r0"] = r0.numpy()
-	out["tau0"] = tau0.numpy()
-	out["tau"] = ws_layer.tau.detach().numpy()
-	out["x_pred"] = torch.squeeze(x_pred).detach().numpy().T
+	out = {
+		"pVar"  : loss.detach().item(),
+		"W": ws_layer.forward_weights.detach().cpu().numpy(),
+		"sign0": sign0,
+		"sign"  : ws_layer.forward_sign.detach().cpu().numpy(),
+		"mu": ws_layer.mu.detach().numpy(),
+		"r"     : ws_layer.r.detach().numpy(),
+		"W0": W0,
+		"ratio_0": ratio_sign_0,
+		"mu0": mu0.numpy(),
+		"r0"    : r0.numpy(),
+		"tau0": tau0.numpy(),
+		"tau": ws_layer.tau.detach().numpy(),
+		"x_pred": torch.squeeze(x_pred).detach().numpy().T
+	}
+	if ws_layer.force_dale_law:
+		out["ratio_end"] = (np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy()) + 1) / 2
+	else:
+		out["ratio_end"] = (np.mean(torch.sign(ws_layer.forward_weights).detach().cpu().numpy()) + 1) / 2
 
 	return out
 
@@ -160,7 +175,7 @@ sample_size = 200
 sample = np.random.randint(n_neurons, size=sample_size)
 data = ts[sample, :]
 
-sigma = 30
+sigma = 10
 
 for neuron in range(data.shape[0]):
 	data[neuron, :] = gaussian_filter1d(data[neuron, :], sigma=sigma)
@@ -172,7 +187,7 @@ forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.2)
 res = train_with_params(
 	true_time_series=data,
 	learning_rate=1e-2,
-	n_iterations=500,
+	n_iterations=1024,
 	forward_weights=forward_weights,
 	std_weights=1,
 	dt=0.02,
@@ -192,29 +207,20 @@ res = train_with_params(
 )
 
 print(f"initiale ratio {res['ratio_0']:.3f}, finale ratio {res['ratio_end']:.3f}")
-fig, axes = visualize_init_final_weights(
+fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+visualize_init_final_weights(
 	res["W0"], res["W"],
+	fig=fig, axes=axes[0],
 	show=False,
-	dale_law_kwargs={"inh_ratio": 1-((res['ratio_end'] + 1)/2)}
+	dale_law_kwargs={"inh_ratio": 1-res['ratio_end']}
 )
-axes[0].set_title("Initial weights, ratio exec {:.3f}".format(res["ratio_0"]))
-axes[1].set_title("Final weights, ratio exec {:.3f}".format(res["ratio_end"]))
-plt.show()
-
-fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-axes[0].imshow(res["W0"], cmap="RdBu_r")
-axes[0].set_title("Initial weights, ratio exec {:.3f}".format(res["ratio_0"]))
-im = axes[1].imshow(res["W"], cmap="RdBu_r", vmin=-1, vmax=1)
-axes[1].set_title("Final weights, ratio exec {:.3f}".format(res["ratio_end"]))
-plt.colorbar(im, ax=axes.ravel().tolist())
-plt.show()
-
-
-error = (res["x_pred"] - data) ** 2
-plt.plot(error.T)
-plt.xlabel("Time [-]")
-plt.ylabel("Error L2 [-]")
-plt.title(f"pVar: {res['pVar']:.4f}")
+axes[0, 0].set_title("Initial weights, ratio exec {:.3f}".format(res["ratio_0"]))
+axes[0, 1].set_title("Final weights, ratio exec {:.3f}".format(res["ratio_end"]))
+sort_idx = np.argsort(res["sign"].ravel())
+axes[1, 0].plot(res["sign0"].ravel()[sort_idx])
+axes[1, 0].set_title("Initial signs")
+axes[1, 1].plot(res["sign"].ravel()[sort_idx])
+axes[1, 1].set_title("Final signs")
 plt.show()
 
 viz = VisualiseKMeans(
@@ -224,18 +230,28 @@ viz = VisualiseKMeans(
 		nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
 	])
 )
-viz.plot_timeseries_comparison(data.T, show=True)
+viz.plot_timeseries_comparison(data.T, title=f"Prediction", show=True)
 
 
-VisualiseKMeans(data, nt.Size([nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
-							   nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])).heatmap(show=True)
-VisualiseKMeans(res["x_pred"], nt.Size([nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
-										nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])).heatmap(show=True)
-Visualise(res["x_pred"], nt.Size([nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
-								  nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])).animate(time_interval=0.1,
-																									  forward_weights=
-																									  res["W"], dt=0.1,
-																									  show=True)
+VisualiseKMeans(
+	data,
+	nt.Size([
+		nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
+		nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])
+).heatmap(show=True)
+VisualiseKMeans(
+	res["x_pred"],
+	nt.Size([
+		nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
+		nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])
+).heatmap(show=True)
+Visualise(
+	res["x_pred"],
+	nt.Size([
+		nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
+		nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")
+	])
+).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=True)
 
 for i in range(sample_size):
 	plt.plot(data[i, :], label="True")

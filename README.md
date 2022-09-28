@@ -155,7 +155,7 @@ pprint.pprint(accuracies)
 
 # Citation
 ```
-@article{Gince2022,
+@misc{Gince2022,
   title={NeuroTorch: Deep Learning Python Library for Machine Learning and Neuroscience.},
   author={Jérémie Gince},
   year={2022},

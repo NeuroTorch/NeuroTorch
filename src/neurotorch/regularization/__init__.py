@@ -32,6 +32,7 @@ class BaseRegularization(torch.nn.Module):
 			self.params = list(params)
 		self.params = torch.nn.ParameterList(self.params)
 		self.Lambda = Lambda
+		self.name = self.__class__.__name__
 
 	def __call__(self, *args, **kwargs) -> torch.Tensor:
 		"""

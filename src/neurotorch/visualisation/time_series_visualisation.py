@@ -1,6 +1,6 @@
 import os
 from copy import deepcopy
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple, Any, Sequence
 
 import matplotlib.pyplot as plt
 
@@ -12,7 +12,7 @@ from scipy import interpolate
 from sklearn.cluster import KMeans, DBSCAN
 from sklearn.decomposition import PCA
 
-from ..dimension import Dimension, DimensionProperty, Size, DimensionLike, DimensionsLike
+from ..dimension import DimensionProperty, Size, DimensionsLike
 from ..metrics import PVarianceLoss
 from ..transforms.base import to_numpy, to_tensor
 
@@ -376,9 +376,9 @@ class Visualise:
 			filename: Optional[str] = None,
 			show: bool = False,
 			fig: Optional[plt.Figure] = None,
-			axes: Optional[plt.Axes] = None,
+			axes: Optional[Sequence[plt.Axes]] = None,
 			**kwargs
-	) -> Tuple[plt.Figure, plt.Axes]:
+	) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
 		"""
 		Plot the timeseries comparison.
 		
@@ -411,7 +411,7 @@ class Visualise:
 			pVar = PVarianceLoss()(predictions, target.to(predictions.device))
 			title = f"{title} (pVar: {to_numpy(pVar).item():.3f})"
 		
-		if fig is None:
+		if fig is None or axes is None:
 			fig, axes = plt.subplots(4, 1, figsize=(15, 8))
 		else:
 			assert len(axes) == 4, "axes must have length 4"

@@ -144,6 +144,25 @@ class Trainer:
 
 		self._load_checkpoint_mode = None
 		self._force_overwrite = None
+	
+	@property
+	def network(self):
+		"""
+		Alias for the model.
+		
+		:return: The :attr:`model` attribute.
+		"""
+		return self.model
+	
+	@network.setter
+	def network(self, value):
+		"""
+		Alias for the model.
+		
+		:param value: The new value for the :attr:`model` attribute.
+		:return: None
+		"""
+		self.model = value
 
 	@property
 	def load_checkpoint_mode(self):

@@ -290,8 +290,9 @@ class Trainer:
 		Load the state of the trainer from the checkpoint.
 		"""
 		main_checkpoint_manager: CheckpointManager = self.checkpoint_managers[0]
-		checkpoint = main_checkpoint_manager.load_checkpoint(self.load_checkpoint_mode)
-		self.callbacks.load_state(checkpoint)
+		checkpoint = main_checkpoint_manager.curr_checkpoint
+		if checkpoint:
+			self.callbacks.load_checkpoint_state(self, checkpoint)
 
 	def train(
 			self,
@@ -310,8 +311,8 @@ class Trainer:
 		if n_iterations is None:
 			n_iterations = self.kwargs["n_epochs"]
 		self.sort_callbacks_()
-		self.load_state()
 		self.callbacks.start(self)
+		self.load_state()
 		if self.current_training_state.iteration is None:
 			self.current_training_state = self.current_training_state.update(iteration=0)
 		p_bar = tqdm(

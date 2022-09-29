@@ -79,6 +79,7 @@ class LRSchedulerOnMetric(BaseCallback):
 			min_lr: float = 1e-12,
 			lr_start: Optional[float] = None,
 			retain_progress: bool = True,
+			priority: Optional[int] = None
 	):
 		"""
 		Initialize the scheduler with the given metric and metric schedule.
@@ -101,7 +102,7 @@ class LRSchedulerOnMetric(BaseCallback):
 		next value of the schedule. If False, the current step will increase or decrease depending on the metric.
 		:type retain_progress: bool
 		"""
-		super().__init__()
+		super().__init__(priority=priority)
 		self.metric = metric
 		self.metric_schedule = np.asarray(metric_schedule)
 		self._check_schedule_ascending_or_descending()

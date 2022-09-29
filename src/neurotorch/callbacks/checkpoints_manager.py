@@ -35,6 +35,8 @@ class CheckpointManager(BaseCallback):
 		- **minimise_metric** (bool): Whether to minimise the metric or maximise it.
 		- **curr_best_metric** (float): The current best metric value.
 	"""
+	
+	DEFAULT_PRIORITY = BaseCallback.DEFAULT_LOW_PRIORITY
 
 	SAVE_EXT: str = '.pth'
 	SUFFIX_SEP: str = '-'
@@ -131,6 +133,7 @@ class CheckpointManager(BaseCallback):
 		:param verbose: Whether to print out the trace of the checkpoint manager.
 		:type verbose: bool
 		"""
+		super().__init__()
 		os.makedirs(checkpoint_folder, exist_ok=True)
 		self.checkpoint_folder = checkpoint_folder
 		self.meta_path_prefix = meta_path_prefix
@@ -274,8 +277,8 @@ class CheckpointManager(BaseCallback):
 
 	def start(self, trainer):
 		"""
-		Call at the beginning of the training by the Trainer. Load the checkpoint base on the load_checpoint_mode of the
-		trainer and update the current_training_state of the trainer.
+		Call at the beginning of the training by the Trainer. Load the checkpoint base on the load_checkpoint_mode of
+		the trainer and update the current_training_state of the trainer.
 		
 		:param trainer: The trainer.
 		:type trainer: Trainer

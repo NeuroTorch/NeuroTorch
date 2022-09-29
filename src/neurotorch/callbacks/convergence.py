@@ -1,4 +1,5 @@
 import time
+from typing import Optional
 
 import numpy as np
 
@@ -12,8 +13,9 @@ class ConvergenceTimeGetter(BaseCallback):
 			metric: str,
 			threshold: float,
 			minimize_metric: bool,
+			priority: Optional[int] = None,
 	):
-		super().__init__()
+		super().__init__(priority=priority)
 		self.threshold = threshold
 		self.metric = metric
 		self.minimize_metric = minimize_metric

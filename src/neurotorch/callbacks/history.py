@@ -15,6 +15,7 @@ class TrainingHistory(BaseCallback):
 	:Attributes:
 		- **default_value** (float): The default value to use to equalize the lengths of the container's items.
 	"""
+	DEFAULT_PRIORITY = BaseCallback.DEFAULT_HIGH_PRIORITY
 
 	@staticmethod
 	def _set_default_plot_kwargs(kwargs: dict):
@@ -28,7 +29,12 @@ class TrainingHistory(BaseCallback):
 	def _remove_prefix_from_metrics(metrics: List[str]):
 		return [metric.split('_')[-1] for metric in metrics]
 
-	def __init__(self, container: Dict[str, List[float]] = None, default_value=np.NAN):
+	def __init__(
+			self,
+			container: Dict[str, List[float]] = None,
+			default_value=np.NAN,
+			priority: Optional[int] = None
+	):
 		"""
 		Initialize the container with the given container.
 		
@@ -37,6 +43,7 @@ class TrainingHistory(BaseCallback):
 		:param default_value: The default value to use to equalize the lengths of the container's items.
 		:type default_value: float
 		"""
+		super().__init__(priority=priority)
 		self._container = {}
 		self.default_value = default_value
 		self._length = 0

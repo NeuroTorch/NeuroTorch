@@ -2,6 +2,44 @@ from typing import Iterable, Optional, Iterator
 
 
 class BaseCallback:
+	"""
+	Class used to create a callback that can be used to monitor or modify the training process.
+	
+	Training Phases:
+		- Iteration: One full pass through the training dataset and the validation dataset.
+		- Epoch: One full pass through the training dataset or the validation dataset.
+		- Batch: One forward pass through the network.
+		- Train: One full pass through the training dataset.
+		- Validation: One full pass through the validation dataset.
+		
+	:Attributes:
+		- :attr:`Priority`: The priority of the callback. The lower the priority, the earlier the callback is called.
+			Default is 10.
+	"""
+	DEFAULT_PRIORITY = 10
+	DEFAULT_LOW_PRIORITY = 100
+	DEFAULT_HIGH_PRIORITY = 0
+	
+	def __init__(self, priority: Optional[int] = None):
+		"""
+		:param priority: The priority of the callback. The lower the priority, the earlier the callback is called.
+			At the beginning of the training the priorities of the callbacks are reversed for the :meth:`load_state`
+			method. Default is 10.
+		:type priority: int, optional
+		"""
+		self.priority = priority if priority is not None else self.DEFAULT_PRIORITY
+	
+	def load_state(self, checkpoint: dict):
+		"""
+		Loads the state of the callback from a dictionary.
+		
+		:param checkpoint: The dictionary containing all the states of the trainer.
+		:type checkpoint: dict
+		
+		:return: None
+		"""
+		pass
+	
 	def start(self, trainer):
 		"""
 		Called when the training starts. This is the first callback called.
@@ -149,7 +187,7 @@ class CallbacksList:
 	in the order they are stored in the list.
 	
 	:Attributes:
-		- **callbacks** (List[BaseCallback]): The callbacks to use.
+		- :attr:`callbacks` (List[BaseCallback]): The callbacks to use.
 	"""
 	def __init__(self, callbacks: Optional[Iterable[BaseCallback]] = None):
 		"""
@@ -165,6 +203,20 @@ class CallbacksList:
 			"All callbacks must be instances of BaseCallback"
 		self.callbacks = list(callbacks)
 		self._length = len(self.callbacks)
+		self.sort_callbacks_()
+	
+	def sort_callbacks_(self, reverse: bool = False) -> 'CallbacksList':
+		"""
+		Sorts the callbacks by their priority.
+		
+		:param reverse: If True, the callbacks are sorted in descending order.
+		:type reverse: bool
+		
+		:return: self
+		:rtype: CallbacksList
+		"""
+		self.callbacks.sort(key=lambda callback: callback.priority, reverse=reverse)
+		return self
 
 	def __getitem__(self, item: int) -> BaseCallback:
 		"""
@@ -221,6 +273,18 @@ class CallbacksList:
 		assert isinstance(callback, BaseCallback), "callback must be an instance of BaseCallback"
 		self.callbacks.remove(callback)
 		self._length -= 1
+	
+	def load_state(self, checkpoint: dict):
+		"""
+		Loads the state of the callback from a dictionary.
+
+		:param checkpoint: The dictionary containing all the states of the trainer.
+		:type checkpoint: dict
+
+		:return: None
+		"""
+		for callback in self.callbacks:
+			callback.load_state(checkpoint)
 	
 	def start(self, trainer):
 		"""

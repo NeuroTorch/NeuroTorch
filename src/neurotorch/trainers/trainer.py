@@ -157,6 +157,10 @@ class Trainer:
 	def training_histories(self) -> CallbacksList:
 		return CallbacksList(list(filter(lambda x: isinstance(x, TrainingHistory), self.callbacks)))
 	
+	@property
+	def checkpoint_managers(self) -> CallbacksList:
+		return CallbacksList(list(filter(lambda x: isinstance(x, CheckpointManager), self.callbacks)))
+	
 	@staticmethod
 	def _set_default_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
 		kwargs.setdefault("n_epochs", 1)
@@ -238,12 +242,37 @@ class Trainer:
 	def update_state_(self, **kwargs):
 		self.current_training_state = self.current_training_state.update(**kwargs)
 
-	def sort_callbacks_(self) -> CallbacksList:
-		histories = list(filter(lambda c: isinstance(c, TrainingHistory), self.callbacks))
-		checkpoints_mangers = list(filter(lambda c: isinstance(c, CheckpointManager), self.callbacks))
-		others = list(filter(lambda c: not isinstance(c, (TrainingHistory, CheckpointManager)), self.callbacks))
-		self.callbacks = CallbacksList(histories + others + checkpoints_mangers)
+	def sort_callbacks_(self, reverse: bool = False) -> CallbacksList:
+		"""
+		Sort the callbacks by their priority. The higher the priority, the earlier the callback is called. In general,
+		the callbacks will be sorted in the following order:
+			1. TrainingHistory callbacks;
+			2. Others callbacks;
+			3. CheckpointManager callbacks.
+		
+		:param reverse: Whether to reverse the order of the callbacks. Default is False.
+		:type reverse: bool
+		:return: The sorted callbacks.
+		:rtype: CallbacksList
+		"""
+		# TODO: sort by priority
+		# histories = list(filter(lambda c: isinstance(c, TrainingHistory), self.callbacks))
+		# checkpoints_mangers = list(filter(lambda c: isinstance(c, CheckpointManager), self.callbacks))
+		# others = list(filter(lambda c: not isinstance(c, (TrainingHistory, CheckpointManager)), self.callbacks))
+		# if reverse:
+		# 	self.callbacks = CallbacksList(checkpoints_mangers + others + histories)
+		# else:
+		# 	self.callbacks = CallbacksList(histories + others + checkpoints_mangers)
+		self.callbacks.sort_callbacks_(reverse=reverse)
 		return self.callbacks
+	
+	def load_state(self):
+		"""
+		Load the state of the trainer from the checkpoint.
+		"""
+		main_checkpoint_manager: CheckpointManager = self.checkpoint_managers[0]
+		checkpoint = main_checkpoint_manager.load_checkpoint(self.load_checkpoint_mode)
+		self.callbacks.load_state(checkpoint)
 
 	def train(
 			self,
@@ -262,6 +291,7 @@ class Trainer:
 		if n_iterations is None:
 			n_iterations = self.kwargs["n_epochs"]
 		self.sort_callbacks_()
+		self.load_state()
 		self.callbacks.start(self)
 		if self.current_training_state.iteration is None:
 			self.current_training_state = self.current_training_state.update(iteration=0)

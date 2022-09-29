@@ -147,6 +147,7 @@ class CheckpointManager(BaseCallback):
 			self.save_freq = -1
 		self.start_save_at = start_save_at
 		self.curr_best_metric = np.inf if self.minimise_metric else -np.inf
+		self.curr_checkpoint = None
 
 	@property
 	def checkpoints_meta_path(self) -> str:
@@ -204,6 +205,7 @@ class CheckpointManager(BaseCallback):
 			state_dict: Optional[Dict[str, Any]] = None,
 			optimizer_state_dict: Optional[Dict[str, Any]] = None,
 			training_history: Optional[Any] = None,
+			**other_states,
 	) -> str:
 		"""
 		Saves a checkpoint of the model and optimizer states at the given iteration.
@@ -227,13 +229,18 @@ class CheckpointManager(BaseCallback):
 		os.makedirs(self.checkpoint_folder, exist_ok=True)
 		save_name = self.get_checkpoint_filename(itr)
 		path = os.path.join(self.checkpoint_folder, save_name)
-		torch.save({
+		basic_states = {
 			CheckpointManager.CHECKPOINT_ITR_KEY: itr,
 			CheckpointManager.CHECKPOINT_STATE_DICT_KEY: state_dict,
 			CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: optimizer_state_dict,
 			CheckpointManager.CHECKPOINT_METRICS_KEY: itr_metrics,
 			CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY: training_history,
-		}, path)
+		}
+		assert all(key not in other_states for key in basic_states.keys()), (
+			f"Other states cannot have the same keys as the basic states ({basic_states.keys()})."
+		)
+		states = {**basic_states, **other_states}
+		torch.save(states, path)
 		self.save_checkpoints_meta(self._create_new_checkpoint_meta(itr, best))
 		return path
 
@@ -286,6 +293,7 @@ class CheckpointManager(BaseCallback):
 		:return: None
 		"""
 		start_itr = 0
+		checkpoint = self.curr_checkpoint
 		if trainer.load_checkpoint_mode is None:
 			if os.path.exists(self.checkpoints_meta_path):
 				if trainer.force_overwrite:
@@ -306,6 +314,8 @@ class CheckpointManager(BaseCallback):
 				if self.verbose:
 					warnings.warn(f"Error: {e}", Warning)
 					warnings.warn("No such checkpoint. Fit from beginning.")
+			finally:
+				self.curr_checkpoint = checkpoint
 
 		trainer.current_training_state = trainer.current_training_state.update(iteration=start_itr)
 		if self.minimise_metric:
@@ -325,7 +335,7 @@ class CheckpointManager(BaseCallback):
 		"""
 		if trainer.current_training_state.itr_metrics is None:
 			return False
-		
+		other_states = trainer.callbacks.get_checkpoint_state()
 		is_best = self._check_is_best(trainer)
 		if is_best:
 			self.curr_best_metric = trainer.current_training_state.itr_metrics[self.metric]
@@ -334,6 +344,7 @@ class CheckpointManager(BaseCallback):
 			state_dict=trainer.model.state_dict(),
 			optimizer_state_dict=trainer.optimizer.state_dict(),
 			training_history=trainer.training_history,
+			**other_states
 		)
 		if trainer.training_history:
 			trainer.training_history.plot(

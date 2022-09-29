@@ -24,6 +24,14 @@ class ConvergenceTimeGetter(BaseCallback):
 		self.itr_convergence = np.inf
 		self.training_time = np.inf
 		self.start_time = None
+		
+	def get_checkpoint_state(self, trainer) -> object:
+		return self.__dict__
+	
+	def load_checkpoint_state(self, trainer, checkpoint: dict):
+		state = checkpoint.get(self.name, None)
+		if state is not None:
+			self.__dict__.update(state)
 	
 	def start(self, trainer):
 		self.start_time = time.time()

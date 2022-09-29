@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Iterator
+from typing import Iterable, Optional, Iterator, Dict, Any
 
 
 class BaseCallback:
@@ -20,7 +20,7 @@ class BaseCallback:
 	DEFAULT_LOW_PRIORITY = 100
 	DEFAULT_HIGH_PRIORITY = 0
 	
-	def __init__(self, priority: Optional[int] = None):
+	def __init__(self, priority: Optional[int] = None, name: Optional[str] = None):
 		"""
 		:param priority: The priority of the callback. The lower the priority, the earlier the callback is called.
 			At the beginning of the training the priorities of the callbacks are reversed for the :meth:`load_state`
@@ -28,15 +28,31 @@ class BaseCallback:
 		:type priority: int, optional
 		"""
 		self.priority = priority if priority is not None else self.DEFAULT_PRIORITY
+		self.name = name if name is not None else f"{self.__class__.__name__}<{self.priority}>"
 	
-	def load_state(self, checkpoint: dict):
+	def load_checkpoint_state(self, trainer, checkpoint: dict):
 		"""
 		Loads the state of the callback from a dictionary.
-		
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
 		:param checkpoint: The dictionary containing all the states of the trainer.
 		:type checkpoint: dict
-		
+
 		:return: None
+		"""
+		pass
+	
+	def get_checkpoint_state(self, trainer) -> object:
+		"""
+		Get the state of the callback. This is called when the checkpoint manager saves the state of the trainer.
+		Then this state is saved in the checkpoint file with the name of the callback as the key.
+		
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		
+		:return: The state of the callback.
+		:rtype: An pickleable object.
 		"""
 		pass
 	
@@ -274,17 +290,36 @@ class CallbacksList:
 		self.callbacks.remove(callback)
 		self._length -= 1
 	
-	def load_state(self, checkpoint: dict):
+	def load_checkpoint_state(self, trainer, checkpoint: dict):
 		"""
 		Loads the state of the callback from a dictionary.
-
+		
+		:param trainer: The trainer.
+		:type trainer: Trainer
 		:param checkpoint: The dictionary containing all the states of the trainer.
 		:type checkpoint: dict
 
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.load_state(checkpoint)
+			callback.load_checkpoint_state(trainer, checkpoint)
+	
+	def get_checkpoint_state(self, trainer) -> Dict[str, Any]:
+		"""
+		Collates the states of the callbacks. This is called when the checkpoint manager saves the state of the trainer.
+		Then those states are saved in the checkpoint file with the name of the callback as the key.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+
+		:return: The state of the callback.
+		:rtype: An pickleable dict.
+		"""
+		states = {
+			callback.name: callback.get_checkpoint_state(trainer)
+			for callback in self.callbacks
+		}
+		return states
 	
 	def start(self, trainer):
 		"""

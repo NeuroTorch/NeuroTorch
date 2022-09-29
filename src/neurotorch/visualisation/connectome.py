@@ -15,7 +15,7 @@ def visualize_init_final_weights(
 		fig: Optional[plt.Figure] = None,
 		axes: Optional[Iterable[plt.Axes]] = None,
 		**kwargs,
-) -> Tuple[plt.Figure, np.ndarray[plt.Axes]]:
+) -> Tuple[plt.Figure, plt.Axes]:
 	import neurotorch as nt
 	from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 	from matplotlib import colors

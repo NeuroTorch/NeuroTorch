@@ -1,6 +1,6 @@
 import os
 from copy import deepcopy
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple, Any, Sequence
 
 import matplotlib.pyplot as plt
 
@@ -12,7 +12,7 @@ from scipy import interpolate
 from sklearn.cluster import KMeans, DBSCAN
 from sklearn.decomposition import PCA
 
-from ..dimension import Dimension, DimensionProperty, Size, DimensionLike, DimensionsLike
+from ..dimension import DimensionProperty, Size, DimensionsLike
 from ..metrics import PVarianceLoss
 from ..transforms.base import to_numpy, to_tensor
 
@@ -320,6 +320,7 @@ class Visualise:
 			n_spikes_steps: Optional[int] = None,
 			title: str = "",
 			desc: str = "Prediction",
+			**kwargs
 	) -> plt.Axes:
 		predictions, target = to_tensor(self._mean_given_timeseries[:, feature_index]), to_tensor(target)
 		if self.is_mean:
@@ -363,7 +364,7 @@ class Visualise:
 		ax.set_xlabel("Time [-]")
 		ax.set_ylabel("Activity [-]")
 		ax.set_title(title)
-		ax.legend()
+		ax.legend(loc=kwargs.get("legend_loc", "upper right"))
 		return ax
 	
 	def plot_timeseries_comparison(
@@ -376,9 +377,9 @@ class Visualise:
 			filename: Optional[str] = None,
 			show: bool = False,
 			fig: Optional[plt.Figure] = None,
-			axes: Optional[np.ndarray[plt.Axes]] = None,
+			axes: Optional[Sequence[plt.Axes]] = None,
 			**kwargs
-	) -> Tuple[plt.Figure, plt.Axes]:
+	) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
 		"""
 		Plot the timeseries comparison.
 		
@@ -394,6 +395,8 @@ class Visualise:
 		:param kwargs: Additional keyword arguments.
 		
 		:keyword bool close: Whether to close the figure after saving. Default: False.
+		:keyword int dpi: DPI of the figure. Default: 300.
+		:keyword str legend_loc: Location of the legend. Default: "upper right".
 		
 		:return: Figure and axes.
 		"""
@@ -411,7 +414,7 @@ class Visualise:
 			pVar = PVarianceLoss()(predictions, target.to(predictions.device))
 			title = f"{title} (pVar: {to_numpy(pVar).item():.3f})"
 		
-		if fig is None:
+		if fig is None or axes is None:
 			fig, axes = plt.subplots(4, 1, figsize=(15, 8))
 		else:
 			assert len(axes) == 4, "axes must have length 4"
@@ -439,22 +442,25 @@ class Visualise:
 			best_idx, axes[1], target[best_idx], best_spikes,
 			n_spikes_steps=n_spikes_steps,
 			title=f"Best {desc}", desc=desc,
+			**kwargs
 		)
 		self.plot_single_timeseries_comparison(
 			most_var_idx, axes[2], target[most_var_idx], most_var_spikes,
 			n_spikes_steps=n_spikes_steps,
 			title=f"Most Var {desc}", desc=desc,
+			**kwargs
 		)
 		self.plot_single_timeseries_comparison(
 			worst_idx, axes[3], target[worst_idx], worst_spikes,
 			n_spikes_steps=n_spikes_steps,
 			title=f"Worst {desc}", desc=desc,
+			**kwargs
 		)
 		
 		fig.set_tight_layout(True)
 		if filename is not None:
 			os.makedirs(os.path.dirname(filename), exist_ok=True)
-			fig.savefig(filename)
+			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
 		if show:
 			plt.show()
 		if kwargs.get("close", False):

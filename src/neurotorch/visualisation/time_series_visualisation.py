@@ -376,7 +376,7 @@ class Visualise:
 			filename: Optional[str] = None,
 			show: bool = False,
 			fig: Optional[plt.Figure] = None,
-			axes: Optional[np.ndarray[plt.Axes]] = None,
+			axes: Optional[plt.Axes] = None,
 			**kwargs
 	) -> Tuple[plt.Figure, plt.Axes]:
 		"""

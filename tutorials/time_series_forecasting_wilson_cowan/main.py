@@ -12,7 +12,7 @@ from neurotorch.metrics import RegressionMetrics
 from neurotorch.regularization.connectome import DaleLawL2
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
 from neurotorch.visualisation.time_series_visualisation import *
-from tutorials.figure_generation_util import visualize_init_final_weights
+from neurotorch.visualisation.connectome import visualize_init_final_weights
 
 
 def train_with_params(

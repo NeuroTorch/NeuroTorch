@@ -2,7 +2,7 @@ import collections.abc
 import hashlib
 import pickle
 import time
-from typing import Callable, Dict, List, Any, Tuple, Union, Iterable, Optional
+from typing import Callable, Dict, List, Any, Tuple, Union, Iterable, Optional, Sequence
 
 import numpy as np
 import torch
@@ -197,3 +197,10 @@ def format_pseudo_rn_seed(seed: Optional[int] = None) -> int:
 		seed = int(time.time()) + random.randint(0, np.iinfo(int).max)
 	assert isinstance(seed, int), "Seed must be an integer."
 	return seed
+
+
+def sequence_get(__sequence: Sequence, idx: int, default: Any = None) -> Any:
+	try:
+		return __sequence[idx]
+	except IndexError:
+		return default

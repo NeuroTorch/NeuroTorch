@@ -19,6 +19,8 @@ from . import (
 	SpikeFunction
 )
 from ..dimension import Dimension
+from ..transforms.base import ToDevice
+from ..utils import sequence_get
 
 Acceptable_Spike_Func = Union[Type[SpikeFunction], SpikeFuncType]
 Acceptable_Spike_Funcs = Union[Acceptable_Spike_Func, Iterable[Acceptable_Spike_Func]]
@@ -326,7 +328,11 @@ class SequentialModel(BaseModel):
 		
 		:keyword Optional[int] memory_size: The size of the memory buffer. The output of each layer is stored in
 					the memory buffer. If the memory_size is not specified, the memory_size is set to the number
-					of time steps of the inputs.
+					of time steps of the inputs. Reduce this number to 1 if you want to use less memory and if you
+					don't need the intermediate outputs and hidden states.
+		:keyword Optional[torch.device] memory_device: The device to use for the memory buffer. If not specified,
+					the memory_device is set to the device of the model. To use less cuda memory, you can set the
+					memory_device to cpu. However, this will slow down the computation.
 		"""
 		input_layers, hidden_layers, output_layers = self._format_layers(layers)
 		self._ordered_inputs_names = [layer.name for _, layer in input_layers.items()]
@@ -354,6 +360,7 @@ class SequentialModel(BaseModel):
 		# self.readout_layer_type = self._format_layer_type_(readout_layer_type)  # TODO: change for multiple readout layers
 		# self._add_layers_()
 		self._memory_size: Optional[int] = self.kwargs.get("memory_size", None)
+		self._memory_device_transform = ToDevice(self.kwargs.get("memory_device", self.device))
 		assert self._memory_size is None or self._memory_size > 0, "The memory size must be greater than 0 or None."
 		self._outputs_to_inputs_names_map: Optional[Dict[str, str]] = None
 
@@ -646,10 +653,7 @@ class SequentialModel(BaseModel):
 		:return: List of memory without the first element
 		:rtype: List[Any]
 		"""
-		remove_count = len(memory) - self._memory_size
-		if remove_count > 0:
-			memory = memory[remove_count:]
-		return memory
+		return memory[max(0, len(memory) - self._memory_size):]
 
 	def _init_hidden_states_memory(self) -> Dict[str, List]:
 		"""
@@ -659,7 +663,7 @@ class SequentialModel(BaseModel):
 		:rtype: Dict[str, List]
 		"""
 		return {
-			layer_name: [None]
+			layer_name: []
 			for layer_name in self.get_all_layers_names()
 		}
 
@@ -766,9 +770,9 @@ class SequentialModel(BaseModel):
 	) -> torch.Tensor:
 		features_list = []
 		for layer_name, layer in self.input_layers.items():
-			hh = hidden_states[layer.name][-1] if hidden_states[layer.name] else None
+			hh = sequence_get(hidden_states.get(layer.name, []), idx=-1, default=None)
 			features, hh = layer(inputs[layer_name][:, t], hh, t=t)
-			hidden_states[layer_name].append(hh)
+			hidden_states[layer_name].append(self._memory_device_transform(hh))
 			features_list.append(features)
 		if features_list:
 			forward_tensor = torch.concat(features_list, dim=1)
@@ -783,9 +787,9 @@ class SequentialModel(BaseModel):
 			t: int
 	) -> torch.Tensor:
 		for layer_idx, layer in enumerate(self.hidden_layers):
-			hh = hidden_states[layer.name][-1] if hidden_states[layer.name] else None
+			hh = sequence_get(hidden_states.get(layer.name, []), idx=-1, default=None)
 			forward_tensor, hh = layer(forward_tensor, hh, t=t)
-			hidden_states[layer.name].append(hh)
+			hidden_states[layer.name].append(self._memory_device_transform(hh))
 		return forward_tensor
 
 	def _readout_forward_(
@@ -796,19 +800,19 @@ class SequentialModel(BaseModel):
 			t: int
 	):
 		for layer_name, layer in self.output_layers.items():
-			hh = hidden_states[layer_name][-1] if hidden_states[layer_name] else None
+			hh = sequence_get(hidden_states.get(layer.name, []), idx=-1, default=None)
 			out, hh = layer(forward_tensor, hh, t=t)
-			outputs_trace[layer_name].append(out)
-			hidden_states[layer_name].append(hh)
+			outputs_trace[layer_name].append(self._memory_device_transform(out))
+			hidden_states[layer_name].append(self._memory_device_transform(hh))
 		return outputs_trace
 	
 	def _integrate_inputs_(
 			self,
 			inputs: Dict[str, torch.Tensor],
-			hidden_states: Dict[str, List],
+			hidden_states: Dict[str, List[torch.Tensor]],
 			outputs_trace: Dict[str, List[torch.Tensor]],
 			time_steps: int,
-	) -> Tuple[Dict[str, torch.Tensor], Dict[str, List]]:
+	) -> Tuple[Dict[str, List[torch.Tensor]], Dict[str, List[torch.Tensor]]]:
 		"""
 		Integration of the inputs or the initial conditions.
 		
@@ -831,6 +835,7 @@ class SequentialModel(BaseModel):
 
 			outputs_trace = {layer_name: self._pop_memory_(trace) for layer_name, trace in outputs_trace.items()}
 			hidden_states = {layer_name: self._pop_memory_(trace) for layer_name, trace in hidden_states.items()}
+		
 		return outputs_trace, hidden_states
 	
 	def _forecast_integration_(

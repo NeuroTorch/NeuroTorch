@@ -33,6 +33,17 @@ class ToDevice(torch.nn.Module):
 		self.non_blocking = non_blocking
 
 	def forward(self, x: torch.Tensor):
+		if x is None:
+			return x
+		if not isinstance(x, torch.Tensor):
+			if isinstance(x, dict):
+				return {k: self(v) for k, v in x.items()}
+			elif isinstance(x, list):
+				return [self(v) for v in x]
+			elif isinstance(x, tuple):
+				return tuple(self(v) for v in x)
+			else:
+				return x
 		return x.to(self.device, non_blocking=self.non_blocking)
 	
 	def __repr__(self):

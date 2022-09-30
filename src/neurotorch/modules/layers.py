@@ -10,7 +10,7 @@ from torch import nn
 
 from . import HeavisideSigmoidApprox, SpikeFunction
 from ..dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
-from ..transforms import to_tensor
+from ..transforms import to_tensor, ToDevice
 from pythonbasictools.docstring import inherit_docstring, inherit_fields_docstring
 
 from ..utils import format_pseudo_rn_seed
@@ -99,6 +99,7 @@ class BaseLayer(torch.nn.Module):
 		self._device = device
 		if self._device is None:
 			self._set_default_device_()
+		self._device_transform = ToDevice(self.device)
 
 		self.kwargs = kwargs
 		self._set_default_kwargs()
@@ -188,6 +189,7 @@ class BaseLayer(torch.nn.Module):
 		"""
 		self._device = device
 		self.to(device, non_blocking=True)
+		self._device_transform = ToDevice(device)
 
 	def __repr__(self):
 		_repr = f"{self.__class__.__name__}"
@@ -278,7 +280,7 @@ class BaseLayer(torch.nn.Module):
 		if self.output_size is None:
 			raise ValueError("output_size must be specified before the forward call.")
 	
-	def __call__(self, inputs: torch.Tensor, *args, **kwargs):
+	def __call__(self, inputs: torch.Tensor, state: torch.Tensor = None, *args, **kwargs):
 		"""
 		Call the forward method of the layer. If the layer is not built, it will be built automatically.
 		In addition, if :attr:`kwargs['regularize']` is set to True, the :meth: `update_regularization_loss` method
@@ -286,17 +288,18 @@ class BaseLayer(torch.nn.Module):
 		
 		:param inputs: The inputs to the layer.
 		:type inputs: torch.Tensor
+		
 		:param args: The positional arguments to the forward method.
 		:param kwargs: The keyword arguments to the forward method.
 		
 		:return: The output of the layer.
 		"""
-		inputs = inputs.to(self.device, non_blocking=True)
+		inputs, state = self._device_transform(inputs), self._device_transform(state)
 		if not self.is_built:
 			if not self.is_ready_to_build:
 				self.infer_sizes_from_inputs(inputs)
 			self.build()
-		call_output = super(BaseLayer, self).__call__(inputs, *args, **kwargs)
+		call_output = super(BaseLayer, self).__call__(inputs, state, *args, **kwargs)
 
 		if isinstance(call_output, torch.Tensor):
 			hidden_state = None

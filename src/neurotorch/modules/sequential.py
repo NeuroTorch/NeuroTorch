@@ -929,9 +929,9 @@ class SequentialModel(BaseModel):
 			# Foresight prediction of the initial conditions
 			outputs_trace, hidden_states = self._forecast_integration_(hidden_states, outputs_trace, foresight_time_steps)
 
-		hidden_states = self._to_device_transform(self._format_hidden_outputs_traces(hidden_states))
+		hidden_states = self._format_hidden_outputs_traces(hidden_states)
 		outputs_trace_tensor = self.apply_output_transform({
-			layer_name: self._to_device_transform(torch.stack(trace, dim=1))
+			layer_name: torch.stack(trace, dim=1)
 			for layer_name, trace in outputs_trace.items()
 		})
 		return outputs_trace_tensor, hidden_states

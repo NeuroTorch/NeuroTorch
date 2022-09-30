@@ -20,15 +20,34 @@ class BaseCallback:
 	DEFAULT_LOW_PRIORITY = 100
 	DEFAULT_HIGH_PRIORITY = 0
 	
-	def __init__(self, priority: Optional[int] = None, name: Optional[str] = None):
+	instance_counter = 0
+	
+	def __init__(
+			self,
+			priority: Optional[int] = None,
+			name: Optional[str] = None,
+			save_state: bool = True,
+			load_state: Optional[bool] = None
+	):
 		"""
 		:param priority: The priority of the callback. The lower the priority, the earlier the callback is called.
 			At the beginning of the training the priorities of the callbacks are reversed for the :meth:`load_state`
 			method. Default is 10.
 		:type priority: int, optional
+		:param name: The name of the callback. If None, the name is set to the class name. Default is None.
+		:type name: str, optional
+		:param save_state: If True, the state of the callback is saved in the checkpoint file. Default is True.
+		:type save_state: bool, optional
+		:param load_state: If True, the state of the callback is loaded from the checkpoint file. Default is equal to
+			save_state.
+		:type load_state: bool, optional
 		"""
 		self.priority = priority if priority is not None else self.DEFAULT_PRIORITY
-		self.name = name if name is not None else f"{self.__class__.__name__}<{self.priority}>"
+		self.instance_id = self.instance_counter
+		self.name = name if name is not None else f"{self.__class__.__name__}<{self.instance_id}>"
+		self.save_state = save_state
+		self.load_state = load_state if load_state is not None else save_state
+		self.__class__.instance_counter += 1
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict):
 		"""
@@ -41,7 +60,10 @@ class BaseCallback:
 
 		:return: None
 		"""
-		pass
+		if self.load_state:
+			state = checkpoint.get(self.name, None)
+			if state is not None:
+				self.__dict__.update(state)
 	
 	def get_checkpoint_state(self, trainer) -> object:
 		"""
@@ -54,7 +76,8 @@ class BaseCallback:
 		:return: The state of the callback.
 		:rtype: An pickleable object.
 		"""
-		pass
+		if self.save_state:
+			return self.__dict__
 	
 	def start(self, trainer):
 		"""
@@ -319,6 +342,7 @@ class CallbacksList:
 			callback.name: callback.get_checkpoint_state(trainer)
 			for callback in self.callbacks
 		}
+		states = {key: value for key, value in states.items() if value is not None}
 		return states
 	
 	def start(self, trainer):

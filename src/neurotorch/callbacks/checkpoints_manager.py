@@ -335,7 +335,7 @@ class CheckpointManager(BaseCallback):
 		"""
 		if trainer.current_training_state.itr_metrics is None:
 			return False
-		other_states = trainer.callbacks.get_checkpoint_state()
+		other_states = trainer.callbacks.get_checkpoint_state(trainer)
 		is_best = self._check_is_best(trainer)
 		if is_best:
 			self.curr_best_metric = trainer.current_training_state.itr_metrics[self.metric]

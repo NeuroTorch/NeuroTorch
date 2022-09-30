@@ -37,11 +37,11 @@ class ToDevice(torch.nn.Module):
 			return x
 		if not isinstance(x, torch.Tensor):
 			if isinstance(x, dict):
-				return {k: self(v) for k, v in x.items()}
+				return {k: self.forward(v) for k, v in x.items()}
 			elif isinstance(x, list):
-				return [self(v) for v in x]
+				return [self.forward(v) for v in x]
 			elif isinstance(x, tuple):
-				return tuple(self(v) for v in x)
+				return tuple(self.forward(v) for v in x)
 			else:
 				return x
 		return x.to(self.device, non_blocking=self.non_blocking)

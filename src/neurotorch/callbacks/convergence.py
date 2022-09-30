@@ -13,9 +13,9 @@ class ConvergenceTimeGetter(BaseCallback):
 			metric: str,
 			threshold: float,
 			minimize_metric: bool,
-			priority: Optional[int] = None,
+			**kwargs
 	):
-		super().__init__(priority=priority)
+		super().__init__(**kwargs)
 		self.threshold = threshold
 		self.metric = metric
 		self.minimize_metric = minimize_metric
@@ -24,14 +24,11 @@ class ConvergenceTimeGetter(BaseCallback):
 		self.itr_convergence = np.inf
 		self.training_time = np.inf
 		self.start_time = None
-		
-	def get_checkpoint_state(self, trainer) -> object:
-		return self.__dict__
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict):
-		state = checkpoint.get(self.name, None)
-		if state is not None:
-			self.__dict__.update(state)
+		if self.save_state:
+			super().load_checkpoint_state(trainer, checkpoint)
+			# TODO: chnage start time and add training time, etc.
 	
 	def start(self, trainer):
 		self.start_time = time.time()

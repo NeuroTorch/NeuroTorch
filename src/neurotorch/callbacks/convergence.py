@@ -28,7 +28,7 @@ class ConvergenceTimeGetter(BaseCallback):
 	def load_checkpoint_state(self, trainer, checkpoint: dict):
 		if self.save_state:
 			super().load_checkpoint_state(trainer, checkpoint)
-			# TODO: chnage start time and add training time, etc.
+			# TODO: change start time and add training time, etc.
 	
 	def start(self, trainer):
 		self.start_time = time.time()

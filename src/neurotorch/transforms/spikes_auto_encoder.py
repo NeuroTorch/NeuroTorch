@@ -46,7 +46,7 @@ class SpikesAutoEncoder(BaseModel):
 		self.spikes_encoder.to(device)
 		self.spikes_decoder.to(device)
 		BaseModel.device.fset(self, device)
-	
+		
 	def _create_default_encoder(self):
 		return SpikesEncoder(
 			n_steps=self.n_encoder_steps,
@@ -77,6 +77,7 @@ class SpikesAutoEncoder(BaseModel):
 		return self.spikes_decoder(x)
 	
 	def forward(self, x: torch.Tensor, **kwargs):
+		x = self._to_device_transform(x)
 		return self.decode(self.encode(x))
 	
 	def get_prediction_trace(

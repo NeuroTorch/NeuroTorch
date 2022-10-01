@@ -35,7 +35,7 @@ def train_with_params(
 		force_dale_law: bool = True
 ):
 	dataset = WSDataset(path=path, sample_size=200, smoothing_sigma=sigma, device=device)
-	x = dataset.get_full_time_series
+	x = dataset.full_time_series
 	ws_layer = WilsonCowanLayer(
 		x.shape[-1], x.shape[-1],
 		forward_weights=forward_weights,
@@ -148,7 +148,7 @@ def train_with_params(
 		"tau0": tau0.numpy(),
 		"tau": ws_layer.tau.detach().numpy(),
 		"x_pred": torch.squeeze(x_pred).detach().numpy().T,
-		"original_time_series": dataset.get_original_time_series,
+		"original_time_series": dataset.original_series,
 		"force_dale_law": force_dale_law,
 	}
 	if ws_layer.force_dale_law:
@@ -170,7 +170,7 @@ if __name__ == '__main__':
 		path='timeSeries_2020_12_16_cr3_df.npy',
 		sigma=10,
 		learning_rate=1e-2,
-		n_iterations=2,
+		n_iterations=500,
 		forward_weights=forward_weights,
 		std_weights=1,
 		dt=0.02,

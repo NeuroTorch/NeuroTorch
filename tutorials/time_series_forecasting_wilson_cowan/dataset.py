@@ -48,9 +48,9 @@ class WSDataset(Dataset):
 		return torch.unsqueeze(self.x[0], dim=0), self.x[1:]
 
 	@property
-	def get_full_time_series(self):
+	def full_time_series(self):
 		return self.x[None, :, :]
 
 	@property
-	def get_original_time_series(self):
+	def original_series(self):
 		return self.original_time_series

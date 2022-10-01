@@ -2,6 +2,8 @@
     <img width="40%" src="images/neurotorch.svg">
 </p>
 
+[![Star on GitHub](https://img.shields.io/github/stars/NeuroTorch/NeuroTorch.svg?style=social)](https://github.com/NeuroTorch/NeuroTorch/stargazers)
+
 
 # Description
 

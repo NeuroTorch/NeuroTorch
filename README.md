@@ -1,5 +1,5 @@
 <p align="center" width="100%">
-    <img width="40%" src="images/neurotorch_logo.png">
+    <img width="40%" src="images/neurotorch.svg">
 </p>
 
 

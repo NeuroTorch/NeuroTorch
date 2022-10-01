@@ -152,8 +152,8 @@ pprint.pprint(accuracies)
 - To my dog Chewy who has been a great help during the whole development.
 
 
-# Want to create an issue?
-[Click here to create a new issue.](https://github.com/NeuroTorch/NeuroTorch/issues/new)
+# Found a bug or have a feature request?
+- [Click here to create a new issue.](https://github.com/NeuroTorch/NeuroTorch/issues/new)
 
 
 # License

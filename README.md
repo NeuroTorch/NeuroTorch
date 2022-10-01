@@ -147,14 +147,13 @@ pprint.pprint(accuracies)
 ```
 
 
-# Thanks
-- [Anthony Drouin](https://github.com/AnthoDrouin) who helped develop the Wilson-Cowan application during his 2022 summer internship.
-- To my dog Chewy who has been a great help during the whole development.
-
-
 # Found a bug or have a feature request?
 - [Click here to create a new issue.](https://github.com/NeuroTorch/NeuroTorch/issues/new)
 
+
+# Thanks
+- [Anthony Drouin](https://github.com/AnthoDrouin) who helped develop the Wilson-Cowan application during his 2022 summer internship.
+- To my dog Chewy who has been a great help during the whole development.
 
 # License
 [Apache License 2.0](LICENSE.md)

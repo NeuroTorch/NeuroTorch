@@ -150,6 +150,10 @@ pprint.pprint(accuracies)
 - To my dog Chewy who has been a great help during the whole development.
 
 
+# Want to create an issue?
+[Click here to create a new issue.](https://github.com/NeuroTorch/NeuroTorch/issues/new)
+
+
 # License
 [Apache License 2.0](LICENSE.md)
 
@@ -164,6 +168,7 @@ pprint.pprint(accuracies)
 }
 ```
 
-
+<iframe src="https://ghbtns.com/github-btn.html?user=twbs&repo=bootstrap&type=star&count=true&size=large" frameborder="0" scrolling="0" width="170" height="30" title="GitHub"></iframe>
+[![Star on GitHub](https://img.shields.io/github/stars/NeuroTorch/NeuroTorch/.svg?style=social)](https://github.com/NeuroTorch/NeuroTorch/stargazers)
 
 ---------------------------------------------------------------------------

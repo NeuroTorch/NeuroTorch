@@ -482,12 +482,35 @@ class TestSequential(unittest.TestCase):
 		x = torch.randn(1, 1000, 10)
 		y = model.get_prediction_trace(x, foresight_time_steps=50)
 		self.assertTrue(y.requires_grad)
-		self.assertEqual(y.shape, torch.Size([1, 50, 10]))
+		self.assertEqual(y.shape, torch.Size([1, model.foresight_time_steps, 10]))
+		
+		x = torch.randn(1, 1000, 10)
+		y = model.get_prediction_trace(x, foresight_time_steps=200)
+		self.assertTrue(y.requires_grad)
+		self.assertEqual(y.shape, torch.Size([1, model.foresight_time_steps, 10]))
 		
 		x = torch.randn(1, 1000, 10)
 		y = model.get_prediction_trace(x, foresight_time_steps=None)
 		self.assertTrue(y.requires_grad)
 		self.assertEqual(y.shape, torch.Size([1, model.foresight_time_steps, 10]))
+		
+		model.out_memory_size = 10
+		x = torch.randn(1, 1000, 10)
+		y = model.get_prediction_trace(x, foresight_time_steps=200)
+		self.assertTrue(y.requires_grad)
+		self.assertEqual(y.shape, torch.Size([1, model.out_memory_size, 10]))
+		
+		model.out_memory_size = 10
+		x = torch.randn(1, 1000, 10)
+		y = model.get_prediction_trace(x)
+		self.assertTrue(y.requires_grad)
+		self.assertEqual(y.shape, torch.Size([1, model.out_memory_size, 10]))
+		
+		model.out_memory_size = 10
+		x = torch.randn(1, 1000, 10)
+		y = model.get_prediction_trace(x, foresight_time_steps=50)
+		self.assertTrue(y.requires_grad)
+		self.assertEqual(y.shape, torch.Size([1, min(model.out_memory_size, 50), 10]))
 
 	def test_if_grad(self):
 		model = SequentialModel(
@@ -673,5 +696,147 @@ class TestSequential(unittest.TestCase):
 		self.assertTrue(torch.isclose(model.get_and_reset_regularization_loss(), torch.tensor(0.1)*len(layers)))
 		for layer in layers:
 			self.assertTrue(torch.isclose(layer.get_regularization_loss(), torch.tensor(0.0)))
+			
+	def test_output_shape_with_out_memory_size(self):
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10),
+			],
+		).build()
+		x = torch.randn(1, 100, 10)
+		y = model.get_prediction_trace(x)
+		self.assertEqual(y.shape, torch.Size((1, 100, 10)))
+		
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10),
+			],
+			out_memory_size=5,
+		).build()
+		x = torch.randn(1, 100, 10)
+		y = model.get_prediction_trace(x)
+		self.assertEqual(y.shape, torch.Size((1, 5, 10)))
+		
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10),
+			],
+		).build()
+		x = torch.randn(1, 100, 10)
+		y = model.get_prediction_trace(x, foresight_time_steps=20)
+		self.assertEqual(y.shape, torch.Size((1, 119, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
+		
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10),
+			],
+		).build()
+		x = torch.randn(1, 100, 10)
+		y = model.get_prediction_trace(x, foresight_time_steps=200, trunc_time_steps=20)
+		self.assertEqual(y.shape, torch.Size((1, 20, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
+		
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10),
+			],
+			out_memory_size=5,
+		).build()
+		x = torch.randn(1, 100, 10)
+		y = model.get_prediction_trace(x, foresight_time_steps=20, trunc_time_steps=200)
+		self.assertEqual(y.shape, torch.Size((1, 5, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
+		
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10),
+			],
+			out_memory_size=5,
+			foresight_time_steps=20
+		).build()
+		x = torch.randn(1, 100, 10)
+		y = model.get_prediction_trace(x, trunc_time_steps=200)
+		self.assertEqual(y.shape, torch.Size((1, 5, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
+	
+	def test_output_shape_with_hh_memory_size(self):
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10, name='layer'),
+			],
+		).build()
+		x = torch.randn(2, 100, 10)
+		y, hh = model.get_prediction_trace(x, return_hidden_states=True)
+		if isinstance(hh, dict):
+			hh = hh["layer"]
+		if isinstance(hh, tuple):
+			hh = hh[0]
+		self.assertEqual(hh.shape[1], 100, msg=f"Shape of hh is {hh.shape} and should be (1, 100, 10)")
+		
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10, name='layer'),
+			],
+			hh_memory_size=5,
+		).build()
+		x = torch.randn(1, 100, 10)
+		y, hh = model.get_prediction_trace(x, return_hidden_states=True)
+		if isinstance(hh, dict):
+			hh = hh["layer"]
+		if isinstance(hh, tuple):
+			hh = hh[0]
+		self.assertEqual(hh.shape[1], 5)
+		
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10, name='layer'),
+			],
+		).build()
+		x = torch.randn(1, 100, 10)
+		y, hh = model.get_prediction_trace(x, foresight_time_steps=20, return_hidden_states=True)
+		if isinstance(hh, dict):
+			hh = hh["layer"]
+		if isinstance(hh, tuple):
+			hh = hh[0]
+		self.assertEqual(hh.shape[1], 119)
+		
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10, name='layer'),
+			],
+		).build()
+		x = torch.randn(1, 100, 10)
+		y, hh = model.get_prediction_trace(x, foresight_time_steps=200, trunc_time_steps=20, return_hidden_states=True)
+		if isinstance(hh, dict):
+			hh = hh["layer"]
+		if isinstance(hh, tuple):
+			hh = hh[0]
+		self.assertEqual(hh.shape[1], 20)
+		
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10, name='layer'),
+			],
+			hh_memory_size=5,
+		).build()
+		x = torch.randn(1, 100, 10)
+		y, hh = model.get_prediction_trace(x, foresight_time_steps=20, trunc_time_steps=200, return_hidden_states=True)
+		if isinstance(hh, dict):
+			hh = hh["layer"]
+		if isinstance(hh, tuple):
+			hh = hh[0]
+		self.assertEqual(hh.shape[1], 5)
+		
+		model = SequentialModel(
+			layers=[
+				LILayer(10, 10, name='layer'),
+			],
+			hh_memory_size=5,
+			foresight_time_steps=20
+		).build()
+		x = torch.randn(1, 100, 10)
+		y, hh = model.get_prediction_trace(x, trunc_time_steps=200, return_hidden_states=True)
+		if isinstance(hh, dict):
+			hh = hh["layer"]
+		if isinstance(hh, tuple):
+			hh = hh[0]
+		self.assertEqual(hh.shape[1], 5)
 
 

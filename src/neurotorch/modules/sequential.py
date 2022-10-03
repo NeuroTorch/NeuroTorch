@@ -89,7 +89,7 @@ class SequentialModel(BaseModel):
 				# if the iterable is a list of tensors:
 				elif issubclass(internal_trace_element_type, torch.Tensor):
 					new_hidden_states[layer_name] = tuple([torch.stack(e, dim=1) for e in list(zip(*trace))])
-				# If the iterable has an other format, it will be kept as it is
+				# If the iterable has another format, it will be kept as it is
 				else:
 					new_hidden_states[layer_name] = trace
 			# If the list has another format, it will be kept as it is
@@ -248,6 +248,21 @@ class SequentialModel(BaseModel):
 		if not isinstance(n_hidden_neurons, Iterable):
 			n_hidden_neurons = [n_hidden_neurons]
 		return n_hidden_neurons
+	
+	@staticmethod
+	def _pop_memory_(memory: List[Any], memory_size: int) -> List[Any]:
+		"""
+		Pop the memory from the list if the memory size is greater than ::attr:`_memory_size`.
+
+		:param memory: List of memory
+		:type memory: List[Any]
+		:param memory_size: Size of the memory
+		:type memory_size: int
+
+		:return: List of memory without the first element
+		:rtype: List[Any]
+		"""
+		return memory[max(0, len(memory) - memory_size):]
 
 	def __new__(
 			cls,
@@ -326,10 +341,16 @@ class SequentialModel(BaseModel):
 		:type output_transform: Union[Dict[str, Callable], List[Callable]]
 		:param kwargs: Additional keyword arguments.
 		
-		:keyword Optional[int] memory_size: The size of the memory buffer. The output of each layer is stored in
-					the memory buffer. If the memory_size is not specified, the memory_size is set to the number
-					of time steps of the inputs. Reduce this number to 1 if you want to use less memory and if you
-					don't need the intermediate outputs and hidden states.
+		:keyword int out_memory_size: The size of the memory buffer for the output trace. The output of each layer is
+					stored in the memory buffer. If the memory_size is not specified, the memory_size is set to
+					foresight_time_steps if specified, otherwise to is set to infinity.
+					Reduce this number to 1 if you want to use less memory and if you
+					don't need the intermediate outputs. Default is foresight_time_steps if specified, otherwise inf.
+		:keyword int hh_memory_size: The size of the memory buffer for the hidden state. The hidden state of each layer
+					is stored in the memory buffer. If the memory_size is not specified, the memory_size is set to
+					foresight_time_steps if specified, otherwise to is set
+					infinity. Reduce this number to 1 if you want to use less memory and if you don't need the
+					intermediate hidden states. Default is foresight_time_steps if specified, otherwise inf.
 		:keyword Optional[torch.device] memory_device: The device to use for the memory buffer. If not specified,
 					the memory_device is set to the device of the model. To use less cuda memory, you can set the
 					memory_device to cpu. However, this will slow down the computation.
@@ -354,14 +375,20 @@ class SequentialModel(BaseModel):
 		assert len(self.get_all_layers_names()) == len(set(self.get_all_layers_names())), \
 			"There are layers with the same name."
 		self.foresight_time_steps = foresight_time_steps
+		assert self.foresight_time_steps >= 0, "foresight_time_steps must be >= 0"
 		# self.n_hidden_neurons = self._format_hidden_neurons_(n_hidden_neurons)
 		# self.spike_func = self._format_spike_funcs_(spike_funcs)
 		# self.hidden_layer_types: List[Type] = self._format_layer_types_(hidden_layer_types)
 		# self.readout_layer_type = self._format_layer_type_(readout_layer_type)  # TODO: change for multiple readout layers
 		# self._add_layers_()
-		self._memory_size: Optional[int] = self.kwargs.get("memory_size", None)
+		if self.foresight_time_steps > 0:
+			default_mem_value = self.foresight_time_steps
+		else:
+			default_mem_value = np.inf
+		self._out_memory_size: int = self.kwargs.get("out_memory_size", default_mem_value)
+		self._hh_memory_size: int = self.kwargs.get("hh_memory_size", default_mem_value)
 		self._memory_device_transform = ToDevice(self.kwargs.get("memory_device", self.device))
-		assert self._memory_size is None or self._memory_size > 0, "The memory size must be greater than 0 or None."
+		assert self._out_memory_size is not None and self._out_memory_size > 0, "The memory size must be greater than 0 and not None."
 		self._outputs_to_inputs_names_map: Optional[Dict[str, str]] = None
 
 	@BaseModel.device.setter
@@ -377,6 +404,52 @@ class SequentialModel(BaseModel):
 		BaseModel.device.fset(self, device)
 		for layer in self.get_all_layers():
 			layer.device = device
+	
+	@property
+	def out_memory_size(self) -> int:
+		"""
+		Get the size of the output memory buffer.
+		
+		:return: The size of the output memory buffer.
+		:rtype: int
+		"""
+		return self._out_memory_size
+	
+	@out_memory_size.setter
+	def out_memory_size(self, memory_size: int):
+		"""
+		Set the size of the output memory buffer.
+		
+		:param memory_size: The size of the output memory buffer.
+		:type memory_size: int
+		
+		:return: None
+		"""
+		assert memory_size is not None and memory_size > 0, "The memory size must be greater than 0 and not None."
+		self._out_memory_size = memory_size
+		
+	@property
+	def hh_memory_size(self) -> int:
+		"""
+		Get the size of the hidden state memory buffer.
+		
+		:return: The size of the hidden state memory buffer.
+		:rtype: int
+		"""
+		return self._hh_memory_size
+	
+	@hh_memory_size.setter
+	def hh_memory_size(self, memory_size: int):
+		"""
+		Set the size of the hidden state memory buffer.
+		
+		:param memory_size: The size of the hidden state memory buffer.
+		:type memory_size: int
+		
+		:return: None
+		"""
+		assert memory_size is not None and memory_size > 0, "The memory size must be greater than 0 and not None."
+		self._hh_memory_size = memory_size
 
 	def get_all_layers(self) -> List[nn.Module]:
 		"""
@@ -605,8 +678,6 @@ class SequentialModel(BaseModel):
 		:rtype: Dict[str, torch.Tensor]
 		"""
 		max_time_steps = max([v.shape[1] for v in inputs.values()])
-		if self._memory_size is None:
-			self._memory_size = max_time_steps
 		return {k: self._format_single_inputs(in_tensor, max_time_steps) for k, in_tensor in inputs.items()}
 
 	def _inputs_to_dict(self, inputs: Union[Dict[str, Any], torch.Tensor]) -> Dict[str, torch.Tensor]:
@@ -642,18 +713,6 @@ class SequentialModel(BaseModel):
 		time_steps_entries = [in_tensor.shape[1] for in_tensor in inputs.values()]
 		assert len(set(time_steps_entries)) == 1, "inputs must have the same time steps"
 		return time_steps_entries[0]
-
-	def _pop_memory_(self, memory: List[Any]) -> List[Any]:
-		"""
-		Pop the memory from the list if the memory size is greater than ::attr:`_memory_size`.
-		
-		:param memory: List of memory
-		:type memory: List[Any]
-		
-		:return: List of memory without the first element
-		:rtype: List[Any]
-		"""
-		return memory[max(0, len(memory) - self._memory_size):]
 
 	def _init_hidden_states_memory(self) -> Dict[str, List]:
 		"""
@@ -833,8 +892,14 @@ class SequentialModel(BaseModel):
 			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states, t=t)
 			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace, t=t)
 
-			outputs_trace = {layer_name: self._pop_memory_(trace) for layer_name, trace in outputs_trace.items()}
-			hidden_states = {layer_name: self._pop_memory_(trace) for layer_name, trace in hidden_states.items()}
+			outputs_trace = {
+				layer_name: self._pop_memory_(trace, self._out_memory_size)
+				for layer_name, trace in outputs_trace.items()
+			}
+			hidden_states = {
+				layer_name: self._pop_memory_(trace, self._hh_memory_size)
+				for layer_name, trace in hidden_states.items()
+			}
 		
 		return outputs_trace, hidden_states
 	
@@ -860,12 +925,7 @@ class SequentialModel(BaseModel):
 		if self._outputs_to_inputs_names_map is None:
 			self._map_outputs_to_inputs()
 		
-		# for t in range(foresight_time_steps-1):
-		for t in range(foresight_time_steps):
-			# foresight_inputs_tensor = {
-			# 	self._outputs_to_inputs_names_map[layer_name]: torch.stack(trace, dim=1)
-			# 	for layer_name, trace in outputs_trace.items()
-			# }
+		for t in range(foresight_time_steps-1):
 			foresight_inputs_tensor = {
 				self._outputs_to_inputs_names_map[layer_name]: torch.unsqueeze(trace[-1], dim=1)
 				for layer_name, trace in outputs_trace.items()
@@ -873,6 +933,16 @@ class SequentialModel(BaseModel):
 			forward_tensor = self._inputs_forward_(foresight_inputs_tensor, hidden_states, t=-1)
 			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states, t=t)
 			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace, t=t)
+			
+			outputs_trace = {
+				layer_name: self._pop_memory_(trace, self._out_memory_size)
+				for layer_name, trace in outputs_trace.items()
+			}
+			hidden_states = {
+				layer_name: self._pop_memory_(trace, self._hh_memory_size)
+				for layer_name, trace in hidden_states.items()
+			}
+			
 		return outputs_trace, hidden_states
 
 	def forward(
@@ -949,7 +1019,12 @@ class SequentialModel(BaseModel):
 		:param kwargs: kwargs to be passed to the forward method.
 		
 		:keyword int foresight_time_steps: number of time steps to predict. Default is self.foresight_time_steps.
+			
+			:: Note: If the value of foresight_time_steps is specified, make sure that the values of the attributes
+				:attr:`out_memory_size` and :attr:`hh_memory_size` are correctly set.
+		
 		:keyword bool return_hidden_states: if True, returns the hidden states of the model. Default is False.
+		:keyword int trunc_time_steps: number of time steps to truncate the prediction trace. Default is None.
 		
 		:return: the prediction trace.
 		:rtype: Union[Dict[str, torch.Tensor], torch.Tensor, Tuple[torch.Tensor, ...]]
@@ -957,17 +1032,29 @@ class SequentialModel(BaseModel):
 		foresight_time_steps = kwargs.get('foresight_time_steps', None)
 		if foresight_time_steps is None:
 			foresight_time_steps = self.foresight_time_steps
+		trunc_time_steps = kwargs.get('trunc_time_steps', None)
 		outputs_trace, hidden_states = self(inputs.to(self.device), **kwargs)
 		if isinstance(outputs_trace, dict):
-			outputs_trace = {
-				layer_name: trace[:, -foresight_time_steps:]
-				for layer_name, trace in outputs_trace.items()
-			}
+			if trunc_time_steps is not None:
+				outputs_trace = {
+					layer_name: trace[:, -trunc_time_steps:]
+					for layer_name, trace in outputs_trace.items()
+				}
 			if len(outputs_trace) == 1:
 				outputs_trace = outputs_trace[list(outputs_trace.keys())[0]]
-		else:
-			outputs_trace = outputs_trace[:, -foresight_time_steps:]
+		elif trunc_time_steps is not None:
+			outputs_trace = outputs_trace[:, -trunc_time_steps:]
 		if kwargs.get('return_hidden_states', False):
+			if isinstance(hidden_states, dict):
+				if trunc_time_steps is not None:
+					hidden_states = {
+						layer_name: tuple(trace_item[:, -trunc_time_steps:] for trace_item in trace)
+						for layer_name, trace in hidden_states.items()
+					}
+				if len(hidden_states) == 1:
+					hidden_states = hidden_states[list(hidden_states.keys())[0]]
+			elif trunc_time_steps is not None:
+				hidden_states = hidden_states[:, -trunc_time_steps:]
 			return outputs_trace, hidden_states
 		return outputs_trace
 

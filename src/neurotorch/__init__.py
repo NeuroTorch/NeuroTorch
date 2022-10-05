@@ -6,8 +6,8 @@ __author__ = "Jérémie Gince"
 __email__ = "gincejeremie@gmail.com"
 __copyright__ = "Copyright 2022, Jérémie Gince"
 __license__ = "Apache 2.0"
-__url__ = "https://github.com/JeremieGince/NeuroTorch"
-__version__ = "alpha"
+__url__ = "https://github.com/NeuroTorch/NeuroTorch"
+__version__ = "v0.0.1-alpha"
 
 
 from .dimension import (

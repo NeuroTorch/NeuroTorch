@@ -168,7 +168,7 @@ if __name__ == '__main__':
 
 	res = train_with_params(
 		path='timeSeries_2020_12_16_cr3_df.npy',
-		sigma=10,
+		sigma=20,
 		learning_rate=1e-2,
 		n_iterations=500,
 		forward_weights=forward_weights,

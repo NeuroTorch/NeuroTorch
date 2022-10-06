@@ -10,6 +10,7 @@ import torch
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
 from neurotorch.modules import LIFLayer, SequentialModel
 from neurotorch.trainers.trainer import CurrentTrainingState
+from tests.callbacks.util import MockHistory, MockTrainer
 
 
 def replace_none_by_nan(x):
@@ -42,44 +43,6 @@ def _manage_temp_checkpoints_folder(_func=None, *, temp_folder: str = "./temp"):
 		return decorator_log_func
 	else:
 		return decorator_log_func(_func)
-
-
-class MockHistory:
-	def __init__(self, ins_id=0):
-		self.ins_id = ins_id
-		self.min_call_flag = False
-		self.max_call_flag = False
-	
-	def reset_mock(self):
-		self.min_call_flag = False
-		self.max_call_flag = False
-	
-	def min(self, *args, **kwargs):
-		self.min_call_flag = True
-	
-	def max(self, *args, **kwargs):
-		self.max_call_flag = True
-	
-	def __eq__(self, other):
-		return self.ins_id == other.ins_id
-	
-	def __repr__(self):
-		return f"<History{self.ins_id}>"
-
-
-class MockTrainer:
-	def __init__(self):
-		self.training_history = MockHistory()
-		self.callbacks = [self.training_history]
-		self.sort_flag = False
-		self.load_checkpoint_mode = None
-		self.force_overwrite = False
-		self.current_training_state = CurrentTrainingState.get_null_state()
-		self.model = None
-		self.optimizer = None
-	
-	def sort_callbacks_(self):
-		self.sort_flag = True
 
 
 class TestCheckpointManager(unittest.TestCase):

@@ -1,7 +1,117 @@
-from typing import Iterable, Optional, Iterator
+from typing import Iterable, Optional, Iterator, Dict, Any
 
 
 class BaseCallback:
+	"""
+	Class used to create a callback that can be used to monitor or modify the training process.
+	
+	Training Phases:
+		- Iteration: One full pass through the training dataset and the validation dataset.
+		- Epoch: One full pass through the training dataset or the validation dataset.
+		- Batch: One forward pass through the network.
+		- Train: One full pass through the training dataset.
+		- Validation: One full pass through the validation dataset.
+		
+	Callbacks methods are called in the following order:
+		- :meth:`start`
+		- :meth:`load_checkpoint_state`
+		- :meth:`on_iteration_begin`
+		- :meth:`on_train_begin`
+		- :meth:`on_epoch_begin`
+		- :meth:`on_batch_begin`
+		- :meth:`on_batch_end`
+		- :meth:`on_epoch_end`
+		- :meth:`on_train_end`
+		- :meth:`on_validation_begin`
+		- :meth:`on_epoch_begin`
+		- :meth:`on_batch_begin`
+		- :meth:`on_batch_end`
+		- :meth:`on_epoch_end`
+		- :meth:`on_validation_end`
+		- :meth:`on_iteration_end`
+		- :meth:`close`
+		
+	:Note: The special method :meth:`get_checkpoint_state` is called by the object :class:`CheckpointManager` to
+		save the state of the callback in the checkpoint file. The when this method is called is then determined by
+		the :class:`CheckpointManager` object if it is used in the trainer callbacks. In the same way, the method
+		:meth:`load_checkpoint_state` is called by the :class:`CheckpointManager` to load the state of the callback
+		from the checkpoint file if it is used in the trainer callbacks.
+	
+	:Note: The special method :meth:`__del__` is called when the callback is deleted. This is used to call the
+		:meth:`close` method if it was not called before.
+	
+	:Attributes:
+		- :attr:`Priority`: The priority of the callback. The lower the priority, the earlier the callback is called.
+			Default is 10.
+	"""
+	DEFAULT_PRIORITY = 10
+	DEFAULT_LOW_PRIORITY = 100
+	DEFAULT_MEDIUM_PRIORITY = 50
+	DEFAULT_HIGH_PRIORITY = 0
+	
+	instance_counter = 0
+	
+	def __init__(
+			self,
+			priority: Optional[int] = None,
+			name: Optional[str] = None,
+			save_state: bool = False,
+			load_state: Optional[bool] = None,
+			**kwargs
+	):
+		"""
+		:param priority: The priority of the callback. The lower the priority, the earlier the callback is called.
+			At the beginning of the training the priorities of the callbacks are reversed for the :meth:`load_state`
+			method. Default is 10.
+		:type priority: int, optional
+		:param name: The name of the callback. If None, the name is set to the class name. Default is None.
+		:type name: str, optional
+		:param save_state: If True, the state of the callback is saved in the checkpoint file. Default is True.
+		:type save_state: bool, optional
+		:param load_state: If True, the state of the callback is loaded from the checkpoint file. Default is equal to
+			save_state.
+		:type load_state: bool, optional
+		"""
+		self.priority = priority if priority is not None else self.DEFAULT_PRIORITY
+		self.instance_id = self.instance_counter
+		self.name = name if name is not None else f"{self.__class__.__name__}<{self.instance_id}>"
+		self.save_state = save_state
+		self.load_state = load_state if load_state is not None else save_state
+		self.__class__.instance_counter += 1
+		self.trainer = None
+		self._start_flag = False
+		self._close_flag = False
+	
+	def load_checkpoint_state(self, trainer, checkpoint: dict):
+		"""
+		Loads the state of the callback from a dictionary.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		:param checkpoint: The dictionary containing all the states of the trainer.
+		:type checkpoint: dict
+
+		:return: None
+		"""
+		if self.load_state:
+			state = checkpoint.get(self.name, None)
+			if state is not None:
+				self.__dict__.update(state)
+	
+	def get_checkpoint_state(self, trainer) -> object:
+		"""
+		Get the state of the callback. This is called when the checkpoint manager saves the state of the trainer.
+		Then this state is saved in the checkpoint file with the name of the callback as the key.
+		
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		
+		:return: The state of the callback.
+		:rtype: An pickleable object.
+		"""
+		if self.save_state:
+			return self.__dict__
+	
 	def start(self, trainer):
 		"""
 		Called when the training starts. This is the first callback called.
@@ -11,7 +121,8 @@ class BaseCallback:
 		
 		:return: None
 		"""
-		pass
+		self.trainer = trainer
+		self._start_flag = True
 	
 	def close(self, trainer):
 		"""
@@ -22,7 +133,7 @@ class BaseCallback:
 		
 		:return: None
 		"""
-		pass
+		self._close_flag = True
 
 	def on_train_begin(self, trainer):
 		"""
@@ -141,6 +252,11 @@ class BaseCallback:
 		:return: None
 		"""
 		pass
+	
+	def __del__(self):
+		if (not self._close_flag) and self.trainer is not None:
+			self.close(self.trainer)
+		self.__class__.instance_counter -= 1
 
 	
 class CallbacksList:
@@ -149,7 +265,7 @@ class CallbacksList:
 	in the order they are stored in the list.
 	
 	:Attributes:
-		- **callbacks** (List[BaseCallback]): The callbacks to use.
+		- :attr:`callbacks` (List[BaseCallback]): The callbacks to use.
 	"""
 	def __init__(self, callbacks: Optional[Iterable[BaseCallback]] = None):
 		"""
@@ -165,6 +281,20 @@ class CallbacksList:
 			"All callbacks must be instances of BaseCallback"
 		self.callbacks = list(callbacks)
 		self._length = len(self.callbacks)
+		self.sort_callbacks_()
+	
+	def sort_callbacks_(self, reverse: bool = False) -> 'CallbacksList':
+		"""
+		Sorts the callbacks by their priority.
+		
+		:param reverse: If True, the callbacks are sorted in descending order.
+		:type reverse: bool
+		
+		:return: self
+		:rtype: CallbacksList
+		"""
+		self.callbacks.sort(key=lambda callback: callback.priority, reverse=reverse)
+		return self
 
 	def __getitem__(self, item: int) -> BaseCallback:
 		"""
@@ -208,6 +338,7 @@ class CallbacksList:
 		assert isinstance(callback, BaseCallback), "callback must be an instance of BaseCallback"
 		self.callbacks.append(callback)
 		self._length += 1
+		self.sort_callbacks_()
 
 	def remove(self, callback: BaseCallback):
 		"""
@@ -221,6 +352,39 @@ class CallbacksList:
 		assert isinstance(callback, BaseCallback), "callback must be an instance of BaseCallback"
 		self.callbacks.remove(callback)
 		self._length -= 1
+		self.sort_callbacks_()
+	
+	def load_checkpoint_state(self, trainer, checkpoint: dict):
+		"""
+		Loads the state of the callback from a dictionary.
+		
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		:param checkpoint: The dictionary containing all the states of the trainer.
+		:type checkpoint: dict
+
+		:return: None
+		"""
+		for callback in self.callbacks:
+			callback.load_checkpoint_state(trainer, checkpoint)
+	
+	def get_checkpoint_state(self, trainer) -> Dict[str, Any]:
+		"""
+		Collates the states of the callbacks. This is called when the checkpoint manager saves the state of the trainer.
+		Then those states are saved in the checkpoint file with the name of the callback as the key.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+
+		:return: The state of the callback.
+		:rtype: An pickleable dict.
+		"""
+		states = {
+			callback.name: callback.get_checkpoint_state(trainer)
+			for callback in self.callbacks
+		}
+		states = {key: value for key, value in states.items() if value is not None}
+		return states
 	
 	def start(self, trainer):
 		"""

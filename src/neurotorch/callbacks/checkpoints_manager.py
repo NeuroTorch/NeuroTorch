@@ -35,6 +35,8 @@ class CheckpointManager(BaseCallback):
 		- **minimise_metric** (bool): Whether to minimise the metric or maximise it.
 		- **curr_best_metric** (float): The current best metric value.
 	"""
+	
+	DEFAULT_PRIORITY = BaseCallback.DEFAULT_LOW_PRIORITY
 
 	SAVE_EXT: str = '.pth'
 	SUFFIX_SEP: str = '-'
@@ -108,6 +110,7 @@ class CheckpointManager(BaseCallback):
 			save_best_only: bool = False,
 			start_save_at: int = 0,
 			verbose: bool = False,
+			**kwargs
 	):
 		"""
 		Initialises the checkpoint manager.
@@ -130,7 +133,9 @@ class CheckpointManager(BaseCallback):
 		:type start_save_at: int
 		:param verbose: Whether to print out the trace of the checkpoint manager.
 		:type verbose: bool
+		:param kwargs: The keyword arguments to pass to the BaseCallback.
 		"""
+		super().__init__(**kwargs)
 		os.makedirs(checkpoint_folder, exist_ok=True)
 		self.checkpoint_folder = checkpoint_folder
 		self.meta_path_prefix = meta_path_prefix
@@ -144,6 +149,7 @@ class CheckpointManager(BaseCallback):
 			self.save_freq = -1
 		self.start_save_at = start_save_at
 		self.curr_best_metric = np.inf if self.minimise_metric else -np.inf
+		self.curr_checkpoint = None
 
 	@property
 	def checkpoints_meta_path(self) -> str:
@@ -201,6 +207,7 @@ class CheckpointManager(BaseCallback):
 			state_dict: Optional[Dict[str, Any]] = None,
 			optimizer_state_dict: Optional[Dict[str, Any]] = None,
 			training_history: Optional[Any] = None,
+			**other_states,
 	) -> str:
 		"""
 		Saves a checkpoint of the model and optimizer states at the given iteration.
@@ -224,13 +231,18 @@ class CheckpointManager(BaseCallback):
 		os.makedirs(self.checkpoint_folder, exist_ok=True)
 		save_name = self.get_checkpoint_filename(itr)
 		path = os.path.join(self.checkpoint_folder, save_name)
-		torch.save({
+		basic_states = {
 			CheckpointManager.CHECKPOINT_ITR_KEY: itr,
 			CheckpointManager.CHECKPOINT_STATE_DICT_KEY: state_dict,
 			CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: optimizer_state_dict,
 			CheckpointManager.CHECKPOINT_METRICS_KEY: itr_metrics,
 			CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY: training_history,
-		}, path)
+		}
+		assert all(key not in other_states for key in basic_states.keys()), (
+			f"Other states cannot have the same keys as the basic states ({basic_states.keys()})."
+		)
+		states = {**basic_states, **other_states}
+		torch.save(states, path)
 		self.save_checkpoints_meta(self._create_new_checkpoint_meta(itr, best))
 		return path
 
@@ -274,15 +286,17 @@ class CheckpointManager(BaseCallback):
 
 	def start(self, trainer):
 		"""
-		Call at the beginning of the training by the Trainer. Load the checkpoint base on the load_checpoint_mode of the
-		trainer and update the current_training_state of the trainer.
+		Call at the beginning of the training by the Trainer. Load the checkpoint base on the load_checkpoint_mode of
+		the trainer and update the current_training_state of the trainer.
 		
 		:param trainer: The trainer.
 		:type trainer: Trainer
 		
 		:return: None
 		"""
+		super().start(trainer)
 		start_itr = 0
+		checkpoint = self.curr_checkpoint
 		if trainer.load_checkpoint_mode is None:
 			if os.path.exists(self.checkpoints_meta_path):
 				if trainer.force_overwrite:
@@ -303,6 +317,8 @@ class CheckpointManager(BaseCallback):
 				if self.verbose:
 					warnings.warn(f"Error: {e}", Warning)
 					warnings.warn("No such checkpoint. Fit from beginning.")
+			finally:
+				self.curr_checkpoint = checkpoint
 
 		trainer.current_training_state = trainer.current_training_state.update(iteration=start_itr)
 		if self.minimise_metric:
@@ -322,7 +338,7 @@ class CheckpointManager(BaseCallback):
 		"""
 		if trainer.current_training_state.itr_metrics is None:
 			return False
-		
+		other_states = trainer.callbacks.get_checkpoint_state(trainer)
 		is_best = self._check_is_best(trainer)
 		if is_best:
 			self.curr_best_metric = trainer.current_training_state.itr_metrics[self.metric]
@@ -331,6 +347,7 @@ class CheckpointManager(BaseCallback):
 			state_dict=trainer.model.state_dict(),
 			optimizer_state_dict=trainer.optimizer.state_dict(),
 			training_history=trainer.training_history,
+			**other_states
 		)
 		if trainer.training_history:
 			trainer.training_history.plot(

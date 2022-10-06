@@ -72,6 +72,10 @@ from .callbacks import (
 
 from . import init
 
+from .learning_algorithms import (
+	BPTT,
+)
+
 import warnings
 
 warnings.filterwarnings("ignore", category=Warning, module="docutils")

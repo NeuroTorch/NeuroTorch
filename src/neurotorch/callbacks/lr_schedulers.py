@@ -1,8 +1,10 @@
 from typing import List, Optional, Iterable
 
 import numpy as np
+import torch
 
-from neurotorch.callbacks.base_callback import BaseCallback
+from .base_callback import BaseCallback
+from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 
 
 class LinearLRScheduler(BaseCallback):
@@ -79,6 +81,7 @@ class LRSchedulerOnMetric(BaseCallback):
 			min_lr: float = 1e-12,
 			lr_start: Optional[float] = None,
 			retain_progress: bool = True,
+			optimizer: Optional[torch.optim.Optimizer] = None,
 			**kwargs
 	):
 		"""
@@ -101,6 +104,10 @@ class LRSchedulerOnMetric(BaseCallback):
 		:param retain_progress: If True the current step of the scheduler will only increase when the metric reach the
 		next value of the schedule. If False, the current step will increase or decrease depending on the metric.
 		:type retain_progress: bool
+		:param optimizer: The optimizer whose learning rate will be scheduled. If None, the optimizer is get from the
+			trainer. Note that in this case the first optimizer of the trainer's callbacks will be used.
+		:type optimizer: Optional[torch.optim.Optimizer]
+		
 		:param kwargs: The keyword arguments to pass to the BaseCallback.
 		"""
 		super().__init__(**kwargs)
@@ -115,6 +122,7 @@ class LRSchedulerOnMetric(BaseCallback):
 		self.lr = self.lr_start
 		self.retain_progress = retain_progress
 		self.step = 0
+		self.optimizer = optimizer
 	
 	def on_iteration_end(self, trainer):
 		"""
@@ -129,7 +137,7 @@ class LRSchedulerOnMetric(BaseCallback):
 		trainer.training_history.append('lr', self.lr)
 		self.step = self.update_step(last_metric)
 		self.lr = max(self.lr_start - self.lr_decay * self.step, self.min_lr)
-		for g in trainer.optimizer.param_groups:
+		for g in self.optimizer.param_groups:
 			g['lr'] = self.lr
 	
 	def _check_schedule_ascending_or_descending(self):
@@ -145,7 +153,7 @@ class LRSchedulerOnMetric(BaseCallback):
 	
 	def _init_minimize_metric(self):
 		if self.minimize_metric is None:
-			self.minimize_metric = np.all(np.diff(self.metric_schedule) <= 0)
+			self.minimize_metric = np.mean(np.diff(self.metric_schedule) <= 0)
 	
 	def _init_lr_decay(self):
 		if self.lr_decay is None:
@@ -180,7 +188,15 @@ class LRSchedulerOnMetric(BaseCallback):
 		
 		:return: None
 		"""
+		if self.optimizer is None:
+			learning_algorithms = trainer.learning_algorithms
+			for la in learning_algorithms:
+				if isinstance(la, LearningAlgorithm) and hasattr(la, 'optimizer'):
+					self.optimizer = la.optimizer
+					break
+			if self.optimizer is None:
+				raise ValueError('No optimizer found in the callbacks of the trainer.')
 		if self.lr_start is None:
-			self.lr_start = trainer.optimizer.param_groups[0]['lr']
+			self.lr_start = self.optimizer.param_groups[0]['lr']
 		self.lr = self.lr_start
 		self._init_lr_decay()

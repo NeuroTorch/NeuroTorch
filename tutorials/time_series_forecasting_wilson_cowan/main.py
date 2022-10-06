@@ -92,9 +92,10 @@ def train_with_params(
 			min_lr=learning_rate / 10,
 			retain_progress=True,
 		),
+		nt.BPTT(optimizer=optimizer),
 		checkpoint_manager,
 		convergence_time_getter,
-		EarlyStoppingThreshold(metric='train_loss', threshold=0.999, minimize_metric=False),
+		EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
 	]
 
 	with torch.no_grad():
@@ -112,10 +113,10 @@ def train_with_params(
 			ratio_sign_0 = (np.mean(torch.sign(ws_layer.forward_weights).detach().cpu().numpy()) + 1) / 2
 		print(f"ratio exec init: {ratio_sign_0 :.3f}")
 
-	trainer = nt.trainers.RegressionTrainer(
+	trainer = nt.trainers.Trainer(
 		model,
+		predict_method="get_prediction_trace",
 		callbacks=callbacks,
-		optimizer=optimizer,
 		regularization_optimizer=optimizer_reg,
 		criterion=nt.losses.PVarianceLoss(),
 		regularization=regularisation,

@@ -1,3 +1,4 @@
+import warnings
 from collections import OrderedDict
 from typing import Iterable, Optional, List, Callable, Dict, Any, Union, NamedTuple
 
@@ -6,8 +7,10 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
+from ..learning_algorithms.bptt import BPTT
 from ..callbacks import CheckpointManager, LoadCheckpointMode, TrainingHistory
 from ..callbacks.base_callback import BaseCallback, CallbacksList
+from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 from ..modules import BaseModel
 from ..regularization import BaseRegularization, RegularizationList
 
@@ -79,9 +82,12 @@ class Trainer:
 	def __init__(
 			self,
 			model: BaseModel,
+			*,
+			predict_method: str = "__call__",
 			criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
 			regularization: Optional[Union[BaseRegularization, RegularizationList, Iterable[BaseRegularization]]] = None,
 			optimizer: Optional[torch.optim.Optimizer] = None,
+			learning_algorithm: Optional[LearningAlgorithm] = None,
 			regularization_optimizer: Optional[torch.optim.Optimizer] = None,
 			metrics: Optional[List[Callable]] = None,
 			callbacks: Optional[Union[List[BaseCallback], CallbacksList, BaseCallback]] = None,
@@ -102,19 +108,15 @@ class Trainer:
 			will be performed by a separate optimizer named 'regularization_optimizer'. This way is useful when you
 			want a regularization that depends only on the model parameters and when you want to control the
 			learning rate of the regularization independently of the main loss.
-		:param optimizer: Optimizer to use for the main loss.
+		:param optimizer: Optimizer to use for the main loss. Deprecated. Use learning_algorithm instead.
+		:param learning_algorithm: Learning algorithm to use for the main loss. This learning algorithm can be given
+			in the callbacks list as well. If specified, this learning algorithm will be added to the callbacks list.
+			In this case, make sure that the learning algorithm is not added twice. Note that multiple learning
+			algorithms can be used in the callbacks list.
 		:param regularization_optimizer: Optimizer to use for the regularization loss.
 		:param metrics: Metrics to compute during training.
-		:param callbacks: Callbacks to use during training. Each callback will be called at the following moments:
-			1. At the beginning of the train call.
-			2. At the beginning of each iteration. An iteration is defined as one full pass through the training
-			dataset and the validation dataset.
-			3. At the beginning of each epoch. An epoch is defined as one full pass through a dataset (train or valid).
-			4. At the beginning of each batch. The batch is defined as one forward pass through the network.
-			5. At the end of each batch.
-			6. At the end of each epoch.
-			7. At the end of each iteration.
-			8. At the end of the train call.
+		:param callbacks: Callbacks to use during training. Each callback will be called at different moments,
+			see the documentation of :class:`BaseCallback` for more information.
 		:param device: Device to use for the training. Default is the device of the model.
 		:param verbose: Whether to print information during training.
 		:param kwargs: Additional arguments of the training.
@@ -130,12 +132,16 @@ class Trainer:
 		assert model.is_built, "Model must be built before training"
 		self.kwargs = self._set_default_kwargs(kwargs)
 		self.model = model
+		self.predict_method = predict_method
+		assert hasattr(model, predict_method), f"Model does not have a method named '{predict_method}'"
+		assert callable(getattr(model, predict_method)), f"Model method '{predict_method}' is not callable"
 		self.criterion = self._set_default_criterion(criterion)
 		self.regularization = self._set_default_regularization(regularization)
 		self.optimizer = self._set_default_optimizer(optimizer)
 		self.regularization_optimizer = self._set_default_reg_optimizer(regularization_optimizer)
 		self.metrics = self._set_default_metrics(metrics)
 		self.callbacks: CallbacksList = self._set_default_callbacks(callbacks)
+		self._maybe_add_learning_algorithm(learning_algorithm)
 		self.sort_callbacks_()
 		self.device = self._set_default_device(device)
 		self.verbose = verbose
@@ -180,6 +186,10 @@ class Trainer:
 	def checkpoint_managers(self) -> CallbacksList:
 		return CallbacksList(list(filter(lambda x: isinstance(x, CheckpointManager), self.callbacks)))
 	
+	@property
+	def learning_algorithms(self) -> CallbacksList:
+		return CallbacksList(list(filter(lambda x: isinstance(x, LearningAlgorithm), self.callbacks)))
+	
 	@staticmethod
 	def _set_default_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
 		kwargs.setdefault("n_epochs", 1)
@@ -193,14 +203,21 @@ class Trainer:
 		return kwargs
 	
 	def _set_default_optimizer(self, optimizer: Optional[torch.optim.Optimizer]) -> torch.optim.Optimizer:
-		if optimizer is None:
-			optimizer = torch.optim.Adam(
-				self.model.parameters(),
-				lr=self.kwargs["lr"],
-				weight_decay=self.kwargs["weight_decay"],
-			)
+		warnings.warn("The 'optimizer' parameter is deprecated. Use the 'callbacks' parameter instead.", DeprecationWarning)
+		# if optimizer is None:
+		# 	optimizer = torch.optim.Adam(
+		# 		self.model.parameters(),
+		# 		lr=self.kwargs["lr"],
+		# 		weight_decay=self.kwargs["weight_decay"],
+		# 	)
 		return optimizer
-
+	
+	def _maybe_add_learning_algorithm(self, learning_algorithm: Optional[LearningAlgorithm]) -> None:
+		if len(self.learning_algorithms) == 0 and learning_algorithm is None:
+			learning_algorithm = BPTT()
+		if learning_algorithm is not None:
+			self.callbacks.append(learning_algorithm)
+	
 	def _set_default_reg_optimizer(self, optimizer: Optional[torch.optim.Optimizer]) -> torch.optim.Optimizer:
 		if optimizer is None and self.regularization is not None:
 			optimizer = torch.optim.SGD(
@@ -427,18 +444,21 @@ class Trainer:
 		if self.regularization_optimizer is None and self.regularization is not None:
 			regularization_loss = self.regularization()
 			batch_loss += regularization_loss
+		self.current_training_state = self.current_training_state.update(batch_loss=batch_loss)
 		if self.model.training:
-			self.model.zero_grad()
-			self.optimizer.zero_grad()
-			batch_loss.backward()
-			self.optimizer.step()
-		if self.regularization_optimizer is not None and self.regularization is not None:
-			regularization_loss = self.regularization()
-			self.model.zero_grad()
-			self.regularization_optimizer.zero_grad()
-			regularization_loss.backward()
-			self.regularization_optimizer.step()
-		self.current_training_state = self.current_training_state.update(batch_loss=batch_loss.item())
+			self.callbacks.on_optimization_begin(self)
+			if self.optimizer is not None:
+				self.model.zero_grad()
+				self.optimizer.zero_grad()
+				batch_loss.backward()
+				self.optimizer.step()
+			if self.regularization_optimizer is not None and self.regularization is not None:
+				regularization_loss = self.regularization()
+				self.model.zero_grad()
+				self.regularization_optimizer.zero_grad()
+				regularization_loss.backward()
+				self.regularization_optimizer.step()
+			self.callbacks.on_optimization_end(self)
 		self.callbacks.on_batch_end(self)
 		return batch_loss.item()
 
@@ -448,10 +468,10 @@ class Trainer:
 			y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
 	) -> torch.Tensor:
 		if self.model.training:
-			out = self.model(x_batch)
+			out = getattr(self.model, self.predict_method)(x_batch)
 		else:
 			with torch.no_grad():
-				out = self.model(x_batch)
+				out = getattr(self.model, self.predict_method)(x_batch)
 		
 		if isinstance(out, (tuple, list)):
 			pred = out[0]
@@ -461,17 +481,27 @@ class Trainer:
 			raise ValueError(f"Unsupported output type: {type(out)}")
 		
 		if isinstance(self.criterion, dict):
-			if isinstance(pred, dict) and len(pred) == 1 and len(self.criterion) == 1:
-				pred = pred[list(pred.keys())[0]]
-			
-			if len(self.criterion) == 1 and isinstance(pred, torch.Tensor) and isinstance(y_batch, torch.Tensor):
-				return list(self.criterion.values())[0](pred, y_batch.to(self.device))
-			assert isinstance(x_batch, dict) and isinstance(y_batch, dict) and isinstance(pred, dict), \
-				"If criterion is a dict, x_batch, y_batch and pred must be a dict too."
+			if isinstance(y_batch, torch.Tensor):
+				y_batch = {k: y_batch for k in self.criterion}
+			if isinstance(pred, torch.Tensor):
+				pred = {k: pred for k in self.criterion}
+			assert isinstance(pred, dict) and isinstance(y_batch, dict) and isinstance(pred, dict), \
+				"If criterion is a dict, pred, y_batch and pred must be a dict too."
 			batch_loss = sum([
 				self.criterion[k](pred[k], y_batch[k].to(self.device))
 				for k in self.criterion
 			])
+			# if isinstance(pred, dict) and len(pred) == 1 and len(self.criterion) == 1:
+			# 	pred = pred[list(pred.keys())[0]]
+			#
+			# if len(self.criterion) == 1 and isinstance(pred, torch.Tensor) and isinstance(y_batch, torch.Tensor):
+			# 	return list(self.criterion.values())[0](pred, y_batch.to(self.device))
+			# assert isinstance(x_batch, dict) and isinstance(y_batch, dict) and isinstance(pred, dict), \
+			# 	"If criterion is a dict, x_batch, y_batch and pred must be a dict too."
+			# batch_loss = sum([
+			# 	self.criterion[k](pred[k], y_batch[k].to(self.device))
+			# 	for k in self.criterion
+			# ])
 		else:
 			if isinstance(pred, dict) and len(pred) == 1:
 				pred = pred[list(pred.keys())[0]]

@@ -338,6 +338,7 @@ class CallbacksList:
 		assert isinstance(callback, BaseCallback), "callback must be an instance of BaseCallback"
 		self.callbacks.append(callback)
 		self._length += 1
+		self.sort_callbacks_()
 
 	def remove(self, callback: BaseCallback):
 		"""
@@ -351,6 +352,7 @@ class CallbacksList:
 		assert isinstance(callback, BaseCallback), "callback must be an instance of BaseCallback"
 		self.callbacks.remove(callback)
 		self._length -= 1
+		self.sort_callbacks_()
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict):
 		"""

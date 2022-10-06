@@ -104,15 +104,16 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
 	def __init__(
 			self,
 			temp_folder: str = '~/temp/',
-			priority: Optional[int] = None,
+			**kwargs
 	):
 		"""
 		Create a new callback to visualize the training history.
 		
 		:param temp_folder: The folder where to save the training history.
 		:type temp_folder: str
+		:param kwargs: The keyword arguments to pass to the base callback.
 		"""
-		super().__init__(priority=priority)
+		super().__init__(**kwargs)
 		self._is_open = False
 		os.makedirs(temp_folder, exist_ok=True)
 		self._temp_path = os.path.join(

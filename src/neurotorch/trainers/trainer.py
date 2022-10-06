@@ -327,6 +327,7 @@ class Trainer:
 		)
 		for i in p_bar:
 			self.current_training_state = self.current_training_state.update(iteration=i)
+			self.callbacks.on_iteration_begin(self)
 			itr_loss = self._exec_iteration(train_dataloader, val_dataloader)
 			if self.kwargs["exec_metrics_on_train"]:
 				itr_train_metrics = self._exec_metrics(train_dataloader, prefix="train")

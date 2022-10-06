@@ -33,7 +33,7 @@ class TrainingHistory(BaseCallback):
 			self,
 			container: Dict[str, List[float]] = None,
 			default_value=np.NAN,
-			priority: Optional[int] = None
+			**kwargs
 	):
 		"""
 		Initialize the container with the given container.
@@ -42,8 +42,9 @@ class TrainingHistory(BaseCallback):
 		:type container: Dict[str, List[float]]
 		:param default_value: The default value to use to equalize the lengths of the container's items.
 		:type default_value: float
+		:param kwargs: The keyword arguments to pass to the BaseCallback.
 		"""
-		super().__init__(priority=priority)
+		super().__init__(**kwargs)
 		self._container = {}
 		self.default_value = default_value
 		self._length = 0

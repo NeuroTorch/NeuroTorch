@@ -26,15 +26,29 @@ class EarlyStopping(BaseCallback):
 		
 
 class EarlyStoppingThreshold(BaseCallback):
+	"""
+	Monitor the training process and set the stop_training_flag to True when the threshold is met.
+	"""
 	def __init__(
 			self,
 			*,
 			metric: str,
 			threshold: float,
 			minimize_metric: bool,
-			priority: Optional[int] = None,
+			**kwargs
 	):
-		super().__init__(priority=priority)
+		"""
+		Constructor for EarlyStoppingThreshold class.
+		
+		:param metric: Name of the metric to monitor.
+		:type metric: str
+		:param threshold: Threshold value for the metric.
+		:type threshold: float
+		:param minimize_metric: Whether to minimize or maximize the metric.
+		:type minimize_metric: bool
+		:param kwargs: The keyword arguments to pass to the BaseCallback.
+		"""
+		super().__init__(**kwargs)
 		self.threshold = threshold
 		self.metric = metric
 		self.minimize_metric = minimize_metric

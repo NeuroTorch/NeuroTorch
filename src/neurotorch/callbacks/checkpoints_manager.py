@@ -110,6 +110,7 @@ class CheckpointManager(BaseCallback):
 			save_best_only: bool = False,
 			start_save_at: int = 0,
 			verbose: bool = False,
+			**kwargs
 	):
 		"""
 		Initialises the checkpoint manager.
@@ -132,8 +133,9 @@ class CheckpointManager(BaseCallback):
 		:type start_save_at: int
 		:param verbose: Whether to print out the trace of the checkpoint manager.
 		:type verbose: bool
+		:param kwargs: The keyword arguments to pass to the BaseCallback.
 		"""
-		super().__init__()
+		super().__init__(**kwargs)
 		os.makedirs(checkpoint_folder, exist_ok=True)
 		self.checkpoint_folder = checkpoint_folder
 		self.meta_path_prefix = meta_path_prefix
@@ -292,6 +294,7 @@ class CheckpointManager(BaseCallback):
 		
 		:return: None
 		"""
+		super().start(trainer)
 		start_itr = 0
 		checkpoint = self.curr_checkpoint
 		if trainer.load_checkpoint_mode is None:

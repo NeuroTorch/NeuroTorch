@@ -12,12 +12,41 @@ class BaseCallback:
 		- Train: One full pass through the training dataset.
 		- Validation: One full pass through the validation dataset.
 		
+	Callbacks methods are called in the following order:
+		- :meth:`start`
+		- :meth:`load_checkpoint_state`
+		- :meth:`on_iteration_begin`
+		- :meth:`on_train_begin`
+		- :meth:`on_epoch_begin`
+		- :meth:`on_batch_begin`
+		- :meth:`on_batch_end`
+		- :meth:`on_epoch_end`
+		- :meth:`on_train_end`
+		- :meth:`on_validation_begin`
+		- :meth:`on_epoch_begin`
+		- :meth:`on_batch_begin`
+		- :meth:`on_batch_end`
+		- :meth:`on_epoch_end`
+		- :meth:`on_validation_end`
+		- :meth:`on_iteration_end`
+		- :meth:`close`
+		
+	:Note: The special method :meth:`get_checkpoint_state` is called by the object :class:`CheckpointManager` to
+		save the state of the callback in the checkpoint file. The when this method is called is then determined by
+		the :class:`CheckpointManager` object if it is used in the trainer callbacks. In the same way, the method
+		:meth:`load_checkpoint_state` is called by the :class:`CheckpointManager` to load the state of the callback
+		from the checkpoint file if it is used in the trainer callbacks.
+	
+	:Note: The special method :meth:`__del__` is called when the callback is deleted. This is used to call the
+		:meth:`close` method if it was not called before.
+	
 	:Attributes:
 		- :attr:`Priority`: The priority of the callback. The lower the priority, the earlier the callback is called.
 			Default is 10.
 	"""
 	DEFAULT_PRIORITY = 10
 	DEFAULT_LOW_PRIORITY = 100
+	DEFAULT_MEDIUM_PRIORITY = 50
 	DEFAULT_HIGH_PRIORITY = 0
 	
 	instance_counter = 0
@@ -26,8 +55,9 @@ class BaseCallback:
 			self,
 			priority: Optional[int] = None,
 			name: Optional[str] = None,
-			save_state: bool = True,
-			load_state: Optional[bool] = None
+			save_state: bool = False,
+			load_state: Optional[bool] = None,
+			**kwargs
 	):
 		"""
 		:param priority: The priority of the callback. The lower the priority, the earlier the callback is called.
@@ -48,6 +78,9 @@ class BaseCallback:
 		self.save_state = save_state
 		self.load_state = load_state if load_state is not None else save_state
 		self.__class__.instance_counter += 1
+		self.trainer = None
+		self._start_flag = False
+		self._close_flag = False
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict):
 		"""
@@ -88,7 +121,8 @@ class BaseCallback:
 		
 		:return: None
 		"""
-		pass
+		self.trainer = trainer
+		self._start_flag = True
 	
 	def close(self, trainer):
 		"""
@@ -99,7 +133,7 @@ class BaseCallback:
 		
 		:return: None
 		"""
-		pass
+		self._close_flag = True
 
 	def on_train_begin(self, trainer):
 		"""
@@ -218,6 +252,11 @@ class BaseCallback:
 		:return: None
 		"""
 		pass
+	
+	def __del__(self):
+		if (not self._close_flag) and self.trainer is not None:
+			self.close(self.trainer)
+		self.__class__.instance_counter -= 1
 
 	
 class CallbacksList:

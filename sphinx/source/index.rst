@@ -6,7 +6,7 @@
 Welcome to NeuroTorch's documentation!
 ======================================
 
-.. image:: ../../images/neurotorch_logo.png
+.. image:: ../../images/neurotorch.svg
    :width: 300
    :align: center
 

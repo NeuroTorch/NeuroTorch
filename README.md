@@ -162,6 +162,7 @@ pprint.pprint(accuracies)
 
 # Thanks
 - [Anthony Drouin](https://github.com/AnthoDrouin) who helped develop the Wilson-Cowan application during his 2022 summer internship.
+- [Antoine Légaré](https://github.com/AntoineLegare) who made the awesome [logo](images/neurotorch.svg) of NeuroTorch.
 - To my dog Chewy who has been a great help during the whole development.
 
 # License

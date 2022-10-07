@@ -9,4 +9,4 @@ psutil>=5.9.1
 pandas>=1.4.3
 scikit-learn>=1.1.1
 jupyter
-git+https://github.com/JeremieGince/PythonBasicTools
+pythonbasictools

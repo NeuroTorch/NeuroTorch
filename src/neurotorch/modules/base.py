@@ -278,7 +278,7 @@ class BaseModel(torch.nn.Module):
 		checkpoint_path = f"{self.checkpoint_folder}/{save_name}"
 		if verbose:
 			logging.info(f"Loading checkpoint from {checkpoint_path}")
-		checkpoint = torch.load(checkpoint_path, map_location=self._device)
+		checkpoint = torch.load(checkpoint_path, map_location=self.device)
 		self.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
 		return checkpoint
 

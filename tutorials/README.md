@@ -18,3 +18,13 @@
 ## Time series classification with Wilson-Cowan
 
 - Tutorial: [Jupyter Notebook](time_series_forecasting_wilson_cowan/tutorial.ipynb).
+
+
+# Prerequisites
+
+- Python 3.9+
+- Jupiter Notebook
+
+```bash
+pip install jupyter
+```

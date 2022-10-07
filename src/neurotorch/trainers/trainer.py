@@ -289,10 +289,11 @@ class Trainer:
 		"""
 		Load the state of the trainer from the checkpoint.
 		"""
-		main_checkpoint_manager: CheckpointManager = self.checkpoint_managers[0]
-		checkpoint = main_checkpoint_manager.curr_checkpoint
-		if checkpoint:
-			self.callbacks.load_checkpoint_state(self, checkpoint)
+		if self.checkpoint_managers:
+			main_checkpoint_manager: CheckpointManager = self.checkpoint_managers[0]
+			checkpoint = main_checkpoint_manager.curr_checkpoint
+			if checkpoint:
+				self.callbacks.load_checkpoint_state(self, checkpoint)
 
 	def train(
 			self,

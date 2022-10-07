@@ -20,6 +20,7 @@ def get_dataloaders(
 		train_val_split_ratio: float = 0.85,
 		input_transform: Callable = None,
 		nb_workers: int = 0,
+		pin_memory: bool = True,
 ):
 	"""
 
@@ -28,6 +29,8 @@ def get_dataloaders(
 	:param train_val_split_ratio: The ratio of train data (i.e. train_length/data_length).
 	:param input_transform: The transform to apply to the input.
 	:param nb_workers: The number of workers to use.
+	:param pin_memory: Whether to pin memory.
+	
 	:return: The dataloaders.
 	"""
 	list_of_transform = [
@@ -54,13 +57,13 @@ def get_dataloaders(
 	train_set, val_set = torch.utils.data.random_split(train_dataset, [train_length, val_length])
 
 	train_dataloader = DataLoader(
-		train_set, batch_size=batch_size, shuffle=True, num_workers=nb_workers, pin_memory=True
+		train_set, batch_size=batch_size, shuffle=True, num_workers=nb_workers, pin_memory=pin_memory
 	)
 	val_dataloader = DataLoader(
-		val_set, batch_size=batch_size, shuffle=False, num_workers=nb_workers, pin_memory=True
+		val_set, batch_size=batch_size, shuffle=False, num_workers=nb_workers, pin_memory=pin_memory
 	)
 	test_dataloader = DataLoader(
-		test_dataset, batch_size=batch_size, shuffle=False, num_workers=nb_workers, pin_memory=True
+		test_dataset, batch_size=batch_size, shuffle=False, num_workers=nb_workers, pin_memory=pin_memory
 	)
 	return dict(train=train_dataloader, val=val_dataloader, test=test_dataloader)
 

@@ -264,34 +264,34 @@ class SequentialModel(BaseModel):
 		"""
 		return memory[max(0, len(memory) - memory_size):]
 
-	def __new__(
-			cls,
-			*,
-			input_sizes: Optional[Union[Dict[str, IntDimension], List[int], IntDimension]] = None,
-			output_sizes: Optional[Union[Dict[str, int], List[int], int]] = None,
-			# n_hidden_neurons: Optional[Union[int, Iterable[int]]] = None,
-			use_recurrent_connection: Optional[Union[bool, Iterable[bool]]] = None,
-			spike_funcs: Optional[Acceptable_Spike_Funcs] = None,
-			hidden_layer_types: Optional[Acceptable_Layer_Types] = None,
-			readout_layer_type: Optional[Acceptable_Layer_Type] = None,
-			layers: Optional[Iterable[BaseLayer]] = None,
-			**kwargs
-	):
-		auto_construct_parameters = {
-			"input_sizes": input_sizes,
-			"output_sizes": output_sizes,
-			# n_hidden_neurons,
-			"use_recurrent_connection": use_recurrent_connection,
-			"spike_funcs": spike_funcs,
-			"hidden_layer_types": hidden_layer_types,
-			"readout_layer_type": readout_layer_type
-		}
-		if layers is not None:
-			assert all([p is None for _, p in auto_construct_parameters.items()]), \
-				f"You can't use the named parameters: " \
-				f"{auto_construct_parameters} and layers at the same time"
-			return super(SequentialModel, cls).__new__(cls)
-		raise NotImplementedError("Auto construct feature is not available yet.")
+	# def __new__(
+	# 		cls,
+	# 		*,
+	# 		input_sizes: Optional[Union[Dict[str, IntDimension], List[int], IntDimension]] = None,
+	# 		output_sizes: Optional[Union[Dict[str, int], List[int], int]] = None,
+	# 		# n_hidden_neurons: Optional[Union[int, Iterable[int]]] = None,
+	# 		use_recurrent_connection: Optional[Union[bool, Iterable[bool]]] = None,
+	# 		spike_funcs: Optional[Acceptable_Spike_Funcs] = None,
+	# 		hidden_layer_types: Optional[Acceptable_Layer_Types] = None,
+	# 		readout_layer_type: Optional[Acceptable_Layer_Type] = None,
+	# 		layers: Optional[Iterable[BaseLayer]] = None,
+	# 		**kwargs
+	# ):
+	# 	auto_construct_parameters = {
+	# 		"input_sizes": input_sizes,
+	# 		"output_sizes": output_sizes,
+	# 		# n_hidden_neurons,
+	# 		"use_recurrent_connection": use_recurrent_connection,
+	# 		"spike_funcs": spike_funcs,
+	# 		"hidden_layer_types": hidden_layer_types,
+	# 		"readout_layer_type": readout_layer_type
+	# 	}
+	# 	if layers is not None:
+	# 		assert all([p is None for _, p in auto_construct_parameters.items()]), \
+	# 			f"You can't use the named parameters: " \
+	# 			f"{auto_construct_parameters} and layers at the same time"
+	# 		return super(SequentialModel, cls).__new__(cls)
+	# 	raise NotImplementedError("Auto construct feature is not available yet.")
 
 	def __init__(
 			self,

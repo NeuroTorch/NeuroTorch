@@ -172,7 +172,7 @@ pprint.pprint(accuracies)
 - To my dog Chewy who has been a great help during the whole development.
 
 # License
-[Apache License 2.0](LICENSE.md)
+[Apache License 2.0](LICENSE)
 
 # Citation
 ```

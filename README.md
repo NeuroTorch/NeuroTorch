@@ -11,7 +11,7 @@ It's time to bring deep learning and neuroscience together. In this library, we 
 tools to neuroscientists and we offer neuroscience tools to computer scientists. These two domains were created 
 to be one.
 
-### Current Version (alpha)
+### Current Version (v0.0.1-alpha)
 
 What can we do with NeuroTorch in the current version? 
 - Image classification with spiking networks.
@@ -23,12 +23,12 @@ What can we do with NeuroTorch in the current version?
 - Anything you are able to do using the modules already created.
 
 
-### Next Version (beta)
+### Next Version (v0.0.1-beta)
 
 - Learning Algorithm: FullForce.
 - Learning Algorithm: [Eligibility-Propagation](https://doi.org/10.1038/s41467-020-17236-y).
 
-### Upcoming Version (0.0.1)
+### Upcoming Version (v0.0.1)
 - Distributed on [PyPI](https://pypi.org/).
 - Reinforcement Learning.
 
@@ -123,7 +123,9 @@ network = nt.SequentialModel(
 trainer = nt.ClassificationTrainer(
 	model=network,
 	optimizer=torch.optim.Adam(network.parameters(), lr=1e-3),
-	callbacks=checkpoint_manager,
+	callbacks=[
+        checkpoint_manager,
+    ],
 	verbose=True,
 )
 training_history = trainer.train(

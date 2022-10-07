@@ -36,7 +36,6 @@ What can we do with NeuroTorch in the current version?
 - Learning Algorithm: [Eligibility-Propagation](https://doi.org/10.1038/s41467-020-17236-y).
 
 ### Upcoming Version (v0.0.1)
-- Distributed on [PyPI](https://pypi.org/).
 - Reinforcement Learning.
 
 
@@ -57,6 +56,13 @@ This package is part of a postgraduate research project realized by [Jérémie G
 
 
 # Installation
+
+## Using pip
+
+```bash
+pip install neurotorch
+```
+
 
 ## With wheel:
 

@@ -253,6 +253,30 @@ class BaseCallback:
 		"""
 		pass
 	
+	def on_optimization_begin(self, trainer):
+		"""
+		Called when the optimization phase of an iteration starts. The optimization phase is defined as
+		the moment where the model weights are updated.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+
+		:return: None
+		"""
+		pass
+	
+	def on_optimization_end(self, trainer):
+		"""
+		Called when the optimization phase of an iteration ends. The optimization phase is defined as
+		the moment where the model weights are updated.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+
+		:return: None
+		"""
+		pass
+	
 	def __del__(self):
 		if (not self._close_flag) and self.trainer is not None:
 			self.close(self.trainer)
@@ -537,4 +561,30 @@ class CallbacksList:
 		"""
 		for callback in self.callbacks:
 			callback.on_iteration_end(trainer)
+			
+	def on_optimization_begin(self, trainer):
+		"""
+		Called when the optimization phase of an iteration starts. The optimization phase is defined as
+		the moment where the model weights are updated.
+		
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		
+		:return: None
+		"""
+		for callback in self.callbacks:
+			callback.on_optimization_begin(trainer)
+	
+	def on_optimization_end(self, trainer):
+		"""
+		Called when the optimization phase of an iteration ends. The optimization phase is defined as
+		the moment where the model weights are updated.
+		
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		
+		:return: None
+		"""
+		for callback in self.callbacks:
+			callback.on_optimization_end(trainer)
 

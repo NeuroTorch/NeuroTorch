@@ -17,6 +17,7 @@ from ..utils import format_pseudo_rn_seed
 
 
 class LearningType(enum.Enum):
+	# TODO: Remove this class.
 	NONE = 0
 	BPTT = 1
 	E_PROP = 2
@@ -80,14 +81,15 @@ class BaseLayer(torch.nn.Module):
 		:type output_size: Optional[SizeTypes]
 		:param name: The name of the layer.
 		:type name: Optional[str]
-		:param learning_type: The learning type of the layer.
+		:param learning_type: The learning type of the layer. Deprecated use freeze_weights instead.
 		:type learning_type: LearningType
 		:param device: The device of the layer. Defaults to the current available device.
 		:type device: Optional[torch.device]
 		:param kwargs: Additional keyword arguments.
 		
-		:keyword bool regularize: Whether to regularize the layer. If True, the method `update_regularization_loss` will be
-		called after each forward pass. Defaults to False.
+		:keyword bool regularize: Whether to regularize the layer. If True, the method `update_regularization_loss`
+			will be called after each forward pass. Defaults to False.
+		:keyword bool freeze_weights: Whether to freeze the weights of the layer. Defaults to False.
 		"""
 		super(BaseLayer, self).__init__()
 		self._is_built = False
@@ -96,6 +98,7 @@ class BaseLayer(torch.nn.Module):
 		self._name_is_default = name is None
 
 		self._learning_type = learning_type
+		self._freeze_weights = kwargs.get("freeze_weights", learning_type != LearningType.BPTT)
 		self._device = device
 		if self._device is None:
 			self._set_default_device_()
@@ -135,12 +138,22 @@ class BaseLayer(torch.nn.Module):
 	
 	@learning_type.setter
 	def learning_type(self, learning_type: LearningType):
+		warnings.warn("The learning_type attribute is deprecated. Use freeze_weights instead.", DeprecationWarning)
 		self._learning_type = learning_type
+		self.requires_grad_(self.requires_grad)
+		
+	@property
+	def freeze_weights(self) -> bool:
+		return self._freeze_weights
+	
+	@freeze_weights.setter
+	def freeze_weights(self, freeze_weights: bool):
+		self._freeze_weights = freeze_weights
 		self.requires_grad_(self.requires_grad)
 	
 	@property
 	def requires_grad(self):
-		return self.learning_type == LearningType.BPTT
+		return not self.freeze_weights
 
 	@property
 	def name(self) -> str:

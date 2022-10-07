@@ -1,6 +1,7 @@
 import enum
 import json
 import os
+import pprint
 import shutil
 import warnings
 from typing import Any, Dict, Optional, Union
@@ -268,9 +269,9 @@ class CheckpointManager(BaseCallback):
 
 	def save_checkpoints_meta(self, new_info: dict):
 		"""
-		Saves the new checkpoints metadata.
+		Saves the new checkpoints' metadata.
 		
-		:param new_info: The new checkpoints metadata.
+		:param new_info: The new checkpoints' metadata.
 		:type new_info: dict
 		
 		:return: None
@@ -310,7 +311,8 @@ class CheckpointManager(BaseCallback):
 			try:
 				checkpoint = self.load_checkpoint(trainer.load_checkpoint_mode)
 				trainer.model.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
-				trainer.optimizer.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY])
+				if trainer.optimizer is not None:
+					trainer.optimizer.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY])
 				start_itr = int(checkpoint[CheckpointManager.CHECKPOINT_ITR_KEY]) + 1
 				self._replace_trainer_history(trainer, checkpoint[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY])
 			except FileNotFoundError as e:
@@ -326,7 +328,7 @@ class CheckpointManager(BaseCallback):
 		else:
 			self.curr_best_metric = trainer.training_history.max(self.metric)
 	
-	def _save_on(self, trainer) -> bool:
+	def save_on(self, trainer) -> bool:
 		"""
 		Saves the checkpoint if the current iteration is a checkpoint iteration.
 		
@@ -336,16 +338,17 @@ class CheckpointManager(BaseCallback):
 		:return: Whether the checkpoint was saved.
 		:rtype: bool
 		"""
-		if trainer.current_training_state.itr_metrics is None:
-			return False
+		itr_metrics = trainer.current_training_state.itr_metrics
+		if itr_metrics is None:
+			itr_metrics = {}
 		other_states = trainer.callbacks.get_checkpoint_state(trainer)
 		is_best = self._check_is_best(trainer)
 		if is_best:
-			self.curr_best_metric = trainer.current_training_state.itr_metrics[self.metric]
+			self.curr_best_metric = itr_metrics[self.metric]
 		self.save_checkpoint(
-			trainer.current_training_state.iteration, trainer.current_training_state.itr_metrics, is_best,
+			trainer.current_training_state.iteration, itr_metrics, is_best,
 			state_dict=trainer.model.state_dict(),
-			optimizer_state_dict=trainer.optimizer.state_dict(),
+			optimizer_state_dict=trainer.optimizer.state_dict() if trainer.optimizer else None,
 			training_history=trainer.training_history,
 			**other_states
 		)
@@ -370,9 +373,9 @@ class CheckpointManager(BaseCallback):
 			return
 		if self.save_best_only:
 			if self._check_is_best(trainer):
-				self._save_on(trainer)
+				self.save_on(trainer)
 		elif self.save_freq > 0 and trainer.current_training_state.iteration % self.save_freq == 0:
-			self._save_on(trainer)
+			self.save_on(trainer)
 	
 	def _check_is_best(self, trainer) -> Optional[bool]:
 		if trainer.current_training_state.itr_metrics is None:
@@ -393,4 +396,4 @@ class CheckpointManager(BaseCallback):
 		
 		:return: None
 		"""
-		self._save_on(trainer)
+		self.save_on(trainer)

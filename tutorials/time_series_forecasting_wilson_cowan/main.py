@@ -12,7 +12,7 @@ from neurotorch.visualisation.time_series_visualisation import *
 
 
 def train_with_params(
-		path: str,
+		filename: Optional[str] = None,
 		sigma: float = 15.0,
 		learning_rate: float = 1e-3,
 		n_iterations: int = 100,
@@ -34,7 +34,7 @@ def train_with_params(
 		checkpoint_folder="./checkpoints",
 		force_dale_law: bool = True
 ):
-	dataset = WSDataset(path=path, sample_size=200, smoothing_sigma=sigma, device=device)
+	dataset = WSDataset(filename=filename, sample_size=200, smoothing_sigma=sigma, device=device)
 	x = dataset.full_time_series
 	ws_layer = WilsonCowanLayer(
 		x.shape[-1], x.shape[-1],
@@ -162,12 +162,10 @@ def train_with_params(
 
 
 if __name__ == '__main__':
-	ts = np.load('timeSeries_2020_12_16_cr3_df.npy')
-
 	forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.2)
 
 	res = train_with_params(
-		path='timeSeries_2020_12_16_cr3_df.npy',
+		filename=None,
 		sigma=20,
 		learning_rate=1e-2,
 		n_iterations=500,

@@ -18,6 +18,12 @@ It's time to bring deep learning and neuroscience together. In this library, we 
 tools to neuroscientists and we offer neuroscience tools to computer scientists. These two domains were created 
 to be one.
 
+
+NeuroTorch is developed to be easy to use, so that you can do simple things in a few lines of code. 
+Moreover NeuroTorch is modular so you can adapt it to your needs relatively quickly. Thanks and stay tuned, 
+because more is coming!
+
+
 ### Current Version (v0.0.1-alpha)
 
 What can we do with NeuroTorch in the current version? 
@@ -39,12 +45,13 @@ What can we do with NeuroTorch in the current version?
 - Reinforcement Learning.
 
 
-NeuroTorch is developed to be easy to use, so that you can do simple things in a few lines of code. 
-Moreover NeuroTorch is modular so you can adapt it to your needs relatively quickly. Thanks and stay tuned, 
-because more is coming!  
+# About
 
-
-This package is part of a postgraduate research project realized by [Jérémie Gince](https://github.com/JeremieGince) and supervised by [Simon Hardy]() and [Patrick Desrosiers](https://github.com/pdesrosiers). Our work was supported by: (1) [UNIQUE](https://www.unique.quebec/home), a FRQNT-funded research center, (2) the [Sentinelle Nord](https://sentinellenord.ulaval.ca/en) program of Université Laval, funded by the Canada First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
+This package is part of a postgraduate research project realized by [Jérémie Gince](https://github.com/JeremieGince) 
+and supervised by [Simon Hardy]() and [Patrick Desrosiers](https://github.com/pdesrosiers). 
+Our work was supported by: (1) [UNIQUE](https://www.unique.quebec/home), a FRQNT-funded research center, (2) 
+the [Sentinelle Nord](https://sentinellenord.ulaval.ca/en) program of Université Laval, funded by the Canada 
+First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
 
 
 

@@ -19,6 +19,8 @@ class BaseCallback:
 		- :meth:`on_train_begin`
 		- :meth:`on_epoch_begin`
 		- :meth:`on_batch_begin`
+		- :meth:`on_optimization_begin`
+		- :meth:`on_optimization_end`
 		- :meth:`on_batch_end`
 		- :meth:`on_epoch_end`
 		- :meth:`on_train_end`
@@ -253,13 +255,18 @@ class BaseCallback:
 		"""
 		pass
 	
-	def on_optimization_begin(self, trainer):
+	def on_optimization_begin(self, trainer, **kwargs):
 		"""
 		Called when the optimization phase of an iteration starts. The optimization phase is defined as
 		the moment where the model weights are updated.
 
 		:param trainer: The trainer.
 		:type trainer: Trainer
+		:param kwargs: Additional arguments.
+		
+		:keyword x: The input data.
+		:keyword y: The target data.
+		:keyword pred: The predicted data.
 
 		:return: None
 		"""
@@ -276,6 +283,18 @@ class BaseCallback:
 		:return: None
 		"""
 		pass
+	
+	def on_pbar_update(self, trainer, **kwargs) -> dict:
+		"""
+		Called when the progress bar is updated.
+		
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		:param kwargs: Additional arguments.
+		
+		:return: None
+		"""
+		return {}
 	
 	def __del__(self):
 		if (not self._close_flag) and self.trainer is not None:
@@ -562,18 +581,19 @@ class CallbacksList:
 		for callback in self.callbacks:
 			callback.on_iteration_end(trainer)
 			
-	def on_optimization_begin(self, trainer):
+	def on_optimization_begin(self, trainer, **kwargs):
 		"""
 		Called when the optimization phase of an iteration starts. The optimization phase is defined as
 		the moment where the model weights are updated.
 		
 		:param trainer: The trainer.
 		:type trainer: Trainer
+		:param kwargs: Additional arguments.
 		
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_optimization_begin(trainer)
+			callback.on_optimization_begin(trainer, **kwargs)
 	
 	def on_optimization_end(self, trainer):
 		"""
@@ -587,4 +607,24 @@ class CallbacksList:
 		"""
 		for callback in self.callbacks:
 			callback.on_optimization_end(trainer)
+			
+	def on_pbar_update(self, trainer, **kwargs) -> dict:
+		"""
+		Called when the progress bar is updated.
+		
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		:param kwargs: Additional arguments.
+		
+		:return: None
+		"""
+		re_dict = {}
+		for callback in self.callbacks:
+			callback_dict = callback.on_pbar_update(trainer, **kwargs)
+			if callback_dict is None:
+				callback_dict = {}
+			elif not isinstance(callback_dict, dict):
+				callback_dict = {callback.name: callback_dict}
+			re_dict.update(callback_dict)
+		return re_dict
 

@@ -7,6 +7,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
+from ..transforms.base import to_numpy
 from ..learning_algorithms.bptt import BPTT
 from ..callbacks import CheckpointManager, LoadCheckpointMode, TrainingHistory
 from ..callbacks.base_callback import BaseCallback, CallbacksList
@@ -16,66 +17,32 @@ from ..regularization import BaseRegularization, RegularizationList
 
 
 class CurrentTrainingState(NamedTuple):
-	iteration: Optional[int]
-	epoch: Optional[int]
-	epoch_loss: Optional[Any]
-	batch: Optional[int]
-	batch_loss: Optional[Any]
-	batch_is_train: Optional[bool]
-	train_loss: Optional[Any]
-	val_loss: Optional[Any]
-	train_metrics: Optional[Any]
-	val_metrics: Optional[Any]
-	itr_metrics: Optional[Dict[str, Any]]
+	iteration: Optional[int] = None
+	epoch: Optional[int] = None
+	epoch_loss: Optional[Any] = None
+	batch: Optional[int] = None
+	x_batch: Optional[Any] = None
+	y_batch: Optional[Any] = None
+	pred_batch: Optional[Any] = None
+	batch_loss: Optional[Any] = None
+	batch_is_train: Optional[bool] = None
+	train_loss: Optional[Any] = None
+	val_loss: Optional[Any] = None
+	train_metrics: Optional[Any] = None
+	val_metrics: Optional[Any] = None
+	itr_metrics: Optional[Dict[str, Any]] = None
 	stop_training_flag: bool = False
+	info: Dict[str, Any] = {}
 	
 	@staticmethod
 	def get_null_state() -> "CurrentTrainingState":
-		return CurrentTrainingState(
-			iteration=None,
-			epoch=None,
-			epoch_loss=None,
-			batch=None,
-			batch_loss=None,
-			batch_is_train=None,
-			train_loss=None,
-			val_loss=None,
-			train_metrics=None,
-			val_metrics=None,
-			itr_metrics=None,
-			stop_training_flag=False,
-		)
+		return CurrentTrainingState()
 	
-	def update(
-			self,
-			*,
-			iteration: Optional[int] = None,
-			epoch: Optional[int] = None,
-			epoch_loss: Optional[Any] = None,
-			batch: Optional[int] = None,
-			batch_loss: Optional[Any] = None,
-			batch_is_train: Optional[bool] = None,
-			train_loss: Optional[Any] = None,
-			val_loss: Optional[Any] = None,
-			train_metrics: Optional[Any] = None,
-			val_metrics: Optional[Any] = None,
-			itr_metrics: Optional[Dict[str, Any]] = None,
-			stop_training_flag: Optional[bool] = None,
-	) -> "CurrentTrainingState":
-		return CurrentTrainingState(
-			iteration=iteration if iteration is not None else self.iteration,
-			epoch=epoch if epoch is not None else self.epoch,
-			epoch_loss=epoch_loss if epoch_loss is not None else self.epoch_loss,
-			batch=batch if batch is not None else self.batch,
-			batch_loss=batch_loss if batch_loss is not None else self.batch_loss,
-			batch_is_train=batch_is_train if batch_is_train is not None else self.batch_is_train,
-			train_loss=train_loss if train_loss is not None else self.train_loss,
-			val_loss=val_loss if val_loss is not None else self.val_loss,
-			train_metrics=train_metrics if train_metrics is not None else self.train_metrics,
-			val_metrics=val_metrics if val_metrics is not None else self.val_metrics,
-			itr_metrics=itr_metrics if itr_metrics is not None else self.itr_metrics,
-			stop_training_flag=stop_training_flag if stop_training_flag is not None else self.stop_training_flag,
-		)
+	def update(self, **kwargs) -> "CurrentTrainingState":
+		self_dict = self._asdict()
+		assert all(k in self_dict for k in kwargs)
+		self_dict.update(kwargs)
+		return CurrentTrainingState(**self_dict)
 
 
 class Trainer:
@@ -99,7 +66,7 @@ class Trainer:
 		Constructor for Trainer.
 
 		:param model: Model to train.
-		:param criterion: Loss function(s) to use.
+		:param criterion: Loss function(s) to use. Deprecated, use `learning_algorithm` instead.
 		:param regularization: Regularization(s) to use. In NeuroTorch, there are two ways to do regularization:
 			1. Regularization can be specified in the layers with the 'update_regularization_loss' method. This
 			regularization will be performed by the same optimizer as the main loss. This way is useful when you
@@ -108,6 +75,10 @@ class Trainer:
 			will be performed by a separate optimizer named 'regularization_optimizer'. This way is useful when you
 			want a regularization that depends only on the model parameters and when you want to control the
 			learning rate of the regularization independently of the main loss.
+			
+			Note: This parameter will be deprecated and remove in a future version. The regularization will be
+				specified in the learning algorithm and/or in the callbacks.
+			
 		:param optimizer: Optimizer to use for the main loss. Deprecated. Use learning_algorithm instead.
 		:param learning_algorithm: Learning algorithm to use for the main loss. This learning algorithm can be given
 			in the callbacks list as well. If specified, this learning algorithm will be added to the callbacks list.
@@ -146,7 +117,7 @@ class Trainer:
 		self.device = self._set_default_device(device)
 		self.verbose = verbose
 		self.training_history: TrainingHistory = self.training_histories[0]
-		self.current_training_state = CurrentTrainingState.get_null_state()
+		self.current_training_state = CurrentTrainingState()
 
 		self._load_checkpoint_mode = None
 		self._force_overwrite = None
@@ -173,6 +144,10 @@ class Trainer:
 	@property
 	def load_checkpoint_mode(self):
 		return self._load_checkpoint_mode
+	
+	@load_checkpoint_mode.setter
+	def load_checkpoint_mode(self, value: LoadCheckpointMode):
+		self._load_checkpoint_mode = value
 
 	@property
 	def force_overwrite(self):
@@ -219,6 +194,7 @@ class Trainer:
 			self.callbacks.append(learning_algorithm)
 	
 	def _set_default_reg_optimizer(self, optimizer: Optional[torch.optim.Optimizer]) -> torch.optim.Optimizer:
+		warnings.warn("The 'regularization_optimizer' parameter is deprecated. Use the 'callbacks' parameter instead.", DeprecationWarning)
 		if optimizer is None and self.regularization is not None:
 			optimizer = torch.optim.SGD(
 				self.regularization.parameters(),
@@ -233,21 +209,23 @@ class Trainer:
 		return metrics
 	
 	def _set_default_criterion(self, criterion: Optional[torch.nn.Module]) -> torch.nn.Module:
-		if criterion is None:
-			if isinstance(self.model.output_sizes, dict):
-				criterion = {
-					k: torch.nn.MSELoss() for k in self.model.output_sizes
-				}
-			elif isinstance(self.model.output_sizes, int):
-				criterion = torch.nn.MSELoss()
-			else:
-				raise ValueError("Unknown criterion type")
+		warnings.warn("The 'criterion' parameter is deprecated. Use the 'callbacks' parameter instead.", DeprecationWarning)
+		# if criterion is None:
+		# 	if isinstance(self.model.output_sizes, dict):
+		# 		criterion = {
+		# 			k: torch.nn.MSELoss() for k in self.model.output_sizes
+		# 		}
+		# 	elif isinstance(self.model.output_sizes, int):
+		# 		criterion = torch.nn.MSELoss()
+		# 	else:
+		# 		raise ValueError("Unknown criterion type")
 		return criterion
 
 	def _set_default_regularization(
 			self,
 			regularization: Optional[Union[BaseRegularization, RegularizationList, Iterable[BaseRegularization]]]
 	) -> Optional[RegularizationList]:
+		warnings.warn("The 'regularization' parameter is deprecated. Use the 'callbacks' parameter instead.", DeprecationWarning)
 		if regularization is None:
 			pass
 		elif isinstance(regularization, BaseRegularization):
@@ -357,7 +335,8 @@ class Trainer:
 				itr_val_metrics = {}
 			itr_metrics = dict(**itr_loss, **itr_train_metrics, **itr_val_metrics)
 			postfix = {f"{k}": f"{v:.5e}" for k, v in itr_metrics.items()}
-			self.current_training_state = self.current_training_state.update(itr_metrics=itr_metrics)
+			self.update_state_(itr_metrics=itr_metrics)
+			postfix.update(self.callbacks.on_pbar_update(self))
 			self.callbacks.on_iteration_end(self)
 			p_bar.set_postfix(postfix)
 			if self.current_training_state.stop_training_flag:
@@ -420,9 +399,9 @@ class Trainer:
 		self.callbacks.on_epoch_begin(self)
 		batch_losses = []
 		for i, (x_batch, y_batch) in enumerate(dataloader):
-			self.current_training_state = self.current_training_state.update(batch=i)
-			batch_loss = self._exec_batch(x_batch, y_batch)
-			batch_losses.append(batch_loss)
+			self.update_state_(batch=i)
+			self._exec_batch(x_batch, y_batch)
+			batch_losses.append(to_numpy(self.current_training_state.batch_loss))
 		mean_loss = np.mean(batch_losses)
 		self.callbacks.on_epoch_end(self)
 		return mean_loss
@@ -435,19 +414,29 @@ class Trainer:
 		self.callbacks.on_batch_begin(self)
 		x_batch = self._batch_to_dense(self._batch_to_device(x_batch))
 		y_batch = self._batch_to_dense(self._batch_to_device(y_batch))
-		batch_loss = self.apply_criterion_on_batch(x_batch, y_batch)
-		if (
-				hasattr(self.model, "get_and_reset_regularization_loss")
-				and callable(self.model.get_and_reset_regularization_loss)
-		):
-			aux_regularization_loss = self.model.get_and_reset_regularization_loss()
-			batch_loss += aux_regularization_loss
-		if self.regularization_optimizer is None and self.regularization is not None:
-			regularization_loss = self.regularization()
-			batch_loss += regularization_loss
-		self.current_training_state = self.current_training_state.update(batch_loss=batch_loss)
+		pred_batch = self.get_pred_batch(x_batch)
+		self.update_state_(
+			x_batch=x_batch,
+			y_batch=y_batch,
+			pred_batch=pred_batch,
+		)
 		if self.model.training:
-			self.callbacks.on_optimization_begin(self)
+			self.callbacks.on_optimization_begin(self, x=x_batch, y=y_batch, pred=pred_batch)
+			batch_loss = self.current_training_state.batch_loss
+			if self.criterion is not None:
+				batch_loss += self.apply_criterion_on_batch(x_batch, y_batch, pred_batch)
+			
+			if (
+					hasattr(self.model, "get_and_reset_regularization_loss")
+					and callable(self.model.get_and_reset_regularization_loss)
+			):
+				aux_regularization_loss = self.model.get_and_reset_regularization_loss()
+				batch_loss += aux_regularization_loss
+			if self.regularization_optimizer is None and self.regularization is not None:
+				regularization_loss = self.regularization()
+				batch_loss += regularization_loss
+			self.update_state_(batch_loss=batch_loss)
+		
 			if self.optimizer is not None:
 				self.model.zero_grad()
 				self.optimizer.zero_grad()
@@ -462,24 +451,54 @@ class Trainer:
 			self.callbacks.on_optimization_end(self)
 		self.callbacks.on_batch_end(self)
 		return batch_loss.item()
-
-	def apply_criterion_on_batch(
+	
+	def get_pred_batch(
 			self,
 			x_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
-			y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
-	) -> torch.Tensor:
+	):
 		if self.model.training:
 			out = getattr(self.model, self.predict_method)(x_batch)
 		else:
 			with torch.no_grad():
 				out = getattr(self.model, self.predict_method)(x_batch)
-		
-		if isinstance(out, (tuple, list)):
-			pred = out[0]
-		elif isinstance(out, torch.Tensor):
-			pred = out
+		return out
+	
+	def format_pred_batch(
+			self,
+			raw_pred_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+			y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+	):
+		if isinstance(raw_pred_batch, (tuple, list)):
+			pred_batch = raw_pred_batch[0]
+		elif isinstance(raw_pred_batch, torch.Tensor):
+			pred_batch = raw_pred_batch
 		else:
-			raise ValueError(f"Unsupported output type: {type(out)}")
+			raise ValueError(f"Unsupported output type: {type(raw_pred_batch)}")
+		
+		if isinstance(y_batch, dict):
+			assert isinstance(pred_batch, dict) and isinstance(y_batch, dict), \
+				"If y_batch is a dict, pred must be a dict too."
+			assert set(pred_batch.keys()) == set(y_batch.keys()), \
+				"Keys of y_batch and pred_batch must be the same."
+		else:
+			if isinstance(pred_batch, dict):
+				assert len(pred_batch) == 1, \
+					"pred_batch must have only one key if y_batch is not a dict."
+				pred_batch = pred_batch[list(pred_batch.keys())[0]]
+		return pred_batch
+
+	def apply_criterion_on_batch(
+			self,
+			x_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+			y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+			pred_batch: Optional[Union[torch.Tensor, Dict[str, torch.Tensor]]]
+	) -> torch.Tensor:
+		if isinstance(pred_batch, (tuple, list)):
+			pred = pred_batch[0]
+		elif isinstance(pred_batch, torch.Tensor):
+			pred = pred_batch
+		else:
+			raise ValueError(f"Unsupported output type: {type(pred_batch)}")
 		
 		if isinstance(self.criterion, dict):
 			if isinstance(y_batch, torch.Tensor):
@@ -492,17 +511,6 @@ class Trainer:
 				self.criterion[k](pred[k], y_batch[k].to(self.device))
 				for k in self.criterion
 			])
-			# if isinstance(pred, dict) and len(pred) == 1 and len(self.criterion) == 1:
-			# 	pred = pred[list(pred.keys())[0]]
-			#
-			# if len(self.criterion) == 1 and isinstance(pred, torch.Tensor) and isinstance(y_batch, torch.Tensor):
-			# 	return list(self.criterion.values())[0](pred, y_batch.to(self.device))
-			# assert isinstance(x_batch, dict) and isinstance(y_batch, dict) and isinstance(pred, dict), \
-			# 	"If criterion is a dict, x_batch, y_batch and pred must be a dict too."
-			# batch_loss = sum([
-			# 	self.criterion[k](pred[k], y_batch[k].to(self.device))
-			# 	for k in self.criterion
-			# ])
 		else:
 			if isinstance(pred, dict) and len(pred) == 1:
 				pred = pred[list(pred.keys())[0]]

@@ -74,6 +74,7 @@ from . import init
 
 from .learning_algorithms import (
 	BPTT,
+	Eprop,
 )
 
 import warnings

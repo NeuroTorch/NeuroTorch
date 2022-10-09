@@ -45,6 +45,7 @@ class WSDataset(Dataset):
 				f"File {filename} not found in the list of available files: {list(self.FILE_ID_NAME.keys())}."
 			GoogleDriveDownloader(self.FILE_ID_NAME[filename], path, skip_existing=True, verbose=False).download()
 		ts = np.load(path)
+		ts = ts[:, :700]
 		n_neurons, n_shape = ts.shape
 		sample = np.random.randint(n_neurons, size=sample_size)
 		data = ts[sample, :]
@@ -52,7 +53,7 @@ class WSDataset(Dataset):
 		for neuron in range(data.shape[0]):
 			data[neuron, :] = gaussian_filter1d(data[neuron, :], sigma=smoothing_sigma)
 			data[neuron, :] = data[neuron, :] - np.min(data[neuron, :])
-			data[neuron, :] = data[neuron, :] / np.max(data[neuron, :])
+			data[neuron, :] = data[neuron, :] / (np.max(data[neuron, :]) + 1e-5)
 		self.original_time_series = data
 		self.x = torch.tensor(data.T, dtype=torch.float32, device=device)
 

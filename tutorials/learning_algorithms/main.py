@@ -46,6 +46,8 @@ def make_learning_algorithm(**kwargs):
 			kwargs["model"].parameters(), lr=kwargs["learning_rate"], maximize=True, weight_decay=0.1
 		)
 		learning_algorithm = nt.BPTT(optimizer=optimizer, criterion=nt.losses.PVarianceLoss())
+	elif la_name == "eprop":
+		learning_algorithm = nt.Eprop()
 	else:
 		raise ValueError(f"Unknown learning algorithm: {la_name}")
 	return learning_algorithm

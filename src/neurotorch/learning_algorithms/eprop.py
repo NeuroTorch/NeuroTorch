@@ -39,6 +39,8 @@ class Eprop(LearningAlgorithm):
 		super().__init__(**kwargs)
 		self.params = params
 		self.optimizer = optimizer
+		if criterion is not None:
+			raise NotImplementedError("Custom criterion is not implemented yet.")
 		self.criterion = criterion
 		self.rn_feedback_weights = None
 		self.rn_gen = torch.Generator()

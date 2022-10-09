@@ -49,7 +49,7 @@ class PVarianceLoss(torch.nn.Module):
 			the input.
 	
 	"""
-	def __init__(self, negative: bool = False, reduction: str = 'mean'):
+	def __init__(self, negative: bool = False, reduction: str = 'mean', **kwargs):
 		"""
 		Constructor for the PVarianceLoss class.
 		
@@ -59,6 +59,7 @@ class PVarianceLoss(torch.nn.Module):
 			will be the shape of the last dimension of the input. If 'none', the output will be the same shape as the
 			input. Defaults to 'mean'.
 		:type reduction: str
+		:keyword arguments : epsilon: The epsilon value to use to prevent division by zero. Defaults to 1e-5.
 		"""
 		super(PVarianceLoss, self).__init__()
 		assert reduction in ['mean', 'feature', 'none'], 'Reduction must be one of "mean", "feature", or "none".'
@@ -68,6 +69,7 @@ class PVarianceLoss(torch.nn.Module):
 			reduction=mse_reduction
 		)
 		self.negative = negative
+		self.epsilon = kwargs.get("epsilon", 1e-5)
 
 	def forward(self, x, y):
 		"""
@@ -89,7 +91,7 @@ class PVarianceLoss(torch.nn.Module):
 			var = y_reshape.var(dim=0)
 		else:
 			var = y_reshape.var()
-		loss = 1 - mse_loss / var
+		loss = 1 - mse_loss / (var + self.epsilon)
 		if self.negative:
 			loss = -loss
 		return loss
@@ -107,7 +109,7 @@ class PVarianceLoss(torch.nn.Module):
 		x_reshape, y_reshape = x.reshape(x.shape[0], -1), y.reshape(y.shape[0], -1)
 		mse_loss = torch.mean((x_reshape - y_reshape)**2, dim=-1)
 		var = y_reshape.var(dim=-1)
-		loss = 1 - mse_loss / var
+		loss = 1 - mse_loss / (var + self.epsilon)
 		if self.negative:
 			loss = -loss
 		return loss.mean(), loss.std()

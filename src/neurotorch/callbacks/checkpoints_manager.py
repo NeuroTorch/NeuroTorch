@@ -23,6 +23,24 @@ class LoadCheckpointMode(enum.Enum):
 	"""
 	BEST_ITR = 0
 	LAST_ITR = 1
+	
+	def __str__(self):
+		return self.name.lower()
+	
+	@staticmethod
+	def from_str(mode_name: str) -> 'LoadCheckpointMode':
+		"""
+		Converts a string to a :class:`LoadCheckpointMode` instance.
+		
+		:param mode_name: The name of the mode.
+		:type mode_name: str
+		:return: The corresponding :class:`LoadCheckpointMode` instance.
+		:rtype: LoadCheckpointMode
+		"""
+		if mode_name.lower() in ["best", "last"]:
+			mode_name = mode_name.upper() + "_ITR"
+		assert mode_name.upper() in LoadCheckpointMode.__members__, f"Invalid mode name: {mode_name}"
+		return LoadCheckpointMode[mode_name.upper()]
 
 
 class CheckpointManager(BaseCallback):
@@ -296,17 +314,13 @@ class CheckpointManager(BaseCallback):
 		:return: None
 		"""
 		super().start(trainer)
+		if trainer.load_checkpoint_mode is None:
+			trainer.load_checkpoint_mode = LoadCheckpointMode.LAST_ITR
 		start_itr = 0
 		checkpoint = self.curr_checkpoint
-		if trainer.load_checkpoint_mode is None:
+		if trainer.force_overwrite:
 			if os.path.exists(self.checkpoints_meta_path):
-				if trainer.force_overwrite:
-					shutil.rmtree(self.checkpoint_folder)
-				else:
-					raise ValueError(
-						f"{self.checkpoints_meta_path} already exists. "
-						f"Set force_overwrite flag to True to overwrite existing saves."
-					)
+				shutil.rmtree(self.checkpoint_folder)
 		else:
 			try:
 				checkpoint = self.load_checkpoint(trainer.load_checkpoint_mode)

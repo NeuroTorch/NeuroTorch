@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Union, Dict, Callable
 
 import torch
 
@@ -16,6 +16,7 @@ class BPTT(LearningAlgorithm):
 			*,
 			params: Optional[Sequence[torch.nn.Parameter]] = None,
 			optimizer: Optional[torch.optim.Optimizer] = None,
+			criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
 			**kwargs
 	):
 		"""
@@ -25,6 +26,8 @@ class BPTT(LearningAlgorithm):
 		:type params: Optional[Sequence[torch.nn.Parameter]]
 		:param optimizer: The optimizer to use. If not provided, torch.optim.Adam is used.
 		:type optimizer: Optional[torch.optim.Optimizer]
+		:param criterion: The criterion to use. If not provided, torch.nn.MSELoss is used.
+		:type criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]]
 		:param kwargs: The keyword arguments to pass to the BaseCallback.
 		
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
@@ -35,6 +38,7 @@ class BPTT(LearningAlgorithm):
 		super().__init__(**kwargs)
 		self.params = params
 		self.optimizer = optimizer
+		self.criterion = criterion
 		
 	def load_checkpoint_state(self, trainer, checkpoint: dict):
 		if self.save_state:
@@ -50,7 +54,7 @@ class BPTT(LearningAlgorithm):
 					self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: self.optimizer.state_dict()
 				}
 		return None
-		
+	
 	def start(self, trainer):
 		super().start(trainer)
 		if self.params is not None and self.optimizer is None:
@@ -64,10 +68,41 @@ class BPTT(LearningAlgorithm):
 		else:
 			self.params = trainer.model.parameters()
 			self.optimizer = torch.optim.Adam(self.params)
+		
+		if self.criterion is None and trainer.criterion is not None:
+			self.criterion = trainer.criterion
 	
-	def on_optimization_begin(self, trainer):
+	def apply_criterion(self, trainer):
+		y_batch = trainer.current_training_state.y_batch
+		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+		if self.criterion is None:
+			if isinstance(y_batch, dict):
+				self.criterion = {key: torch.nn.MSELoss() for key in y_batch}
+			else:
+				self.criterion = torch.nn.MSELoss()
+		
+		if isinstance(self.criterion, dict):
+			if isinstance(y_batch, torch.Tensor):
+				y_batch = {k: y_batch for k in self.criterion}
+			if isinstance(pred_batch, torch.Tensor):
+				pred_batch = {k: pred_batch for k in self.criterion}
+			assert isinstance(pred_batch, dict) and isinstance(y_batch, dict), \
+				"If criterion is a dict, pred, y_batch and pred must be a dict too."
+			batch_loss = sum([
+				self.criterion[k](pred_batch[k], y_batch[k].to(pred_batch[k].device))
+				for k in self.criterion
+			])
+		else:
+			if isinstance(pred_batch, dict) and len(pred_batch) == 1:
+				pred_batch = pred_batch[list(pred_batch.keys())[0]]
+			batch_loss = self.criterion(pred_batch, y_batch.to(pred_batch.device))
+		
+		trainer.update_state_(batch_loss=batch_loss)
+		return batch_loss
+	
+	def on_optimization_begin(self, trainer, **kwargs):
 		self.optimizer.zero_grad()
-		batch_loss = trainer.current_training_state.batch_loss
+		batch_loss = self.apply_criterion(trainer)
 		batch_loss.backward()
 		self.optimizer.step()
 	

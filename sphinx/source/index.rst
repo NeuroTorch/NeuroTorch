@@ -11,7 +11,7 @@ Welcome to NeuroTorch's documentation!
    :align: center
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 4
     :caption: Contents:
 
     readme

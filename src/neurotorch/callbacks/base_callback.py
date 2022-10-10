@@ -297,8 +297,11 @@ class BaseCallback:
 		return {}
 	
 	def __del__(self):
-		if (not self._close_flag) and self.trainer is not None:
-			self.close(self.trainer)
+		try:
+			if (not self._close_flag) and self.trainer is not None:
+				self.close(self.trainer)
+		except:
+			pass
 		self.__class__.instance_counter -= 1
 
 	

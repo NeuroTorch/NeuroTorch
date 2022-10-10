@@ -12,6 +12,14 @@ neurotorch.modules.base module
    :undoc-members:
    :show-inheritance:
 
+neurotorch.modules.functions module
+-----------------------------------
+
+.. automodule:: neurotorch.modules.functions
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 neurotorch.modules.layers module
 --------------------------------
 

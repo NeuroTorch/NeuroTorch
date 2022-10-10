@@ -20,6 +20,14 @@ neurotorch.callbacks.checkpoints\_manager module
    :undoc-members:
    :show-inheritance:
 
+neurotorch.callbacks.convergence module
+---------------------------------------
+
+.. automodule:: neurotorch.callbacks.convergence
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 neurotorch.callbacks.early\_stopping module
 -------------------------------------------
 

@@ -23,7 +23,7 @@ Welcome to NeuroTorch's documentation!
    neurotorch
 
 
-.. mdinclude:: readme.rst
+.. include:: readme.rst
 
 .. .. include:: ../../applications/heidelberg/tutoriel.ipynb
 

@@ -64,20 +64,20 @@ First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
 
 # Installation
 
-## Using pip
+### Using pip
 
 ```bash
 pip install neurotorch
 ```
 
 
-## With wheel:
+### With wheel:
 
    1. Download the .whl file [here](https://github.com/NeuroTorch/NeuroTorch/tree/main/dist);
    2. Copy the path of this file on your computer;
    3. pip install it with ``` pip install [path].whl ```
 
-## With pip+git:
+### With pip+git:
 
 ```bash
 pip install git+https://github.com/NeuroTorch/NeuroTorch
@@ -87,24 +87,24 @@ pip install git+https://github.com/NeuroTorch/NeuroTorch
 
 See the readme of the tutorials folder [here](tutorials/README.md).
 
-## Image classification with spiking networks (Mnist/Fashion-Mnist)
+### Image classification with spiking networks (Mnist/Fashion-Mnist)
 
 - Tutorial: [Jupyter Notebook](tutorials/mnist/tutorial.ipynb).
 - Project: [Repository](https://github.com/NeuroTorch/MnistClassification_NeuroTorch).
 
-## Classification of spiking time series (Heidelberg)
+### Classification of spiking time series (Heidelberg)
 
 - Tutorial: [Jupyter Notebook](tutorials/heidelberg/tutorial.ipynb).
 - Project: [Repository](https://github.com/NeuroTorch/HeidelbergClassification_NeuroTorch).
 
-## Time series classification with spiking networks
+### Time series classification with spiking networks
 
 **Sorry, it's a work in progress, so it's not publish yet.**
 
 - Tutorial: [Jupyter Notebook](tutorials/time_series_forecasting_spiking/tutorial.ipynb).
 - Project: [Repository](https://github.com/NeuroTorch/SNN_TS_Forecasting_NeuroTorch).
 
-## Time series classification with Wilson-Cowan
+### Time series classification with Wilson-Cowan
 
 - Tutorial: [Jupyter Notebook](tutorials/time_series_forecasting_wilson_cowan/tutorial.ipynb).
 

@@ -1,3 +1,4 @@
+import warnings
 from typing import Optional, Sequence, Union, Dict, Callable
 
 import torch
@@ -34,6 +35,7 @@ class Eprop(LearningAlgorithm):
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
 		"""
+		warnings.warn("Eprop is still in beta and may not work as expected or act exactly as BPTT.")
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
 		super().__init__(**kwargs)
@@ -78,7 +80,7 @@ class Eprop(LearningAlgorithm):
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
 	
-	def apply_criterion(self, trainer):
+	def get_learning_signal(self, trainer):
 		y_batch = trainer.current_training_state.y_batch
 		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		if self.criterion is None:
@@ -108,9 +110,17 @@ class Eprop(LearningAlgorithm):
 		trainer.update_state_(batch_loss=batch_loss)
 		return batch_loss
 	
+	def get_eligibility_trace(self, trainer):
+		if self.rn_feedback_weights is None:
+			self.rn_feedback_weights = torch.randn(
+				[trainer.batch_size, *trainer.current_training_state.pred_batch.shape[1:]],
+				generator=self.rn_gen
+			)
+		return self.rn_feedback_weights
+	
 	def on_optimization_begin(self, trainer, **kwargs):
 		self.optimizer.zero_grad()
-		batch_loss = self.apply_criterion(trainer)
+		batch_loss = self.get_learning_signal(trainer)
 		batch_loss.backward()
 		self.optimizer.step()
 	

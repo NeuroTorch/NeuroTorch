@@ -1,5 +1,6 @@
 import enum
 import json
+import logging
 import os
 import pprint
 import shutil
@@ -331,8 +332,7 @@ class CheckpointManager(BaseCallback):
 				self._replace_trainer_history(trainer, checkpoint[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY])
 			except FileNotFoundError as e:
 				if self.verbose:
-					warnings.warn(f"Error: {e}", Warning)
-					warnings.warn("No such checkpoint. Fit from beginning.")
+					logging.info("No such checkpoint. Fit from beginning.")
 			finally:
 				self.curr_checkpoint = checkpoint
 

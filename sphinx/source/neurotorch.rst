@@ -9,12 +9,14 @@ Subpackages
 
    neurotorch.callbacks
    neurotorch.init
+   neurotorch.learning_algorithms
    neurotorch.metrics
    neurotorch.modules
    neurotorch.regularization
    neurotorch.rl
    neurotorch.trainers
    neurotorch.transforms
+   neurotorch.visualisation
 
 Submodules
 ----------

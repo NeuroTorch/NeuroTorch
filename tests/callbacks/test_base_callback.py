@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 from neurotorch.callbacks.base_callback import BaseCallback, CallbacksList
-from tests.callbacks.util import MockTrainer, MockCallback
+from util import MockTrainer, MockCallback
 
 
 class TestBaseCallback(unittest.TestCase):

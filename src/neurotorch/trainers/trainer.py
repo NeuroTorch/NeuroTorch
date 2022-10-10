@@ -188,6 +188,8 @@ class Trainer:
 		return optimizer
 	
 	def _maybe_add_learning_algorithm(self, learning_algorithm: Optional[LearningAlgorithm]) -> None:
+		if self.optimizer is not None and self.criterion is not None:
+			return
 		if len(self.learning_algorithms) == 0 and learning_algorithm is None:
 			learning_algorithm = BPTT()
 		if learning_algorithm is not None:
@@ -269,14 +271,6 @@ class Trainer:
 		:return: The sorted callbacks.
 		:rtype: CallbacksList
 		"""
-		# TODO: sort by priority
-		# histories = list(filter(lambda c: isinstance(c, TrainingHistory), self.callbacks))
-		# checkpoints_mangers = list(filter(lambda c: isinstance(c, CheckpointManager), self.callbacks))
-		# others = list(filter(lambda c: not isinstance(c, (TrainingHistory, CheckpointManager)), self.callbacks))
-		# if reverse:
-		# 	self.callbacks = CallbacksList(checkpoints_mangers + others + histories)
-		# else:
-		# 	self.callbacks = CallbacksList(histories + others + checkpoints_mangers)
 		self.callbacks.sort_callbacks_(reverse=reverse)
 		return self.callbacks
 	
@@ -310,7 +304,7 @@ class Trainer:
 		self.callbacks.start(self)
 		self.load_state()
 		if self.current_training_state.iteration is None:
-			self.current_training_state = self.current_training_state.update(iteration=0)
+			self.update_state_(iteration=0)
 		p_bar = tqdm(
 			range(self.current_training_state.iteration, n_iterations),
 			initial=self.current_training_state.iteration,
@@ -322,7 +316,7 @@ class Trainer:
 			leave=p_bar_leave
 		)
 		for i in p_bar:
-			self.current_training_state = self.current_training_state.update(iteration=i)
+			self.update_state_(iteration=i)
 			self.callbacks.on_iteration_begin(self)
 			itr_loss = self._exec_iteration(train_dataloader, val_dataloader)
 			if self.kwargs["exec_metrics_on_train"]:

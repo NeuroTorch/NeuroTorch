@@ -11,11 +11,22 @@ from matplotlib import pyplot as plt
 
 
 def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
-	"""
-	:param x: (batch_size, time_steps, ...)
-	:param decay:
+	r"""
 	
-	:return:
+	Apply a low-pass filter to the input tensor along the temporal dimension.
+	
+	.. math::
+		\begin{equation}\label{eqn:low-pass-filter}
+			\mathcal{F}_\alpha\qty(x^t) = \alpha\mathcal{F}_\alpha\qty(x^{t-1}) + x^t.
+		\end{equation}
+		:label: eqn:low-pass-filter
+	
+	:param x: Input of shape (batch_size, time_steps, ...).
+	:type x: torch.Tensor
+	:param decay: Decay factor of the filter.
+	:type decay: float
+	
+	:return: Filtered input of shape (batch_size, ...).
 	"""
 	batch_size, time_steps, *_ = x.shape
 	assert time_steps >= 1

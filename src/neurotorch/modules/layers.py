@@ -640,6 +640,8 @@ class BaseNeuronsLayer(BaseLayer):
 		raise NotImplementedError()
 
 	def _init_forward_sign_(self):
+		if self.kwargs.get("forward_sign", None) is None:
+			self.kwargs.pop("forward_sign", None)
 		if "forward_sign" in self.kwargs and self.force_dale_law:
 			if isinstance(self.kwargs["forward_sign"], float):
 				assert 0.0 <= self.kwargs["forward_sign"] <= 1.0, "forward_sign must be in [0, 1]"
@@ -656,6 +658,8 @@ class BaseNeuronsLayer(BaseLayer):
 			torch.nn.init.normal_(self._forward_sign)
 
 	def _init_recurrent_sign_(self):
+		if self.kwargs.get("recurrent_sign", None) is None:
+			self.kwargs.pop("recurrent_sign", None)
 		if "recurrent_sign" in self.kwargs and self.force_dale_law and self.use_recurrent_connection:
 			if isinstance(self.kwargs["recurrent_sign"], float):
 				assert 0.0 <= self.kwargs["recurrent_sign"] <= 1.0, "recurrent_sign must be in [0, 1]"

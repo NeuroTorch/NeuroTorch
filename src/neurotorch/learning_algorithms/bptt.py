@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Union, Dict, Callable
+from typing import Optional, Sequence, Union, Dict, Callable, List
 
 import torch
 
@@ -15,6 +15,7 @@ class BPTT(LearningAlgorithm):
 			self,
 			*,
 			params: Optional[Sequence[torch.nn.Parameter]] = None,
+			layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
 			optimizer: Optional[torch.optim.Optimizer] = None,
 			criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
 			**kwargs
@@ -36,7 +37,16 @@ class BPTT(LearningAlgorithm):
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
 		super().__init__(**kwargs)
-		self.params = params
+		if params is None:
+			params = []
+		else:
+			params = list(params)
+		if layers is not None:
+			if isinstance(layers, torch.nn.Module):
+				layers = [layers]
+			params.extend([param for layer in layers for param in layer.parameters() if param not in params])
+		self.params: List[torch.nn.Parameter] = params
+		self.layers = layers
 		self.optimizer = optimizer
 		self.criterion = criterion
 		
@@ -57,14 +67,14 @@ class BPTT(LearningAlgorithm):
 	
 	def start(self, trainer):
 		super().start(trainer)
-		if self.params is not None and self.optimizer is None:
+		if self.params and self.optimizer is None:
 			self.optimizer = torch.optim.Adam(self.params)
-		elif self.params is None and self.optimizer is not None:
-			self.params = [
+		elif not self.params and self.optimizer is not None:
+			self.params.extend([
 				param
 				for i in range(len(self.optimizer.param_groups))
 				for param in self.optimizer.param_groups[i]["params"]
-			]
+			])
 		else:
 			self.params = trainer.model.parameters()
 			self.optimizer = torch.optim.Adam(self.params)
@@ -72,9 +82,7 @@ class BPTT(LearningAlgorithm):
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
 	
-	def apply_criterion(self, trainer):
-		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+	def apply_criterion(self, pred_batch, y_batch):
 		if self.criterion is None:
 			if isinstance(y_batch, dict):
 				self.criterion = {key: torch.nn.MSELoss() for key in y_batch}
@@ -96,15 +104,20 @@ class BPTT(LearningAlgorithm):
 			if isinstance(pred_batch, dict) and len(pred_batch) == 1:
 				pred_batch = pred_batch[list(pred_batch.keys())[0]]
 			batch_loss = self.criterion(pred_batch, y_batch.to(pred_batch.device))
-		
-		trainer.update_state_(batch_loss=batch_loss)
 		return batch_loss
 	
-	def on_optimization_begin(self, trainer, **kwargs):
+	def _make_optim_step(self, pred_batch, y_batch, retain_graph=False):
 		self.optimizer.zero_grad()
-		batch_loss = self.apply_criterion(trainer)
-		batch_loss.backward()
+		batch_loss = self.apply_criterion(pred_batch, y_batch)
+		batch_loss.backward(retain_graph=retain_graph)
 		self.optimizer.step()
+		return batch_loss.detach_()
+	
+	def on_optimization_begin(self, trainer, **kwargs):
+		y_batch = trainer.current_training_state.y_batch
+		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+		batch_loss = self._make_optim_step(pred_batch, y_batch)
+		trainer.update_state_(batch_loss=batch_loss)
 	
 	def on_optimization_end(self, trainer):
 		self.optimizer.zero_grad()

@@ -460,6 +460,20 @@ class SequentialModel(BaseModel):
 		:rtype: List[nn.Module]
 		"""
 		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
+	
+	def get_layers(self, layer_names: Optional[List[str]] = None) -> List[nn.Module]:
+		"""
+		Get the layers with the specified names.
+		
+		:param layer_names: The names of the layers to get.
+		:type layer_names: Optional[List[str]]
+		
+		:return: The layers with the specified names.
+		:rtype: List[nn.Module]
+		"""
+		if layer_names is None:
+			return self.get_all_layers()
+		return [self.get_layer(layer_name) for layer_name in layer_names]
 
 	def get_all_layers_names(self) -> List[str]:
 		"""

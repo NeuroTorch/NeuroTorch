@@ -348,9 +348,9 @@ class Trainer:
 		with torch.no_grad():
 			torch.cuda.empty_cache()
 		losses = {}
-
-		self.callbacks.on_train_begin(self)
+		
 		self.model.train()
+		self.callbacks.on_train_begin(self)
 		self.current_training_state = self.current_training_state.update(batch_is_train=True)
 		train_loss = self._exec_epoch(train_dataloader)
 		self.current_training_state = self.current_training_state.update(train_loss=train_loss)
@@ -359,8 +359,8 @@ class Trainer:
 
 		if val_dataloader is not None:
 			with torch.no_grad():
-				self.callbacks.on_validation_begin(self)
 				self.model.eval()
+				self.callbacks.on_validation_begin(self)
 				self.current_training_state = self.current_training_state.update(batch_is_train=False)
 				val_loss = self._exec_epoch(val_dataloader)
 				self.current_training_state = self.current_training_state.update(val_loss=val_loss)

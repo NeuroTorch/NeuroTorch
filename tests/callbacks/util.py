@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+import neurotorch as nt
 from neurotorch.callbacks.base_callback import CallbacksList, BaseCallback
 from neurotorch.trainers.trainer import CurrentTrainingState
 
@@ -26,6 +27,9 @@ class MockHistory(BaseCallback):
 	
 	def __repr__(self):
 		return f"<History{self.ins_id}>"
+	
+	def plot(self, *args, **kwargs):
+		pass
 
 
 class MockTrainer:
@@ -35,8 +39,8 @@ class MockTrainer:
 		self.sort_flag = False
 		self.load_checkpoint_mode = None
 		self.force_overwrite = False
-		self.current_training_state = CurrentTrainingState.get_null_state()
-		self.model = None
+		self.current_training_state = CurrentTrainingState()
+		self.model = nt.SequentialModel(layers=[nt.LIFLayer(10, 10)]).build()
 		self.optimizer = None
 	
 	def sort_callbacks_(self):

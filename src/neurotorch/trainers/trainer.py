@@ -348,9 +348,9 @@ class Trainer:
 		with torch.no_grad():
 			torch.cuda.empty_cache()
 		losses = {}
-
-		self.callbacks.on_train_begin(self)
+		
 		self.model.train()
+		self.callbacks.on_train_begin(self)
 		self.current_training_state = self.current_training_state.update(batch_is_train=True)
 		train_loss = self._exec_epoch(train_dataloader)
 		self.current_training_state = self.current_training_state.update(train_loss=train_loss)
@@ -359,8 +359,8 @@ class Trainer:
 
 		if val_dataloader is not None:
 			with torch.no_grad():
-				self.callbacks.on_validation_begin(self)
 				self.model.eval()
+				self.callbacks.on_validation_begin(self)
 				self.current_training_state = self.current_training_state.update(batch_is_train=False)
 				val_loss = self._exec_epoch(val_dataloader)
 				self.current_training_state = self.current_training_state.update(val_loss=val_loss)
@@ -405,15 +405,12 @@ class Trainer:
 			x_batch,
 			y_batch,
 	):
-		self.callbacks.on_batch_begin(self)
 		x_batch = self._batch_to_dense(self._batch_to_device(x_batch))
 		y_batch = self._batch_to_dense(self._batch_to_device(y_batch))
+		self.update_state_(x_batch=x_batch, y_batch=y_batch)
+		self.callbacks.on_batch_begin(self)
 		pred_batch = self.get_pred_batch(x_batch)
-		self.update_state_(
-			x_batch=x_batch,
-			y_batch=y_batch,
-			pred_batch=pred_batch,
-		)
+		self.update_state_(pred_batch=pred_batch)
 		if self.model.training:
 			self.callbacks.on_optimization_begin(self, x=x_batch, y=y_batch, pred=pred_batch)
 			batch_loss = self.current_training_state.batch_loss

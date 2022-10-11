@@ -460,6 +460,20 @@ class SequentialModel(BaseModel):
 		:rtype: List[nn.Module]
 		"""
 		return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
+	
+	def get_layers(self, layer_names: Optional[List[str]] = None) -> List[nn.Module]:
+		"""
+		Get the layers with the specified names.
+		
+		:param layer_names: The names of the layers to get.
+		:type layer_names: Optional[List[str]]
+		
+		:return: The layers with the specified names.
+		:rtype: List[nn.Module]
+		"""
+		if layer_names is None:
+			return self.get_all_layers()
+		return [self.get_layer(layer_name) for layer_name in layer_names]
 
 	def get_all_layers_names(self) -> List[str]:
 		"""
@@ -992,6 +1006,9 @@ class SequentialModel(BaseModel):
 		time_steps = self._get_time_steps_from_inputs(inputs)
 		hidden_states = self._init_hidden_states_memory()
 		outputs_trace: Dict[str, List[torch.Tensor]] = defaultdict(list)
+		
+		# TODO: Fix the time idx that is passed to the forward functions. _integrate_inputs_ and _forecast_integration_
+		#   start at 0 that causes the time steps to go back to 0 (for the layers) when forecasting.
 
 		# integration of the inputs or the initial conditions
 		outputs_trace, hidden_states = self._integrate_inputs_(inputs, hidden_states, outputs_trace, time_steps)

@@ -24,9 +24,11 @@ class TBPTT(BPTT):
 		self._auto_set_backward_time_steps = backward_time_steps is None
 		self.backward_time_steps = backward_time_steps
 		self._auto_backward_time_steps_ratio = kwargs.get("auto_backward_time_steps_ratio", 0.1)
+		assert 0 < self._auto_backward_time_steps_ratio < 1, "auto_backward_time_steps_ratio must be between 0 and 1"
 		self._auto_set_optim_time_steps = optim_time_steps is None
 		self.optim_time_steps = optim_time_steps
 		self._auto_optim_time_steps_ratio = kwargs.get("auto_optim_time_steps_ratio", self._auto_backward_time_steps_ratio)
+		assert 0 < self._auto_optim_time_steps_ratio < 1, "auto_optim_time_steps_ratio must be between 0 and 1"
 		self._data_n_time_steps = 0
 		self._layers_buffer = defaultdict(list)
 		self._forwards_decorated = False

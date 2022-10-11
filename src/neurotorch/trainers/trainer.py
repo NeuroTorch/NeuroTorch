@@ -405,15 +405,12 @@ class Trainer:
 			x_batch,
 			y_batch,
 	):
-		self.callbacks.on_batch_begin(self)
 		x_batch = self._batch_to_dense(self._batch_to_device(x_batch))
 		y_batch = self._batch_to_dense(self._batch_to_device(y_batch))
+		self.update_state_(x_batch=x_batch, y_batch=y_batch)
+		self.callbacks.on_batch_begin(self)
 		pred_batch = self.get_pred_batch(x_batch)
-		self.update_state_(
-			x_batch=x_batch,
-			y_batch=y_batch,
-			pred_batch=pred_batch,
-		)
+		self.update_state_(pred_batch=pred_batch)
 		if self.model.training:
 			self.callbacks.on_optimization_begin(self, x=x_batch, y=y_batch, pred=pred_batch)
 			batch_loss = self.current_training_state.batch_loss

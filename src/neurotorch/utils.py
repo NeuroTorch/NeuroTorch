@@ -215,3 +215,18 @@ def sequence_get(__sequence: Sequence, idx: int, default: Any = None) -> Any:
 		return __sequence[idx]
 	except IndexError:
 		return default
+
+
+def list_insert_replace_at(__list: List, idx: int, value: Any):
+	"""
+	Insert a value at a specific index. If there is already a value at this index, replace it.
+	
+	:param __list: The list to modify.
+	:param idx: The index to insert the value.
+	:param value: The value to insert.
+	"""
+	if idx < len(__list):
+		__list[idx] = value
+	else:
+		__list.extend([None] * (idx - len(__list)))
+		__list.append(value)

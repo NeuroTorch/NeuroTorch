@@ -1006,6 +1006,9 @@ class SequentialModel(BaseModel):
 		time_steps = self._get_time_steps_from_inputs(inputs)
 		hidden_states = self._init_hidden_states_memory()
 		outputs_trace: Dict[str, List[torch.Tensor]] = defaultdict(list)
+		
+		# TODO: Fix the time idx that is passed to the forward functions. _integrate_inputs_ and _forecast_integration_
+		#   start at 0 that causes the time steps to go back to 0 (for the layers) when forecasting.
 
 		# integration of the inputs or the initial conditions
 		outputs_trace, hidden_states = self._integrate_inputs_(inputs, hidden_states, outputs_trace, time_steps)

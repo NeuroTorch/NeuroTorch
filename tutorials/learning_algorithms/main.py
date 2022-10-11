@@ -49,11 +49,13 @@ def make_learning_algorithm(**kwargs):
 	elif la_name == "eprop":
 		learning_algorithm = nt.Eprop()
 	elif la_name == "tbptt":
-		torch.autograd.set_detect_anomaly(True)
 		optimizer = torch.optim.AdamW(
 			kwargs["model"].parameters(), lr=kwargs["learning_rate"], maximize=True, weight_decay=0.1
 		)
-		learning_algorithm = nt.TBPTT(optimizer=optimizer, criterion=nt.losses.PVarianceLoss())
+		learning_algorithm = nt.TBPTT(
+			optimizer=optimizer, criterion=nt.losses.PVarianceLoss(),
+			auto_backward_time_steps_ratio=kwargs.get("auto_backward_time_steps_ratio", 0.1)
+		)
 	else:
 		raise ValueError(f"Unknown learning algorithm: {la_name}")
 	return learning_algorithm
@@ -207,8 +209,13 @@ def train_with_params(
 
 if __name__ == '__main__':
 	res = train_with_params(
-		params={"n_units": 200, "force_dale_law": False, "learning_algorithm": "tbptt"},
-		n_iterations=10,
+		params={
+			"n_units": 200,
+			"force_dale_law": False,
+			"learning_algorithm": "tbptt",
+			"auto_backward_time_steps_ratio": 0.25,
+		},
+		n_iterations=500,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 	)

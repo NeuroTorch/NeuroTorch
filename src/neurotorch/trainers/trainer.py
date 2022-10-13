@@ -1,6 +1,7 @@
 import warnings
 from collections import OrderedDict
-from typing import Iterable, Optional, List, Callable, Dict, Any, Union, NamedTuple
+from copy import deepcopy, copy
+from typing import Iterable, Optional, List, Callable, Dict, Any, Union, NamedTuple, Generator
 
 import numpy as np
 import torch
@@ -17,7 +18,32 @@ from ..regularization import BaseRegularization, RegularizationList
 
 
 class CurrentTrainingState(NamedTuple):
+	r"""
+	This class is used to store the current training state. It is extremely useful for the callbacks
+	to access the current training state and to personalize the training process.
+	
+	:Attributes:
+		- **n_iterations** (int): The total number of iterations.
+		- **iteration** (int): The current iteration.
+		- **epoch** (int): The current epoch.
+		- **batch** (int): The current batch.
+		- **x_batch** (Any): The current input batch.
+		- **y_batch** (Any): The current target batch.
+		- **pred_batch** (Any): The current prediction.
+		- **batch_loss** (float): The current loss.
+		- **batch_is_train** (bool): Whether the current batch is a training batch.
+		- **train_loss** (float): The current training loss.
+		- **val_loss** (float): The current validation loss.
+		- **itr_metrics** (Dict[str, Any]): The current iteration metrics.
+		- **stop_training_flag** (bool): Whether the training should be stopped.
+		- **info** (Dict[str, Any]): Any additional information. This is useful to communicate between callbacks.
+		- **objects** (Dict[str, Any]): Any additional objects. This is useful to manage objects between callbacks.
+			Note: In general, the train_dataloader and val_dataloader should be stored here.
+	
+	"""
+	n_iterations: Optional[int] = None
 	iteration: Optional[int] = None
+	n_epochs: Optional[int] = None
 	epoch: Optional[int] = None
 	epoch_loss: Optional[Any] = None
 	batch: Optional[int] = None
@@ -33,6 +59,12 @@ class CurrentTrainingState(NamedTuple):
 	itr_metrics: Optional[Dict[str, Any]] = None
 	stop_training_flag: bool = False
 	info: Dict[str, Any] = {}
+	objects: Dict[str, Any] = {}
+	
+	def __getstate__(self):
+		not_picklable = ["info", "objects"]
+		d = {k: v for k, v in self._asdict().items() if k not in not_picklable}
+		return d
 	
 	@staticmethod
 	def get_null_state() -> "CurrentTrainingState":
@@ -140,6 +172,15 @@ class Trainer:
 		:return: None
 		"""
 		self.model = value
+	
+	@property
+	def state(self):
+		"""
+		Alias for the :attr:`current_training_state` attribute.
+		
+		:return: The :attr:`current_training_state`
+		"""
+		return self.current_training_state
 
 	@property
 	def load_checkpoint_mode(self):
@@ -257,7 +298,13 @@ class Trainer:
 	
 	def update_state_(self, **kwargs):
 		self.current_training_state = self.current_training_state.update(**kwargs)
-
+	
+	def update_objects_state_(self, **kwargs):
+		self.update_state_(objects={**self.current_training_state.objects, **kwargs})
+	
+	def update_info_state_(self, **kwargs):
+		self.update_state_(info={**self.current_training_state.objects, **kwargs})
+	
 	def sort_callbacks_(self, reverse: bool = False) -> CallbacksList:
 		"""
 		Sort the callbacks by their priority. The higher the priority, the earlier the callback is called. In general,
@@ -289,33 +336,72 @@ class Trainer:
 			train_dataloader: DataLoader,
 			val_dataloader: Optional[DataLoader] = None,
 			n_iterations: Optional[int] = None,
+			*,
+			n_epochs: int = 1,
 			load_checkpoint_mode: LoadCheckpointMode = None,
 			force_overwrite: bool = False,
 			p_bar_position: Optional[int] = None,
 			p_bar_leave: Optional[bool] = None,
 			**kwargs
 	) -> TrainingHistory:
+		"""
+		Train the model.
+		
+		:param train_dataloader: The dataloader for the training set. It contains the training data.
+		:type train_dataloader: DataLoader
+		:param val_dataloader: The dataloader for the validation set. It contains the validation data.
+		:type val_dataloader: Optional[DataLoader]
+		:param n_iterations: The number of iterations to train the model. An iteration is a pass over the training set
+			and the validation set. If None, the model will be trained until the training is stopped by the user.
+		:type n_iterations: Optional[int]
+		:param n_epochs: The number of epochs to train the model. An epoch is a pass over the training set. The
+			nomenclature here is different from what is usually used elsewhere. Here, an epoch is a pass over the
+			training set, while an iteration is a pass over the training set and the validation set. In other words,
+			if `n_iterations=1` and `n_epochs=10`, the trainer will pass 10 times over the training set  and 1 time
+			over the validation set (this will constitute 1 iteration). If `n_iterations=10` and `n_epochs=1`, the
+			trainer will pass 10 times over the training set and 10 times over the validation set (this will constitute
+			10 iterations). The nuance between those terms is really important when is comes to reinforcement learning.
+			Default is 1.
+		:type n_epochs: int
+		:param load_checkpoint_mode: The mode to use when loading the checkpoint.
+		:type load_checkpoint_mode: LoadCheckpointMode
+		:param force_overwrite: Whether to force overwriting the checkpoint. Be careful when using this option, as it
+			will destroy the previous checkpoint folder. Default is False.
+		:type force_overwrite: bool
+		:param p_bar_position: The position of the progress bar. See tqdm documentation for more information.
+		:type p_bar_position: Optional[int]
+		:param p_bar_leave: Whether to leave the progress bar. See tqdm documentation for more information.
+		:type p_bar_leave: Optional[bool]
+		:param kwargs: Additional keyword arguments.
+		
+		:return: The training history.
+		"""
 		self._load_checkpoint_mode = load_checkpoint_mode
 		self._force_overwrite = force_overwrite
 		self.kwargs.update(kwargs)
-		if n_iterations is None:
-			n_iterations = self.kwargs["n_epochs"]
+		self.update_state_(
+			n_iterations=n_iterations,
+			n_epochs=n_epochs,
+			objects={
+				**self.current_training_state.objects,
+				**{"train_dataloader": train_dataloader, "val_dataloader": val_dataloader}
+			}
+		)
 		self.sort_callbacks_()
 		self.callbacks.start(self)
 		self.load_state()
 		if self.current_training_state.iteration is None:
 			self.update_state_(iteration=0)
 		p_bar = tqdm(
-			range(self.current_training_state.iteration, n_iterations),
 			initial=self.current_training_state.iteration,
-			total=n_iterations,
+			total=self.current_training_state.n_iterations,
 			desc=kwargs.get("desc", "Training"),
 			disable=not self.verbose,
 			position=p_bar_position,
 			unit="itr",
 			leave=p_bar_leave
 		)
-		for i in p_bar:
+		for i in self._iterations_generator(p_bar):
 			self.update_state_(iteration=i)
 			self.callbacks.on_iteration_begin(self)
 			itr_loss = self._exec_iteration(train_dataloader, val_dataloader)
@@ -339,6 +425,29 @@ class Trainer:
 		self.callbacks.close(self)
 		p_bar.close()
 		return self.training_history
+	
+	def _iterations_generator(self, p_bar: tqdm) -> Generator:
+		"""
+		Generator that yields the current iteration and updates the state and the p_bar.
+		
+		:return: The current iteration.
+		"""
+		while self.current_training_state.iteration < self._get_numeric_n_iterations():
+			yield self.current_training_state.iteration
+			self.update_state_(iteration=self.current_training_state.iteration + 1)
+			p_bar.total = self.current_training_state.n_iterations
+			p_bar.update()
+	
+	def _get_numeric_n_iterations(self) -> int:
+		"""
+		Returns the number of iterations.
+		
+		:return: The number of iterations.
+		"""
+		n_iterations = self.current_training_state.n_iterations
+		if n_iterations is None:
+			n_iterations = np.inf
+		return n_iterations
 
 	def _exec_iteration(
 			self,
@@ -351,9 +460,13 @@ class Trainer:
 		
 		self.model.train()
 		self.callbacks.on_train_begin(self)
-		self.current_training_state = self.current_training_state.update(batch_is_train=True)
-		train_loss = self._exec_epoch(train_dataloader)
-		self.current_training_state = self.current_training_state.update(train_loss=train_loss)
+		self.update_state_(batch_is_train=True)
+		train_losses = []
+		for epoch_idx in range(self.current_training_state.n_epochs):
+			self.update_state_(epoch=epoch_idx)
+			train_losses.append(self._exec_epoch(train_dataloader))
+		train_loss = np.mean(train_losses)
+		self.update_state_(train_loss=train_loss)
 		self.callbacks.on_train_end(self)
 		losses["train_loss"] = train_loss
 
@@ -361,9 +474,9 @@ class Trainer:
 			with torch.no_grad():
 				self.model.eval()
 				self.callbacks.on_validation_begin(self)
-				self.current_training_state = self.current_training_state.update(batch_is_train=False)
+				self.update_state_(batch_is_train=False)
 				val_loss = self._exec_epoch(val_dataloader)
-				self.current_training_state = self.current_training_state.update(val_loss=val_loss)
+				self.update_state_(val_loss=val_loss)
 				self.callbacks.on_validation_end(self)
 				losses["val_loss"] = val_loss
 		
@@ -521,5 +634,14 @@ class Trainer:
 		if isinstance(batch, torch.Tensor):
 			return batch.to(self.device, non_blocking=True)
 		return batch
+	
+	def __repr__(self):
+		repr_ = f"{self.__class__.__name__}("
+		repr_ += f"\n\tmodel={self.model}, "
+		repr_ += f"\n\tpredict_method={self.predict_method}, "
+		repr_ += f"\n\tcallbacks={self.callbacks}"
+		repr_ += f")@{self.device}"
+		return repr_
+		
 
 

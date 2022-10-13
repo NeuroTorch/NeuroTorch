@@ -45,8 +45,7 @@ class WSDataset(Dataset):
 				f"File {filename} not found in the list of available files: {list(self.FILE_ID_NAME.keys())}."
 			GoogleDriveDownloader(self.FILE_ID_NAME[filename], path, skip_existing=True, verbose=False).download()
 		ts = np.load(path)
-		ts = ts[:, :700]
-		n_neurons, n_shape = ts.shape
+		n_neurons, self.max_time_steps = ts.shape
 		sample = np.random.randint(n_neurons, size=sample_size)
 		data = ts[sample, :]
 
@@ -56,6 +55,15 @@ class WSDataset(Dataset):
 			data[neuron, :] = data[neuron, :] / (np.max(data[neuron, :]) + 1e-5)
 		self.original_time_series = data
 		self.x = torch.tensor(data.T, dtype=torch.float32, device=device)
+		self._n_time_steps = int(np.clip(kwargs.get("n_time_steps", self.max_time_steps), -np.inf, self.max_time_steps))
+		
+	@property
+	def n_time_steps(self):
+		return self._n_time_steps
+	
+	@n_time_steps.setter
+	def n_time_steps(self, value):
+		self._n_time_steps = int(np.clip(value, -np.inf, self.max_time_steps))
 
 	def __len__(self):
 		"""
@@ -68,7 +76,7 @@ class WSDataset(Dataset):
 		"""
 		return the initial condition and the time series that will be use for training.
 		"""
-		return torch.unsqueeze(self.x[0], dim=0), self.x[1:]
+		return torch.unsqueeze(self.x[0], dim=0), self.x[1:self.n_time_steps]
 
 	@property
 	def full_time_series(self):

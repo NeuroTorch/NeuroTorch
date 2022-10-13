@@ -11,28 +11,32 @@ class BaseCallback:
 		- Batch: One forward pass through the network.
 		- Train: One full pass through the training dataset.
 		- Validation: One full pass through the validation dataset.
-		
+	
 	Callbacks methods are called in the following order:
 		- :meth:`start`
 		- :meth:`load_checkpoint_state`
-		- :meth:`on_iteration_begin`
-		- :meth:`on_train_begin`
-		- :meth:`on_epoch_begin`
-		- :meth:`on_batch_begin`
-		- :meth:`on_optimization_begin`
-		- :meth:`on_optimization_end`
-		- :meth:`on_batch_end`
-		- :meth:`on_epoch_end`
-		- :meth:`on_train_end`
-		- :meth:`on_validation_begin`
-		- :meth:`on_epoch_begin`
-		- :meth:`on_batch_begin`
-		- :meth:`on_batch_end`
-		- :meth:`on_epoch_end`
-		- :meth:`on_validation_end`
-		- :meth:`on_iteration_end`
+		* Executes n_iterations times:
+			- :meth:`on_iteration_begin`
+			- :meth:`on_train_begin`
+			* Executes n_epochs times:
+				- :meth:`on_epoch_begin`
+				* Executes n_batches times:
+					- :meth:`on_batch_begin`
+					- :meth:`on_optimization_begin`
+					- :meth:`on_optimization_end`
+					- :meth:`on_batch_end`
+				- :meth:`on_epoch_end`
+			- :meth:`on_train_end`
+			- :meth:`on_validation_begin`
+			- :meth:`on_epoch_begin`
+			* Executes n_batches times:
+				- :meth:`on_batch_begin`
+				- :meth:`on_batch_end`
+			- :meth:`on_epoch_end`
+			- :meth:`on_validation_end`
+			- :meth:`on_iteration_end`
 		- :meth:`close`
-		
+	
 	:Note: The special method :meth:`get_checkpoint_state` is called by the object :class:`CheckpointManager` to
 		save the state of the callback in the checkpoint file. The when this method is called is then determined by
 		the :class:`CheckpointManager` object if it is used in the trainer callbacks. In the same way, the method
@@ -303,6 +307,14 @@ class BaseCallback:
 		except:
 			pass
 		self.__class__.instance_counter -= 1
+		
+	def __repr__(self):
+		repr_str = f"{self.name}("
+		repr_str += f"priority={self.priority}, "
+		repr_str += f"save_state={self.save_state}, "
+		repr_str += f"load_state={self.load_state}"
+		repr_str += f")"
+		return repr_str
 
 	
 class CallbacksList:
@@ -371,6 +383,12 @@ class CallbacksList:
 		:rtype: int
 		"""
 		return self._length
+	
+	def __repr__(self):
+		repr_str = f"{self.__class__.__name__}("
+		repr_str += f"{self.callbacks}"
+		repr_str += f")"
+		return repr_str
 
 	def append(self, callback: BaseCallback):
 		"""

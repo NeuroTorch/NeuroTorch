@@ -1,8 +1,11 @@
+import pprint
+
 from torch.utils.data import DataLoader
 
 import neurotorch as nt
 from neurotorch.callbacks.convergence import ConvergenceTimeGetter
 from neurotorch.callbacks.early_stopping import EarlyStoppingThreshold
+from neurotorch.callbacks.events import EventOnMetricThreshold
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
 from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
@@ -12,19 +15,37 @@ from neurotorch.visualisation.time_series_visualisation import *
 from tutorials.time_series_forecasting_wilson_cowan.dataset import WSDataset
 
 
+def increase_trainer_iteration_event(trainer, **kwargs):
+	trainer.update_state_(n_iterations=int(trainer.state.n_iterations * kwargs.get("delta_iterations", 1.5)))
+
+
+def increase_n_time_steps_event(trainer, **kwargs):
+	dataset = trainer.state.objects["train_dataloader"].dataset
+	old_n_time_steps = dataset.n_time_steps
+	dataset.n_time_steps += kwargs.get("delta_time_steps", 10)
+	trainer.model.out_memory_size = dataset.n_time_steps - 1
+	trainer.model.foresight_time_steps = dataset.n_time_steps - 1
+	if old_n_time_steps != dataset.n_time_steps:
+		trainer.update_state_(
+			n_iterations=int(
+				trainer.state.n_iterations * kwargs.get("delta_iterations", 1.5) + trainer.state.iteration
+			)
+		)
+	return f"({dataset.n_time_steps=})"
+	
+
 def set_default_param(**kwargs):
 	kwargs.setdefault("filename", None)
 	kwargs.setdefault("sigma", 20.0)
 	kwargs.setdefault("learning_rate", 1e-2)
-	kwargs.setdefault("n_iterations", 100)
 	kwargs.setdefault("std_weights", 1)
 	kwargs.setdefault("dt", 0.02)
 	kwargs.setdefault("mu", 0.0)
 	kwargs.setdefault("mean_mu", 0.0)
 	kwargs.setdefault("std_mu", 1.0)
 	kwargs.setdefault("r", 0.1)
-	kwargs.setdefault("mean_r", 0.2)
-	kwargs.setdefault("std_r", 0.0)
+	kwargs.setdefault("mean_r", 0.5)
+	kwargs.setdefault("std_r", 0.4)
 	kwargs.setdefault("tau", 0.1)
 	kwargs.setdefault("learn_mu", True)
 	kwargs.setdefault("learn_r", True)
@@ -43,14 +64,16 @@ def make_learning_algorithm(**kwargs):
 	la_name = kwargs.get("learning_algorithm", kwargs.get("la", "bptt")).lower()
 	if la_name == "bptt":
 		optimizer = torch.optim.AdamW(
-			kwargs["model"].parameters(), lr=kwargs["learning_rate"], maximize=True, weight_decay=0.1
+			kwargs["model"].parameters(), lr=kwargs["learning_rate"], maximize=True,
+			weight_decay=kwargs.get("weight_decay", 0.1)
 		)
 		learning_algorithm = nt.BPTT(optimizer=optimizer, criterion=nt.losses.PVarianceLoss())
 	elif la_name == "eprop":
 		learning_algorithm = nt.Eprop()
 	elif la_name == "tbptt":
 		optimizer = torch.optim.AdamW(
-			kwargs["model"].parameters(), lr=kwargs["learning_rate"], maximize=True, weight_decay=0.1
+			kwargs["model"].parameters(), lr=kwargs["learning_rate"], maximize=True,
+			weight_decay=kwargs.get("weight_decay", 0.1)
 		)
 		learning_algorithm = nt.TBPTT(
 			optimizer=optimizer, criterion=nt.losses.PVarianceLoss(),
@@ -80,7 +103,8 @@ def train_with_params(
 		filename=params["filename"],
 		sample_size=params["n_units"],
 		smoothing_sigma=params["sigma"],
-		device=device
+		device=device,
+		n_time_steps=100,
 	)
 	x = dataset.full_time_series
 	forward_weights = nt.init.dale_(torch.zeros(params["n_units"], params["n_units"]), inh_ratio=0.5, rho=0.2)
@@ -111,7 +135,7 @@ def train_with_params(
 		ws_layer_i.name = f"WilsonCowan_layer{i+1}"
 		layers.append(ws_layer_i)
 
-	model = nt.SequentialModel(layers=layers, device=device, foresight_time_steps=x.shape[1] - 1).build()
+	model = nt.SequentialModel(layers=layers, device=device, foresight_time_steps=dataset.n_time_steps - 1).build()
 
 	# Regularization on the connectome can be applied on one connectome or on all connectomes (or none).
 	if params["force_dale_law"]:
@@ -127,14 +151,15 @@ def train_with_params(
 		minimise_metric=False,
 		save_freq=-1,
 		save_best_only=True,
-		start_save_at=int(0.98 * n_iterations),
+		# start_save_at=int(1.98 * n_iterations),
+		start_save_at=np.inf,
 	)
 	convergence_time_getter = ConvergenceTimeGetter(metric='train_loss', threshold=0.95, minimize_metric=False)
 	learning_algorithm = make_learning_algorithm(**params, model=model)
 	callbacks = [
 		LRSchedulerOnMetric(
 			'train_loss',
-			metric_schedule=np.linspace(0.97, 1.0, 100),
+			metric_schedule=np.linspace(0.92, 1.0, 100),
 			min_lr=params["learning_rate"] / 10,
 			retain_progress=True,
 		),
@@ -142,6 +167,16 @@ def train_with_params(
 		checkpoint_manager,
 		convergence_time_getter,
 		EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
+		# EventOnMetricThreshold(
+		# 	metric_name='train_loss', threshold=0.8, minimize_metric=False,
+		# 	event=increase_trainer_iteration_event, do_once=False, event_kwargs={"delta_iterations": 2}
+		# ),
+		EventOnMetricThreshold(
+			metric_name='train_loss', threshold=0.8, minimize_metric=False,
+			event=increase_n_time_steps_event, do_once=False,
+			event_kwargs={"delta_time_steps": 100, "delta_iterations": 2.0},
+			name="increase_n_time_steps_event",
+		),
 	]
 
 	with torch.no_grad():
@@ -167,13 +202,15 @@ def train_with_params(
 		metrics=[regularisation],
 	)
 	trainer.train(
-		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),
+		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type != "cpu"),
 		n_iterations=n_iterations,
 		exec_metrics_on_train=True,
 		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
 		force_overwrite=kwargs["force_overwrite"],
 	)
-
+	
+	model.foresight_time_steps = x.shape[1] - 1
+	model.out_memory_size = model.foresight_time_steps
 	x_pred = torch.concat([
 		torch.unsqueeze(x[:, 0].clone(), dim=1).to(model.device),
 		model.get_prediction_trace(torch.unsqueeze(x[:, 0].clone(), dim=1))
@@ -208,17 +245,22 @@ def train_with_params(
 
 
 if __name__ == '__main__':
+	import matplotlib
+	matplotlib.use('qtagg')
+	
 	res = train_with_params(
 		params={
 			"n_units": 200,
 			"force_dale_law": False,
-			"learning_algorithm": "tbptt",
+			"learning_algorithm": "bptt",
 			"auto_backward_time_steps_ratio": 0.25,
+			"weight_decay": 1e-5,
 		},
-		n_iterations=500,
+		n_iterations=100,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 	)
+	pprint.pprint({k: v for k, v in res.items() if isinstance(v, (int, float, str, bool))})
 
 	if res["force_dale_law"]:
 		print(f"initiale ratio {res['ratio_0']:.3f}, finale ratio {res['ratio_end']:.3f}")

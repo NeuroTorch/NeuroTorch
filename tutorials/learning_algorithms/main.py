@@ -104,7 +104,7 @@ def train_with_params(
 		sample_size=params["n_units"],
 		smoothing_sigma=params["sigma"],
 		device=device,
-		n_time_steps=100,
+		n_time_steps=110,
 	)
 	x = dataset.full_time_series
 	forward_weights = nt.init.dale_(torch.zeros(params["n_units"], params["n_units"]), inh_ratio=0.5, rho=0.2)
@@ -174,7 +174,7 @@ def train_with_params(
 		EventOnMetricThreshold(
 			metric_name='train_loss', threshold=0.8, minimize_metric=False,
 			event=increase_n_time_steps_event, do_once=False,
-			event_kwargs={"delta_time_steps": 100, "delta_iterations": 2.0},
+			event_kwargs={"delta_time_steps": 100, "delta_iterations": 1.1},
 			name="increase_n_time_steps_event",
 		),
 	]
@@ -201,6 +201,7 @@ def train_with_params(
 		regularization=regularisation,
 		metrics=[regularisation],
 	)
+	print(f"{trainer}")
 	trainer.train(
 		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type != "cpu"),
 		n_iterations=n_iterations,
@@ -256,7 +257,7 @@ if __name__ == '__main__':
 			"auto_backward_time_steps_ratio": 0.25,
 			"weight_decay": 1e-5,
 		},
-		n_iterations=100,
+		n_iterations=300,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 	)

@@ -45,7 +45,6 @@ class WSDataset(Dataset):
 				f"File {filename} not found in the list of available files: {list(self.FILE_ID_NAME.keys())}."
 			GoogleDriveDownloader(self.FILE_ID_NAME[filename], path, skip_existing=True, verbose=False).download()
 		ts = np.load(path)
-		ts = ts[:, :700]
 		n_neurons, n_shape = ts.shape
 		sample = np.random.randint(n_neurons, size=sample_size)
 		data = ts[sample, :]

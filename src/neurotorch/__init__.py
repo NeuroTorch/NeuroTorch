@@ -23,7 +23,6 @@ from .modules.sequential import (
 )
 
 from .modules.layers import (
-	LearningType,
 	LayerType,
 	LILayer,
 	LIFLayer,

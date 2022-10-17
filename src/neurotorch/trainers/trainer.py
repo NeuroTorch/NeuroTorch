@@ -140,6 +140,7 @@ class Trainer:
 		assert callable(getattr(model, predict_method)), f"Model method '{predict_method}' is not callable"
 		self.criterion = self._set_default_criterion(criterion)
 		self.regularization = self._set_default_regularization(regularization)
+		# self._maybe_add_regularization(self.regularization)
 		self.optimizer = self._set_default_optimizer(optimizer)
 		self.regularization_optimizer = self._set_default_reg_optimizer(regularization_optimizer)
 		self.metrics = self._set_default_metrics(metrics)
@@ -235,6 +236,10 @@ class Trainer:
 			learning_algorithm = BPTT()
 		if learning_algorithm is not None:
 			self.callbacks.append(learning_algorithm)
+			
+	def _maybe_add_regularization(self, regularization: Optional[RegularizationList]) -> None:
+		if regularization is not None:
+			self.callbacks.append(regularization)
 	
 	def _set_default_reg_optimizer(self, optimizer: Optional[torch.optim.Optimizer]) -> torch.optim.Optimizer:
 		warnings.warn("The 'regularization_optimizer' parameter is deprecated. Use the 'callbacks' parameter instead.", DeprecationWarning)
@@ -507,8 +512,7 @@ class Trainer:
 		batch_losses = []
 		for i, (x_batch, y_batch) in enumerate(dataloader):
 			self.update_state_(batch=i)
-			self._exec_batch(x_batch, y_batch)
-			batch_losses.append(to_numpy(self.current_training_state.batch_loss))
+			batch_losses.append(to_numpy(self._exec_batch(x_batch, y_batch)))
 		mean_loss = np.mean(batch_losses)
 		self.callbacks.on_epoch_end(self)
 		return mean_loss
@@ -526,35 +530,17 @@ class Trainer:
 		self.update_state_(pred_batch=pred_batch)
 		if self.model.training:
 			self.callbacks.on_optimization_begin(self, x=x_batch, y=y_batch, pred=pred_batch)
-			batch_loss = self.current_training_state.batch_loss
-			if self.criterion is not None:
-				batch_loss += self.apply_criterion_on_batch(x_batch, y_batch, pred_batch)
-			
-			if (
-					hasattr(self.model, "get_and_reset_regularization_loss")
-					and callable(self.model.get_and_reset_regularization_loss)
-			):
-				aux_regularization_loss = self.model.get_and_reset_regularization_loss()
-				batch_loss += aux_regularization_loss
-			if self.regularization_optimizer is None and self.regularization is not None:
-				regularization_loss = self.regularization()
-				batch_loss += regularization_loss
-			self.update_state_(batch_loss=batch_loss)
-		
-			if self.optimizer is not None:
-				self.model.zero_grad()
-				self.optimizer.zero_grad()
-				batch_loss.backward()
-				self.optimizer.step()
-			if self.regularization_optimizer is not None and self.regularization is not None:
-				regularization_loss = self.regularization()
-				self.model.zero_grad()
-				self.regularization_optimizer.zero_grad()
-				regularization_loss.backward()
-				self.regularization_optimizer.step()
 			self.callbacks.on_optimization_end(self)
+		else:
+			self.callbacks.on_validation_batch_begin(self, x=x_batch, y=y_batch, pred=pred_batch)
+			self.callbacks.on_validation_batch_end(self)
 		self.callbacks.on_batch_end(self)
-		return batch_loss.item()
+		batch_loss = self.current_training_state.batch_loss
+		if batch_loss is None:
+			batch_loss = 0.0
+		else:
+			batch_loss = batch_loss.item()
+		return batch_loss
 	
 	def get_pred_batch(
 			self,

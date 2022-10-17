@@ -33,34 +33,19 @@ class TBPTT(BPTT):
 		self._layers_buffer = defaultdict(list)
 		self._forwards_decorated = False
 	
-	def load_checkpoint_state(self, trainer, checkpoint: dict):
-		if self.save_state:
-			state = checkpoint.get(self.name, {})
-			opt_state_dict = state.get(self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY, None)
-			if opt_state_dict is not None:
-				self.optimizer.load_state_dict(opt_state_dict)
-	
-	def get_checkpoint_state(self, trainer) -> object:
-		if self.save_state:
-			if self.optimizer is not None:
-				return {
-					self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: self.optimizer.state_dict()
-				}
-		return None
-	
-	def start(self, trainer):
+	def start(self, trainer, **kwargs):
 		super().start(trainer)
 		self.output_layers: torch.nn.ModuleDict = trainer.model.output_layers
 		self._initialize_original_forwards()
 		
-	def on_batch_begin(self, trainer):
+	def on_batch_begin(self, trainer, **kwargs):
 		super().on_batch_begin(trainer)
 		self.trainer = trainer
 		self._data_n_time_steps = self._get_data_time_steps_from_y_batch(trainer.current_training_state.y_batch)
 		self._maybe_update_time_steps()
 		self.decorate_forwards()
 	
-	def on_batch_end(self, trainer):
+	def on_batch_end(self, trainer, **kwargs):
 		super().on_batch_end(trainer)
 		self.undecorate_forwards()
 		self._layers_buffer.clear()
@@ -162,11 +147,11 @@ class TBPTT(BPTT):
 		batch_loss = self.apply_criterion(pred_batch, y_batch)
 		trainer.update_state_(batch_loss=batch_loss)
 	
-	def on_optimization_end(self, trainer):
+	def on_optimization_end(self, trainer, **kwargs):
 		super(TBPTT, self).on_optimization_end(trainer)
 		self._layers_buffer.clear()
 	
-	def close(self, trainer):
+	def close(self, trainer, **kwargs):
 		self.undecorate_forwards()
 		super(TBPTT, self).close(trainer)
 

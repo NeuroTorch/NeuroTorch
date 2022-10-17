@@ -335,7 +335,7 @@ class TrainingHistory(BaseCallback):
 		fig.canvas.flush_events()
 		return fig, axes, lines
 
-	def on_iteration_end(self, trainer):
+	def on_iteration_end(self, trainer, **kwargs):
 		"""
 		Insert the current metrics into the container.
 		

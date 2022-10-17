@@ -55,7 +55,7 @@ class EventOnMetricThreshold(BaseCallback):
 		self.do_once = do_once
 		self._has_triggered = False
 	
-	def on_iteration_end(self, trainer):
+	def on_iteration_end(self, trainer, **kwargs):
 		"""
 		Check if the metric value reach the threshold.
 		

@@ -34,7 +34,7 @@ class SpikeFunction(torch.autograd.Function):
 			ctx: torch.autograd.function.FunctionCtx,
 			inputs: torch.Tensor,
 			threshold: torch.Tensor = torch.tensor(1.0),
-			gamma: torch.Tensor = torch.tensor(0.3)
+			gamma: torch.Tensor = torch.tensor(1.0)
 	) -> torch.Tensor:
 		"""
 		The forward pass of the spike function is the Heaviside function. See the heaviside equation.

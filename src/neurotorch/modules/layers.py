@@ -724,7 +724,8 @@ class BaseNeuronsLayer(BaseLayer):
 		if self.use_recurrent_connection:
 			_repr += "<"
 		_repr += f"->{int(self.output_size)})"
-		_repr += f"[{self.learning_type}]"
+		if self.freeze_weights:
+			_repr += "[frozen]"
 		_repr += f"@{self.device}"
 		return _repr
 

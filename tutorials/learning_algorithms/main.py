@@ -69,7 +69,7 @@ def make_learning_algorithm(**kwargs):
 		)
 		learning_algorithm = nt.BPTT(optimizer=optimizer, criterion=nt.losses.PVarianceLoss())
 	elif la_name == "eprop":
-		learning_algorithm = nt.Eprop()
+		learning_algorithm = nt.Eprop(criterion=nt.losses.PVarianceLoss())
 	elif la_name == "tbptt":
 		optimizer = torch.optim.AdamW(
 			kwargs["model"].parameters(), lr=kwargs["learning_rate"], maximize=True,
@@ -157,12 +157,12 @@ def train_with_params(
 	convergence_time_getter = ConvergenceTimeGetter(metric='train_loss', threshold=0.95, minimize_metric=False)
 	learning_algorithm = make_learning_algorithm(**params, model=model)
 	callbacks = [
-		LRSchedulerOnMetric(
-			'train_loss',
-			metric_schedule=np.linspace(0.92, 1.0, 100),
-			min_lr=params["learning_rate"] / 10,
-			retain_progress=True,
-		),
+		# LRSchedulerOnMetric(
+		# 	'train_loss',
+		# 	metric_schedule=np.linspace(0.92, 1.0, 100),
+		# 	min_lr=params["learning_rate"] / 10,
+		# 	retain_progress=True,
+		# ),
 		learning_algorithm,
 		checkpoint_manager,
 		convergence_time_getter,
@@ -253,7 +253,7 @@ if __name__ == '__main__':
 		params={
 			"n_units": 200,
 			"force_dale_law": False,
-			"learning_algorithm": "bptt",
+			"learning_algorithm": "eprop",
 			"auto_backward_time_steps_ratio": 0.25,
 			"weight_decay": 1e-5,
 		},

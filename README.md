@@ -38,7 +38,7 @@ What can we do with NeuroTorch in the current version?
 
 ### Next Version (v0.0.1-beta)
 
-- Learning Algorithm: FullForce.
+- Learning Algorithm: [RLS](https://doi.org/10.7554/eLife.37124).
 - Learning Algorithm: [Eligibility-Propagation](https://doi.org/10.1038/s41467-020-17236-y).
 
 ### Upcoming Version (v0.0.1)

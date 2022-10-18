@@ -10,16 +10,10 @@ import torchvision
 from matplotlib import pyplot as plt
 
 
-def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
+def batchwise_temporal_decay(x: torch.Tensor, decay: float = 0.9):
 	r"""
 	
-	Apply a low-pass filter to the input tensor along the temporal dimension.
-	
-	.. math::
-		\begin{equation}\label{eqn:low-pass-filter}
-			\mathcal{F}_\alpha\qty(x^t) = \alpha\mathcal{F}_\alpha\qty(x^{t-1}) + x^t.
-		\end{equation}
-		:label: eqn:low-pass-filter
+	Apply a decay filter to the input tensor along the temporal dimension.
 	
 	:param x: Input of shape (batch_size, time_steps, ...).
 	:type x: torch.Tensor
@@ -36,6 +30,36 @@ def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 	
 	x = torch.mul(x, weighs.unsqueeze(0).unsqueeze(-1))
 	x = torch.sum(x, dim=1)
+	return x
+
+
+def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
+	r"""
+
+	Apply a low-pass filter to the input tensor along the temporal dimension.
+
+	.. math::
+		\begin{equation}\label{eqn:low-pass-filter}
+			\mathcal{F}_\alpha\qty(x^t) = \alpha\mathcal{F}_\alpha\qty(x^{t-1}) + x^t.
+		\end{equation}
+		:label: eqn:low-pass-filter
+
+	:param x: Input of shape (batch_size, time_steps, ...).
+	:type x: torch.Tensor
+	:param decay: Decay factor of the filter.
+	:type decay: float
+
+	:return: Filtered input of shape (batch_size, time_steps, ...).
+	"""
+	batch_size, time_steps, *_ = x.shape
+	assert time_steps >= 1
+	
+	# TODO: check if this is correct
+	powers = torch.arange(time_steps, dtype=torch.float32, device=x.device).flip(0)
+	weighs = torch.pow(decay, powers)
+	
+	x = torch.mul(x, weighs.unsqueeze(0).unsqueeze(-1))
+	x = torch.cumsum(x, dim=1)
 	return x
 
 

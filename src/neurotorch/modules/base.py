@@ -155,10 +155,13 @@ class BaseModel(torch.nn.Module):
 		
 		:return: None
 		"""
+		self.to(device, non_blocking=True)
+		
+	def to(self, device: torch.device, non_blocking: bool = True):
 		self._device = device
 		self._remove_to_device_transform_()
 		self._add_to_device_transform_()
-		self.to(device, non_blocking=True)
+		return super(BaseModel, self).to(device, non_blocking=non_blocking)
 
 	def _make_input_transform(
 			self,

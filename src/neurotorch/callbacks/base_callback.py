@@ -340,7 +340,7 @@ class BaseCallback:
 		self.__class__.instance_counter -= 1
 		
 	def __repr__(self):
-		repr_str = f"{self.name}("
+		repr_str = f"{self.name}: ("
 		repr_str += f"priority={self.priority}, "
 		repr_str += f"save_state={self.save_state}, "
 		repr_str += f"load_state={self.load_state}"
@@ -416,8 +416,9 @@ class CallbacksList:
 		return self._length
 	
 	def __repr__(self):
-		repr_str = f"{self.__class__.__name__}("
-		repr_str += f"{self.callbacks}"
+		repr_str = f"{self.__class__.__name__}(\n"
+		for callback in self.callbacks:
+			repr_str += f"\t{repr(callback)}, \n"
 		repr_str += f")"
 		return repr_str
 

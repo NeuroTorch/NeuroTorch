@@ -79,6 +79,11 @@ def make_learning_algorithm(**kwargs):
 			optimizer=optimizer, criterion=nt.losses.PVarianceLoss(),
 			auto_backward_time_steps_ratio=kwargs.get("auto_backward_time_steps_ratio", 0.1)
 		)
+	elif la_name == "weakrls":
+		learning_algorithm = nt.WeakRLS(
+			criterion=nt.losses.PVarianceLoss(),
+			device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+		)
 	else:
 		raise ValueError(f"Unknown learning algorithm: {la_name}")
 	return learning_algorithm
@@ -202,13 +207,14 @@ def train_with_params(
 		metrics=[regularisation],
 	)
 	print(f"{trainer}")
-	trainer.train(
-		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type != "cpu"),
+	history = trainer.train(
+		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),
 		n_iterations=n_iterations,
 		exec_metrics_on_train=True,
 		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
 		force_overwrite=kwargs["force_overwrite"],
 	)
+	history.plot(show=True)
 	
 	model.foresight_time_steps = x.shape[1] - 1
 	model.out_memory_size = model.foresight_time_steps
@@ -251,13 +257,13 @@ if __name__ == '__main__':
 	
 	res = train_with_params(
 		params={
-			"n_units": 200,
+			"n_units": 128,
 			"force_dale_law": False,
-			"learning_algorithm": "eprop",
+			"learning_algorithm": "WeakRLS",
 			"auto_backward_time_steps_ratio": 0.25,
 			"weight_decay": 1e-5,
 		},
-		n_iterations=300,
+		n_iterations=30,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 	)

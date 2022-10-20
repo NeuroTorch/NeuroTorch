@@ -56,7 +56,7 @@ class CurrentTrainingState(NamedTuple):
 	val_loss: Optional[Any] = None
 	train_metrics: Optional[Any] = None
 	val_metrics: Optional[Any] = None
-	itr_metrics: Optional[Dict[str, Any]] = None
+	itr_metrics: Optional[Dict[str, Any]] = {}
 	stop_training_flag: bool = False
 	info: Dict[str, Any] = {}
 	objects: Dict[str, Any] = {}
@@ -308,7 +308,10 @@ class Trainer:
 		self.update_state_(objects={**self.current_training_state.objects, **kwargs})
 	
 	def update_info_state_(self, **kwargs):
-		self.update_state_(info={**self.current_training_state.objects, **kwargs})
+		self.update_state_(info={**self.current_training_state.info, **kwargs})
+		
+	def update_itr_metrics_state_(self, **kwargs):
+		self.update_state_(itr_metrics={**self.current_training_state.itr_metrics, **kwargs})
 	
 	def sort_callbacks_(self, reverse: bool = False) -> CallbacksList:
 		"""
@@ -408,6 +411,7 @@ class Trainer:
 		)
 		for i in self._iterations_generator(p_bar):
 			self.update_state_(iteration=i)
+			self.update_state_(itr_metrics={})
 			self.callbacks.on_iteration_begin(self)
 			itr_loss = self._exec_iteration(train_dataloader, val_dataloader)
 			if self.kwargs["exec_metrics_on_train"]:
@@ -418,9 +422,8 @@ class Trainer:
 				itr_val_metrics = self._exec_metrics(val_dataloader, prefix="val")
 			else:
 				itr_val_metrics = {}
-			itr_metrics = dict(**itr_loss, **itr_train_metrics, **itr_val_metrics)
-			postfix = {f"{k}": f"{v:.5e}" for k, v in itr_metrics.items()}
-			self.update_state_(itr_metrics=itr_metrics)
+			self.update_itr_metrics_state_(**dict(**itr_loss, **itr_train_metrics, **itr_val_metrics))
+			postfix = {f"{k}": f"{v:.5e}" for k, v in self.state.itr_metrics.items()}
 			postfix.update(self.callbacks.on_pbar_update(self))
 			self.callbacks.on_iteration_end(self)
 			p_bar.set_postfix(postfix)

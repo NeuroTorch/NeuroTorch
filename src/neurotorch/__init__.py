@@ -75,6 +75,7 @@ from .learning_algorithms import (
 	BPTT,
 	TBPTT,
 	Eprop,
+	WeakRLS,
 )
 
 import warnings

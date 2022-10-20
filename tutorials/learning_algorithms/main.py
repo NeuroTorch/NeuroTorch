@@ -12,6 +12,7 @@ from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegul
 from neurotorch.utils import hash_params
 from neurotorch.visualisation.connectome import visualize_init_final_weights
 from neurotorch.visualisation.time_series_visualisation import *
+from tutorials.learning_algorithms.dataset import get_dataloader
 from tutorials.time_series_forecasting_wilson_cowan.dataset import WSDataset
 
 
@@ -36,7 +37,12 @@ def increase_n_time_steps_event(trainer, **kwargs):
 
 def set_default_param(**kwargs):
 	kwargs.setdefault("filename", None)
-	kwargs.setdefault("sigma", 20.0)
+	kwargs.setdefault("dataset_length", -1)
+	kwargs.setdefault("n_time_steps", -1)
+	kwargs.setdefault("target_skip_first", True)
+	kwargs.setdefault("dataset_randomize_indexes", False)
+	kwargs.setdefault("rm_dead_units", True)
+	kwargs.setdefault("smoothing_sigma", 20.0)
 	kwargs.setdefault("learning_rate", 1e-2)
 	kwargs.setdefault("std_weights", 1)
 	kwargs.setdefault("dt", 0.02)
@@ -83,6 +89,7 @@ def make_learning_algorithm(**kwargs):
 		learning_algorithm = nt.WeakRLS(
 			criterion=nt.losses.PVarianceLoss(),
 			device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+			# device=torch.device("cpu"),
 		)
 	else:
 		raise ValueError(f"Unknown learning algorithm: {la_name}")
@@ -104,13 +111,17 @@ def train_with_params(
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{checkpoint_folder}/{checkpoints_name}"
 	os.makedirs(checkpoint_folder, exist_ok=True)
-	dataset = WSDataset(
-		filename=params["filename"],
-		sample_size=params["n_units"],
-		smoothing_sigma=params["sigma"],
-		device=device,
-		n_time_steps=110,
+	# dataset = WSDataset(
+	# 	filename=params["filename"],
+	# 	sample_size=params["n_units"],
+	# 	smoothing_sigma=params["sigma"],
+	# 	device=device,
+	# 	n_time_steps=110,
+	# )
+	dataloader = get_dataloader(
+		batch_size=kwargs.get("batch_size", 512), verbose=True, n_workers=kwargs.get("n_workers"), **params
 	)
+	dataset = dataloader.dataset
 	x = dataset.full_time_series
 	forward_weights = nt.init.dale_(torch.zeros(params["n_units"], params["n_units"]), inh_ratio=0.5, rho=0.2)
 	ws_layer = WilsonCowanLayer(
@@ -169,19 +180,19 @@ def train_with_params(
 		# 	retain_progress=True,
 		# ),
 		learning_algorithm,
-		checkpoint_manager,
+		# checkpoint_manager,
 		convergence_time_getter,
 		EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
 		# EventOnMetricThreshold(
 		# 	metric_name='train_loss', threshold=0.8, minimize_metric=False,
 		# 	event=increase_trainer_iteration_event, do_once=False, event_kwargs={"delta_iterations": 2}
 		# ),
-		EventOnMetricThreshold(
-			metric_name='train_loss', threshold=0.8, minimize_metric=False,
-			event=increase_n_time_steps_event, do_once=False,
-			event_kwargs={"delta_time_steps": 100, "delta_iterations": 1.1},
-			name="increase_n_time_steps_event",
-		),
+		# EventOnMetricThreshold(
+		# 	metric_name='train_loss', threshold=0.8, minimize_metric=False,
+		# 	event=increase_n_time_steps_event, do_once=False,
+		# 	event_kwargs={"delta_time_steps": 100, "delta_iterations": 1.1},
+		# 	name="increase_n_time_steps_event",
+		# ),
 	]
 
 	with torch.no_grad():
@@ -208,7 +219,8 @@ def train_with_params(
 	)
 	print(f"{trainer}")
 	history = trainer.train(
-		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),
+		# DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),
+		dataloader,
 		n_iterations=n_iterations,
 		exec_metrics_on_train=True,
 		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
@@ -258,6 +270,9 @@ if __name__ == '__main__':
 	res = train_with_params(
 		params={
 			"n_units": 128,
+			"n_time_steps": 2,
+			"dataset_length": 10,
+			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
 			"learning_algorithm": "WeakRLS",
 			"auto_backward_time_steps_ratio": 0.25,
@@ -266,6 +281,7 @@ if __name__ == '__main__':
 		n_iterations=30,
 		device=torch.device("cpu"),
 		force_overwrite=True,
+		batch_size=1,
 	)
 	pprint.pprint({k: v for k, v in res.items() if isinstance(v, (int, float, str, bool))})
 

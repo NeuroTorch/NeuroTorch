@@ -5,6 +5,7 @@ import torch
 
 from .learning_algorithm import LearningAlgorithm
 from ..transforms.base import ToDevice
+from ..utils import compute_jacobian
 
 
 class WeakRLS(LearningAlgorithm):
@@ -62,6 +63,7 @@ class WeakRLS(LearningAlgorithm):
 		self._device = kwargs.get("device", None)
 		self.to_cpu_transform = ToDevice(device=torch.device("cpu"))
 		self.to_device_transform = None
+		self.reduction = kwargs.get("reduction", "none").lower()
 		self._asserts()
 	
 	@property
@@ -74,6 +76,7 @@ class WeakRLS(LearningAlgorithm):
 		assert 0.0 < self.Lambda < 1.0, "Lambda must be between 0 and 1"
 		assert 0.0 <= self.a <= 1.0, "a must be between 0 and 1"
 		assert 0.0 <= self.b <= 1.0, "b must be between 0 and 1"
+		assert self.reduction in ["mean", "sum", "none"], "reduction must be either 'mean', 'sum' or 'none'"
 	
 	def _initialize_K(self, m):
 		self.K = [
@@ -118,12 +121,22 @@ class WeakRLS(LearningAlgorithm):
 		
 	def _get_psi(self, outputs):
 		# return [self.to_device_transform(param.grad.view(-1)) for param in self.params]
+		# psi = [[] for _ in range(len(self.params))]
+		# for output in outputs:
+		# 	self.zero_grad()
+		# 	output.backward()
+		# 	for i, param in enumerate(self.params):
+		# 		psi[i].append(self.to_device_transform(param.grad.view(-1)))
+		# psi = [torch.stack(psi[i], dim=0) for i in range(len(self.params))]
+		psi = compute_jacobian(params=self.params, y=outputs, strategy="slow")
+		return psi
+	
+	def _get_psi_batch(self, batch_outputs):
 		psi = [[] for _ in range(len(self.params))]
-		for output in outputs:
-			self.zero_grad()
-			output.backward()
-			for i, param in enumerate(self.params):
-				psi[i].append(self.to_device_transform(param.grad.view(-1)))
+		for outputs in batch_outputs:
+			psi_batch = self._get_psi(outputs)
+			for i in range(len(self.params)):
+				psi[i].append(psi_batch[i])
 		psi = [torch.stack(psi[i], dim=0) for i in range(len(self.params))]
 		return psi
 	
@@ -188,29 +201,39 @@ class WeakRLS(LearningAlgorithm):
 				param.grad.detach_()
 				param.grad.zero_()
 	
-	def _single_datum_step(self, pred, y):
-		error = y - pred
-		psi = self._get_psi(pred)
+	def _single_datum_step(self, psi, error):
 		self._update_lambda()
 		self._update_k(psi)
 		self._update_p(psi)
 		self._update_alpha()
 		self._update_delta(error)
 		self._update_theta()
-		
+	
 	def _batch_step(self, trainer, **kwargs):
 		y_batch = trainer.current_training_state.y_batch
 		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
 		
-		pred_batch, y_batch = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(-1, y_batch.shape[-1])
+		pred_batch_view, y_batch_view = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(-1, y_batch.shape[-1])
 		self.zero_grad()
-		y_batch.backward(torch.ones_like(y_batch))
-		if self.K is None:
-			self._initialize_K(m=y_batch.shape[-1])
-		for pred, y in zip(pred_batch, y_batch):
-			self._single_datum_step(pred, y)
+		
+		error = y_batch_view - pred_batch_view
+		psi = self._get_psi_batch(pred_batch_view)
+		
+		if self.reduction == "mean":
+			error = error.mean(dim=0).unsqueeze(0)
+			psi = [psi_i.mean(dim=0).unsqueeze(0) for psi_i in psi]
+		elif self.reduction == "sum":
+			error = error.sum(dim=0).unsqueeze(0)
+			psi = [psi_i.sum(dim=0).unsqueeze(0) for psi_i in psi]
+		elif self.reduction == "none":
+			pass
+		else:
+			raise ValueError(f"reduction must be one of 'mean', 'sum', 'none', got {self.reduction}")
+		
+		for idx, (psi_i, error_i) in enumerate(zip(psi, error)):
+			self._single_datum_step(psi=psi[idx], error=error[idx])
 	
 	def _try_put_on_device(self, trainer):
 		try:
@@ -225,6 +248,9 @@ class WeakRLS(LearningAlgorithm):
 		y_batch = trainer.current_training_state.y_batch
 		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		model_device = trainer.model.device
+		
+		if self.K is None:
+			self._initialize_K(m=y_batch.shape[-1])
 		
 		self._try_put_on_device(trainer)
 		self._batch_step(trainer, **kwargs)

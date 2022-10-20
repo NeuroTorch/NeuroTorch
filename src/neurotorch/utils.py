@@ -254,3 +254,67 @@ def list_insert_replace_at(__list: List, idx: int, value: Any):
 	else:
 		__list.extend([None] * (idx - len(__list)))
 		__list.append(value)
+
+
+def zero_grad_params(params: Iterable[torch.nn.Parameter]):
+	"""
+	Set the gradient of the parameters to zero.
+	
+	:param params: The parameters to set the gradient to zero.
+	"""
+	for p in params:
+		if p.grad is not None:
+			p.grad.detach_()
+			p.grad.zero_()
+
+
+def compute_jacobian(
+		*,
+		model: Optional[torch.nn.Module] = None,
+		params: Optional[Iterable[torch.nn.Parameter]] = None,
+		x: Optional[torch.Tensor] = None,
+		y: Optional[torch.Tensor] = None,
+		strategy: str = "fast",
+):
+	"""
+	Compute the jacobian of the model with respect to the parameters.
+	
+	:param model: The model to compute the jacobian.
+	:param params: The parameters to compute the jacobian with respect to. If None, compute the jacobian
+		with respect to all the parameters of the model.
+	:param x: The input to compute the jacobian. If None, use y instead.
+	:param y: The output to compute the jacobian. If None, use x instead.
+	
+	:return: The jacobian.
+	"""
+	if params is None:
+		assert model is not None, "If params is None, model must be provided."
+		params = model.parameters()
+	zero_grad_params(params)
+	
+	if y is not None:
+		if strategy.lower() == "fast":
+			y.backward(torch.ones_like(y))
+			jacobian = [p.grad.view(-1) for p in params]
+		elif strategy.lower() == "slow":
+			psi = [[] for _ in range(len(list(params)))]
+			for output in y:
+				zero_grad_params(params)
+				output.backward(retain_graph=True)
+				for i, param in enumerate(params):
+					psi[i].append(param.grad.view(-1).detach().clone())
+			jacobian = [torch.stack(psi[i], dim=-1) for i in range(len(list(params)))]
+		else:
+			raise ValueError(f"Unsupported strategy: {strategy}")
+	elif x is not None:
+		jacobian = torch.autograd.functional.jacobian(model, x, params)
+	else:
+		raise ValueError("Either x or y must be provided.")
+	return jacobian
+
+
+def vmap(f):
+	# TODO: replace by torch.vmap when it is available
+	def wrapper(batch_tensor):
+		return torch.stack([f(batch_tensor[i]) for i in range(batch_tensor.shape[0])])
+	return wrapper

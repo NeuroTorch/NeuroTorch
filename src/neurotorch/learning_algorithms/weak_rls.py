@@ -53,7 +53,7 @@ class WeakRLS(LearningAlgorithm):
 		# RLS attributes
 		self.K = None
 		self.P = None
-		self.delta = kwargs.get("delta", 1000.0)
+		self.delta = kwargs.get("delta", 1.0)
 		self.lambda_0 = kwargs.get("lambda_0", 0.99)
 		self.Lambda = kwargs.get("Lambda", 0.94)
 		self.a = kwargs.get("a", 1e-2)
@@ -63,7 +63,7 @@ class WeakRLS(LearningAlgorithm):
 		self._device = kwargs.get("device", None)
 		self.to_cpu_transform = ToDevice(device=torch.device("cpu"))
 		self.to_device_transform = None
-		self.reduction = kwargs.get("reduction", "none").lower()
+		self.reduction = kwargs.get("reduction", "mean").lower()
 		self._asserts()
 	
 	@property
@@ -80,7 +80,7 @@ class WeakRLS(LearningAlgorithm):
 	
 	def _initialize_K(self, m):
 		self.K = [
-			torch.zeros((m, param.numel()), dtype=torch.float32, device=torch.device("cpu"))
+			torch.zeros((param.numel(), m), dtype=torch.float32, device=torch.device("cpu"))
 			for param in self.params
 		]
 	
@@ -100,17 +100,24 @@ class WeakRLS(LearningAlgorithm):
 		self.Lambda = self.lambda_0 * self.Lambda + self.lambda_0 * (1 - self.lambda_0)
 	
 	def _update_k(self, psi):
-		P_psi_list = [
-			torch.einsum('ll,lm->lm', self.P[i], psi[i])
-			for i in range(len(self.params))
-		]
-		self.K = [
-			# P_psi_list[i] / (self.Lambda + psi[i].T @ P_psi_list[i])
-			# torch.linalg.solve((self.Lambda + psi[i].T @ P_psi_list[i]).T, P_psi_list[i].T).T
-			torch.linalg.lstsq((self.Lambda + psi[i].T @ P_psi_list[i]).T, P_psi_list[i].T).solution.T
-			# P_psi_list[i] @ torch.linalg.inv(self.Lambda + psi[i].T @ P_psi_list[i])
-			for i in range(len(self.params))
-		]
+		# P_psi_list = [
+		# 	torch.einsum('ll,lm->lm', self.P[i], psi[i])
+		# 	for i in range(len(self.params))
+		# ]
+		# A_list = [
+		# 	(self.Lambda + psi[i].T @ P_psi_list[i]).T
+		# 	for i in range(len(self.params))
+		# ]
+		# rank_list = [torch.linalg.matrix_rank(A) for A in A_list]
+		# self.K = [
+		# 	# P_psi_list[i] / (self.Lambda + psi[i].T @ P_psi_list[i])
+		# 	# P_psi_list[i] / A_list[i]
+		# 	# torch.linalg.solve((self.Lambda + psi[i].T @ P_psi_list[i]).T, P_psi_list[i].T).T
+		# 	torch.linalg.lstsq(A_list[i], P_psi_list[i].T).solution.T
+		# 	# P_psi_list[i] @ torch.linalg.inv(self.Lambda + psi[i].T @ P_psi_list[i])
+		# 	for i in range(len(self.params))
+		# ]
+		self.K = [self.P[i] @ psi[i] for i in range(len(self.params))]
 	
 	def _update_p(self, psi):
 		eyes = [
@@ -132,6 +139,7 @@ class WeakRLS(LearningAlgorithm):
 		# 		psi[i].append(self.to_device_transform(param.grad.view(-1)))
 		# psi = [torch.stack(psi[i], dim=0) for i in range(len(self.params))]
 		psi = compute_jacobian(params=self.params, y=outputs, strategy="slow")
+		# psi = [param.grad.view(-1, 1).detach().clone() for param in self.params]
 		return psi
 	
 	def _get_psi_batch(self, batch_outputs):
@@ -145,7 +153,9 @@ class WeakRLS(LearningAlgorithm):
 	
 	def _update_theta(self):
 		for param, k in zip(self.params, self.K):
-			param.data += (self.Delta @ k.T).to(param.device, non_blocking=True).view(param.data.shape)
+			param.data -= (k @ self.Delta).to(param.device, non_blocking=True).view(param.data.shape)
+			# param.data -= (self.Delta @ k.T).to(param.device, non_blocking=True).view(param.data.shape)
+			# param.data -= (k * self.Delta).to(param.device, non_blocking=True).view(param.data.shape)
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
@@ -207,7 +217,7 @@ class WeakRLS(LearningAlgorithm):
 	def _update_k_p_on_datum(self, psi, error):
 		self._update_k(psi)
 		self._update_p(psi)
-	
+		
 	def _batch_step(self, trainer, **kwargs):
 		y_batch = trainer.current_training_state.y_batch
 		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
@@ -218,6 +228,9 @@ class WeakRLS(LearningAlgorithm):
 		self.zero_grad()
 		
 		error = self.to_device_transform(y_batch_view - pred_batch_view)
+		# mse_loss = torch.nn.MSELoss()(pred_batch_view, y_batch_view)
+		# mse_loss.backward()
+		# error = mse_loss.unsqueeze(0)
 		
 		if self.reduction == "mean":
 			error = error.mean(dim=0).unsqueeze(0)
@@ -229,6 +242,7 @@ class WeakRLS(LearningAlgorithm):
 			psi = self._get_psi_batch(pred_batch_view)
 		else:
 			raise ValueError(f"reduction must be one of 'mean', 'sum', 'none', got {self.reduction}")
+		
 		psi = self.to_device_transform(psi)
 		self._update_lambda()
 		for idx, error_i in enumerate(error):
@@ -261,6 +275,7 @@ class WeakRLS(LearningAlgorithm):
 		
 		if self.K is None:
 			self._initialize_K(m=y_batch.shape[-1])
+			# self._initialize_K(m=1)
 		
 		self._try_put_on_device(trainer)
 		self._batch_step(trainer, **kwargs)

@@ -38,7 +38,8 @@ What can we do with NeuroTorch in the current version?
 
 ### Next Version (v0.0.1-beta)
 
-- Learning Algorithm: FullForce.
+- Learning Algorithm: TBPTT (Truncated-Backpropagation-Through-Time).
+- Learning Algorithm: RLS (Recursive Least Squares).
 - Learning Algorithm: [Eligibility-Propagation](https://doi.org/10.1038/s41467-020-17236-y).
 
 ### Upcoming Version (v0.0.1)

@@ -88,8 +88,10 @@ def make_learning_algorithm(**kwargs):
 	elif la_name == "weakrls":
 		learning_algorithm = nt.WeakRLS(
 			criterion=nt.losses.PVarianceLoss(),
-			device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-			# device=torch.device("cpu"),
+			# criterion=torch.nn.MSELoss(),
+			# device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+			device=torch.device("cpu"),
+			reduction='none',
 		)
 	else:
 		raise ValueError(f"Unknown learning algorithm: {la_name}")
@@ -181,8 +183,8 @@ def train_with_params(
 		# ),
 		learning_algorithm,
 		# checkpoint_manager,
-		convergence_time_getter,
-		EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
+		# convergence_time_getter,
+		# EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
 		# EventOnMetricThreshold(
 		# 	metric_name='train_loss', threshold=0.8, minimize_metric=False,
 		# 	event=increase_trainer_iteration_event, do_once=False, event_kwargs={"delta_iterations": 2}
@@ -213,9 +215,9 @@ def train_with_params(
 		model,
 		predict_method="get_prediction_trace",
 		callbacks=callbacks,
-		regularization_optimizer=optimizer_reg,
-		regularization=regularisation,
-		metrics=[regularisation],
+		# regularization_optimizer=optimizer_reg,
+		# regularization=regularisation,
+		# metrics=[regularisation],
 	)
 	print(f"{trainer}")
 	history = trainer.train(
@@ -269,14 +271,17 @@ if __name__ == '__main__':
 	
 	res = train_with_params(
 		params={
-			"n_units": 128,
+			"n_units": 32,
 			"n_time_steps": 2,
-			"dataset_length": 10,
+			"dataset_length": -1,
 			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
 			"learning_algorithm": "WeakRLS",
 			"auto_backward_time_steps_ratio": 0.25,
 			"weight_decay": 1e-5,
+			"learn_mu": False,
+			"learn_r": False,
+			"learn_tau": False,
 		},
 		n_iterations=30,
 		device=torch.device("cpu"),
@@ -305,8 +310,8 @@ if __name__ == '__main__':
 	viz = VisualiseKMeans(
 		res["x_pred"].T,
 		shape=nt.Size([
-			nt.Dimension(406, nt.DimensionProperty.TIME, "Time [s]"),
-			nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
+			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
 		])
 	)
 	viz.plot_timeseries_comparison(res["original_time_series"].T, title=f"Prediction", show=True)
@@ -315,22 +320,22 @@ if __name__ == '__main__':
 	VisualiseKMeans(
 		res["original_time_series"],
 		nt.Size([
-			nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
-			nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
+			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")])
 	).heatmap(fig=fig, ax=axes[0], title="True time series")
 	VisualiseKMeans(
 		res["x_pred"],
 		nt.Size([
-			nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
-			nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
+			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")])
 	).heatmap(fig=fig, ax=axes[1], title="Predicted time series")
 	plt.show()
 
 	Visualise(
 		res["x_pred"],
 		nt.Size([
-			nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
-			nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
+			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")
 		])
 	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=True)
 

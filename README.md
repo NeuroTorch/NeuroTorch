@@ -104,7 +104,7 @@ See the readme of the tutorials folder [here](tutorials/README.md).
 - Tutorial: [Jupyter Notebook](tutorials/time_series_forecasting_spiking/tutorial.ipynb).
 - Project: [Repository](https://github.com/NeuroTorch/SNN_TS_Forecasting_NeuroTorch).
 
-### Time series classification with Wilson-Cowan
+### Time series forecasting with Wilson-Cowan
 
 - Tutorial: [Jupyter Notebook](tutorials/time_series_forecasting_wilson_cowan/tutorial.ipynb).
 

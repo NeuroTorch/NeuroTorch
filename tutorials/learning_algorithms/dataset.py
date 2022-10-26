@@ -119,7 +119,7 @@ class TimeSeriesDataset(Dataset):
 		self.target_transform = target_transform
 		self.dataset_length = dataset_length
 		if self.dataset_length is None or self.dataset_length <= 0:
-			self.dataset_length = self.total_n_time_steps - self.n_time_steps
+			self.dataset_length = max(1, self.total_n_time_steps - self.n_time_steps)
 		self.randomize_indexes = randomize_indexes
 		self.rn_indexes_seed = rn_indexes_seed
 		self.rn_index_generator = np.random.RandomState(rn_indexes_seed)

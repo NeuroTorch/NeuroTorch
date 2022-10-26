@@ -115,15 +115,24 @@ class Eprop(LearningAlgorithm):
 		return batch_learning_signals
 	
 	def get_eligibility_trace(self, trainer, **kwargs):
+		# TODO: peut-être qu'il faudrait mette un décorateur comme dans tbptt
+		# TODO: le psi de l'équation (23) de l'article de e-prop est essentiellement la dérivé de la fonction d'activation
+		# TODO: de la layer. Il faut donc que je trouve un moyen de récupérer cette dérivé.
 		y_batch = trainer.current_training_state.y_batch
 		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		eligibility_vectors = batchwise_temporal_filter(pred_batch)
 		return eligibility_vectors
 	
+	def apply_grads(self, learning_signals, eligibility_traces):
+		for i, (w, L, epsilon) in enumerate(zip(self.params, learning_signals, eligibility_traces)):
+			grad = torch.matmul(epsilon, L.T)
+			w.grad = grad
+	
 	def on_optimization_begin(self, trainer, **kwargs):
 		self.optimizer.zero_grad()
 		learning_signals = self.get_learning_signals(trainer, **kwargs)
 		eligibility_traces = self.get_eligibility_trace(trainer, **kwargs)
+		self.apply_grads(learning_signals, eligibility_traces)
 		self.optimizer.step()
 	
 	def on_optimization_end(self, trainer, **kwargs):

@@ -130,6 +130,8 @@ class WeakRLS(LearningAlgorithm):
 		]
 		
 	def _get_psi(self, outputs):
+		# TODO: check https://medium.com/@monadsblog/pytorch-backward-function-e5e2b7e60140
+		# TODO: see https://pytorch.org/tutorials/beginner/blitz/autograd_tutorial.html#sphx-glr-beginner-blitz-autograd-tutorial-py
 		# return [self.to_device_transform(param.grad.view(-1)) for param in self.params]
 		# psi = [[] for _ in range(len(self.params))]
 		# for output in outputs:

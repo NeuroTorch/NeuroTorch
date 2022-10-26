@@ -271,10 +271,10 @@ if __name__ == '__main__':
 	
 	res = train_with_params(
 		params={
-			"n_units": 32,
-			"n_time_steps": 2,
-			"dataset_length": -1,
-			"dataset_randomize_indexes": False,
+			"n_units": 2,
+			"n_time_steps": 100,
+			"dataset_length": 1,
+			"dataset_randomize_indexes": True,
 			"force_dale_law": False,
 			"learning_algorithm": "WeakRLS",
 			"auto_backward_time_steps_ratio": 0.25,
@@ -283,7 +283,7 @@ if __name__ == '__main__':
 			"learn_r": False,
 			"learn_tau": False,
 		},
-		n_iterations=30,
+		n_iterations=100,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,
@@ -307,7 +307,7 @@ if __name__ == '__main__':
 		axes[1, 1].set_title("Final signs")
 		plt.show()
 
-	viz = VisualiseKMeans(
+	viz = Visualise(
 		res["x_pred"].T,
 		shape=nt.Size([
 			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),

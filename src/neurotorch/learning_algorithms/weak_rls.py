@@ -133,14 +133,14 @@ class WeakRLS(LearningAlgorithm):
 		# TODO: check https://medium.com/@monadsblog/pytorch-backward-function-e5e2b7e60140
 		# TODO: see https://pytorch.org/tutorials/beginner/blitz/autograd_tutorial.html#sphx-glr-beginner-blitz-autograd-tutorial-py
 		# return [self.to_device_transform(param.grad.view(-1)) for param in self.params]
-		# psi = [[] for _ in range(len(self.params))]
-		# for output in outputs:
-		# 	self.zero_grad()
-		# 	output.backward()
-		# 	for i, param in enumerate(self.params):
-		# 		psi[i].append(self.to_device_transform(param.grad.view(-1)))
-		# psi = [torch.stack(psi[i], dim=0) for i in range(len(self.params))]
-		psi = compute_jacobian(params=self.params, y=outputs, strategy="slow")
+		psi = [[] for _ in range(len(list(self.params)))]
+		for output in outputs:
+			self.zero_grad()
+			output.backward(retain_graph=True)
+			for i, param in enumerate(self.params):
+				psi[i].append(param.grad.view(-1).detach().clone())
+		psi = [torch.stack(psi[i], dim=-1) for i in range(len(list(self.params)))]
+		# psi = compute_jacobian(params=self.params, y=outputs, strategy="slow")
 		# psi = [param.grad.view(-1, 1).detach().clone() for param in self.params]
 		return psi
 	
@@ -155,9 +155,7 @@ class WeakRLS(LearningAlgorithm):
 	
 	def _update_theta(self):
 		for param, k in zip(self.params, self.K):
-			param.data -= (k @ self.Delta).to(param.device, non_blocking=True).view(param.data.shape)
-			# param.data -= (self.Delta @ k.T).to(param.device, non_blocking=True).view(param.data.shape)
-			# param.data -= (k * self.Delta).to(param.device, non_blocking=True).view(param.data.shape)
+			param.data += (k @ self.Delta.view(-1, 1)).to(param.device, non_blocking=True).view(param.data.shape)
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
@@ -226,7 +224,8 @@ class WeakRLS(LearningAlgorithm):
 		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
 		
-		pred_batch_view, y_batch_view = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(-1, y_batch.shape[-1])
+		# pred_batch_view, y_batch_view = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(-1, y_batch.shape[-1])
+		pred_batch_view, y_batch_view = pred_batch.view(pred_batch.shape[0], -1), y_batch.view(y_batch.shape[0], -1)
 		self.zero_grad()
 		
 		error = self.to_device_transform(y_batch_view - pred_batch_view)

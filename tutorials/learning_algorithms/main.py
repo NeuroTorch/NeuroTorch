@@ -271,8 +271,8 @@ if __name__ == '__main__':
 	
 	res = train_with_params(
 		params={
-			"n_units": 20,
-			"n_time_steps": 50,
+			"n_units": 2,
+			"n_time_steps": 100,
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
 			"force_dale_law": False,

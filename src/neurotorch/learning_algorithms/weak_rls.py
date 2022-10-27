@@ -64,6 +64,7 @@ class WeakRLS(LearningAlgorithm):
 		self.to_cpu_transform = ToDevice(device=torch.device("cpu"))
 		self.to_device_transform = None
 		self.reduction = kwargs.get("reduction", "mean").lower()
+		self._consider_other_dims_as_batch = kwargs.get("consider_other_dims_as_batch", False)
 		self._asserts()
 	
 	@property
@@ -224,8 +225,10 @@ class WeakRLS(LearningAlgorithm):
 		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
 		
-		# pred_batch_view, y_batch_view = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(-1, y_batch.shape[-1])
-		pred_batch_view, y_batch_view = pred_batch.view(pred_batch.shape[0], -1), y_batch.view(y_batch.shape[0], -1)
+		if self._consider_other_dims_as_batch:
+			pred_batch_view, y_batch_view = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(-1, y_batch.shape[-1])
+		else:
+			pred_batch_view, y_batch_view = pred_batch.view(pred_batch.shape[0], -1), y_batch.view(y_batch.shape[0], -1)
 		self.zero_grad()
 		
 		error = self.to_device_transform(y_batch_view - pred_batch_view)

@@ -271,10 +271,10 @@ if __name__ == '__main__':
 	
 	res = train_with_params(
 		params={
-			"n_units": 2,
-			"n_time_steps": 100,
+			"n_units": 20,
+			"n_time_steps": 50,
 			"dataset_length": 1,
-			"dataset_randomize_indexes": True,
+			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
 			"learning_algorithm": "WeakRLS",
 			"auto_backward_time_steps_ratio": 0.25,

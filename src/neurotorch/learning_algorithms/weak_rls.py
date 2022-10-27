@@ -53,7 +53,7 @@ class WeakRLS(LearningAlgorithm):
 		# RLS attributes
 		self.K = None
 		self.P = None
-		self.delta = kwargs.get("delta", 1.0)
+		self.delta = kwargs.get("delta", 1000.0)
 		self.lambda_0 = kwargs.get("lambda_0", 0.99)
 		self.Lambda = kwargs.get("Lambda", 0.94)
 		self.a = kwargs.get("a", 1e-2)
@@ -96,6 +96,8 @@ class WeakRLS(LearningAlgorithm):
 	
 	def _update_delta(self, error):
 		self.Delta = self.eta * error + self.alpha * self.Delta
+		# self.Delta = 0.1 * error + 0.9 * self.Delta
+		# self.Delta = self.alpha * error + self.eta * self.Delta
 	
 	def _update_lambda(self):
 		self.Lambda = self.lambda_0 * self.Lambda + self.lambda_0 * (1 - self.lambda_0)

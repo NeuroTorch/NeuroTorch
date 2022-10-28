@@ -137,11 +137,12 @@ class WeakRLS(LearningAlgorithm):
 		# TODO: see https://pytorch.org/tutorials/beginner/blitz/autograd_tutorial.html#sphx-glr-beginner-blitz-autograd-tutorial-py
 		# return [self.to_device_transform(param.grad.view(-1)) for param in self.params]
 		psi = [[] for _ in range(len(list(self.params)))]
-		for output in outputs:
+		grad_outputs = torch.eye(outputs.shape[-1])
+		for i in range(outputs.shape[-1]):
 			self.zero_grad()
-			output.backward(retain_graph=True)
-			for i, param in enumerate(self.params):
-				psi[i].append(param.grad.view(-1).detach().clone())
+			outputs.backward(grad_outputs[i], retain_graph=True)
+			for p_idx, param in enumerate(self.params):
+				psi[p_idx].append(param.grad.view(-1).detach().clone())
 		psi = [torch.stack(psi[i], dim=-1) for i in range(len(list(self.params)))]
 		# psi = compute_jacobian(params=self.params, y=outputs, strategy="slow")
 		# psi = [param.grad.view(-1, 1).detach().clone() for param in self.params]

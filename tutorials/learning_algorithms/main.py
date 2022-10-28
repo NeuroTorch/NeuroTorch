@@ -91,7 +91,8 @@ def make_learning_algorithm(**kwargs):
 			# criterion=torch.nn.MSELoss(),
 			# device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
 			device=torch.device("cpu"),
-			reduction='none',
+			reduction='mean',
+			is_recurrent=True,
 		)
 	else:
 		raise ValueError(f"Unknown learning algorithm: {la_name}")
@@ -271,10 +272,10 @@ if __name__ == '__main__':
 	
 	res = train_with_params(
 		params={
-			"n_units": 2,
-			"n_time_steps": 100,
+			"n_units": 15,
+			"n_time_steps": -1,
 			"dataset_length": 1,
-			"dataset_randomize_indexes": False,
+			"dataset_randomize_indexes": True,
 			"force_dale_law": False,
 			"learning_algorithm": "WeakRLS",
 			"auto_backward_time_steps_ratio": 0.25,
@@ -283,7 +284,7 @@ if __name__ == '__main__':
 			"learn_r": False,
 			"learn_tau": False,
 		},
-		n_iterations=100,
+		n_iterations=200,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,

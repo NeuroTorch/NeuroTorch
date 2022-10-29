@@ -314,7 +314,9 @@ class CURBD(TBPTT):
 		c = [1 / (1 + phiPphi[i]) for i in range(len(self.params))]  # (B, B)
 		self.P = [self.P[i] - c[i] * K[i] @ K[i].T for i in range(len(self.params))]  # (m, m) - (B, m) @ (m, B) -> (m, m)?
 		for i, (param, k) in enumerate(zip(self.params, K)):
-			param.data -= (c[i] * error.T @ k).to(param.device, non_blocking=True).view(param.data.shape)
+			param.data -= (
+					c[i] * torch.outer(error.view(-1), k.view(-1))
+			).to(param.device, non_blocking=True).view(param.data.shape)
 		
 		self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)

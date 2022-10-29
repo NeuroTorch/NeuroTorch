@@ -7,6 +7,7 @@ from neurotorch.callbacks.convergence import ConvergenceTimeGetter
 from neurotorch.callbacks.early_stopping import EarlyStoppingThreshold
 from neurotorch.callbacks.events import EventOnMetricThreshold
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
+from neurotorch.learning_algorithms.curbd import CURBD
 from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
 from neurotorch.utils import hash_params
@@ -87,6 +88,15 @@ def make_learning_algorithm(**kwargs):
 		)
 	elif la_name == "weakrls":
 		learning_algorithm = nt.WeakRLS(
+			criterion=nt.losses.PVarianceLoss(),
+			# criterion=torch.nn.MSELoss(),
+			# device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+			device=torch.device("cpu"),
+			reduction='mean',
+			is_recurrent=True,
+		)
+	elif la_name == "curbd":
+		learning_algorithm = CURBD(
 			criterion=nt.losses.PVarianceLoss(),
 			# criterion=torch.nn.MSELoss(),
 			# device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
@@ -277,14 +287,14 @@ if __name__ == '__main__':
 			"dataset_length": 1,
 			"dataset_randomize_indexes": True,
 			"force_dale_law": False,
-			"learning_algorithm": "WeakRLS",
+			"learning_algorithm": "curbd",
 			"auto_backward_time_steps_ratio": 0.25,
 			"weight_decay": 1e-5,
 			"learn_mu": False,
 			"learn_r": False,
 			"learn_tau": False,
 		},
-		n_iterations=200,
+		n_iterations=300,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,

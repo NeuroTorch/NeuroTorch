@@ -1861,6 +1861,26 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.mean_r = self.kwargs["mean_r"]
 		self.std_r = self.kwargs["std_r"]
 		self.learn_r = self.kwargs["learn_r"]
+		self.activation = self._init_activation(self.kwargs["activation"])
+		
+	def _init_activation(self, activation: Union[torch.nn.Module, str]):
+		"""
+		Initialise the activation function.
+		
+		:param activation: Activation function.
+		:type activation: Union[torch.nn.Module, str]
+		"""
+		str_to_activation = {
+			"relu": torch.nn.ReLU(),
+			"tanh": torch.nn.Tanh(),
+			"sigmoid": torch.nn.Sigmoid(),
+		}
+		if isinstance(activation, str):
+			assert activation in str_to_activation.keys(), f"Activation {activation} is not implemented."
+			self.activation = str_to_activation[activation]
+		else:
+			self.activation = activation
+		return self.activation
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("std_weight", 1.0)
@@ -1875,6 +1895,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("mean_r", 2.0)
 		self.kwargs.setdefault("std_r", 0.0)
 		self.kwargs.setdefault("hh_init", "inputs")
+		self.kwargs.setdefault("activation", "sigmoid")
 
 	def _assert_kwargs(self):
 		assert self.std_weight >= 0.0, "std_weight must be greater or equal to 0.0"
@@ -1972,8 +1993,8 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			rec_inputs = 0.0
 
 		transition_rate = (1 - hh * self.r)
-		sigmoid = torch.sigmoid(rec_inputs + torch.matmul(inputs, self.forward_weights) - self.mu)
-		output = hh * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
+		activation = self.activation(rec_inputs + torch.matmul(inputs, self.forward_weights) - self.mu)
+		output = hh * (1 - ratio_dt_tau) + transition_rate * activation * ratio_dt_tau
 		return output, (output, )
 
 

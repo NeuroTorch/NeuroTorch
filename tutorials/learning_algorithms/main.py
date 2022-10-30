@@ -64,6 +64,7 @@ def set_default_param(**kwargs):
 	kwargs.setdefault("n_layers", 1)
 	kwargs.setdefault("learning_algorithm", kwargs.pop("la", "bptt"))
 	kwargs.setdefault("forward_sign", 0.5)
+	kwargs.setdefault("activation", "tanh")
 	return kwargs
 
 
@@ -124,19 +125,13 @@ def train_with_params(
 	checkpoints_name = str(hash_params(params))
 	checkpoint_folder = f"{checkpoint_folder}/{checkpoints_name}"
 	os.makedirs(checkpoint_folder, exist_ok=True)
-	# dataset = WSDataset(
-	# 	filename=params["filename"],
-	# 	sample_size=params["n_units"],
-	# 	smoothing_sigma=params["sigma"],
-	# 	device=device,
-	# 	n_time_steps=110,
-	# )
 	dataloader = get_dataloader(
 		batch_size=kwargs.get("batch_size", 512), verbose=True, n_workers=kwargs.get("n_workers"), **params
 	)
 	dataset = dataloader.dataset
 	x = dataset.full_time_series
-	forward_weights = nt.init.dale_(torch.zeros(params["n_units"], params["n_units"]), inh_ratio=0.5, rho=0.2)
+	# forward_weights = nt.init.dale_(torch.zeros(params["n_units"], params["n_units"]), inh_ratio=0.5, rho=0.2)
+	forward_weights = 1.5 * torch.randn(params["n_units"], params["n_units"]) / np.sqrt(params["n_units"])
 	ws_layer = WilsonCowanLayer(
 		x.shape[-1], x.shape[-1],
 		forward_weights=forward_weights,
@@ -157,6 +152,7 @@ def train_with_params(
 		device=device,
 		name="WilsonCowan_layer1",
 		force_dale_law=params["force_dale_law"],
+		activation=params["activation"],
 	).build()
 	layers = [ws_layer]
 	for i in range(1, params["n_layers"]):
@@ -282,10 +278,12 @@ if __name__ == '__main__':
 	
 	res = train_with_params(
 		params={
-			"n_units": 15,
+			"filename": "curbd_Adata.npy",
+			"smoothing_sigma": 0.0,
+			"n_units": 300,
 			"n_time_steps": -1,
 			"dataset_length": 1,
-			"dataset_randomize_indexes": True,
+			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
 			"learning_algorithm": "curbd",
 			"auto_backward_time_steps_ratio": 0.25,
@@ -293,8 +291,10 @@ if __name__ == '__main__':
 			"learn_mu": False,
 			"learn_r": False,
 			"learn_tau": False,
+			"activation": "tanh",
+			# "dt": 0.01,
 		},
-		n_iterations=300,
+		n_iterations=1000,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,

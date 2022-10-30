@@ -194,7 +194,8 @@ class CURBD(TBPTT):
 		model_device = self.trainer.model.device
 		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
-		
+		assert pred_batch.shape[0] == y_batch.shape[0] == 1, \
+			"pred_batch and y_batch must be of shape (1, ...). CURBD batch-wise not implemented yet."
 		pred_batch_view, y_batch_view = pred_batch[:, -1].view(-1, 1), y_batch[:, -1].view(-1, 1)
 		
 		# if self._other_dims_as_batch:
@@ -216,7 +217,6 @@ class CURBD(TBPTT):
 			param.data -= (
 					c[i] * torch.outer(error.flatten(), k.flatten())  # (B, B) * (m * B) @ (m * B) -> (l, 1) ?
 			).to(param.device, non_blocking=True).reshape(param.data.shape)
-		# self.optimizer.step()
 		
 		self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)

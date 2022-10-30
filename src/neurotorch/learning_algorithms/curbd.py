@@ -307,12 +307,12 @@ class CURBD(TBPTT):
 			self._initialize_P(m=y_batch_view.shape[-1])
 		self._try_put_on_device(self.trainer)
 		
-		error = self.to_device_transform(y_batch_view - pred_batch_view)
-		
-		K = [pred_batch_view @ self.P[i] for i in range(len(self.params))]  # (B, m) @ (m, m) -> (B, m)
-		phiPphi = [(K[i] @ pred_batch_view.T).item() for i in range(len(self.params))]  # (B, m) @ (m, B) -> (B, B)
+		error = self.to_device_transform(y_batch_view - pred_batch_view).T
+		pred_batch_view = pred_batch_view.T
+		K = [torch.matmul(self.P[i], pred_batch_view) for i in range(len(self.params))]  # (B, m) @ (m, m) -> (B, m)
+		phiPphi = [torch.matmul(pred_batch_view.T, K[i]).item() for i in range(len(self.params))]  # (B, m) @ (m, B) -> (B, B)
 		c = [1 / (1 + phiPphi[i]) for i in range(len(self.params))]  # (B, B)
-		self.P = [self.P[i] - c[i] * K[i] @ K[i].T for i in range(len(self.params))]  # (m, m) - (B, m) @ (m, B) -> (m, m)?
+		self.P = [self.P[i] - c[i] * torch.matmul(K[i], K[i].T) for i in range(len(self.params))]  # (m, m) - (B, m) @ (m, B) -> (m, m)?
 		for i, (param, k) in enumerate(zip(self.params, K)):
 			param.data -= (
 					c[i] * torch.outer(error.view(-1), k.view(-1))

@@ -294,7 +294,7 @@ if __name__ == '__main__':
 			"activation": "tanh",
 			# "dt": 0.01,
 		},
-		n_iterations=1000,
+		n_iterations=100,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,

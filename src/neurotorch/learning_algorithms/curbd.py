@@ -64,36 +64,18 @@ class CURBD(TBPTT):
 		self.criterion = torch.nn.MSELoss()
 		
 		# RLS attributes
-		self.K = None
 		self.P = None
-		self.delta = kwargs.get("delta", 1.0)
-		self.lambda_0 = kwargs.get("lambda_0", 0.99)
-		self.Lambda = kwargs.get("Lambda", 0.94)
-		self.a = kwargs.get("a", 1e-2)
-		self.b = kwargs.get("b", 0.9)
-		self.alpha = 0.0
-		self.Delta = torch.tensor(0.0)
+		self.P0 = kwargs.get("P0", 1.0)
 		self._device = kwargs.get("device", None)
 		self.to_cpu_transform = ToDevice(device=torch.device("cpu"))
 		self.to_device_transform = None
 		self.reduction = kwargs.get("reduction", "mean").lower()
 		self._other_dims_as_batch = kwargs.get("other_dims_as_batch", False)
 		self._is_recurrent = is_recurrent
-		self.jacobian_noise = kwargs.get("jacobian_noise", 0.0)
 		
 		self._asserts()
-		self.t_list = []
-	
-	@property
-	def eta(self):
-		return max(1e-2, self.alpha * (1 - self.alpha))
 	
 	def _asserts(self):
-		assert self.a < self.b, "a must be less than b"
-		assert 0.0 < self.lambda_0 < 1.0, "lambda_0 must be between 0 and 1"
-		assert 0.0 < self.Lambda < 1.0, "Lambda must be between 0 and 1"
-		assert 0.0 <= self.a <= 1.0, "a must be between 0 and 1"
-		assert 0.0 <= self.b <= 1.0, "b must be between 0 and 1"
 		assert self.reduction in ["mean", "sum", "none"], "reduction must be either 'mean', 'sum' or 'none'"
 	
 	def _initialize_K(self, m):
@@ -104,86 +86,9 @@ class CURBD(TBPTT):
 	
 	def _initialize_P(self, m=None):
 		self.P = [
-			self.delta * torch.eye(param.numel() if m is None else m, dtype=torch.float32, device=torch.device("cpu"))
+			self.P0 * torch.eye(param.numel() if m is None else m, dtype=torch.float32, device=torch.device("cpu"))
 			for param in self.params
 		]
-	
-	def _update_alpha(self):
-		self.alpha = np.clip(self.alpha + self.a, 0.0, self.b)
-	
-	def _update_delta(self, error):
-		self.Delta = self.eta * error + self.alpha * self.Delta
-	
-	# self.Delta = 0.1 * error + 0.9 * self.Delta
-	# self.Delta = self.alpha * error + self.eta * self.Delta
-	
-	def _update_lambda(self):
-		self.Lambda = self.lambda_0 * self.Lambda + self.lambda_0 * (1 - self.lambda_0)
-	
-	def _update_k(self, psi):
-		# P_psi_list = [
-		# 	torch.einsum('ll,lm->lm', self.P[i], psi[i])
-		# 	for i in range(len(self.params))
-		# ]
-		# A_list = [
-		# 	(self.Lambda + psi[i].T @ P_psi_list[i]).T
-		# 	for i in range(len(self.params))
-		# ]
-		# rank_list = [torch.linalg.matrix_rank(A) for A in A_list]
-		# self.K = [
-		# 	# P_psi_list[i] / (self.Lambda + psi[i].T @ P_psi_list[i])
-		# 	# P_psi_list[i] / A_list[i]
-		# 	# torch.linalg.solve((self.Lambda + psi[i].T @ P_psi_list[i]).T, P_psi_list[i].T).T
-		# 	torch.linalg.lstsq(A_list[i], P_psi_list[i].T).solution.T
-		# 	# P_psi_list[i] @ torch.linalg.inv(self.Lambda + psi[i].T @ P_psi_list[i])
-		# 	for i in range(len(self.params))
-		# ]
-		self.K = [self.P[i] @ psi[i] for i in range(len(self.params))]
-	
-	def _update_p(self, psi):
-		eyes = [
-			self.to_device_transform(torch.eye(self.P[i].shape[0]))
-			for i in range(len(self.params))
-		]
-		self.P = [
-			(eyes[i] - self.K[i] @ psi[i].T) @ self.P[i] / self.Lambda
-			for i in range(len(self.params))
-		]
-	
-	def _get_psi(self, outputs):
-		# TODO: check https://medium.com/@monadsblog/pytorch-backward-function-e5e2b7e60140
-		# TODO: see https://pytorch.org/tutorials/beginner/blitz/autograd_tutorial.html#sphx-glr-beginner-blitz-autograd-tutorial-py
-		# return [self.to_device_transform(param.grad.view(-1)) for param in self.params]
-		psi = [[] for _ in range(len(list(self.params)))]
-		grad_outputs = torch.eye(outputs.shape[-1])
-		for i in range(outputs.shape[-1]):
-			self.zero_grad()
-			outputs.backward(grad_outputs[i], retain_graph=True)
-			for p_idx, param in enumerate(self.params):
-				grad = param.grad.view(-1).detach().clone()
-				grad_noise = torch.randn_like(grad) * self.jacobian_noise
-				psi[p_idx].append(grad + grad_noise)
-		psi = [torch.stack(psi[i], dim=-1).T for i in range(len(list(self.params)))]
-		# psi = compute_jacobian(params=self.params, y=outputs, strategy="slow")
-		# psi = [param.grad.view(-1, 1).detach().clone() for param in self.params]
-		return psi
-	
-	def _get_psi_batch(self, batch_outputs):
-		psi = [[] for _ in range(len(self.params))]
-		for outputs in batch_outputs:
-			psi_batch = self._get_psi(outputs)
-			for i in range(len(self.params)):
-				psi[i].append(psi_batch[i])
-		psi = [torch.stack(psi[i], dim=0) for i in range(len(self.params))]
-		return psi
-	
-	def _update_params(self):
-		for param, k in zip(self.params, self.K):
-			param.data += (k.T @ self.Delta.view(-1, 1)).to(param.device, non_blocking=True).view(param.data.shape)
-	
-	# for param, k in zip(self.params, self.K):
-	# 	param.grad = -(k.T @ self.Delta.view(-1, 1)).to(param.device, non_blocking=True).view(param.data.shape)
-	# self.optimizer.step()
 	
 	def _maybe_update_time_steps(self):
 		if self._auto_set_backward_time_steps:
@@ -193,14 +98,12 @@ class CURBD(TBPTT):
 		def _forward(*args, **kwargs):
 			out = forward(*args, **kwargs)
 			t = kwargs.get("t", None)
-			self.t_list.append(t)
 			if t is None:
 				return out
 			out_tensor = self._get_out_tensor(out)
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
 			if len(self._layers_buffer[layer_name]) == self.backward_time_steps and t != 0:
-				# self._backward_at_t(t, self.backward_time_steps, layer_name)
-				self._backward_at_t(t, len(self._layers_buffer[layer_name]), layer_name)
+				self._backward_at_t(t, self.backward_time_steps, layer_name)
 				out = self._detach_out(out)
 			return out
 		
@@ -236,7 +139,6 @@ class CURBD(TBPTT):
 		if self._device is None:
 			self._device = trainer.model.device
 		self.to_device_transform = ToDevice(device=self._device)
-		# self._initialize_P()
 		self.output_layers: torch.nn.ModuleDict = trainer.model.output_layers
 		self._initialize_original_forwards()
 	
@@ -283,64 +185,57 @@ class CURBD(TBPTT):
 	def zero_grad(self):
 		for param in self.params:
 			if param.grad is not None:
-				param.grad.detach_()
+				# param.grad.detach_()
 				param.grad.zero_()
-	
-	def _update_k_p_on_datum(self, psi, error):
-		self._update_k(psi)
-		self._update_p(psi)
+		if self.optimizer:
+			self.optimizer.zero_grad()
 	
 	def _batch_step(self, pred_batch, y_batch):
 		model_device = self.trainer.model.device
 		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
 		
-		if self._other_dims_as_batch:
-			pred_batch_view, y_batch_view = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(-1, y_batch.shape[-1])
-		else:
-			pred_batch_view, y_batch_view = pred_batch.view(pred_batch.shape[0], -1), y_batch.view(y_batch.shape[0], -1)
+		pred_batch_view, y_batch_view = pred_batch[:, -1].view(-1, 1), y_batch[:, -1].view(-1, 1)
+		
+		# if self._other_dims_as_batch:
+		# 	pred_batch_view, y_batch_view = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(-1, y_batch.shape[-1])
+		# else:
+		# 	pred_batch_view, y_batch_view = pred_batch.view(pred_batch.shape[0], -1), y_batch.view(y_batch.shape[0], -1)
 		self.zero_grad()
 		
-		if self.K is None:
-			self._initialize_K(m=y_batch_view.shape[-1])
 		if self.P is None:
-			self._initialize_P(m=y_batch_view.shape[-1])
+			self._initialize_P(m=y_batch_view.shape[0])
 		self._try_put_on_device(self.trainer)
 		
-		error = self.to_device_transform(y_batch_view - pred_batch_view).T
-		pred_batch_view = pred_batch_view.T
-		K = [torch.matmul(self.P[i], pred_batch_view) for i in range(len(self.params))]  # (B, m) @ (m, m) -> (B, m)
-		phiPphi = [torch.matmul(pred_batch_view.T, K[i]).item() for i in range(len(self.params))]  # (B, m) @ (m, B) -> (B, B)
-		c = [1 / (1 + phiPphi[i]) for i in range(len(self.params))]  # (B, B)
-		self.P = [self.P[i] - c[i] * torch.matmul(K[i], K[i].T) for i in range(len(self.params))]  # (m, m) - (B, m) @ (m, B) -> (m, m)?
+		error = self.to_device_transform(pred_batch_view - y_batch_view)
+		K = [torch.matmul(self.P[i], pred_batch_view) for i in range(len(self.params))]  # (m, m) @ (m, B) -> (m, B)
+		yPy = [torch.matmul(pred_batch_view.T, K[i]).item() for i in range(len(self.params))]  # (B, m) @ (m, B) -> (B, B)
+		c = [1.0 / (1.0 + yPy[i]) for i in range(len(self.params))]  # (B, B)
+		self.P = [self.P[i] - c[i] * torch.matmul(K[i], K[i].T) for i in range(len(self.params))]  # (m, m) - (B, B) * (m, B) @ (B, m) -> (m, m)?
 		for i, (param, k) in enumerate(zip(self.params, K)):
 			param.data -= (
-					c[i] * torch.outer(error.view(-1), k.view(-1))
-			).to(param.device, non_blocking=True).view(param.data.shape)
+					c[i] * torch.outer(error.flatten(), k.flatten())  # (B, B) * (m * B) @ (m * B) -> (l, 1) ?
+			).to(param.device, non_blocking=True).reshape(param.data.shape)
+		# self.optimizer.step()
 		
 		self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)
 	
-	def on_iteration_begin(self, trainer, **kwargs):
-		# self._update_lambda()
-		# self._update_alpha()
-		pass
-	
 	def _try_put_on_device(self, trainer):
 		try:
-			self.K = [self.to_device_transform(k) for k in self.K]
+			# self.K = [self.to_device_transform(k) for k in self.K]
 			self.P = [self.to_device_transform(p) for p in self.P]
-			self.Delta = self.to_device_transform(self.Delta)
+			# self.Delta = self.to_device_transform(self.Delta)
 		except Exception as e:
 			trainer.model = self.to_cpu_transform(trainer.model)
-			self.K = [self.to_device_transform(k) for k in self.K]
+			# self.K = [self.to_device_transform(k) for k in self.K]
 			self.P = [self.to_device_transform(p) for p in self.P]
-			self.Delta = self.to_device_transform(self.Delta)
+			# self.Delta = self.to_device_transform(self.Delta)
 	
 	def _put_on_cpu(self):
-		self.K = [self.to_cpu_transform(k) for k in self.K]
+		# self.K = [self.to_cpu_transform(k) for k in self.K]
 		self.P = [self.to_cpu_transform(p) for p in self.P]
-		self.Delta = self.to_cpu_transform(self.Delta)
+		# self.Delta = self.to_cpu_transform(self.Delta)
 	
 	def on_optimization_begin(self, trainer, **kwargs):
 		y_batch = trainer.current_training_state.y_batch
@@ -357,12 +252,19 @@ class CURBD(TBPTT):
 		trainer.update_state_(batch_loss=self.apply_criterion(pred_batch, y_batch, self.eval_criterion).detach_())
 	
 	def on_optimization_end(self, trainer, **kwargs):
+		# y_batch = trainer.current_training_state.y_batch
+		# pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		self.zero_grad()
+		
+		# distance = torch.linalg.norm(y_batch - pred_batch)
+		# curbd_pVar = 1 - (distance / (np.sqrt(np.prod(y_batch.shape)) * torch.std(y_batch))) ** 2
+		
 		# eval_loss = self.compute_eval_loss(trainer, **kwargs)
 		# trainer.update_itr_metrics_state_(eval_criterion=eval_loss)
 		metrics = dict(
 			# psi_mean=self.to_cpu_transform(torch.cat([p.view(-1) for p in self.psi])).mean(),
 			# K_mean=self.to_cpu_transform(torch.cat([k.view(-1) for k in self.K])).mean(),
+			# curbd_pVar=curbd_pVar,
 			P_mean=self.to_cpu_transform(torch.cat([p.view(-1) for p in self.P])).mean(),
 			P_std=self.to_cpu_transform(torch.cat([p.view(-1) for p in self.P])).std(),
 			# Delta_mean=self.to_cpu_transform(self.Delta).mean(),

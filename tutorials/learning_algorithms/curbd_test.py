@@ -1,3 +1,6 @@
+from collections import defaultdict
+from copy import deepcopy
+
 import torch
 import neurotorch as nt
 import numpy as np
@@ -15,15 +18,20 @@ def curbd_step(output, target, P):
 
 
 def curbd_train(data, model, **kwargs):
+	nt.set_seed(kwargs.get('seed', 0))
 	layer = model.get_layer()
+	layer_mod = deepcopy(layer)
+	
 	data = nt.to_tensor(data).T
 	n_time_steps, n_units = data.shape
+	
 	# set up the training
 	loss_function = nt.losses.PVarianceLoss()
-	
 	J = nt.to_tensor(1.5 * np.random.randn(n_units, n_units) / np.sqrt(n_units))
-	layer.forward_weights = J
+	layer.forward_weights = J.detach().clone()
+	layer_mod.forward_weights = J.detach().clone()
 	
+	# set up the curbd input
 	ampInWN = kwargs.get("ampInWN", 0.01)
 	dtRNN, tauWN = layer.dt, layer.tau
 	ampWN = torch.sqrt(tauWN / dtRNN)
@@ -33,41 +41,68 @@ def curbd_train(data, model, **kwargs):
 		inputWN[tt] = iWN[tt] + (inputWN[tt - 1] - iWN[tt]) * torch.exp(-(dtRNN / tauWN))
 	inputWN = ampInWN * inputWN
 	
-	P = torch.eye(n_units)
+	P_nt = torch.eye(n_units)
+	P_nt_mod = torch.eye(n_units)
 	P_curbd = torch.eye(n_units)
+	losses = defaultdict(list)
 	
 	p_bar = tqdm.tqdm(range(kwargs.get("n_iterations", 10)))
 	for iteration in p_bar:
 		# curbd setup
-		H = data[0, np.newaxis]
 		y_pred_curbd = torch.zeros_like(data)
-		y_pred_curbd[0] = np.tanh(H)
+		hh_curbd = data[0, np.newaxis]
+		y_pred_curbd[0] = torch.tanh(hh_curbd)
+		
+		# neurotorch mod setup
+		y_pred_nt_mod = torch.zeros_like(data)
+		hh_nt_mod = data[0]
+		y_pred_nt_mod[0] = torch.tanh(hh_nt_mod)
 		
 		# neurotorch setup
-		y_pred = torch.zeros_like(data)
-		y_pred[0] = data[0]
-		hh = None
+		y_pred_nt = torch.zeros_like(data)
+		hh_nt = None
+		y_pred_nt[0] = data[0]
+		
 		for t in range(1, n_time_steps):
 			# curbd step
-			y_pred_curbd[t] = np.tanh(H)
-			JR = torch.matmul(J, y_pred_curbd[t]) + inputWN[t]
-			H = H + dtRNN * (JR - H) / tauWN
+			y_pred_curbd[t] = torch.tanh(hh_curbd)
+			JR_curbd = torch.matmul(J, y_pred_curbd[t]) + inputWN[t]
+			hh_curbd = hh_curbd + dtRNN * (JR_curbd - hh_curbd) / tauWN
 			J += curbd_step(y_pred_curbd[t], data[t], P_curbd)
 			
-			# neurotorch step
-			y_pred[t], hh = layer(inputWN[t][np.newaxis, :], hh)
-			layer.forward_weights.data += curbd_step(y_pred[t], data[t], P)
+			# neurotorch mod step
+			y_pred_nt_mod[t] = torch.tanh(hh_nt_mod)
+			JR_nt_mod = torch.matmul(layer_mod.forward_weights, y_pred_nt_mod[t]) + inputWN[t]
+			hh_nt_mod = hh_nt_mod + layer_mod.dt * (JR_nt_mod - hh_nt_mod) / layer_mod.tau
+			layer_mod.forward_weights.data += curbd_step(y_pred_nt_mod[t], data[t], P_nt_mod)
 			
+			# neurotorch step
+			y_pred_nt[t], hh_nt = layer(inputWN[t][np.newaxis, :], hh_nt)
+			layer.forward_weights.data += curbd_step(y_pred_nt[t], data[t], P_nt)
+		
 		# compute and print loss
-		loss = loss_function(y_pred, data)
+		loss_nt = loss_function(y_pred_nt, data)
+		loss_nt_mod = loss_function(y_pred_nt_mod, data)
 		loss_curbd = loss_function(y_pred_curbd, data)
-		p_bar.set_description(f"Loss: {loss.item():.4f}, Loss curbd: {loss_curbd.item():.4f}")
+		losses['nt'].append(loss_nt.item())
+		losses['nt_mod'].append(loss_nt_mod.item())
+		losses['curbd'].append(loss_curbd.item())
+		p_bar.set_description(
+			f"Loss nt: {loss_nt.item():.4f}, "
+			f"Loss curbd: {loss_curbd.item():.4f}, "
+			f"Loss nt mod: {loss_nt_mod.item():.4f}"
+		)
 
 
 if __name__ == '__main__':
 	curbd_data = np.load("data/ts/curbd_Adata.npy")
 	network = nt.SequentialModel(
-		layers=[nt.WilsonCowanLayer(curbd_data.shape[0], curbd_data.shape[0], activation="tanh", tau=0.1)],
+		layers=[nt.WilsonCowanLayer(
+			curbd_data.shape[0], curbd_data.shape[0],
+			activation="tanh",
+			tau=0.1,
+			dt=0.01,
+		)],
 		foresight_time_steps=1,
 		out_memory_size=1,
 		hh_memory_size=1,

@@ -48,6 +48,7 @@ from .trainers import (
 	Trainer,
 	ClassificationTrainer,
 	RegressionTrainer,
+	TrainingState,
 )
 
 from .transforms import (

@@ -2000,6 +2000,30 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		return output, (output, )
 
 
+class WilsonCowanCURBDLayer(WilsonCowanLayer):
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+	
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Optional[Tuple[torch.Tensor, ...]] = None,
+			**kwargs
+	) -> Tuple[torch.Tensor, Tuple[torch.Tensor]]:
+		batch_size, nb_features = inputs.shape
+		hh, = self._init_forward_state(state, batch_size, inputs=inputs)
+		output = self.activation(hh)
+		
+		if self.use_recurrent_connection:
+			rec_inputs = torch.matmul(hh, torch.mul(self.recurrent_weights, self.rec_mask))
+		else:
+			rec_inputs = 0.0
+		
+		r = rec_inputs + torch.matmul(output, self.forward_weights)
+		hh = hh + self.dt * (r - hh) / self.tau
+		return output, (hh, )
+
+
 # @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
 class LILayer(BaseNeuronsLayer):
 	"""

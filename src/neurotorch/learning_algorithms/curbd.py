@@ -216,7 +216,7 @@ class CURBD(TBPTT):
 		for i, (param, k) in enumerate(zip(self.params, K)):
 			param.data -= (
 					c[i] * torch.outer(error.flatten(), k.flatten())  # (B, B) * (m * B) @ (m * B) -> (l, 1) ?
-			).to(param.device, non_blocking=True).reshape(param.data.shape)
+			).to(param.device, non_blocking=True).reshape(param.data.shape).T
 		
 		self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)

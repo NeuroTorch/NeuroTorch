@@ -1,10 +1,14 @@
 from collections import defaultdict
 from copy import deepcopy
+from typing import Optional, Tuple, NamedTuple
 
 import torch
 import neurotorch as nt
 import numpy as np
 import tqdm
+
+from neurotorch.modules.layers import WilsonCowanCURBDLayer
+from neurotorch.learning_algorithms.curbd import CURBD
 
 
 def curbd_step(output, target, P):
@@ -19,7 +23,7 @@ def curbd_step(output, target, P):
 
 def curbd_train(data, model, **kwargs):
 	nt.set_seed(kwargs.get('seed', 0))
-	layer = model.get_layer()
+	layer = deepcopy(model.get_layer())
 	layer_mod = deepcopy(layer)
 	
 	data = nt.to_tensor(data).T
@@ -30,6 +34,7 @@ def curbd_train(data, model, **kwargs):
 	J = nt.to_tensor(1.5 * np.random.randn(n_units, n_units) / np.sqrt(n_units))
 	layer.forward_weights = J.detach().clone()
 	layer_mod.forward_weights = J.detach().clone()
+	model.get_layer().forward_weights = J.detach().clone()
 	
 	# set up the curbd input
 	ampInWN = kwargs.get("ampInWN", 0.01)
@@ -40,6 +45,11 @@ def curbd_train(data, model, **kwargs):
 	for tt in range(1, n_time_steps):
 		inputWN[tt] = iWN[tt] + (inputWN[tt - 1] - iWN[tt]) * torch.exp(-(dtRNN / tauWN))
 	inputWN = ampInWN * inputWN
+	
+	# set up the learning algorithm
+	trainer = nt.Trainer(model)
+	learning_algorithm = CURBD(layers=[model.get_layer()])
+	learning_algorithm.start(trainer)
 	
 	P_nt = torch.eye(n_units)
 	P_nt_mod = torch.eye(n_units)
@@ -61,7 +71,17 @@ def curbd_train(data, model, **kwargs):
 		# neurotorch setup
 		y_pred_nt = torch.zeros_like(data)
 		hh_nt = None
-		y_pred_nt[0] = data[0]
+		y_pred_nt[0] = torch.tanh(data[0])
+		
+		# seq setup
+		y_pred_seq = torch.zeros_like(data)
+		y_pred_seq[0] = torch.tanh(data[0])
+		x_batch = y_pred_seq[0][np.newaxis, np.newaxis, :]
+		y_batch = data[np.newaxis, :]
+		trainer.update_state_(x_batch=x_batch, y_batch=y_batch)
+		learning_algorithm.on_batch_begin(trainer)
+		y_pred_seq[1:] = model.get_prediction_trace(x_batch)
+		learning_algorithm.on_batch_end(trainer)
 		
 		for t in range(1, n_time_steps):
 			# curbd step
@@ -72,25 +92,28 @@ def curbd_train(data, model, **kwargs):
 			
 			# neurotorch mod step
 			y_pred_nt_mod[t] = torch.tanh(hh_nt_mod)
-			JR_nt_mod = torch.matmul(layer_mod.forward_weights, y_pred_nt_mod[t]) + inputWN[t]
+			JR_nt_mod = torch.matmul(y_pred_nt_mod[t][np.newaxis, :], layer_mod.forward_weights)
 			hh_nt_mod = hh_nt_mod + layer_mod.dt * (JR_nt_mod - hh_nt_mod) / layer_mod.tau
-			layer_mod.forward_weights.data += curbd_step(y_pred_nt_mod[t], data[t], P_nt_mod)
+			layer_mod.forward_weights.data += curbd_step(y_pred_nt_mod[t], data[t], P_nt_mod).T
 			
 			# neurotorch step
-			y_pred_nt[t], hh_nt = layer(inputWN[t][np.newaxis, :], hh_nt)
-			layer.forward_weights.data += curbd_step(y_pred_nt[t], data[t], P_nt)
+			y_pred_nt[t], hh_nt = layer(y_pred_nt[t-1][np.newaxis, :], hh_nt)
+			layer.forward_weights.data += curbd_step(y_pred_nt[t], data[t], P_nt).T
 		
 		# compute and print loss
 		loss_nt = loss_function(y_pred_nt, data)
 		loss_nt_mod = loss_function(y_pred_nt_mod, data)
 		loss_curbd = loss_function(y_pred_curbd, data)
+		loss_seq = loss_function(y_pred_seq, data)
 		losses['nt'].append(loss_nt.item())
 		losses['nt_mod'].append(loss_nt_mod.item())
 		losses['curbd'].append(loss_curbd.item())
+		losses['seq'].append(loss_seq.item())
 		p_bar.set_description(
 			f"Loss nt: {loss_nt.item():.4f}, "
 			f"Loss curbd: {loss_curbd.item():.4f}, "
-			f"Loss nt mod: {loss_nt_mod.item():.4f}"
+			f"Loss nt mod: {loss_nt_mod.item():.4f}, "
+			f"Loss seq: {loss_seq.item():.4f} "
 		)
 
 
@@ -103,8 +126,14 @@ if __name__ == '__main__':
 			tau=0.1,
 			dt=0.01,
 		)],
-		foresight_time_steps=1,
-		out_memory_size=1,
+		# layers=[WilsonCowanCURBDLayer(
+		# 	curbd_data.shape[0], curbd_data.shape[0],
+		# 	activation="tanh",
+		# 	tau=0.1,
+		# 	dt=0.01,
+		# )],
+		foresight_time_steps=curbd_data.shape[-1]-1,
+		out_memory_size=curbd_data.shape[-1]-1,
 		hh_memory_size=1,
 		device=torch.device("cpu"),
 	).build()

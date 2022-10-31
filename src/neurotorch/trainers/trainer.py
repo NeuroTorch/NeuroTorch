@@ -75,6 +75,9 @@ class CurrentTrainingState(NamedTuple):
 		assert all(k in self_dict for k in kwargs)
 		self_dict.update(kwargs)
 		return CurrentTrainingState(**self_dict)
+	
+
+TrainingState = CurrentTrainingState  # Alias
 
 
 class Trainer:

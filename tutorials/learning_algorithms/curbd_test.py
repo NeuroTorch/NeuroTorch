@@ -48,7 +48,7 @@ def curbd_train(data, model, **kwargs):
 	
 	# set up the learning algorithm
 	trainer = nt.Trainer(model)
-	learning_algorithm = CURBD(layers=[model.get_layer()])
+	learning_algorithm = CURBD(params=[model.get_layer().forward_weights])
 	learning_algorithm.start(trainer)
 	
 	P_nt = torch.eye(n_units)
@@ -120,18 +120,18 @@ def curbd_train(data, model, **kwargs):
 if __name__ == '__main__':
 	curbd_data = np.load("data/ts/curbd_Adata.npy")
 	network = nt.SequentialModel(
-		layers=[nt.WilsonCowanLayer(
-			curbd_data.shape[0], curbd_data.shape[0],
-			activation="tanh",
-			tau=0.1,
-			dt=0.01,
-		)],
-		# layers=[WilsonCowanCURBDLayer(
+		# layers=[nt.WilsonCowanLayer(
 		# 	curbd_data.shape[0], curbd_data.shape[0],
 		# 	activation="tanh",
 		# 	tau=0.1,
 		# 	dt=0.01,
 		# )],
+		layers=[WilsonCowanCURBDLayer(
+			curbd_data.shape[0], curbd_data.shape[0],
+			activation="tanh",
+			tau=0.1,
+			dt=0.01,
+		)],
 		foresight_time_steps=curbd_data.shape[-1]-1,
 		out_memory_size=curbd_data.shape[-1]-1,
 		hh_memory_size=1,

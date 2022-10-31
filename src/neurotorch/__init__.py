@@ -78,6 +78,10 @@ from .learning_algorithms import (
 	WeakRLS,
 )
 
+from .utils import (
+	set_seed,
+)
+
 import warnings
 
 warnings.filterwarnings("ignore", category=Warning, module="docutils")

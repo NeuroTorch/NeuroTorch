@@ -98,6 +98,7 @@ def make_learning_algorithm(**kwargs):
 		)
 	elif la_name == "curbd":
 		learning_algorithm = CURBD(
+			params=[kwargs["model"].get_layer().forward_weights],
 			criterion=nt.losses.PVarianceLoss(),
 			# criterion=torch.nn.MSELoss(),
 			# device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
@@ -278,9 +279,9 @@ if __name__ == '__main__':
 	
 	res = train_with_params(
 		params={
-			"filename": "curbd_Adata.npy",
-			"smoothing_sigma": 0.0,
-			"n_units": 300,
+			# "filename": "curbd_Adata.npy",
+			"smoothing_sigma": 10.0,
+			"n_units": 200,
 			"n_time_steps": -1,
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,

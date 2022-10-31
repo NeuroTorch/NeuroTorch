@@ -9,6 +9,14 @@ def curbd_train(data, model, **kwargs):
 	n_time_steps, n_units = data.shape
 	# set up the training
 	loss_function = nt.losses.PVarianceLoss()
+	
+	# ampWN = np.sqrt(tauWN / dtRNN)
+	# iWN = ampWN * npr.randn(n_units, n_time_steps)
+	# inputWN = np.ones((n_units, n_time_steps))
+	# for tt in range(1, n_time_steps):
+	# 	inputWN[:, tt] = iWN[:, tt] + (inputWN[:, tt - 1] - iWN[:, tt]) * np.exp(- (dtRNN / tauWN))
+	# inputWN = ampInWN * inputWN
+	
 	P = torch.eye(n_units)
 	p_bar = tqdm.tqdm(range(kwargs.get("n_iterations", 100)))
 	for iteration in p_bar:

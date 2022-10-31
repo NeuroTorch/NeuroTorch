@@ -23,7 +23,7 @@ class CURBD(TBPTT):
 			layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
 			criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
 			backward_time_steps: Optional[int] = None,
-			is_recurrent: bool = False,
+			is_recurrent: bool = True,
 			**kwargs
 	):
 		kwargs.setdefault("auto_backward_time_steps_ratio", 0)
@@ -128,8 +128,10 @@ class CURBD(TBPTT):
 	
 	def start(self, trainer, **kwargs):
 		LearningAlgorithm.start(self, trainer, **kwargs)
-		if not self.params:
+		if not self.params and not self.layers:
 			self.params = list(trainer.model.parameters())
+		elif self.layers:
+			self.params = [param for layer in self.layers for param in layer.parameters()]
 		
 		self.optimizer = torch.optim.SGD(self.params, lr=1e-2)
 		
@@ -213,10 +215,9 @@ class CURBD(TBPTT):
 		yPy = [torch.matmul(pred_batch_view.T, K[i]).item() for i in range(len(self.params))]  # (B, m) @ (m, B) -> (B, B)
 		c = [1.0 / (1.0 + yPy[i]) for i in range(len(self.params))]  # (B, B)
 		self.P = [self.P[i] - c[i] * torch.matmul(K[i], K[i].T) for i in range(len(self.params))]  # (m, m) - (B, B) * (m, B) @ (B, m) -> (m, m)?
-		for i, (param, k) in enumerate(zip(self.params, K)):
-			param.data -= (
-					c[i] * torch.outer(error.flatten(), k.flatten())  # (B, B) * (m * B) @ (m * B) -> (l, 1) ?
-			).to(param.device, non_blocking=True).reshape(param.data.shape).T
+		delta_w = [-c[i] * torch.outer(error.flatten(), K[i].flatten()) for i in range(len(self.params))]    # (B, B) * (m * B) @ (m * B) -> (l, 1) ?
+		for i, param in enumerate(self.params):
+			param.data += delta_w[i].to(param.device, non_blocking=True).reshape(param.data.shape).T
 		
 		self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)

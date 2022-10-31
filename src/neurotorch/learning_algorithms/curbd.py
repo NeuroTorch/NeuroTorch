@@ -15,6 +15,7 @@ class CURBD(TBPTT):
 	Apply the backpropagation through time algorithm to the given model.
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
+	CHECKPOINT_P_STATE_DICT_KEY: str = "P"
 	
 	def __init__(
 			self,
@@ -23,7 +24,6 @@ class CURBD(TBPTT):
 			layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
 			criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
 			backward_time_steps: Optional[int] = None,
-			is_recurrent: bool = True,
 			**kwargs
 	):
 		kwargs.setdefault("auto_backward_time_steps_ratio", 0)
@@ -60,8 +60,7 @@ class CURBD(TBPTT):
 			params.extend([param for layer in layers for param in layer.parameters() if param not in params])
 		self.params: List[torch.nn.Parameter] = params
 		self.layers = layers
-		self.eval_criterion = criterion
-		self.criterion = torch.nn.MSELoss()
+		self.criterion = criterion
 		
 		# RLS attributes
 		self.P = None
@@ -71,18 +70,12 @@ class CURBD(TBPTT):
 		self.to_device_transform = None
 		self.reduction = kwargs.get("reduction", "mean").lower()
 		self._other_dims_as_batch = kwargs.get("other_dims_as_batch", False)
-		self._is_recurrent = is_recurrent
+		self._is_recurrent = True
 		
 		self._asserts()
 	
 	def _asserts(self):
 		assert self.reduction in ["mean", "sum", "none"], "reduction must be either 'mean', 'sum' or 'none'"
-	
-	def _initialize_K(self, m):
-		self.K = [
-			torch.zeros((param.numel(), m), dtype=torch.float32, device=torch.device("cpu")).T
-			for param in self.params
-		]
 	
 	def _initialize_P(self, m=None):
 		self.P = [
@@ -116,13 +109,14 @@ class CURBD(TBPTT):
 		self._layers_buffer[layer_name].clear()
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
-		if self.save_state:
+		if self.load_state:
 			state = checkpoint.get(self.name, {})
+			self.P = state.get(self.CHECKPOINT_P_STATE_DICT_KEY, None)
 	
 	def get_checkpoint_state(self, trainer, **kwargs) -> object:
 		if self.save_state:
 			return {
-			
+				self.CHECKPOINT_P_STATE_DICT_KEY: self.P,
 			}
 		return None
 	
@@ -132,8 +126,15 @@ class CURBD(TBPTT):
 			self.params = list(trainer.model.parameters())
 		elif self.layers:
 			self.params = [param for layer in self.layers for param in layer.parameters()]
+			
+		if len(self.params) > 1:
+			raise NotImplementedError("CURBD does not support multiple parameters yet.")
+		if self.params[0].ndim > 2:
+			raise NotImplementedError("CURBD does not support parameters with more than 2 dimensions yet.")
+		if self.params[0].shape[0] != self.params[0].shape[1]:
+			raise NotImplementedError("CURBD does not support parameters that are not square yet.")
 		
-		self.optimizer = torch.optim.SGD(self.params, lr=1e-2)
+		self.optimizer = torch.optim.SGD(self.params, lr=1.0)
 		
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
@@ -156,39 +157,12 @@ class CURBD(TBPTT):
 		super().on_batch_end(trainer)
 		self.undecorate_forwards()
 		self._layers_buffer.clear()
-	
-	def apply_criterion(self, pred_batch, y_batch, criterion):
-		if criterion is None:
-			if isinstance(y_batch, dict):
-				criterion = {key: torch.nn.MSELoss() for key in y_batch}
-			else:
-				criterion = torch.nn.MSELoss()
 		
-		if isinstance(criterion, dict):
-			raise NotImplementedError("y_batch as dict is not implemented yet")
-			if isinstance(y_batch, torch.Tensor):
-				y_batch = {k: y_batch for k in criterion}
-			if isinstance(pred_batch, torch.Tensor):
-				pred_batch = {k: pred_batch for k in criterion}
-			assert isinstance(pred_batch, dict) and isinstance(y_batch, dict), \
-				"If criterion is a dict, pred, y_batch and pred must be a dict too."
-			batch_loss = sum(
-				[
-					criterion[k](pred_batch[k], y_batch[k].to(pred_batch[k].device))
-					for k in criterion
-				]
-			)
-		else:
-			if isinstance(pred_batch, dict) and len(pred_batch) == 1:
-				pred_batch = pred_batch[list(pred_batch.keys())[0]]
-			batch_loss = criterion(pred_batch, y_batch.to(pred_batch.device))
-		return batch_loss
-	
 	def zero_grad(self):
-		for param in self.params:
-			if param.grad is not None:
-				# param.grad.detach_()
-				param.grad.zero_()
+		# for param in self.params:
+		# 	if param.grad is not None:
+		# 		param.grad.detach_()
+		# 		param.grad.zero_()
 		if self.optimizer:
 			self.optimizer.zero_grad()
 	
@@ -199,15 +173,12 @@ class CURBD(TBPTT):
 		assert pred_batch.shape[0] == y_batch.shape[0] == 1, \
 			"pred_batch and y_batch must be of shape (1, ...). CURBD batch-wise not implemented yet."
 		pred_batch_view, y_batch_view = pred_batch[:, -1].view(-1, 1), y_batch[:, -1].view(-1, 1)
-		
-		# if self._other_dims_as_batch:
-		# 	pred_batch_view, y_batch_view = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(-1, y_batch.shape[-1])
-		# else:
-		# 	pred_batch_view, y_batch_view = pred_batch.view(pred_batch.shape[0], -1), y_batch.view(y_batch.shape[0], -1)
 		self.zero_grad()
 		
 		if self.P is None:
 			self._initialize_P(m=y_batch_view.shape[0])
+			if self.params[0].shape[-1] != self.P[0].shape[0]:
+				raise NotImplementedError("CURBD does not support parameters that are not the same shape as the output yet.")
 		self._try_put_on_device(self.trainer)
 		
 		error = self.to_device_transform(pred_batch_view - y_batch_view)
@@ -215,28 +186,25 @@ class CURBD(TBPTT):
 		yPy = [torch.matmul(pred_batch_view.T, K[i]).item() for i in range(len(self.params))]  # (B, m) @ (m, B) -> (B, B)
 		c = [1.0 / (1.0 + yPy[i]) for i in range(len(self.params))]  # (B, B)
 		self.P = [self.P[i] - c[i] * torch.matmul(K[i], K[i].T) for i in range(len(self.params))]  # (m, m) - (B, B) * (m, B) @ (B, m) -> (m, m)?
-		delta_w = [-c[i] * torch.outer(error.flatten(), K[i].flatten()) for i in range(len(self.params))]    # (B, B) * (m * B) @ (m * B) -> (l, 1) ?
+		delta_w = [c[i] * torch.outer(error.flatten(), K[i].flatten()) for i in range(len(self.params))]    # (B, B) * (m * B) @ (m * B) -> (l, 1) ?
+		# for i, param in enumerate(self.params):
+		# 	param.data -= delta_w[i].to(param.device, non_blocking=True).view(param.data.shape).T
 		for i, param in enumerate(self.params):
-			param.data += delta_w[i].to(param.device, non_blocking=True).reshape(param.data.shape).T
+			param.grad = delta_w[i].to(param.device, non_blocking=True).view(param.data.shape).T.clone()
+		self.optimizer.step()
 		
 		self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)
 	
 	def _try_put_on_device(self, trainer):
 		try:
-			# self.K = [self.to_device_transform(k) for k in self.K]
 			self.P = [self.to_device_transform(p) for p in self.P]
-			# self.Delta = self.to_device_transform(self.Delta)
 		except Exception as e:
 			trainer.model = self.to_cpu_transform(trainer.model)
-			# self.K = [self.to_device_transform(k) for k in self.K]
 			self.P = [self.to_device_transform(p) for p in self.P]
-			# self.Delta = self.to_device_transform(self.Delta)
 	
 	def _put_on_cpu(self):
-		# self.K = [self.to_cpu_transform(k) for k in self.K]
 		self.P = [self.to_cpu_transform(p) for p in self.P]
-		# self.Delta = self.to_cpu_transform(self.Delta)
 	
 	def on_optimization_begin(self, trainer, **kwargs):
 		y_batch = trainer.current_training_state.y_batch
@@ -250,52 +218,11 @@ class CURBD(TBPTT):
 		else:
 			self._batch_step(trainer, **kwargs)
 		
-		trainer.update_state_(batch_loss=self.apply_criterion(pred_batch, y_batch, self.eval_criterion).detach_())
+		trainer.update_state_(batch_loss=self.apply_criterion(pred_batch, y_batch).detach_())
 	
 	def on_optimization_end(self, trainer, **kwargs):
-		# y_batch = trainer.current_training_state.y_batch
-		# pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		self.zero_grad()
-		
-		# distance = torch.linalg.norm(y_batch - pred_batch)
-		# curbd_pVar = 1 - (distance / (np.sqrt(np.prod(y_batch.shape)) * torch.std(y_batch))) ** 2
-		
-		# eval_loss = self.compute_eval_loss(trainer, **kwargs)
-		# trainer.update_itr_metrics_state_(eval_criterion=eval_loss)
-		metrics = dict(
-			# psi_mean=self.to_cpu_transform(torch.cat([p.view(-1) for p in self.psi])).mean(),
-			# K_mean=self.to_cpu_transform(torch.cat([k.view(-1) for k in self.K])).mean(),
-			# curbd_pVar=curbd_pVar,
-			P_mean=self.to_cpu_transform(torch.cat([p.view(-1) for p in self.P])).mean(),
-			P_std=self.to_cpu_transform(torch.cat([p.view(-1) for p in self.P])).std(),
-			# Delta_mean=self.to_cpu_transform(self.Delta).mean(),
-			# alpha=self.alpha,
-			# eta=self.eta,
-			# lbda=self.Lambda,
-		)
-		trainer.update_itr_metrics_state_(**metrics)
+
 	
-	def compute_eval_loss(self, trainer, **kwargs):
-		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
-		with torch.no_grad():
-			eval_loss = self.apply_criterion(pred_batch, y_batch, self.eval_criterion)
-		return eval_loss
 	
-	def compute_loss(self, trainer, **kwargs):
-		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
-		loss = self.apply_criterion(pred_batch, y_batch, self.criterion)
-		return loss
-	
-	def on_validation_batch_begin(self, trainer, **kwargs):
-		eval_loss = self.compute_eval_loss(trainer, **kwargs)
-		batch_loss = self.compute_loss(trainer, **kwargs)
-		trainer.update_state_(batch_loss=batch_loss)
-		trainer.update_itr_metrics_state_(eval_loss=eval_loss)
-	
-	def on_pbar_update(self, trainer, **kwargs) -> dict:
-		return {
-			# "eval_loss": self.compute_eval_loss(trainer, **kwargs),
-		}
 

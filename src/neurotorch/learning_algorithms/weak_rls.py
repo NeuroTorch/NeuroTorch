@@ -82,7 +82,6 @@ class WeakRLS(TBPTT):
 		self.jacobian_noise = kwargs.get("jacobian_noise", 0.0)
 		
 		self._asserts()
-		self.t_list = []
 	
 	@property
 	def eta(self):
@@ -159,7 +158,7 @@ class WeakRLS(TBPTT):
 			self.zero_grad()
 			outputs.backward(grad_outputs[i], retain_graph=True)
 			for p_idx, param in enumerate(self.params):
-				grad = param.grad.view(-1).detach().clone()
+				grad = param.grad.flatten().detach().clone()
 				grad_noise = torch.randn_like(grad) * self.jacobian_noise
 				psi[p_idx].append(grad + grad_noise)
 		psi = [torch.stack(psi[i], dim=-1).T for i in range(len(list(self.params)))]
@@ -191,7 +190,6 @@ class WeakRLS(TBPTT):
 		def _forward(*args, **kwargs):
 			out = forward(*args, **kwargs)
 			t = kwargs.get("t", None)
-			self.t_list.append(t)
 			if t is None:
 				return out
 			out_tensor = self._get_out_tensor(out)
@@ -225,7 +223,9 @@ class WeakRLS(TBPTT):
 		LearningAlgorithm.start(self, trainer, **kwargs)
 		if not self.params:
 			self.params = list(trainer.model.parameters())
-		
+			
+		# filter params to get only the ones that require gradients
+		self.params = [param for param in self.params if param.requires_grad]
 		self.optimizer = torch.optim.SGD(self.params, lr=1e-2)
 		
 		if self.criterion is None and trainer.criterion is not None:
@@ -324,18 +324,30 @@ class WeakRLS(TBPTT):
 			self.to_device_transform(torch.eye(self.P[i].shape[0]))
 			for i in range(len(self.params))
 		]
+		self.optimizer.zero_grad()
 		for idx, error_i in enumerate(error):
 			single_psi = [psi_i[idx] for psi_i in psi]
 			# self._update_k_p_on_datum(psi=single_psi, error=error[idx])
-			self.K = [self.P[i] @ single_psi[i] for i in range(len(self.params))]
-			psiPpsi = [single_psi[i].T @ self.K[i] for i in range(len(self.params))]
-			c = [1 / (1 + psiPpsi[i]) for i in range(len(self.params))]
+			K = [self.P[i] @ single_psi[i] for i in range(len(self.params))]
 			self.P = [
-				self.P[i] - c[i] * (self.K[i] @ self.K[i].T)
+				(eyes[i] - K[i] @ single_psi[i].T) @ self.P[i] / self.Lambda
 				for i in range(len(self.params))
 			]
-		self._update_delta(error.mean(dim=0))
-		self._update_params()
+			lr = 0.1 * error_i
+			for param, k in zip(self.params, self.K):
+				param.grad = (
+						k.T @ lr.reshape(-1, 1)
+				).to(param.device, non_blocking=True).reshape(param.data.shape).clone()  # .T?
+			# self.K = [self.P[i] @ single_psi[i] for i in range(len(self.params))]
+			# psiPpsi = [single_psi[i].T @ K[i] for i in range(len(self.params))]
+			# c = [1 / (1 + psiPpsi[i]) for i in range(len(self.params))]
+			# self.P = [
+			# 	self.P[i] - c[i] * (self.K[i] @ self.K[i].T)
+			# 	for i in range(len(self.params))
+			# ]
+		# self._update_delta(error.mean(dim=0))
+		# self._update_params()
+		self.optimizer.step()
 		self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)
 	
@@ -379,10 +391,10 @@ class WeakRLS(TBPTT):
 		# eval_loss = self.compute_eval_loss(trainer, **kwargs)
 		# trainer.update_itr_metrics_state_(eval_criterion=eval_loss)
 		metrics = dict(
-			psi_mean=self.to_cpu_transform(torch.cat([p.view(-1) for p in self.psi])).mean(),
-			K_mean=self.to_cpu_transform(torch.cat([k.view(-1) for k in self.K])).mean(),
-			P_mean=self.to_cpu_transform(torch.cat([p.view(-1) for p in self.P])).mean(),
-			P_std=self.to_cpu_transform(torch.cat([p.view(-1) for p in self.P])).std(),
+			psi_mean=self.to_cpu_transform(torch.cat([p.flatten() for p in self.psi])).mean(),
+			K_mean=self.to_cpu_transform(torch.cat([k.flatten() for k in self.K])).mean(),
+			P_mean=self.to_cpu_transform(torch.cat([p.flatten() for p in self.P])).mean(),
+			P_std=self.to_cpu_transform(torch.cat([p.flatten() for p in self.P])).std(),
 			Delta_mean=self.to_cpu_transform(self.Delta).mean(),
 			# alpha=self.alpha,
 			# eta=self.eta,

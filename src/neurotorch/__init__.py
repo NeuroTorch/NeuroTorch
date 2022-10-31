@@ -31,6 +31,7 @@ from .modules.layers import (
 	SpyALIFLayer,
 	ALIFLayer,
 	WilsonCowanLayer,
+	WilsonCowanCURBDLayer,
 )
 
 from .regularization import (

@@ -1851,13 +1851,15 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			**kwargs
 		)
 		self.std_weight = self.kwargs["std_weight"]
-		self.mu = to_tensor(self.kwargs["mu"]).to(self.device)
+		self.mu = torch.nn.Parameter(to_tensor(self.kwargs["mu"]).to(self.device), requires_grad=False)
 		self.mean_mu = self.kwargs["mean_mu"]
 		self.std_mu = self.kwargs["std_mu"]
 		self.learn_mu = self.kwargs["learn_mu"]
-		self.tau = to_tensor(self.kwargs["tau"]).to(self.device)
+		self.tau = torch.nn.Parameter(to_tensor(self.kwargs["tau"]).to(self.device), requires_grad=False)
 		self.learn_tau = self.kwargs["learn_tau"]
-		self.r_sqrt = torch.sqrt(to_tensor(self.kwargs["r"], dtype=torch.float32)).to(self.device)
+		self.r_sqrt = torch.nn.Parameter(
+			torch.sqrt(to_tensor(self.kwargs["r"], dtype=torch.float32)).to(self.device), requires_grad=False
+		)
 		self.mean_r = self.kwargs["mean_r"]
 		self.std_r = self.kwargs["std_r"]
 		self.learn_r = self.kwargs["learn_r"]

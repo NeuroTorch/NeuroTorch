@@ -100,11 +100,7 @@ def make_learning_algorithm(**kwargs):
 		learning_algorithm = CURBD(
 			params=[kwargs["model"].get_layer().forward_weights],
 			criterion=nt.losses.PVarianceLoss(),
-			# criterion=torch.nn.MSELoss(),
-			# device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
 			device=torch.device("cpu"),
-			reduction='mean',
-			is_recurrent=True,
 		)
 	else:
 		raise ValueError(f"Unknown learning algorithm: {la_name}")
@@ -132,8 +128,8 @@ def train_with_params(
 	dataset = dataloader.dataset
 	x = dataset.full_time_series
 	# forward_weights = nt.init.dale_(torch.zeros(params["n_units"], params["n_units"]), inh_ratio=0.5, rho=0.2)
-	forward_weights = 1.5 * torch.randn(params["n_units"], params["n_units"]) / np.sqrt(params["n_units"])
-	ws_layer = WilsonCowanLayer(
+	forward_weights = 1.5 * torch.randn(x.shape[-1], x.shape[-1]) / np.sqrt(x.shape[-1])
+	ws_layer = nt.WilsonCowanLayer(
 		x.shape[-1], x.shape[-1],
 		forward_weights=forward_weights,
 		std_weights=params["std_weights"],
@@ -190,7 +186,7 @@ def train_with_params(
 		# 	retain_progress=True,
 		# ),
 		learning_algorithm,
-		# checkpoint_manager,
+		checkpoint_manager,
 		# convergence_time_getter,
 		# EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
 		# EventOnMetricThreshold(
@@ -279,9 +275,11 @@ if __name__ == '__main__':
 	
 	res = train_with_params(
 		params={
+			# "filename": "ts_nobaselines_fish3.npy",
+			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
-			"smoothing_sigma": 10.0,
-			"n_units": 200,
+			"smoothing_sigma": 15.0,
+			"n_units": 300,
 			"n_time_steps": -1,
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
@@ -292,10 +290,9 @@ if __name__ == '__main__':
 			"learn_mu": False,
 			"learn_r": False,
 			"learn_tau": False,
-			"activation": "tanh",
-			# "dt": 0.01,
+			"activation": "sigmoid",
 		},
-		n_iterations=100,
+		n_iterations=300,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,

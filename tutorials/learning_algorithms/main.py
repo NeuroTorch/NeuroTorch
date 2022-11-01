@@ -292,7 +292,7 @@ if __name__ == '__main__':
 			"learn_tau": False,
 			"activation": "sigmoid",
 		},
-		n_iterations=300,
+		n_iterations=100,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,

@@ -194,9 +194,8 @@ class WeakRLS(TBPTT):
 				return out
 			out_tensor = self._get_out_tensor(out)
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
-			if len(self._layers_buffer[layer_name]) == self.backward_time_steps and t != 0:
-				# self._backward_at_t(t, self.backward_time_steps, layer_name)
-				self._backward_at_t(t, len(self._layers_buffer[layer_name]), layer_name)
+			if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
+				self._backward_at_t(t, self.backward_time_steps, layer_name)
 				out = self._detach_out(out)
 			return out
 		
@@ -226,7 +225,7 @@ class WeakRLS(TBPTT):
 			
 		# filter params to get only the ones that require gradients
 		self.params = [param for param in self.params if param.requires_grad]
-		self.optimizer = torch.optim.SGD(self.params, lr=1e-2)
+		self.optimizer = torch.optim.SGD(self.params, lr=0.1)
 		
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
@@ -333,21 +332,13 @@ class WeakRLS(TBPTT):
 				(eyes[i] - K[i] @ single_psi[i].T) @ self.P[i] / self.Lambda
 				for i in range(len(self.params))
 			]
-			lr = 0.1 * error_i
 			for param, k in zip(self.params, self.K):
-				param.grad = (
-						k.T @ lr.reshape(-1, 1)
+				param.data += 0.1*(
+						k.T @ error_i.reshape(-1, 1)
 				).to(param.device, non_blocking=True).reshape(param.data.shape).clone()  # .T?
-			# self.K = [self.P[i] @ single_psi[i] for i in range(len(self.params))]
-			# psiPpsi = [single_psi[i].T @ K[i] for i in range(len(self.params))]
-			# c = [1 / (1 + psiPpsi[i]) for i in range(len(self.params))]
-			# self.P = [
-			# 	self.P[i] - c[i] * (self.K[i] @ self.K[i].T)
-			# 	for i in range(len(self.params))
-			# ]
 		# self._update_delta(error.mean(dim=0))
 		# self._update_params()
-		self.optimizer.step()
+		# self.optimizer.step()
 		self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)
 	

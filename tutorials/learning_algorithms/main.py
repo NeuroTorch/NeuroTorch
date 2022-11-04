@@ -284,7 +284,7 @@ if __name__ == '__main__':
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
-			"learning_algorithm": "curbd",
+			"learning_algorithm": "WeakRLS",
 			"auto_backward_time_steps_ratio": 0.25,
 			"weight_decay": 1e-5,
 			"learn_mu": False,

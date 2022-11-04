@@ -158,7 +158,7 @@ class WeakRLS(TBPTT):
 			self.zero_grad()
 			outputs.backward(grad_outputs[i], retain_graph=True)
 			for p_idx, param in enumerate(self.params):
-				grad = param.grad.flatten().detach().clone()
+				grad = param.grad.view(-1).detach().clone()
 				grad_noise = torch.randn_like(grad) * self.jacobian_noise
 				psi[p_idx].append(grad + grad_noise)
 		psi = [torch.stack(psi[i], dim=-1).T for i in range(len(list(self.params)))]
@@ -225,7 +225,7 @@ class WeakRLS(TBPTT):
 			
 		# filter params to get only the ones that require gradients
 		self.params = [param for param in self.params if param.requires_grad]
-		self.optimizer = torch.optim.SGD(self.params, lr=0.1)
+		self.optimizer = torch.optim.SGD(self.params, lr=1.0)
 		
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
@@ -286,8 +286,105 @@ class WeakRLS(TBPTT):
 	def _update_k_p_on_datum(self, psi, error):
 		self._update_k(psi)
 		self._update_p(psi)
-		
+	
 	def _batch_step(self, pred_batch, y_batch):
+		return self._batch_step_zhang(pred_batch, y_batch)
+	
+	def _batch_step_zhang(self, pred_batch, y_batch):
+		model_device = self.trainer.model.device
+		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
+		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
+		
+		if self._other_dims_as_batch:
+			pred_batch_view, y_batch_view = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(
+				-1, y_batch.shape[-1]
+			)
+		else:
+			pred_batch_view, y_batch_view = pred_batch.view(pred_batch.shape[0], -1), y_batch.view(y_batch.shape[0], -1)
+		
+		pred_batch_view, y_batch_view = torch.mean(pred_batch_view, dim=0), torch.mean(y_batch_view, dim=0)
+		
+		if self.P is None:
+			self.P = [
+				torch.eye(
+					param.numel(), dtype=torch.float32, device=torch.device("cpu")
+				)
+				for param in self.params
+			]
+		
+		error = self.to_device_transform(pred_batch_view - y_batch_view)
+		# K = [torch.matmul(self.P[i], pred_batch_view) for i in range(len(self.params))]
+		# yPy = [torch.matmul(pred_batch_view.T, K[i]).item() for i in range(len(self.params))]
+		# c = [1.0 / (1.0 + yPy[i]) for i in range(len(self.params))]
+		# self.P = [self.P[i] - c[i] * torch.matmul(K[i], K[i].T) for i in range(len(self.params))]
+		# delta_w = [c[i] * torch.outer(error.flatten(), K[i].flatten()) for i in range(len(self.params))]
+		
+		self.optimizer.zero_grad()
+		loss = torch.nn.MSELoss()(pred_batch_view, y_batch_view.to(model_device))
+		loss.backward()
+		psi = [param.grad.detach().view(-1, 1).clone() for param in self.params]
+		# self._try_put_on_device(self.trainer)
+		self.psi = psi
+		K = [torch.matmul(self.P[i], psi[i]) for i in range(len(self.params))]
+		gradPgrad = [torch.matmul(psi[i].T, K[i]).item() for i in range(len(self.params))]
+		c = [1.0 / (1.0 + gradPgrad[i]) for i in range(len(self.params))]
+		self.P = [self.P[i] - c[i] * torch.matmul(K[i], K[i].T) for i in range(len(self.params))]
+		delta_w = [c[i] * K[i].view(-1) for i in range(len(self.params))]
+		self.mean_delta_w = [torch.mean(delta_w[i]) for i in range(len(self.params))]
+		for i, param in enumerate(self.params):
+			param.grad = delta_w[i].to(param.device, non_blocking=True).view(param.data.shape).clone()
+		self.optimizer.step()
+		# self._put_on_cpu()
+		self.trainer.model.to(model_device, non_blocking=True)
+	
+	def _batch_step_curbd(self, pred_batch, y_batch):
+		model_device = self.trainer.model.device
+		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
+		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
+		
+		if self._other_dims_as_batch:
+			pred_batch_view, y_batch_view = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(
+				-1, y_batch.shape[-1]
+				)
+		else:
+			pred_batch_view, y_batch_view = pred_batch.view(pred_batch.shape[0], -1), y_batch.view(y_batch.shape[0], -1)
+			
+		if self.K is None:
+			self._initialize_K(m=y_batch_view.shape[-1])
+		if self.P is None:
+			self.P = [
+				self.delta * torch.eye(
+					param.numel(), dtype=torch.float32, device=torch.device("cpu")
+				)
+				for param in self.params
+			]
+		
+		error = self.to_device_transform(pred_batch_view - y_batch_view)
+		# K = [torch.matmul(self.P[i], pred_batch_view) for i in range(len(self.params))]
+		# yPy = [torch.matmul(pred_batch_view.T, K[i]).item() for i in range(len(self.params))]
+		# c = [1.0 / (1.0 + yPy[i]) for i in range(len(self.params))]
+		# self.P = [self.P[i] - c[i] * torch.matmul(K[i], K[i].T) for i in range(len(self.params))]
+		# delta_w = [c[i] * torch.outer(error.flatten(), K[i].flatten()) for i in range(len(self.params))]
+		
+		self.optimizer.zero_grad()
+		loss = torch.nn.MSELoss()(pred_batch_view, y_batch_view.to(model_device))
+		loss.backward()
+		psi = [param.grad.detach().view(-1, 1).clone() for param in self.params]
+		# self._try_put_on_device(self.trainer)
+		self.psi = psi
+		K = [torch.matmul(self.P[i], psi[i]) for i in range(len(self.params))]
+		gradPgrad = [torch.matmul(psi[i].T, K[i]).item() for i in range(len(self.params))]
+		c = [1.0 / (1.0 + gradPgrad[i]) for i in range(len(self.params))]
+		self.P = [self.P[i] - c[i] * torch.matmul(K[i], K[i].T) for i in range(len(self.params))]
+		delta_w = [c[i] * K[i].view(-1) for i in range(len(self.params))]
+		self.mean_delta_w = [torch.mean(delta_w[i]) for i in range(len(self.params))]
+		for i, param in enumerate(self.params):
+			param.grad = delta_w[i].to(param.device, non_blocking=True).view(param.data.shape).clone()
+		self.optimizer.step()
+		# self._put_on_cpu()
+		self.trainer.model.to(model_device, non_blocking=True)
+		
+	def _batch_step_subhi(self, pred_batch, y_batch):
 		model_device = self.trainer.model.device
 		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
@@ -325,17 +422,18 @@ class WeakRLS(TBPTT):
 		]
 		self.optimizer.zero_grad()
 		for idx, error_i in enumerate(error):
-			single_psi = [psi_i[idx] for psi_i in psi]
+			single_psi = [10*psi_i[idx] for psi_i in psi]
 			# self._update_k_p_on_datum(psi=single_psi, error=error[idx])
 			K = [self.P[i] @ single_psi[i] for i in range(len(self.params))]
-			self.P = [
-				(eyes[i] - K[i] @ single_psi[i].T) @ self.P[i] / self.Lambda
-				for i in range(len(self.params))
-			]
-			for param, k in zip(self.params, self.K):
-				param.data += 0.1*(
-						k.T @ error_i.reshape(-1, 1)
-				).to(param.device, non_blocking=True).reshape(param.data.shape).clone()  # .T?
+			# self.P = [
+			# 	(eyes[i] - K[i] @ single_psi[i].T) @ self.P[i] / self.Lambda
+			# 	for i in range(len(self.params))
+			# ]
+			self.P = [self.P[i] - torch.matmul(K[i], K[i].T) / self.Lambda for i in range(len(self.params))]
+			delta_w = [torch.matmul(error_i.view(1, -1), K[i]) for i in range(len(self.params))]
+			self.mean_delta_w = [torch.mean(delta_w[i]) for i in range(len(self.params))]
+			for i, param in enumerate(self.params):
+				param.data += delta_w[i].to(param.device, non_blocking=True).view(param.data.shape).clone()  # .T?
 		# self._update_delta(error.mean(dim=0))
 		# self._update_params()
 		# self.optimizer.step()
@@ -373,7 +471,7 @@ class WeakRLS(TBPTT):
 				if backward_t > 0:
 					self._backward_at_t(self._data_n_time_steps - 1, backward_t, layer_name)
 		else:
-			self._batch_step(trainer, **kwargs)
+			self._batch_step(pred_batch, y_batch)
 		
 		trainer.update_state_(batch_loss=self.apply_criterion(pred_batch, y_batch, self.eval_criterion).detach_())
 	
@@ -383,9 +481,9 @@ class WeakRLS(TBPTT):
 		# trainer.update_itr_metrics_state_(eval_criterion=eval_loss)
 		metrics = dict(
 			psi_mean=self.to_cpu_transform(torch.cat([p.flatten() for p in self.psi])).mean(),
-			K_mean=self.to_cpu_transform(torch.cat([k.flatten() for k in self.K])).mean(),
 			P_mean=self.to_cpu_transform(torch.cat([p.flatten() for p in self.P])).mean(),
 			P_std=self.to_cpu_transform(torch.cat([p.flatten() for p in self.P])).std(),
+			delta_w_mean=self.to_cpu_transform(torch.cat([p.flatten() for p in self.mean_delta_w])).mean(),
 			Delta_mean=self.to_cpu_transform(self.Delta).mean(),
 			# alpha=self.alpha,
 			# eta=self.eta,

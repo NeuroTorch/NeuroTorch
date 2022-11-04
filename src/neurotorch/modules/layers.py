@@ -1927,7 +1927,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		# unless stated otherwise by user.
 		if self.learn_mu:
 			if self.mu.dim() == 0:  # if mu is a scalar and a parameter -> convert it to a vector
-				self.mu = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
+				self.mu.data = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
 			self.mu = torch.nn.Parameter(self.mu, requires_grad=self.requires_grad)
 			torch.nn.init.normal_(self.mu, mean=self.mean_mu, std=self.std_mu)
 		if self.learn_r:

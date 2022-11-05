@@ -72,6 +72,7 @@ class RLS(TBPTT):
 		self.to_device_transform = None
 		self._other_dims_as_batch = kwargs.get("other_dims_as_batch", False)
 		self._is_recurrent = is_recurrent
+		self.step_mth = kwargs.get("step_mth", "inputs")
 		self.kwargs = kwargs
 		self._asserts()
 	
@@ -104,9 +105,10 @@ class RLS(TBPTT):
 		return _forward
 	
 	def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
+		x_batch = self._get_x_batch(t, backward_t)  # TODO: get x_batch from buffer
 		y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
 		pred_batch = self._get_pred_batch_from_buffer(layer_name)
-		self.optimization_step(pred_batch, y_batch)
+		self.optimization_step(x_batch, pred_batch, y_batch)
 		self._layers_buffer[layer_name].clear()
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
@@ -182,17 +184,25 @@ class RLS(TBPTT):
 				if backward_t > 0:
 					self._backward_at_t(self._data_n_time_steps - 1, backward_t, layer_name)
 		else:
-			self.optimization_step(pred_batch, y_batch)
+			self.optimization_step(x_batch, pred_batch, y_batch)
 		
 		trainer.update_state_(batch_loss=self.apply_criterion(pred_batch, y_batch).detach_())
 	
-	def optimization_step(self, pred_batch, y_batch):
-		return self._batch_step_zhang(pred_batch, y_batch)
+	def optimization_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
+		name_to_mth = {
+			"inputs": self.inputs_mth_step,
+			"outputs": self.outputs_mth_step,
+			"grad": self.grad_mth_step,
+			"jacobian": self.jacobian_mth_step,
+		}
+		if self.step_mth not in name_to_mth:
+			raise ValueError(f"Invalid step_mth: {self.step_mth}")
+		return name_to_mth[self.step_mth](x_batch, pred_batch, y_batch)
 	
-	def jacobian_mth_step(self, x: torch.Tensor, y: torch.Tensor, target: torch.Tensor):
-		jac = compute_jacobian(params=self.params, y=y, strategy="slow")
+	def jacobian_mth_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
+		jac = compute_jacobian(params=self.params, y=pred_batch, strategy="slow")
 	
-	def grad_mth_step(self, pred_batch, y_batch):
+	def grad_mth_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
 		model_device = self.trainer.model.device
 		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
@@ -239,53 +249,61 @@ class RLS(TBPTT):
 		# self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)
 	
-	def _batch_step_curbd(self, pred_batch, y_batch):
+	def inputs_mth_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
+		"""
+
+		x.shape = [B, N_in]
+		y.shape = [B, N_out]
+		error.shape = [B, N_out]
+		epsilon.shape = [1, N_out]
+		phi.shape = [1, N_in]
+
+		P.shape = [N_in, N_in]
+		K = P[N_in, N_in] @ phi.T[N_in, 1] -> [N_in, 1]
+		h = 1 / (labda[1] + kappa[1] * phi[1, N_in] @ K[N_in, 1]) -> [1]
+		P = labda[1] * P[N_in, N_in] - h[1] * kappa[1] * K[N_in, 1] @ K.T[1, N_in] -> [N_in, N_in]
+		grad = h[1] * K[N_in, 1] @ epsilon[1, N_out] -> [N_in, N_out]
+
+		:param inputs: inputs of the layer
+		:param output: outputs of the layer
+		:param target: targets of the layer
+		:param P: inverse covariance matrix of hte inputs
+		:param optimizer: optimizer of the layer
+		:param kwargs: Additional parameters
+
+		:return: The updated inverse covariance matrix
+		"""
 		model_device = self.trainer.model.device
+		assert isinstance(x_batch, torch.Tensor), "x_batch must be a torch.Tensor"
 		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
 		
-		if self._other_dims_as_batch:
-			pred_batch_view, y_batch_view = pred_batch.view(-1, pred_batch.shape[-1]), y_batch.view(
-				-1, y_batch.shape[-1]
-				)
-		else:
-			pred_batch_view, y_batch_view = pred_batch.view(pred_batch.shape[0], -1), y_batch.view(y_batch.shape[0], -1)
-			
-		if self.K is None:
-			self._initialize_K(m=y_batch_view.shape[-1])
-		if self.P is None:
-			self.P = [
-				self.delta * torch.eye(
-					param.numel(), dtype=torch.float32, device=torch.device("cpu")
-				)
-				for param in self.params
-			]
+		labda = self.kwargs.get("labda", 1.0)
+		kappa = self.kwargs.get("kappa", 1.0)
 		
-		error = self.to_device_transform(pred_batch_view - y_batch_view)
-		# K = [torch.matmul(self.P[i], pred_batch_view) for i in range(len(self.params))]
-		# yPy = [torch.matmul(pred_batch_view.T, K[i]).item() for i in range(len(self.params))]
-		# c = [1.0 / (1.0 + yPy[i]) for i in range(len(self.params))]
-		# self.P = [self.P[i] - c[i] * torch.matmul(K[i], K[i].T) for i in range(len(self.params))]
-		# delta_w = [c[i] * torch.outer(error.flatten(), K[i].flatten()) for i in range(len(self.params))]
+		x_batch_view = x_batch.view(-1, x_batch.shape[-1])  # [B, f_in]
+		pred_batch_view = pred_batch.view(-1, pred_batch.shape[-1])  # [B, f_out]
+		y_batch_view = y_batch.view(-1, y_batch.shape[-1])  # [B, f_out]
+		error = self.to_device_transform(pred_batch_view - y_batch_view)  # [B, f_out]
 		
+		if self.P_list is None:
+			self.initialize_P_list()
+		
+		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
+		phi = x_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_in]
+		K_list = [torch.matmul(P, phi.T) for P in self.P_list]  # [f_in, f_in] @ [f_in, 1] -> [f_in, 1]
+		h = [1.0 / (labda + kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_in] @ [f_in, 1] -> [1]
+		
+		for p in self.params:
+			p.grad = h * torch.outer(K.view(-1), epsilon.view(-1))  # [f_in, 1] @ [1, N_out] -> [N_in, N_out]
 		self.optimizer.zero_grad()
-		loss = torch.nn.MSELoss()(pred_batch_view, y_batch_view.to(model_device))
-		loss.backward()
-		psi = [param.grad.detach().view(-1, 1).clone() for param in self.params]
-		# self._try_put_on_device(self.trainer)
-		self.psi = psi
-		K = [torch.matmul(self.P[i], psi[i]) for i in range(len(self.params))]
-		gradPgrad = [torch.matmul(psi[i].T, K[i]).item() for i in range(len(self.params))]
-		c = [1.0 / (1.0 + gradPgrad[i]) for i in range(len(self.params))]
-		self.P = [self.P[i] - c[i] * torch.matmul(K[i], K[i].T) for i in range(len(self.params))]
-		delta_w = [c[i] * K[i].view(-1) for i in range(len(self.params))]
-		self.mean_delta_w = [torch.mean(delta_w[i]) for i in range(len(self.params))]
-		for i, param in enumerate(self.params):
-			param.grad = delta_w[i].to(param.device, non_blocking=True).view(param.data.shape).clone()
+
 		self.optimizer.step()
-		# self._put_on_cpu()
-		self.trainer.model.to(model_device, non_blocking=True)
+		P = labda * P - h * kappa * torch.matmul(K, K.T)  # [N_in, 1] @ [1, N_in] -> [N_in, N_in]
 		
+		self._put_on_cpu()
+		self.trainer.model.to(model_device, non_blocking=True)
+	
 	def _batch_step_subhi(self, pred_batch, y_batch):
 		model_device = self.trainer.model.device
 		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"

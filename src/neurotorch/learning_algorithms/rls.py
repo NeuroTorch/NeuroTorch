@@ -277,6 +277,8 @@ class RLS(TBPTT):
 		assert isinstance(x_batch, torch.Tensor), "x_batch must be a torch.Tensor"
 		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
+		assert
+		self.optimizer.zero_grad()
 		
 		labda = self.kwargs.get("labda", 1.0)
 		kappa = self.kwargs.get("kappa", 1.0)
@@ -287,19 +289,32 @@ class RLS(TBPTT):
 		error = self.to_device_transform(pred_batch_view - y_batch_view)  # [B, f_out]
 		
 		if self.P_list is None:
-			self.initialize_P_list()
+			self.initialize_P_list(m=x_batch_view.shape[-1])
+			for p in self.params:
+				if p.shape[0] != x_batch_view.shape[-1]:
+					raise ValueError(
+						f"For inputs of shape [B, f_in], the first dimension of the parameters must be f_in, "
+						f"got {p.shape[0]} instead of {x_batch_view.shape[-1]}."
+					)
+				if p.shape[1] != y_batch_view.shape[-1]:
+					raise ValueError(
+						f"For targets of shape [B, f_out], the second dimension of the parameters must be f_out, "
+						f"got {p.shape[1]} instead of {y_batch_view.shape[-1]}."
+					)
 		
 		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
 		phi = x_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_in]
 		K_list = [torch.matmul(P, phi.T) for P in self.P_list]  # [f_in, f_in] @ [f_in, 1] -> [f_in, 1]
-		h = [1.0 / (labda + kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_in] @ [f_in, 1] -> [1]
+		h_list = [1.0 / (labda + kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_in] @ [f_in, 1] -> [1]
 		
-		for p in self.params:
+		for p, K, h in zip(self.params, K_list, h_list):
 			p.grad = h * torch.outer(K.view(-1), epsilon.view(-1))  # [f_in, 1] @ [1, N_out] -> [N_in, N_out]
-		self.optimizer.zero_grad()
 
 		self.optimizer.step()
-		P = labda * P - h * kappa * torch.matmul(K, K.T)  # [N_in, 1] @ [1, N_in] -> [N_in, N_in]
+		self.P_list = [
+			labda * P - h * kappa * torch.matmul(K, K.T)
+			for P, h, K in zip(self.P_list, h_list, K_list)
+		]  # [N_in, 1] @ [1, N_in] -> [N_in, N_in]
 		
 		self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)

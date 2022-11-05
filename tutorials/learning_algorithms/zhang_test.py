@@ -10,6 +10,20 @@ from torch.nn import functional as F
 import matplotlib.pyplot as plt
 
 
+def jacobian(outputs, params):
+	jac = [[] for _ in range(len(list(params)))]
+	grad_outputs = torch.eye(outputs.shape[-1])
+	for i in range(outputs.shape[-1]):
+		# zero gradients
+		_ = [p.grad.zero_() for p in params if p.grad is not None]
+		# compute gradients
+		outputs.backward(grad_outputs[i], retain_graph=True)
+		for p_idx, param in enumerate(params):
+			jac[p_idx].append(param.grad.view(-1).detach().clone())
+	jac = [torch.stack(jac[i], dim=-1).T for i in range(len(list(params)))]
+	return jac
+
+
 u_list = []
 h_list = []
 lr_list = []
@@ -25,10 +39,10 @@ def gince_step(inputs, output, target, P, optimizer, **kwargs):
 	phi.shape = [1, N_in]
 	
 	P.shape = [N_in, N_in]
-	K = P[N_in, N_in] @ phi[N_in, 1] -> [N_in, 1]
-	h = 1 / (labda[1] + kappa[1] * x.T[1, N_in] @ K[N_in, 1]) -> [1]
-	P = (1/labda[1]) * P[N_in, N_in] - (kappa[1]/(labda[1]*h[1])) * K[N_in, 1] @ K.T[1, N_in] -> [N_in, N_in]
-	delta_w = -eta[1] * h[1] * K[N_in, 1] @ epsilon[1, N_out] -> [N_in, N_out]
+	K = P[N_in, N_in] @ phi.T[N_in, 1] -> [N_in, 1]
+	h = 1 / (labda[1] + kappa[1] * phi[1, N_in] @ K[N_in, 1]) -> [1]
+	P = labda[1] * P[N_in, N_in] - h[1] * kappa[1] * K[N_in, 1] @ K.T[1, N_in] -> [N_in, N_in]
+	grad = h[1] * K[N_in, 1] @ epsilon[1, N_out] -> [N_in, N_out]
 	
 	:param inputs: inputs of the layer
 	:param output: outputs of the layer
@@ -54,26 +68,79 @@ def gince_step(inputs, output, target, P, optimizer, **kwargs):
 	return P
 
 
+def gince_grad_step(inputs, output, target, P, optimizer, **kwargs):
+	"""
+
+	x.shape = [B, f_in]
+	y.shape = [B, f_out]
+	error.shape = [B, f_out]
+	epsilon.shape = [1, f_out]
+	phi.shape = [1, f_in]
+	
+	param.shape = [N_in, N_out]
+	grad.shape = [N_in, N_out]
+	
+	P.shape = [f_in, f_in]
+	K = P[f_in, f_in] @ phi.T[f_in, 1] -> [f_in, 1]
+	h = 1 / (labda[1] + kappa[1] * phi[1, f_in] @ K[f_in, 1]) -> [1]
+	P = labda[1] * P[N_in, f_in] - h[1] * kappa[1] * K[f_in, 1] @ K.T[1, f_in] -> [f_in, f_in]
+	grad = h[1] * K[f_in, 1] @ epsilon[1, f_out] -> [f_in, f_out]
+
+	:param inputs: inputs of the layer
+	:param output: outputs of the layer
+	:param target: targets of the layer
+	:param P: inverse covariance matrix of hte inputs
+	:param optimizer: optimizer of the layer
+	:param kwargs: Additional parameters
+
+	:return: The updated inverse covariance matrix
+	"""
+	labda = kwargs.get("labda", 1.0)
+	kappa = kwargs.get("kappa", 1.0)
+	optimizer.zero_grad()
+	output_mean = output.view(-1, 1, output.shape[-1]).mean(dim=0)  # [1, f_out]
+	inputs_mean = inputs.view(-1, 1, inputs.shape[-1]).mean(dim=0)  # [1, f_in]
+	param = optimizer.param_groups[0]['params'][0]  # [N_in, N_out]
+	
+	# with jacobian
+	# jac = jacobian(output.view(-1), optimizer.param_groups[0]['params'])[0].view(output.shape[-1], *param.shape)  # [f_out, N_in, N_out]
+	# phi = output_mean.detach().clone()  # [1, f_out]
+	# K = torch.matmul(P, phi.T)  # [f_out, f_out] @ [f_out, 1] -> [f_out, 1]
+	# h = 1.0 / (labda + kappa * torch.matmul(phi, K)).item()  # [1, f_out] @ [f_out, 1] -> [1]
+	# for p in optimizer.param_groups[0]['params']:
+	#   p.grad = h * torch.matmul(K.T, jac).view(p.shape)  # [1, f_out] @ [f_out, N_in, N_out] -> [N_in, N_out]
+	
+	# with grad
+	mse_loss = F.mse_loss(output.view(target.shape), target)
+	mse_loss.backward()
+	grad = param.grad  # [N_in, N_out]
+	epsilon = torch.sum(grad, dim=0).view(1, -1)  # sum[N_in]([N_in, N_out]) -> [1, N_out]
+	phi = inputs_mean.detach().clone()  # [1, f_in]
+	K = torch.matmul(P, phi.T)  # [f_in, f_in] @ [f_in, 1] -> [f_in, 1]
+	h = 1.0 / (labda + kappa * torch.matmul(phi, K)).item()  # [1, f_in] @ [f_in, 1] -> [1]
+	for p in optimizer.param_groups[0]['params']:
+		p.grad = h * torch.matmul(K, epsilon).view(p.shape)  # [f_in, 1] @ [1, N_out] -> [f_in, N_out]
+	optimizer.step()
+	P = labda * P - h * kappa * torch.matmul(K, K.T)  # [f_in, 1] @ [1, f_in] -> [f_in, f_in]
+	return P
+
+
 def zhang_step(inputs, output, target, P, optimizer, **kwargs):
 	labda = kwargs.get("labda", 1.0)
 	kappa = kwargs.get("kappa", 1.0)
-	eta = kwargs.get("eta", 1.0)
 	optimizer.zero_grad()
 	mse_loss = F.mse_loss(output.view(target.shape), target)
 	mse_loss.backward()
-	# error = (output - target).view(1, -1)  # [1, m]
-	# P @ x := [N, N] @ [N, 1] = [N, 1]
-	# phi = inputs.view(-1, inputs.shape[-1], 1).mean(dim=0).detach().clone()  # [1, m]
-	phi = inputs.view(-1, inputs.shape[-1], 1).mean(dim=0).detach().clone()  # [f, 1]
-	u = torch.matmul(P, phi)  # [ell, ell] @ [ell, 1] -> [ell, 1]
-	h = (labda + kappa * torch.matmul(phi.T, u)).item()  # [1, ell] @ [ell, 1] -> [1, 1]
-	lr = (eta / h) * P  # [ell, ell]
+	phi = inputs.view(-1, inputs.shape[-1], 1).mean(dim=0).detach().clone()  # [f_in, 1]
+	u = torch.matmul(P, phi)  # [f_in, f_in] @ [f_in, 1] -> [f_in, 1]
+	h = 1.0 / (labda + kappa * torch.matmul(phi.T, u)).item()  # [1, f_in] @ [f_in, 1] -> [1]
+	lr = h * P  # [f_in, f_in]
 	for p in optimizer.param_groups[0]['params']:
-		# p.grad = torch.matmul(lr, p.grad).clone()  # [ell, ell] @ [ell, ell] -> [ell, ell]
-		p.grad = -lr * p.grad  # [ell, ell] @ [ell, ell] -> [ell, ell]
+		# TODO: make sure f_in == N_in
+		p.grad = torch.matmul(lr, p.grad).clone()  # [f_in, f_in] @ [N_in, N_out] -> [N_in, N_out]
 	optimizer.step()
-	P = (1/labda)*P - (kappa/(labda*h))*torch.matmul(u, u.T)  # [ell, 1] @ [1, ell] -> [ell, ell]
-	return P, u, h, lr
+	P = labda * P - h * kappa * torch.matmul(u, u.T)  # [f_in, 1] @ [1, f_in] -> [f_in, f_in]
+	return P
 
 
 def bptt_step(output, target, optimizer, **kwargs):
@@ -152,7 +219,8 @@ def zhang_train(data, model, **kwargs):
 			# out_bptt, hh_nt_bptt = layer_bptt(out_bptt, hh_nt_bptt)
 			# y_pred_nt_bptt[t] = out_bptt
 			# P_nt, u_nt, h_nt, lr_nt = zhang_step(y_pred_nt[t-1], out, data[t], P_nt, optimizer)
-			P_nt = gince_step(y_pred_nt[t-1], out, data[t], P_nt, optimizer)
+			# P_nt = gince_grad_step(y_pred_nt[t-1], out, data[t], P_nt, optimizer)
+			P_nt = zhang_step(y_pred_nt[t-1], out, data[t], P_nt, optimizer)
 			hh_nt = tuple([hh_nt_i.detach().clone() for hh_nt_i in hh_nt])
 			out.detach_()
 
@@ -212,7 +280,7 @@ if __name__ == '__main__':
 		hh_memory_size=1,
 		device=torch.device("cpu"),
 	).build()
-	zhang_train(curbd_data, network, n_iterations=100)
+	zhang_train(curbd_data, network, n_iterations=300)
 
 
 

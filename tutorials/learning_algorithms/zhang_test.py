@@ -15,6 +15,45 @@ h_list = []
 lr_list = []
 
 
+def gince_step(inputs, output, target, P, optimizer, **kwargs):
+	"""
+	
+	x.shape = [B, N_in]
+	y.shape = [B, N_out]
+	error.shape = [B, N_out]
+	epsilon.shape = [1, N_out]
+	phi.shape = [1, N_in]
+	
+	P.shape = [N_in, N_in]
+	K = P[N_in, N_in] @ phi[N_in, 1] -> [N_in, 1]
+	h = 1 / (labda[1] + kappa[1] * x.T[1, N_in] @ K[N_in, 1]) -> [1]
+	P = (1/labda[1]) * P[N_in, N_in] - (kappa[1]/(labda[1]*h[1])) * K[N_in, 1] @ K.T[1, N_in] -> [N_in, N_in]
+	delta_w = -eta[1] * h[1] * K[N_in, 1] @ epsilon[1, N_out] -> [N_in, N_out]
+	
+	:param inputs: inputs of the layer
+	:param output: outputs of the layer
+	:param target: targets of the layer
+	:param P: inverse covariance matrix of hte inputs
+	:param optimizer: optimizer of the layer
+	:param kwargs: Additional parameters
+	
+	:return: The updated inverse covariance matrix
+	"""
+	labda = kwargs.get("labda", 1.0)
+	kappa = kwargs.get("kappa", 1.0)
+	optimizer.zero_grad()
+	error = output - target  # [B, N_out]
+	epsilon = error.view(-1, error.shape[-1]).mean(dim=0).view(1, -1)  # [1, N_out]
+	phi = inputs.view(-1, 1, inputs.shape[-1]).mean(dim=0).detach().clone()  # [1, N_in]
+	K = torch.matmul(P, phi.T)  # [N_in, N_in] @ [N_in, 1] -> [N_in, 1]
+	h = 1.0 / (labda + kappa * torch.matmul(phi, K)).item()  # [1, N_in] @ [N_in, 1] -> [1]
+	for p in optimizer.param_groups[0]['params']:
+		p.grad = h * torch.outer(K.view(-1), epsilon.view(-1))  # [N_in, 1] @ [1, N_out] -> [N_in, N_out]
+	optimizer.step()
+	P = labda*P - h*kappa*torch.matmul(K, K.T)  # [N_in, 1] @ [1, N_in] -> [N_in, N_in]
+	return P
+
+
 def zhang_step(inputs, output, target, P, optimizer, **kwargs):
 	labda = kwargs.get("labda", 1.0)
 	kappa = kwargs.get("kappa", 1.0)
@@ -22,12 +61,16 @@ def zhang_step(inputs, output, target, P, optimizer, **kwargs):
 	optimizer.zero_grad()
 	mse_loss = F.mse_loss(output.view(target.shape), target)
 	mse_loss.backward()
-	x = inputs.view(-1, inputs.shape[-1], 1).mean(dim=0).detach().clone()  # [ell, 1] [f, 1]
-	u = torch.matmul(P, x)  # [ell, ell] @ [ell, 1] -> [ell, 1]
-	h = (labda + kappa * torch.matmul(x.T, u)).item()  # [1, ell] @ [ell, 1] -> [1, 1]
+	# error = (output - target).view(1, -1)  # [1, m]
+	# P @ x := [N, N] @ [N, 1] = [N, 1]
+	# phi = inputs.view(-1, inputs.shape[-1], 1).mean(dim=0).detach().clone()  # [1, m]
+	phi = inputs.view(-1, inputs.shape[-1], 1).mean(dim=0).detach().clone()  # [f, 1]
+	u = torch.matmul(P, phi)  # [ell, ell] @ [ell, 1] -> [ell, 1]
+	h = (labda + kappa * torch.matmul(phi.T, u)).item()  # [1, ell] @ [ell, 1] -> [1, 1]
 	lr = (eta / h) * P  # [ell, ell]
 	for p in optimizer.param_groups[0]['params']:
-		p.grad = torch.matmul(lr, p.grad.view(-1)).view(p.grad.shape).clone()  # [ell, ell] @ [ell, 1] -> [ell, 1]
+		# p.grad = torch.matmul(lr, p.grad).clone()  # [ell, ell] @ [ell, ell] -> [ell, ell]
+		p.grad = -lr * p.grad  # [ell, ell] @ [ell, ell] -> [ell, ell]
 	optimizer.step()
 	P = (1/labda)*P - (kappa/(labda*h))*torch.matmul(u, u.T)  # [ell, 1] @ [1, ell] -> [ell, ell]
 	return P, u, h, lr
@@ -55,7 +98,7 @@ def zhang_train(data, model, **kwargs):
 	layer_bptt.forward_weights = J.clone()
 	model.get_layer().forward_weights = J.clone()
 	
-	optimizer = torch.optim.SGD([layer.forward_weights], lr=kwargs.get("lr", 10))
+	optimizer = torch.optim.SGD([layer.forward_weights], lr=kwargs.get("lr", 1.0))
 	optimizer_seq = torch.optim.SGD([model.get_layer().forward_weights], lr=kwargs.get("lr", 1.0))
 	optimizer_bptt = torch.optim.SGD([layer_bptt.forward_weights], lr=kwargs.get("lr", 1.0))
 
@@ -97,7 +140,7 @@ def zhang_train(data, model, **kwargs):
 			# inputs = y_pred_nt[t-1][np.newaxis, :].detach().clone()
 			# inputs = y_pred_nt[t-1][np.newaxis, :]
 			out, hh_nt = layer(out, hh_nt)
-			y_pred_nt[t] = out
+			y_pred_nt[t] = out.detach().clone()
 			# y_pred_nt[:, t], hh_nt = layer(y_pred_nt[:, t-1], hh_nt)
 
 			# hh_nt = tuple([hh_nt_i.detach().clone() for hh_nt_i in hh_nt])
@@ -108,12 +151,17 @@ def zhang_train(data, model, **kwargs):
 			# y_pred_nt[t] = out.detach().clone()
 			# out_bptt, hh_nt_bptt = layer_bptt(out_bptt, hh_nt_bptt)
 			# y_pred_nt_bptt[t] = out_bptt
+			# P_nt, u_nt, h_nt, lr_nt = zhang_step(y_pred_nt[t-1], out, data[t], P_nt, optimizer)
+			P_nt = gince_step(y_pred_nt[t-1], out, data[t], P_nt, optimizer)
+			hh_nt = tuple([hh_nt_i.detach().clone() for hh_nt_i in hh_nt])
+			out.detach_()
 
-		P_nt, u_nt, h_nt, lr_nt = zhang_step(y_pred_nt, y_pred_nt, data, P_nt, optimizer)
-		u_list.append(u_nt.mean().item())
-		h_list.append(h_nt)
-		lr_list.append(lr_nt.mean().item())
-		P_seq, u_seq, h_seq, lr_seq = zhang_step(y_pred_seq, y_pred_seq, data, P_seq, optimizer_seq)
+		# P_nt, u_nt, h_nt, lr_nt = zhang_step(y_pred_nt, y_pred_nt, data, P_nt, optimizer)
+		# u_list.append(u_nt.mean().item())
+		# h_list.append(h_nt)
+		# lr_list.append(lr_nt.mean().item())
+		# P_seq, u_seq, h_seq, lr_seq = zhang_step(y_pred_seq, y_pred_seq, data, P_seq, optimizer_seq)
+		P_seq = gince_step(y_pred_seq, y_pred_seq, data, P_seq, optimizer_seq)
 		# bptt_step(y_pred_nt_bptt, data, optimizer_bptt)
 
 		# compute and print loss
@@ -137,17 +185,17 @@ def zhang_train(data, model, **kwargs):
 	fig, axes = plt.subplots(1, len(losses))
 	for ax_idx, (key, val_losses) in enumerate(losses.items()):
 		axes[ax_idx].plot(val_losses, label=key)
-	plt.legend()
+		axes[ax_idx].legend()
 	plt.show()
 
-	fig, axes = plt.subplots(1, 3)
-	axes[0].plot(u_list, label='u')
-	axes[0].set_title('u')
-	axes[1].plot(h_list, label="h")
-	axes[1].set_title('h')
-	axes[2].plot(lr_list, label="lr")
-	axes[2].set_title('lr')
-	plt.show()
+	# fig, axes = plt.subplots(1, 3)
+	# axes[0].plot(u_list, label='u')
+	# axes[0].set_title('u')
+	# axes[1].plot(h_list, label="h")
+	# axes[1].set_title('h')
+	# axes[2].plot(lr_list, label="lr")
+	# axes[2].set_title('lr')
+	# plt.show()
 
 
 if __name__ == '__main__':
@@ -155,7 +203,7 @@ if __name__ == '__main__':
 	network = nt.SequentialModel(
 		layers=[nt.WilsonCowanLayer(
 			curbd_data.shape[0], curbd_data.shape[0],
-			activation="sigmoid",
+			activation="tanh",
 			tau=0.1,
 			dt=0.01,
 		)],

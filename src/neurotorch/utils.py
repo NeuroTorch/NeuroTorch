@@ -274,16 +274,21 @@ def compute_jacobian(
 		params: Optional[Iterable[torch.nn.Parameter]] = None,
 		x: Optional[torch.Tensor] = None,
 		y: Optional[torch.Tensor] = None,
-		strategy: str = "fast",
+		strategy: str = "slow",
 ):
 	"""
 	Compute the jacobian of the model with respect to the parameters.
+	
+	# TODO: check https://medium.com/@monadsblog/pytorch-backward-function-e5e2b7e60140
+	# TODO: see https://pytorch.org/tutorials/beginner/blitz/autograd_tutorial.html#sphx-glr-beginner-blitz-autograd-tutorial-py
 	
 	:param model: The model to compute the jacobian.
 	:param params: The parameters to compute the jacobian with respect to. If None, compute the jacobian
 		with respect to all the parameters of the model.
 	:param x: The input to compute the jacobian. If None, use y instead.
 	:param y: The output to compute the jacobian. If None, use x instead.
+	:param strategy: The strategy to use to compute the jacobian. Can be "slow" or "fast". At this time the only
+		strategy implemented is "slow".
 	
 	:return: The jacobian.
 	"""
@@ -297,13 +302,14 @@ def compute_jacobian(
 			y.backward(torch.ones_like(y))
 			jacobian = [p.grad.view(-1) for p in params]
 		elif strategy.lower() == "slow":
-			psi = [[] for _ in range(len(list(params)))]
-			for output in y:
+			jacobian = [[] for _ in range(len(list(params)))]
+			grad_outputs = torch.eye(y.shape[-1])
+			for i in range(y.shape[-1]):
 				zero_grad_params(params)
-				output.backward(retain_graph=True)
-				for i, param in enumerate(params):
-					psi[i].append(param.grad.view(-1).detach().clone())
-			jacobian = [torch.stack(psi[i], dim=-1) for i in range(len(list(params)))]
+				y.backward(grad_outputs[i], retain_graph=True)
+				for p_idx, param in enumerate(params):
+					jacobian[p_idx].append(param.grad.view(-1).detach().clone())
+			jacobian = [torch.stack(jacobian[i], dim=-1) for i in range(len(list(params)))]
 		else:
 			raise ValueError(f"Unsupported strategy: {strategy}")
 	elif x is not None:

@@ -96,6 +96,13 @@ def make_learning_algorithm(**kwargs):
 			reduction='mean',
 			is_recurrent=True,
 		)
+	elif la_name == "rls":
+		learning_algorithm = nt.RLS(
+			criterion=nt.losses.PVarianceLoss(),
+			device=torch.device("cpu"),
+			startegy=kwargs.get("rls_strategy", "inputs"),
+			is_recurrent=True,
+		)
 	elif la_name == "curbd":
 		learning_algorithm = CURBD(
 			params=[kwargs["model"].get_layer().forward_weights],
@@ -284,15 +291,16 @@ if __name__ == '__main__':
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
-			"learning_algorithm": "WeakRLS",
+			"learning_algorithm": "RLS",
 			"auto_backward_time_steps_ratio": 0.25,
 			"weight_decay": 1e-5,
 			"learn_mu": False,
 			"learn_r": False,
 			"learn_tau": False,
 			"activation": "sigmoid",
+			"rls_strategy": "inputs",
 		},
-		n_iterations=100,
+		n_iterations=10,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,

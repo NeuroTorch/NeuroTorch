@@ -78,6 +78,7 @@ from .learning_algorithms import (
 	TBPTT,
 	Eprop,
 	WeakRLS,
+	RLS,
 )
 
 from .utils import (

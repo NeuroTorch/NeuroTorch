@@ -99,9 +99,10 @@ def make_learning_algorithm(**kwargs):
 	elif la_name == "rls":
 		learning_algorithm = nt.RLS(
 			criterion=nt.losses.PVarianceLoss(),
-			device=torch.device("cpu"),
-			startegy=kwargs.get("rls_strategy", "inputs"),
+			# device=torch.device("cpu"),
+			strategy=kwargs.get("rls_strategy", "inputs"),
 			is_recurrent=True,
+			auto_backward_time_steps_ratio=kwargs.get("auto_backward_time_steps_ratio", 0)
 		)
 	elif la_name == "curbd":
 		learning_algorithm = CURBD(
@@ -278,7 +279,7 @@ def train_with_params(
 
 if __name__ == '__main__':
 	import matplotlib
-	matplotlib.use('qtagg')
+	# matplotlib.use('qtagg')
 	
 	res = train_with_params(
 		params={
@@ -292,7 +293,7 @@ if __name__ == '__main__':
 			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
 			"learning_algorithm": "RLS",
-			"auto_backward_time_steps_ratio": 0.25,
+			"auto_backward_time_steps_ratio": 0.0,
 			"weight_decay": 1e-5,
 			"learn_mu": False,
 			"learn_r": False,
@@ -300,7 +301,7 @@ if __name__ == '__main__':
 			"activation": "sigmoid",
 			"rls_strategy": "inputs",
 		},
-		n_iterations=10,
+		n_iterations=1000,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,

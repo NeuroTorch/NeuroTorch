@@ -297,11 +297,11 @@ class RLS(TBPTT):
 
 		epsilon = mean[B](error[B, f_out]) -> [1, f_out]
 		phi = mean[B](y[B, f_out]) [1, f_out]
-		psi = jacobian[theta](phi[1, f_out]]) -> [f_out, ell]
+		psi = jacobian[theta](phi[1, f_out]]) -> [f_out, L]
 
-		K = P[f_out, f_out] @ psi[f_out, ell] -> [f_out, ell]
-		grad = epsilon[1, f_out] @ K[f_out, ell] -> [ell, 1]
-		P = labda[1] * P[f_out, f_out] - kappa[1] * K[f_out, ell] @ K[f_out, ell].T -> [f_out, f_out]
+		K = P[f_out, f_out] @ psi[f_out, L] -> [f_out, L]
+		grad = epsilon[1, f_out] @ K[f_out, L] -> [L, 1]
+		P = labda[1] * P[f_out, f_out] - kappa[1] * K[f_out, L] @ K[f_out, L].T -> [f_out, f_out]
 
 		In this case f_in must be equal to N_in.
 
@@ -331,17 +331,17 @@ class RLS(TBPTT):
 		
 		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
 		phi = pred_batch_view.mean(dim=0).view(1, -1)  # [1, f_out]
-		psi_list = compute_jacobian(params=self.params, y=phi.view(-1), strategy="slow")  # [f_out, ell]
-		K_list = [torch.matmul(P, psi) for P, psi in zip(self.P_list, psi_list)]  # [f_out, f_out] @ [f_out, ell] -> [f_out, ell]
+		psi_list = compute_jacobian(params=self.params, y=phi.view(-1), strategy="slow")  # [f_out, L]
+		K_list = [torch.matmul(P, psi) for P, psi in zip(self.P_list, psi_list)]  # [f_out, f_out] @ [f_out, ell] -> [f_out, L]
 		
 		for p, K in zip(self.params, K_list):
-			p.grad = torch.matmul(K.T, epsilon.T).view(p.shape).clone()  # [ell, f_out] @ [f_out, 1] -> [ell, 1]
+			p.grad = torch.matmul(K.T, epsilon.T).view(p.shape).clone()  # [L, f_out] @ [f_out, 1] -> [L, 1]
 		
 		self.optimizer.step()
 		self.P_list = [
 			labda * P - kappa * torch.matmul(K, K.T)
 			for P, K in zip(self.P_list, K_list)
-		]  # [f_out, f_out] - [f_out, ell] @ [ell, f_out] -> [f_out, f_out]
+		]  # [f_out, f_out] - [f_out, L] @ [L, f_out] -> [f_out, f_out]
 		
 		self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)

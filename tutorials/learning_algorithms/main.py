@@ -278,9 +278,6 @@ def train_with_params(
 
 
 if __name__ == '__main__':
-	import matplotlib
-	# matplotlib.use('qtagg')
-	
 	res = train_with_params(
 		params={
 			# "filename": "ts_nobaselines_fish3.npy",
@@ -301,7 +298,7 @@ if __name__ == '__main__':
 			"activation": "sigmoid",
 			"rls_strategy": "inputs",
 		},
-		n_iterations=1000,
+		n_iterations=100,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,

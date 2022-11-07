@@ -152,7 +152,7 @@ class TimeSeriesDataset(Dataset):
 		repr_str = f"{self.__class__.__name__}"
 		repr_str += f"<{self.filename}>"
 		repr_str += f"("
-		repr_str += f"n_units={self.n_units}, "
+		repr_str += f"n_units={self.n_units}/{self.total_n_neurons}, "
 		repr_str += f"n_time_steps={self.n_time_steps}, "
 		repr_str += f"dataset_length={self.dataset_length}/{max(1, self.total_n_time_steps - self.n_time_steps)}, "
 		repr_str += f"sigma={self.sigma}, "

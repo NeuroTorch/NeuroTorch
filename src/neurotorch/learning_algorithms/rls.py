@@ -3,6 +3,7 @@ from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 from .learning_algorithm import LearningAlgorithm
 from ..learning_algorithms.tbptt import TBPTT
@@ -26,9 +27,8 @@ class RLS(TBPTT):
 			is_recurrent: bool = False,
 			**kwargs
 	):
-		kwargs.setdefault("auto_backward_time_steps_ratio", 0)
 		"""
-		Constructor for WeakRLS class.
+		Constructor for RLS class.
 
 		:param params: The parameters to optimize. If None, the parameters of the model's trainer will be used.
 		:type params: Optional[Sequence[torch.nn.Parameter]]
@@ -39,6 +39,7 @@ class RLS(TBPTT):
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
 		"""
+		kwargs.setdefault("auto_backward_time_steps_ratio", 0)
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
 		super().__init__(
@@ -50,18 +51,6 @@ class RLS(TBPTT):
 			optim_time_steps=None,
 			**kwargs
 		)
-		if params is None:
-			params = []
-		else:
-			params = list(params)
-		if layers is not None:
-			if isinstance(layers, torch.nn.Module):
-				layers = [layers]
-			params.extend([param for layer in layers for param in layer.parameters() if param not in params])
-		self.params: List[torch.nn.Parameter] = params
-		self.layers = layers
-		self.eval_criterion = criterion
-		self.criterion = torch.nn.MSELoss()
 		
 		# RLS attributes
 		self.P_list = None
@@ -78,9 +67,11 @@ class RLS(TBPTT):
 			"outputs": self.outputs_mth_step,
 			"grad": self.grad_mth_step,
 			"jacobian": self.jacobian_mth_step,
+			"scaled_jacobian": self.scaled_jacobian_mth_step,
 		}
 		self.kwargs = kwargs
 		self._asserts()
+		self._last_layers_buffer = defaultdict(list)
 	
 	def _asserts(self):
 		assert 0.0 < self.Lambda <= 1.0, "Lambda must be between 0 and 1"
@@ -95,7 +86,7 @@ class RLS(TBPTT):
 	def _maybe_update_time_steps(self):
 		if self._auto_set_backward_time_steps:
 			self.backward_time_steps = max(1, int(self._auto_backward_time_steps_ratio * self._data_n_time_steps))
-	
+			
 	def _decorate_forward(self, forward, layer_name: str):
 		def _forward(*args, **kwargs):
 			out = forward(*args, **kwargs)
@@ -103,34 +94,45 @@ class RLS(TBPTT):
 			if t is None:
 				return out
 			out_tensor = self._get_out_tensor(out)
+			if t == 0:  # Hotfix for the first time step  TODO: fix this
+				ready = bool(self._layers_buffer[layer_name])
+			else:
+				ready = True
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
-			if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
+			if len(self._layers_buffer[layer_name]) == self.backward_time_steps and ready:
 				self._backward_at_t(t, self.backward_time_steps, layer_name)
 				out = self._detach_out(out)
 			return out
-		
 		return _forward
 	
 	def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
-		x_batch = self._get_x_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
+		if self._last_layers_buffer[layer_name]:
+			x_batch = self._get_x_batch_from_buffer(layer_name)
+		else:
+			x_batch = self._get_x_batch_slice_from_trainer(0, backward_t, layer_name)
 		y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
 		pred_batch = self._get_pred_batch_from_buffer(layer_name)
 		self.optimization_step(x_batch, pred_batch, y_batch)
+		self._last_layers_buffer[layer_name] = self._layers_buffer[layer_name].copy()
 		self._layers_buffer[layer_name].clear()
-		
+	
 	def _get_x_batch_slice_from_trainer(self, t_first: int, t_last: int, layer_name: str = None):
 		x_batch = self.trainer.current_training_state.x_batch
 		if isinstance(x_batch, dict):
 			if layer_name is None:
-				y_batch = {
+				x_batch = {
 					key: val[:, t_first:t_last]
 					for key, val in x_batch.items()
 				}
 			else:
-				y_batch = x_batch[layer_name][:, t_first:t_last]
+				x_batch = x_batch[layer_name][:, t_first:t_last]
 		else:
-			y_batch = x_batch[:, t_first:t_last]
-		return y_batch.clone()
+			x_batch = x_batch[:, t_first:t_last]
+		return x_batch.clone()
+	
+	def _get_x_batch_from_buffer(self, layer_name: str):
+		pred_batch = torch.stack(self._last_layers_buffer[layer_name], dim=1)
+		return pred_batch
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
@@ -166,8 +168,8 @@ class RLS(TBPTT):
 				]
 			)
 		else:
-			self.params = trainer.model.parameters()
-			self.optimizer = torch.optim.Adam(self.params)
+			self.params = list(trainer.model.parameters())
+			self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0))
 		
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
@@ -211,10 +213,10 @@ class RLS(TBPTT):
 	
 	def optimization_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
 		if self.strategy not in self.strategy_to_mth:
-			raise ValueError(f"Invalid step_mth: {self.strategy}")
+			raise ValueError(f"Invalid strategy: {self.strategy}")
 		return self.strategy_to_mth[self.strategy](x_batch, pred_batch, y_batch)
 	
-	def jacobian_mth_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
+	def scaled_jacobian_mth_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
 		"""
 		This method is inspired by the work of Al-Batah and al. :cite:t:`al-batah_modified_2010`. Unfortunately, this
 		method does not seem to work with the current implementation.
@@ -232,8 +234,8 @@ class RLS(TBPTT):
 		psi = jacobian[theta](phi[1, f_out]]) -> [f_out, ell]
 
 		K = P[f_out, f_out] @ psi[f_out, ell] -> [f_out, ell]
-		h = 1 / (labda[1] + kappa[1] * phi.T[ell, f_out] @ K[f_out, ell]) -> [ell, ell]
-		grad = (epsilon[1, f_out] @ K[f_out, ell] @ h[ell, ell]).T -> [ell, 1]
+		h = 1 / (labda[1] + kappa[1] * psi.T[ell, f_out] @ K[f_out, ell]) -> [ell, ell]
+		grad = (K[f_out, ell] @ h[ell, ell]).T[ell, f_out] @ epsilon.T[f_out, 1] -> [1, ell]
 		P = labda[1] * P[f_out, f_out] - kappa[1] * K[f_out, ell] @ h[ell, ell] @ K[f_out, ell].T -> [f_out, f_out]
 
 		In this case f_in must be equal to N_in.
@@ -258,22 +260,88 @@ class RLS(TBPTT):
 		error = self.to_device_transform(pred_batch_view - y_batch_view)  # [B, f_out]
 		
 		if self.P_list is None:
-			self.initialize_P_list(m=y_batch_view.shape[-1])
+			self.initialize_P_list(m=pred_batch_view.shape[-1])
+		self.P_list = self.to_device_transform(self.P_list)
+		self.params = self.to_device_transform(self.params)
 		
 		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
-		phi = y_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_out]
-		psi = compute_jacobian(params=self.params, y=phi.view(-1), strategy="slow")  # [f_out, ell]
-		K_list = [torch.matmul(P, psi) for P in self.P_list]  # [f_out, f_out] @ [f_out, ell] -> [f_out, ell]
-		h_list = [1.0 / (labda + kappa * torch.matmul(phi.T, K)).item() for K in K_list]  # [ell, f_out] @ [f_out, ell] -> [ell, ell]
+		phi = pred_batch_view.mean(dim=0).view(1, -1)  # [1, f_out]
+		psi_list = compute_jacobian(params=self.params, y=phi.view(-1), strategy="slow")  # [f_out, ell]
+		K_list = [torch.matmul(P, psi) for P, psi in zip(self.P_list, psi_list)]  # [f_out, f_out] @ [f_out, ell] -> [f_out, ell]
+		h_list = [torch.linalg.pinv(labda + kappa * torch.matmul(psi.T, K)) for psi, K in zip(psi_list, K_list)]  # [ell, f_out] @ [f_out, ell] -> [ell, ell]
 		
 		for p, K, h in zip(self.params, K_list, h_list):
-			p.grad = torch.matmul(epsilon, torch.matmul(K, h)).T.view(p.shape).clone()  # [1, f_out] @ [f_out, ell] @ [ell, ell] -> [1, ell]
+			p.grad = torch.matmul(torch.matmul(K, h).T, epsilon.T).view(p.shape).clone()  # ([f_out, ell] @ [ell, ell]).T @ [f_out, 1] -> [ell, 1]
 		
 		self.optimizer.step()
 		self.P_list = [
 			labda * P - kappa * torch.matmul(torch.matmul(K, h), K.T)
 			for P, h, K in zip(self.P_list, h_list, K_list)
 		]  # [f_out, f_out] - [f_out, ell] @ [ell, ell] @ [ell, f_out] -> [f_out, f_out]
+		
+		self._put_on_cpu()
+		self.trainer.model.to(model_device, non_blocking=True)
+	
+	def jacobian_mth_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
+		"""
+		This method is inspired by the work of Al-Batah and al. :cite:t:`al-batah_modified_2010`. Unfortunately, this
+		method does not seem to work with the current implementation.
+
+		TODO: Make it work.
+
+		x.shape = [B, f_in]
+		y.shape = [B, f_out]
+		error.shape = [B, f_out]
+		P.shape = [f_out, f_out]
+		theta.shape = [ell, 1]
+
+		epsilon = mean[B](error[B, f_out]) -> [1, f_out]
+		phi = mean[B](y[B, f_out]) [1, f_out]
+		psi = jacobian[theta](phi[1, f_out]]) -> [f_out, ell]
+
+		K = P[f_out, f_out] @ psi[f_out, ell] -> [f_out, ell]
+		grad = epsilon[1, f_out] @ K[f_out, ell] -> [ell, 1]
+		P = labda[1] * P[f_out, f_out] - kappa[1] * K[f_out, ell] @ K[f_out, ell].T -> [f_out, f_out]
+
+		In this case f_in must be equal to N_in.
+
+		:param x_batch: inputs of the layer
+		:param pred_batch: outputs of the layer
+		:param y_batch: targets of the layer
+
+		"""
+		model_device = self.trainer.model.device
+		assert isinstance(x_batch, torch.Tensor), "x_batch must be a torch.Tensor"
+		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
+		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
+		self.optimizer.zero_grad()
+		
+		labda = self.kwargs.get("labda", 1.0)
+		kappa = self.kwargs.get("kappa", 1.0)
+		
+		x_batch_view = x_batch.view(-1, x_batch.shape[-1])  # [B, f_in]
+		pred_batch_view = pred_batch.view(-1, pred_batch.shape[-1])  # [B, f_out]
+		y_batch_view = y_batch.view(-1, y_batch.shape[-1])  # [B, f_out]
+		error = self.to_device_transform(pred_batch_view - y_batch_view)  # [B, f_out]
+		
+		if self.P_list is None:
+			self.initialize_P_list(m=pred_batch_view.shape[-1])
+		self.P_list = self.to_device_transform(self.P_list)
+		self.params = self.to_device_transform(self.params)
+		
+		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
+		phi = pred_batch_view.mean(dim=0).view(1, -1)  # [1, f_out]
+		psi_list = compute_jacobian(params=self.params, y=phi.view(-1), strategy="slow")  # [f_out, ell]
+		K_list = [torch.matmul(P, psi) for P, psi in zip(self.P_list, psi_list)]  # [f_out, f_out] @ [f_out, ell] -> [f_out, ell]
+		
+		for p, K in zip(self.params, K_list):
+			p.grad = torch.matmul(K.T, epsilon.T).view(p.shape).clone()  # [ell, f_out] @ [f_out, 1] -> [ell, 1]
+		
+		self.optimizer.step()
+		self.P_list = [
+			labda * P - kappa * torch.matmul(K, K.T)
+			for P, K in zip(self.P_list, K_list)
+		]  # [f_out, f_out] - [f_out, ell] @ [ell, f_out] -> [f_out, f_out]
 		
 		self._put_on_cpu()
 		self.trainer.model.to(model_device, non_blocking=True)
@@ -313,6 +381,9 @@ class RLS(TBPTT):
 		
 		labda = self.kwargs.get("labda", 1.0)
 		kappa = self.kwargs.get("kappa", 1.0)
+		
+		mse_loss = F.mse_loss(pred_batch, y_batch)
+		mse_loss.backward()
 		
 		x_batch_view = x_batch.view(-1, x_batch.shape[-1])  # [B, f_in]
 		pred_batch_view = pred_batch.view(-1, pred_batch.shape[-1])  # [B, f_out]
@@ -456,23 +527,23 @@ class RLS(TBPTT):
 		error = self.to_device_transform(pred_batch_view - y_batch_view)  # [B, f_out]
 		
 		if self.P_list is None:
-			self.initialize_P_list(m=y_batch_view.shape[-1])
+			self.initialize_P_list(m=pred_batch_view.shape[-1])
 			for p in self.params:
 				# making sur that f_out = N_in.
-				if p.shape[0] != y_batch_view.shape[-1]:
+				if p.shape[0] != pred_batch_view.shape[-1]:
 					raise ValueError(
 						f"For inputs of shape [B, f_in], the first dimension of the parameters must be f_in, "
 						f"got {p.shape[0]} instead of {x_batch_view.shape[-1]}."
 					)
 				# making sure that f_out = N_out.
-				if p.shape[1] != y_batch_view.shape[-1]:
+				if p.shape[1] != pred_batch_view.shape[-1]:
 					raise ValueError(
 						f"For targets of shape [B, f_out], the second dimension of the parameters must be f_out, "
 						f"got {p.shape[1]} instead of {y_batch_view.shape[-1]}."
 					)
 		
 		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
-		phi = y_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_out]
+		phi = pred_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_out]
 		K_list = [torch.matmul(P, phi.T) for P in self.P_list]  # [f_out, f_out] @ [f_out, 1] -> [f_out, 1]
 		h_list = [1.0 / (labda + kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_out] @ [f_out, 1] -> [1]
 		

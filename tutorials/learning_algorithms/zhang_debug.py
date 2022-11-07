@@ -170,9 +170,9 @@ def zhang_train(data, model, **kwargs):
 	optimizer_bptt = torch.optim.SGD([layer_bptt.forward_weights], lr=kwargs.get("lr", 1.0))
 
 	# set up the learning algorithm
-	# trainer = nt.Trainer(model)
-	# learning_algorithm = WeakRLS(params=[model.get_layer().forward_weights])
-	# learning_algorithm.start(trainer)
+	trainer = nt.Trainer(model)
+	learning_algorithm = nt.RLS(params=[model.get_layer().forward_weights], strategy="inputs", is_recurrent=True)
+	learning_algorithm.start(trainer)
 	
 	P_nt = torch.eye(n_units)
 	P_seq = torch.eye(n_units)
@@ -197,10 +197,10 @@ def zhang_train(data, model, **kwargs):
 		y_pred_seq[0] = data[0]
 		x_batch = y_pred_seq[0][np.newaxis, np.newaxis, :]
 		y_batch = data[np.newaxis, :]
-		# trainer.update_state_(x_batch=x_batch, y_batch=y_batch)
-		# learning_algorithm.on_batch_begin(trainer)
+		trainer.update_state_(x_batch=x_batch, y_batch=y_batch)
+		learning_algorithm.on_batch_begin(trainer)
 		y_pred_seq[1:] = model.get_prediction_trace(x_batch)
-		# learning_algorithm.on_batch_end(trainer)
+		learning_algorithm.on_batch_end(trainer)
 		
 		for t in range(1, n_time_steps):
 			# nt.layer step
@@ -220,7 +220,7 @@ def zhang_train(data, model, **kwargs):
 			# y_pred_nt_bptt[t] = out_bptt
 			# P_nt, u_nt, h_nt, lr_nt = zhang_step(y_pred_nt[t-1], out, data[t], P_nt, optimizer)
 			# P_nt = gince_grad_step(y_pred_nt[t-1], out, data[t], P_nt, optimizer)
-			P_nt = zhang_step(y_pred_nt[t-1], out, data[t], P_nt, optimizer)
+			P_nt = gince_step(y_pred_nt[t-1], out, data[t], P_nt, optimizer)
 			hh_nt = tuple([hh_nt_i.detach().clone() for hh_nt_i in hh_nt])
 			out.detach_()
 
@@ -229,7 +229,7 @@ def zhang_train(data, model, **kwargs):
 		# h_list.append(h_nt)
 		# lr_list.append(lr_nt.mean().item())
 		# P_seq, u_seq, h_seq, lr_seq = zhang_step(y_pred_seq, y_pred_seq, data, P_seq, optimizer_seq)
-		P_seq = gince_step(y_pred_seq, y_pred_seq, data, P_seq, optimizer_seq)
+		# P_seq = gince_step(y_pred_seq, y_pred_seq, data, P_seq, optimizer_seq)
 		# bptt_step(y_pred_nt_bptt, data, optimizer_bptt)
 
 		# compute and print loss
@@ -280,7 +280,7 @@ if __name__ == '__main__':
 		hh_memory_size=1,
 		device=torch.device("cpu"),
 	).build()
-	zhang_train(curbd_data, network, n_iterations=300)
+	zhang_train(curbd_data, network, n_iterations=10)
 
 
 

@@ -16,6 +16,7 @@ class RLS(TBPTT):
 	Apply the recursive least squares algorithm to the given model.
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
+	CHECKPOINT_P_STATES_DICT_KEY: str = "P_list"
 	
 	def __init__(
 			self,
@@ -56,6 +57,7 @@ class RLS(TBPTT):
 		self.P_list = None
 		self.delta = kwargs.get("delta", 1.0)
 		self.Lambda = kwargs.get("Lambda", 1.0)
+		self.kappa = kwargs.get("kappa", 1.0)
 		self._device = kwargs.get("device", None)
 		self.to_cpu_transform = ToDevice(device=torch.device("cpu"))
 		self.to_device_transform = None
@@ -76,6 +78,18 @@ class RLS(TBPTT):
 	def _asserts(self):
 		assert 0.0 < self.Lambda <= 1.0, "Lambda must be between 0 and 1"
 		assert self.strategy in self.strategy_to_mth, f"Strategy must be one of {list(self.strategy_to_mth.keys())}"
+		
+	def __repr__(self):
+		repr_str = f"{self.name}: ("
+		repr_str += f"priority={self.priority}, "
+		repr_str += f"save_state={self.save_state}, "
+		repr_str += f"load_state={self.load_state}, "
+		repr_str += f"strategy={self.strategy}, "
+		repr_str += f"delta={self.delta}, "
+		repr_str += f"Lambda={self.Lambda}, "
+		repr_str += f"kappa={self.kappa}"
+		repr_str += f")"
+		return repr_str
 	
 	def initialize_P_list(self, m=None):
 		self.P_list = [
@@ -137,11 +151,12 @@ class RLS(TBPTT):
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
 			state = checkpoint.get(self.name, {})
+			self.P_list = state.get(self.CHECKPOINT_P_STATES_DICT_KEY, None)
 			
 	def get_checkpoint_state(self, trainer, **kwargs) -> object:
 		if self.save_state:
 			return {
-			
+				self.CHECKPOINT_P_STATES_DICT_KEY: self.P_list,
 			}
 		return None
 	
@@ -251,9 +266,6 @@ class RLS(TBPTT):
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
 		self.optimizer.zero_grad()
 		
-		labda = self.kwargs.get("labda", 1.0)
-		kappa = self.kwargs.get("kappa", 1.0)
-		
 		x_batch_view = x_batch.view(-1, x_batch.shape[-1])  # [B, f_in]
 		pred_batch_view = pred_batch.view(-1, pred_batch.shape[-1])  # [B, f_out]
 		y_batch_view = y_batch.view(-1, y_batch.shape[-1])  # [B, f_out]
@@ -268,14 +280,14 @@ class RLS(TBPTT):
 		phi = pred_batch_view.mean(dim=0).view(1, -1)  # [1, f_out]
 		psi_list = compute_jacobian(params=self.params, y=phi.view(-1), strategy="slow")  # [f_out, ell]
 		K_list = [torch.matmul(P, psi) for P, psi in zip(self.P_list, psi_list)]  # [f_out, f_out] @ [f_out, ell] -> [f_out, ell]
-		h_list = [torch.linalg.pinv(labda + kappa * torch.matmul(psi.T, K)) for psi, K in zip(psi_list, K_list)]  # [ell, f_out] @ [f_out, ell] -> [ell, ell]
+		h_list = [torch.linalg.pinv(self.Lambda + self.kappa * torch.matmul(psi.T, K)) for psi, K in zip(psi_list, K_list)]  # [ell, f_out] @ [f_out, ell] -> [ell, ell]
 		
 		for p, K, h in zip(self.params, K_list, h_list):
 			p.grad = torch.matmul(torch.matmul(K, h).T, epsilon.T).view(p.shape).clone()  # ([f_out, ell] @ [ell, ell]).T @ [f_out, 1] -> [ell, 1]
 		
 		self.optimizer.step()
 		self.P_list = [
-			labda * P - kappa * torch.matmul(torch.matmul(K, h), K.T)
+			self.Lambda * P - self.kappa * torch.matmul(torch.matmul(K, h), K.T)
 			for P, h, K in zip(self.P_list, h_list, K_list)
 		]  # [f_out, f_out] - [f_out, ell] @ [ell, ell] @ [ell, f_out] -> [f_out, f_out]
 		
@@ -316,9 +328,6 @@ class RLS(TBPTT):
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
 		self.optimizer.zero_grad()
 		
-		labda = self.kwargs.get("labda", 1.0)
-		kappa = self.kwargs.get("kappa", 1.0)
-		
 		x_batch_view = x_batch.view(-1, x_batch.shape[-1])  # [B, f_in]
 		pred_batch_view = pred_batch.view(-1, pred_batch.shape[-1])  # [B, f_out]
 		y_batch_view = y_batch.view(-1, y_batch.shape[-1])  # [B, f_out]
@@ -339,7 +348,7 @@ class RLS(TBPTT):
 		
 		self.optimizer.step()
 		self.P_list = [
-			labda * P - kappa * torch.matmul(K, K.T)
+			self.Lambda * P - self.kappa * torch.matmul(K, K.T)
 			for P, K in zip(self.P_list, K_list)
 		]  # [f_out, f_out] - [f_out, L] @ [L, f_out] -> [f_out, f_out]
 		
@@ -379,9 +388,6 @@ class RLS(TBPTT):
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
 		self.optimizer.zero_grad()
 		
-		labda = self.kwargs.get("labda", 1.0)
-		kappa = self.kwargs.get("kappa", 1.0)
-		
 		mse_loss = F.mse_loss(pred_batch, y_batch)
 		mse_loss.backward()
 		
@@ -405,14 +411,14 @@ class RLS(TBPTT):
 		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
 		phi = x_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_in]
 		K_list = [torch.matmul(P, phi.T) for P in self.P_list]  # [f_in, f_in] @ [f_in, 1] -> [f_in, 1]
-		h_list = [1.0 / (labda + kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_in] @ [f_in, 1] -> [1]
+		h_list = [1.0 / (self.Lambda + self.kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_in] @ [f_in, 1] -> [1]
 		
 		for p, P, h in zip(self.params, self.P_list, h_list):
 			p.grad = h * torch.matmul(P, p.grad)  # [f_in, f_in] @ [N_in, N_out] -> [N_in, N_out]
 		
 		self.optimizer.step()
 		self.P_list = [
-			labda * P - h * kappa * torch.matmul(K, K.T)
+			self.Lambda * P - h * self.kappa * torch.matmul(K, K.T)
 			for P, h, K in zip(self.P_list, h_list, K_list)
 		]  # [f_in, 1] @ [1, f_in] -> [f_in, f_in]
 		
@@ -449,9 +455,6 @@ class RLS(TBPTT):
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
 		self.optimizer.zero_grad()
 		
-		labda = self.kwargs.get("labda", 1.0)
-		kappa = self.kwargs.get("kappa", 1.0)
-		
 		x_batch_view = x_batch.view(-1, x_batch.shape[-1])  # [B, f_in]
 		pred_batch_view = pred_batch.view(-1, pred_batch.shape[-1])  # [B, f_out]
 		y_batch_view = y_batch.view(-1, y_batch.shape[-1])  # [B, f_out]
@@ -478,14 +481,14 @@ class RLS(TBPTT):
 		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
 		phi = x_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_in]
 		K_list = [torch.matmul(P, phi.T) for P in self.P_list]  # [f_in, f_in] @ [f_in, 1] -> [f_in, 1]
-		h_list = [1.0 / (labda + kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_in] @ [f_in, 1] -> [1]
+		h_list = [1.0 / (self.Lambda + self.kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_in] @ [f_in, 1] -> [1]
 		
 		for p, K, h in zip(self.params, K_list, h_list):
 			p.grad = h * torch.outer(K.view(-1), epsilon.view(-1))  # [f_in, 1] @ [1, f_out] -> [N_in, N_out]
 
 		self.optimizer.step()
 		self.P_list = [
-			labda * P - h * kappa * torch.matmul(K, K.T)
+			self.Lambda * P - h * self.kappa * torch.matmul(K, K.T)
 			for P, h, K in zip(self.P_list, h_list, K_list)
 		]  # [f_in, 1] @ [1, f_in] -> [f_in, f_in]
 		
@@ -522,9 +525,6 @@ class RLS(TBPTT):
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
 		self.optimizer.zero_grad()
 		
-		labda = self.kwargs.get("labda", 1.0)
-		kappa = self.kwargs.get("kappa", 1.0)
-		
 		x_batch_view = x_batch.view(-1, x_batch.shape[-1])  # [B, f_in]
 		pred_batch_view = pred_batch.view(-1, pred_batch.shape[-1])  # [B, f_out]
 		y_batch_view = y_batch.view(-1, y_batch.shape[-1])  # [B, f_out]
@@ -551,14 +551,14 @@ class RLS(TBPTT):
 		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
 		phi = pred_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_out]
 		K_list = [torch.matmul(P, phi.T) for P in self.P_list]  # [f_out, f_out] @ [f_out, 1] -> [f_out, 1]
-		h_list = [1.0 / (labda + kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_out] @ [f_out, 1] -> [1]
+		h_list = [1.0 / (self.Lambda + self.kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_out] @ [f_out, 1] -> [1]
 		
 		for p, K, h in zip(self.params, K_list, h_list):
 			p.grad = h * torch.outer(K.view(-1), epsilon.view(-1))  # [f_out, 1] @ [1, f_out] -> [N_in, N_out]
 		
 		self.optimizer.step()
 		self.P_list = [
-			labda * P - h * kappa * torch.matmul(K, K.T)
+			self.Lambda * P - h * self.kappa * torch.matmul(K, K.T)
 			for P, h, K in zip(self.P_list, h_list, K_list)
 		]  # [f_in, 1] @ [1, f_in] -> [f_in, f_in]
 		

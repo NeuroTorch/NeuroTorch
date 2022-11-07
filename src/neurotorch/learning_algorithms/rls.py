@@ -399,6 +399,8 @@ class RLS(TBPTT):
 						f"For inputs of shape [B, f_in], the first dimension of the parameters must be f_in, "
 						f"got {p.shape[0]} instead of {x_batch_view.shape[-1]}."
 					)
+		self.P_list = self.to_device_transform(self.P_list)
+		self.params = self.to_device_transform(self.params)
 		
 		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
 		phi = x_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_in]
@@ -470,6 +472,8 @@ class RLS(TBPTT):
 						f"For targets of shape [B, f_out], the second dimension of the parameters must be f_out, "
 						f"got {p.shape[1]} instead of {y_batch_view.shape[-1]}."
 					)
+		self.P_list = self.to_device_transform(self.P_list)
+		self.params = self.to_device_transform(self.params)
 		
 		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
 		phi = x_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_in]
@@ -541,6 +545,8 @@ class RLS(TBPTT):
 						f"For targets of shape [B, f_out], the second dimension of the parameters must be f_out, "
 						f"got {p.shape[1]} instead of {y_batch_view.shape[-1]}."
 					)
+		self.P_list = self.to_device_transform(self.P_list)
+		self.params = self.to_device_transform(self.params)
 		
 		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
 		phi = pred_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_out]

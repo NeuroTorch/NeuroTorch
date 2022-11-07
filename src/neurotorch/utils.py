@@ -303,13 +303,13 @@ def compute_jacobian(
 			jacobian = [p.grad.view(-1) for p in params]
 		elif strategy.lower() == "slow":
 			jacobian = [[] for _ in range(len(list(params)))]
-			grad_outputs = torch.eye(y.shape[-1])
+			grad_outputs = torch.eye(y.shape[-1], device=y.device)
 			for i in range(y.shape[-1]):
 				zero_grad_params(params)
 				y.backward(grad_outputs[i], retain_graph=True)
 				for p_idx, param in enumerate(params):
 					jacobian[p_idx].append(param.grad.view(-1).detach().clone())
-			jacobian = [torch.stack(jacobian[i], dim=-1) for i in range(len(list(params)))]
+			jacobian = [torch.stack(jacobian[i], dim=-1).T for i in range(len(list(params)))]
 		else:
 			raise ValueError(f"Unsupported strategy: {strategy}")
 	elif x is not None:

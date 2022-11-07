@@ -1,5 +1,6 @@
 import pprint
 
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
 import neurotorch as nt
@@ -258,22 +259,22 @@ def train_with_params(
 		torch.unsqueeze(x[:, 0].clone(), dim=1).to(model.device),
 		model.get_prediction_trace(torch.unsqueeze(x[:, 0].clone(), dim=1))
 	], dim=1)
-	loss = PVarianceLoss()(x_pred, x)
+	loss = PVarianceLoss()(x_pred.to(x.device), x)
 
 	out = {
 		"params": params,
-		"pVar": loss.detach().item(),
-		"W": ws_layer.forward_weights.detach().cpu().numpy(),
+		"pVar": nt.to_numpy(loss.item()),
+		"W": nt.to_numpy(ws_layer.forward_weights),
 		"sign0": sign0,
-		"mu": ws_layer.mu.detach().numpy(),
-		"r": ws_layer.r.detach().numpy(),
+		"mu": nt.to_numpy(ws_layer.mu),
+		"r": nt.to_numpy(ws_layer.r),
 		"W0": W0,
 		"ratio_0": ratio_sign_0,
-		"mu0": mu0.numpy(),
-		"r0": r0.numpy(),
-		"tau0": tau0.numpy(),
-		"tau": ws_layer.tau.detach().numpy(),
-		"x_pred": torch.squeeze(x_pred).detach().numpy().T,
+		"mu0": nt.to_numpy(mu0),
+		"r0": nt.to_numpy(r0),
+		"tau0": nt.to_numpy(tau0),
+		"tau": nt.to_numpy(ws_layer.tau),
+		"x_pred": nt.to_numpy(torch.squeeze(x_pred).T),
 		"original_time_series": dataset.original_series,
 		"force_dale_law": params["force_dale_law"],
 	}
@@ -294,7 +295,7 @@ if __name__ == '__main__':
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
 			"smoothing_sigma": 10.0,
-			"n_units": 512,
+			"n_units": 8192,
 			"n_time_steps": -1,
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
@@ -309,7 +310,7 @@ if __name__ == '__main__':
 			"rls_strategy": "inputs",
 			"add_aux_bptt": False,
 		},
-		n_iterations=1_000,
+		n_iterations=100,
 		device=torch.device("cuda"),
 		force_overwrite=True,
 		batch_size=1,
@@ -340,7 +341,9 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
 		])
 	)
-	viz.plot_timeseries_comparison(res["original_time_series"].T, title=f"Prediction", show=True)
+	viz.plot_timeseries_comparison(
+		res["original_time_series"].T, title=f"Prediction", show=True, filename="figures/prediction.png"
+	)
 
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	VisualiseKMeans(
@@ -355,6 +358,7 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
 			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")])
 	).heatmap(fig=fig, ax=axes[1], title="Predicted time series")
+	plt.savefig("figures/heatmap.png")
 	plt.show()
 
 	Visualise(
@@ -363,5 +367,5 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
 			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")
 		])
-	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=True)
+	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=True, filename="figures/animation.mp4")
 

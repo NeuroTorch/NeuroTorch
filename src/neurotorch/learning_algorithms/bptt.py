@@ -36,7 +36,7 @@ class BPTT(LearningAlgorithm):
 		"""
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
-		super().__init__(**kwargs)
+		super().__init__(params=params, **kwargs)
 		if params is None:
 			params = []
 		else:

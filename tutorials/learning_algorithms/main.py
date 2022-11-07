@@ -295,7 +295,7 @@ if __name__ == '__main__':
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
 			"smoothing_sigma": 10.0,
-			"n_units": 8192,
+			"n_units": 10_000,
 			"n_time_steps": -1,
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
@@ -310,7 +310,7 @@ if __name__ == '__main__':
 			"rls_strategy": "inputs",
 			"add_aux_bptt": False,
 		},
-		n_iterations=100,
+		n_iterations=10,
 		device=torch.device("cuda"),
 		force_overwrite=True,
 		batch_size=1,
@@ -367,5 +367,5 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
 			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")
 		])
-	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=True, filename="figures/animation.mp4")
+	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=False, filename="figures/animation.mp4")
 

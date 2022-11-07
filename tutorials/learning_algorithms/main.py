@@ -98,6 +98,7 @@ def make_learning_algorithm(**kwargs):
 		)
 	elif la_name == "rls":
 		learning_algorithm = nt.RLS(
+			params=[kwargs["model"].get_layer().forward_weights],
 			criterion=nt.losses.PVarianceLoss(),
 			# device=torch.device("cpu"),
 			strategy=kwargs.get("rls_strategy", "inputs"),
@@ -186,6 +187,15 @@ def train_with_params(
 	)
 	convergence_time_getter = ConvergenceTimeGetter(metric='train_loss', threshold=0.95, minimize_metric=False)
 	learning_algorithm = make_learning_algorithm(**params, model=model)
+	learning_algorithms = [learning_algorithm, ]
+	params_not_taken = list(set(model.parameters()) - set(learning_algorithm.params))
+	if len(params_not_taken) > 0 and params.get("add_aux_bptt", False):
+		aux_optimizer = torch.optim.AdamW(
+			params_not_taken, lr=params["learning_rate"], maximize=True,
+			weight_decay=params.get("weight_decay", 0.1)
+		)
+		aux_learning_algorithm = nt.BPTT(optimizer=aux_optimizer, criterion=nt.losses.PVarianceLoss())
+		learning_algorithms.append(aux_learning_algorithm)
 	callbacks = [
 		# LRSchedulerOnMetric(
 		# 	'train_loss',
@@ -193,7 +203,7 @@ def train_with_params(
 		# 	min_lr=params["learning_rate"] / 10,
 		# 	retain_progress=True,
 		# ),
-		learning_algorithm,
+		*learning_algorithms,
 		checkpoint_manager,
 		# convergence_time_getter,
 		# EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
@@ -280,11 +290,11 @@ def train_with_params(
 if __name__ == '__main__':
 	res = train_with_params(
 		params={
-			# "filename": "ts_nobaselines_fish3.npy",
+			"filename": "ts_nobaselines_fish3.npy",
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
 			"smoothing_sigma": 10.0,
-			"n_units": 200,
+			"n_units": 512,
 			"n_time_steps": -1,
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
@@ -292,14 +302,15 @@ if __name__ == '__main__':
 			"learning_algorithm": "RLS",
 			"auto_backward_time_steps_ratio": 0.0,
 			"weight_decay": 1e-5,
-			"learn_mu": False,
-			"learn_r": False,
-			"learn_tau": False,
+			"learn_mu": True,
+			"learn_r": True,
+			"learn_tau": True,
 			"activation": "sigmoid",
 			"rls_strategy": "inputs",
+			"add_aux_bptt": False,
 		},
-		n_iterations=100,
-		device=torch.device("cpu"),
+		n_iterations=1_000,
+		device=torch.device("cuda"),
 		force_overwrite=True,
 		batch_size=1,
 	)

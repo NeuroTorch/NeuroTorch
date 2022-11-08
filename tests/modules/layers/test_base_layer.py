@@ -26,7 +26,7 @@ class TestBaseLayer(unittest.TestCase):
 		self.assertEqual(layer.device, "cpu")
 
 		if torch.cuda.is_available():
-			layer = BaseLayer(device="cuda", learning_type=2)
+			layer = BaseLayer(device="cuda", freeze_weights=True)
 			self.assertEqual(layer.device, "cuda")
 			self.assertEqual(layer.requires_grad, False)
 			self.assertEqual(layer.input_size, None)

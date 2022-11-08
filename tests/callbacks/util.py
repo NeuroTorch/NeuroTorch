@@ -70,6 +70,9 @@ class MockTrainer:
 			self.current_training_state = self.current_training_state.update(itr_metrics={})
 			self.callbacks.on_iteration_end(self)
 		self.callbacks.close(self)
+		
+	def update_state_(self, **kwargs):
+		self.current_training_state = self.current_training_state.update(**kwargs)
 
 
 class MockCallback(BaseCallback):

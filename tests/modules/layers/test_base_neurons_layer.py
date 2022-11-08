@@ -1,7 +1,7 @@
 import unittest
 import warnings
 
-from neurotorch.modules.layers import BaseNeuronsLayer, LearningType
+from neurotorch.modules.layers import BaseNeuronsLayer
 import torch
 
 
@@ -17,7 +17,6 @@ class TestBaseNeuronLayer(unittest.TestCase):
 		self.assertEqual(layer.name, "BaseNeuronsLayer")
 		self.assertEqual(layer.use_recurrent_connection, True)
 		self.assertEqual(layer.use_rec_eye_mask, False)
-		self.assertEqual(layer.learning_type, LearningType.BPTT)
 		self.assertEqual(layer.dt, 1e-3)
 
 		layer = BaseNeuronsLayer(
@@ -26,7 +25,7 @@ class TestBaseNeuronLayer(unittest.TestCase):
 			name="test",
 			use_recurrent_connection=False,
 			use_rec_eye_mask=False,
-			learning_type=LearningType.NONE,
+			freeze_weights=True,
 			dt=1,
 			device="cpu"
 		)
@@ -35,7 +34,7 @@ class TestBaseNeuronLayer(unittest.TestCase):
 		self.assertEqual(layer.name, "test")
 		self.assertEqual(layer.use_recurrent_connection, False)
 		self.assertEqual(layer.use_rec_eye_mask, False)
-		self.assertEqual(layer.learning_type, LearningType.NONE)
+		self.assertEqual(layer.freeze_weights, True)
 		self.assertEqual(layer.dt, 1)
 		self.assertEqual(layer.device, "cpu")
 

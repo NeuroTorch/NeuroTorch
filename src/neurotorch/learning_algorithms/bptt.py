@@ -123,8 +123,8 @@ class BPTT(LearningAlgorithm):
 		self.optimizer.zero_grad()
 	
 	def on_validation_batch_begin(self, trainer, **kwargs):
-		y_batch = trainer.current_validation_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_validation_state.pred_batch, y_batch)
+		y_batch = trainer.current_training_state.y_batch
+		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		batch_loss = self.apply_criterion(pred_batch, y_batch)
 		trainer.update_state_(batch_loss=batch_loss)
 

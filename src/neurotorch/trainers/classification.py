@@ -3,11 +3,13 @@ from typing import Callable, Dict, List, Optional, Union
 import torch
 
 from . import Trainer
+from ..transforms.base import ToTensor
 from ..metrics import ClassificationMetrics
 
 
 class ClassificationTrainer(Trainer):
 	def __init__(self, *args, **kwargs):
+		kwargs.setdefault("y_transform", ToTensor(dtype=torch.long))
 		kwargs.setdefault("predict_method", "get_prediction_log_proba")
 		super().__init__(*args, **kwargs)
 	

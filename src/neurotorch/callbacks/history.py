@@ -204,6 +204,22 @@ class TrainingHistory(BaseCallback):
 			argmax = np.argmax(self[key])
 			return {k: v[argmax] for k, v in self.items()}
 		raise ValueError("key not in container")
+	
+	def get_item_at(self, idx: int = -1):
+		"""
+		Get all the metrics of the iteration at the given index.
+		
+		:param idx: The index to get the metrics of.
+		:type idx: int
+		
+		:return: All the metrics of the iteration at the given index.
+		:rtype: Dict[str, float]
+		
+		:raises ValueError: If the index is out of bounds.
+		"""
+		if idx >= len(self):
+			raise ValueError("Index out of bounds")
+		return {k: v[idx] for k, v in self.items()}
 
 	def create_plot(self, **kwargs) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
 		"""
@@ -348,6 +364,9 @@ class TrainingHistory(BaseCallback):
 			trainer.current_training_state.iteration,
 			{k: to_numpy(v) for k, v in trainer.current_training_state.itr_metrics.items()}
 		)
+		
+	def extra_repr(self):
+		return f", n={len(self)}, metrics={list(self.keys())}"
 
 
 

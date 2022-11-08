@@ -41,14 +41,23 @@ class TBPTT(BPTT):
 	def on_batch_begin(self, trainer, **kwargs):
 		super().on_batch_begin(trainer)
 		self.trainer = trainer
-		self._data_n_time_steps = self._get_data_time_steps_from_y_batch(trainer.current_training_state.y_batch)
-		self._maybe_update_time_steps()
-		self.decorate_forwards()
+		if trainer.model.training:
+			self._data_n_time_steps = self._get_data_time_steps_from_y_batch(trainer.current_training_state.y_batch)
+			self._maybe_update_time_steps()
+			self.optimizer.zero_grad()
+			self.decorate_forwards()
 	
 	def on_batch_end(self, trainer, **kwargs):
 		super().on_batch_end(trainer)
+		if trainer.model.training:
+			for layer_name in self._layers_buffer:
+				backward_t = len(self._layers_buffer[layer_name])
+				if backward_t > 0:
+					self._backward_at_t(self._data_n_time_steps - 1, backward_t, layer_name)
+					self.optimizer.step()
 		self.undecorate_forwards()
 		self._layers_buffer.clear()
+		self.optimizer.zero_grad()
 	
 	def _get_data_time_steps_from_y_batch(self, y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]]):
 		if isinstance(y_batch, torch.Tensor):
@@ -90,10 +99,18 @@ class TBPTT(BPTT):
 			if t is None:
 				return out
 			out_tensor = self._get_out_tensor(out)
+			if t == 0:  # Hotfix for the first time step  TODO: fix this
+				ready = bool(self._layers_buffer[layer_name])
+			else:
+				ready = True
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
-			if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
+			length = len(self._layers_buffer[layer_name])
+			if length == self.backward_time_steps and ready:
 				self._backward_at_t(t, self.backward_time_steps, layer_name)
 				out = self._detach_out(out)
+			if length == self.optim_time_steps and ready:
+				self.optimizer.step()
+				self.optimizer.zero_grad()
 			return out
 		return _forward
 	
@@ -101,6 +118,8 @@ class TBPTT(BPTT):
 		y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
 		pred_batch = self._get_pred_batch_from_buffer(layer_name)
 		batch_loss = self.apply_criterion(pred_batch, y_batch)
+		if batch_loss.grad_fn is None:
+			trainer = self.trainer
 		batch_loss.backward()
 		self._layers_buffer[layer_name].clear()
 	
@@ -139,11 +158,6 @@ class TBPTT(BPTT):
 	def on_optimization_begin(self, trainer, **kwargs):
 		y_batch = trainer.current_training_state.y_batch
 		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
-		for layer_name in self._layers_buffer:
-			backward_t = len(self._layers_buffer[layer_name])
-			if backward_t > 0:
-				self._backward_at_t(self._data_n_time_steps - 1, backward_t, layer_name)
-		self.optimizer.step()
 		batch_loss = self.apply_criterion(pred_batch, y_batch)
 		trainer.update_state_(batch_loss=batch_loss)
 	

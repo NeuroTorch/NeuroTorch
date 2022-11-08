@@ -120,7 +120,7 @@ class SequentialRNN(Sequential):
 			self,
 			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
 			foresight_time_steps: int = 0,
-			name: str = "Sequential",
+			name: str = "SequentialRNN",
 			checkpoint_folder: str = "checkpoints",
 			device: Optional[torch.device] = None,
 			input_transform: Optional[Union[Dict[str, Callable], List[Callable]]] = None,

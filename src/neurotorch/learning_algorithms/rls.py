@@ -13,7 +13,25 @@ from ..utils import compute_jacobian, list_insert_replace_at
 
 class RLS(TBPTT):
 	r"""
-	Apply the recursive least squares algorithm to the given model.
+	Apply the recursive least squares algorithm to the given model. Different strategies are available to update the
+	parameters of the model. The strategy is defined by the :attr:`strategy` attribute of the class. The following
+	strategies are available:
+		
+		- `inputs`: The parameters are updated using the inputs of the model.
+		- `outputs`: The parameters are updated using the outputs of the model. This one is inspired by the work of
+			Perich and al. :cite:t:`perich_inferring_2021` with the CURBD algorithm.
+		- `grad`: The parameters are updated using the gradients of the model. This one is inspired by the work of
+			Zhang and al. :cite:t:`zhang_revisiting_2021`.
+		- `jacobian`: The parameters are updated using the Jacobian of the model. This one is inspired by the work of
+			Al-Batah and al. :cite:t:`al-batah_modified_2010`.
+		- `scaled_jacobian`: The parameters are updated using the scaled Jacobian of the model.
+	
+	.. note::
+		The `inputs` and `outputs` strategies are limited to an optimization of only one parameter. The others
+		strategies can be used with multiple parameters. Unfortunately, those strategies do not work as expected
+		at the moment. If you want to help with the development of those strategies, please open an issue on
+		GitHub.
+	
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
 	CHECKPOINT_P_STATES_DICT_KEY: str = "P_list"
@@ -33,8 +51,16 @@ class RLS(TBPTT):
 
 		:param params: The parameters to optimize. If None, the parameters of the model's trainer will be used.
 		:type params: Optional[Sequence[torch.nn.Parameter]]
+		:param layers: The layers to optimize. If not Noen the parameters of the layers wiill be added to the
+			parameters to optimize.
+		:type layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]]
 		:param criterion: The criterion to use. If not provided, torch.nn.MSELoss is used.
 		:type criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]]
+		:param backward_time_steps: The frequency of parameter optimisation. If None, the number of
+			time steps of the data will be used.
+		:type backward_time_steps: Optional[int]
+		:param is_recurrent: If True, the model is recurrent. If False, the model is not recurrent.
+		:type is_recurrent: bool
 		:param kwargs: The keyword arguments to pass to the BaseCallback.
 
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
@@ -115,7 +141,8 @@ class RLS(TBPTT):
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
 			if len(self._layers_buffer[layer_name]) == self.backward_time_steps and ready:
 				self._backward_at_t(t, self.backward_time_steps, layer_name)
-				out = self._detach_out(out)
+				if self.strategy in ["grad", "jacobian", "scaled_jacobian"]:
+					out = self._detach_out(out)
 			return out
 		return _forward
 	

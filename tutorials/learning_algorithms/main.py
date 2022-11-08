@@ -183,19 +183,21 @@ def train_with_params(
 		minimise_metric=False,
 		save_freq=-1,
 		save_best_only=True,
-		# start_save_at=int(1.98 * n_iterations),
-		start_save_at=np.inf,
+		start_save_at=int(0.98 * n_iterations),
 	)
 	convergence_time_getter = ConvergenceTimeGetter(metric='train_loss', threshold=0.95, minimize_metric=False)
 	learning_algorithm = make_learning_algorithm(**params, model=model)
 	learning_algorithms = [learning_algorithm, ]
 	params_not_taken = list(set(model.parameters()) - set(learning_algorithm.params))
-	if len(params_not_taken) > 0 and params.get("add_aux_bptt", False):
-		aux_optimizer = torch.optim.AdamW(
+	if len(params_not_taken) > 0 and params.get("add_aux_tbptt", False):
+		aux_optimizer = torch.optim.Adam(
 			params_not_taken, lr=params["learning_rate"], maximize=True,
 			weight_decay=params.get("weight_decay", 0.1)
 		)
-		aux_learning_algorithm = nt.BPTT(optimizer=aux_optimizer, criterion=nt.losses.PVarianceLoss())
+		aux_learning_algorithm = nt.TBPTT(
+			optimizer=aux_optimizer, criterion=nt.losses.PVarianceLoss(),
+			backward_time_steps=1, optim_time_steps=1, priority=learning_algorithm.priority - 1
+		)
 		learning_algorithms.append(aux_learning_algorithm)
 	callbacks = [
 		# LRSchedulerOnMetric(
@@ -206,8 +208,8 @@ def train_with_params(
 		# ),
 		*learning_algorithms,
 		checkpoint_manager,
-		# convergence_time_getter,
-		# EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
+		convergence_time_getter,
+		EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
 		# EventOnMetricThreshold(
 		# 	metric_name='train_loss', threshold=0.8, minimize_metric=False,
 		# 	event=increase_trainer_iteration_event, do_once=False, event_kwargs={"delta_iterations": 2}
@@ -244,7 +246,6 @@ def train_with_params(
 	)
 	print(f"{trainer}")
 	history = trainer.train(
-		# DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),
 		dataloader,
 		n_iterations=n_iterations,
 		exec_metrics_on_train=True,
@@ -295,7 +296,7 @@ if __name__ == '__main__':
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
 			"smoothing_sigma": 10.0,
-			"n_units": 10_000,
+			"n_units": 200,
 			"n_time_steps": -1,
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
@@ -308,11 +309,11 @@ if __name__ == '__main__':
 			"learn_tau": True,
 			"activation": "sigmoid",
 			"rls_strategy": "inputs",
-			"add_aux_bptt": False,
+			"add_aux_tbptt": True,
 		},
-		n_iterations=10,
+		n_iterations=100,
 		device=torch.device("cuda"),
-		force_overwrite=True,
+		force_overwrite=False,
 		batch_size=1,
 	)
 	pprint.pprint({k: v for k, v in res.items() if isinstance(v, (int, float, str, bool))})

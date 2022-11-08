@@ -569,3 +569,58 @@ url = {https://www.sciencedirect.com/science/article/pii/0893608088900214},
 author = {Stephen Grossberg},
 abstract = {An historical discussion is provided of the intellectual trends that caused nineteenth century interdisciplinary studies of physics and psychobiology by leading scientists such as Helmholtz, Maxwell, and Mach to splinter into separate twentieth-century scientific movements. The nonlinear, nonstationary, and nonlocal nature of behavioral and brain data are emphasized. Three sources of contemporary neural network research—the binary, linear, and continuous-nonlinear models—are noted. The remainder of the article describes results about continuous-nonlinear models: Many models of content-addressable memory are shown to be special cases of the Cohen-Grossberg model and global Liapunov function, including the additive, brain-state-in-a-box, McCulloch-Pitts, Boltzmann machine, Hartline-Ratliff-Miller, shunting, masking field, bidirectional associative memory, Volterra-Lotka, Gilpin-Ayala, and Eigen-Schuster models. A Liapunov functional method is described for proving global limit or oscillation theorems for nonlinear competitive systems when their decision schemes are globally consistent or inconsistent, respectively. The former case is illustrated by a model of a globally stable economic market, and the latter case is illustrated by a model of the voting paradox. Key properties of shunting competitive feedback networks are summarized, including the role of sigmoid signalling, automatic gain control, competitive choice and quantization, tunable filtering, total activity normalization, and noise suppression in pattern transformation and memory storage applications. Connections to models of competitive learning, vector quantization, and categorical perception are noted. Adaptive resonance theory (ART) models for self-stabilizing adaptive pattern recognition in response to complex real-time nonstationary input environments are compared with off-line models such as autoassociators, the Boltzmann machine, and back propagation. Special attention is paid to the stability and capacity of these models, and to the role of top-down expectations and attentional processing in the active regulation of both learning and fast information processing. Models whose performance and learning are regulated by internal gating and matching signals, or by external environmentally generated error signals, are contrasted with models whose learning is regulated by external teacher signals that have no analog in natural real-time environments. Examples from sensory-motor control of adaptive vector encoders, adaptive coordinate transformations, adaptive gain control by visual error signals, and automatic generation of synchronous multijoint movement trajectories illustrate the former model types. Internal matching processes are shown capable of discovering several different types of invariant environmental properties. These include ART mechanisms which discover recognition invariants, adaptive vector encoder mechanisms which discover movement invariants, and autoreceptive associative mechanisms which discover invariants of self-regulating target position maps.}
 }
+
+
+@misc{perich_inferring_2021,
+	title = {Inferring brain-wide interactions using data-constrained recurrent neural network models},
+	rights = {© 2021, Posted by Cold Spring Harbor Laboratory. This pre-print is available under a Creative Commons License (Attribution-{NonCommercial}-{NoDerivs} 4.0 International), {CC} {BY}-{NC}-{ND} 4.0, as described at http://creativecommons.org/licenses/by-nc-nd/4.0/},
+	url = {https://www.biorxiv.org/content/10.1101/2020.12.18.423348v2},
+	doi = {10.1101/2020.12.18.423348},
+	abstract = {Behavior arises from the coordinated activity of numerous anatomically and functionally distinct brain regions. Modern experimental tools allow unprecedented access to large neural populations spanning many interacting regions brain-wide. Yet, understanding such large-scale datasets necessitates both scalable computational models to extract meaningful features of inter-region communication and principled theories to interpret those features. Here, we introduce Current-Based Decomposition ({CURBD}), an approach for inferring brain-wide interactions using data-constrained recurrent neural network models that directly reproduce experimentally-obtained neural data. {CURBD} leverages the functional interactions inferred by such models to reveal directional currents between multiple brain regions. We first show that {CURBD} accurately isolates inter-region currents in simulated networks with known dynamics. We then apply {CURBD} to multi-region neural recordings obtained from mice during running, macaques during Pavlovian conditioning, and humans during memory retrieval to demonstrate the widespread applicability of {CURBD} to untangle brain-wide interactions underlying behavior from a variety of neural datasets.},
+	publisher = {{bioRxiv}},
+	author = {Perich, Matthew G. and Arlt, Charlotte and Soares, Sofia and Young, Megan E. and Mosher, Clayton P. and Minxha, Juri and Carter, Eugene and Rutishauser, Ueli and Rudebeck, Peter H. and Harvey, Christopher D. and Rajan, Kanaka},
+	urldate = {2022-11-06},
+	date = {2021-03-11},
+	langid = {english},
+	note = {Pages: 2020.12.18.423348
+Section: New Results},
+	file = {Full Text PDF:C\:\\Users\\gince\\Zotero\\storage\\JRWXEIV4\\Perich et al. - 2021 - Inferring brain-wide interactions using data-const.pdf:application/pdf;Snapshot:C\:\\Users\\gince\\Zotero\\storage\\NL7TS343\\2020.12.18.423348v2.html:text/html},
+}
+
+
+@misc{zhang_revisiting_2021,
+	title = {Revisiting Recursive Least Squares for Training Deep Neural Networks},
+	url = {http://arxiv.org/abs/2109.03220},
+	abstract = {Recursive least squares ({RLS}) algorithms were once widely used for training small-scale neural networks, due to their fast convergence. However, previous {RLS} algorithms are unsuitable for training deep neural networks ({DNNs}), since they have high computational complexity and too many preconditions. In this paper, to overcome these drawbacks, we propose three novel {RLS} optimization algorithms for training feedforward neural networks, convolutional neural networks and recurrent neural networks (including long short-term memory networks), by using the error backpropagation and our average-approximation {RLS} method, together with the equivalent gradients of the linear least squares loss function with respect to the linear outputs of hidden layers. Compared with previous {RLS} optimization algorithms, our algorithms are simple and elegant. They can be viewed as an improved stochastic gradient descent ({SGD}) algorithm, which uses the inverse autocorrelation matrix of each layer as the adaptive learning rate. Their time and space complexities are only several times those of {SGD}. They only require the loss function to be the mean squared error and the activation function of the output layer to be invertible. In fact, our algorithms can be also used in combination with other first-order optimization algorithms without requiring these two preconditions. In addition, we present two improved methods for our algorithms. Finally, we demonstrate their effectiveness compared to the Adam algorithm on {MNIST}, {CIFAR}-10 and {IMDB} datasets, and investigate the influences of their hyperparameters experimentally.},
+	number = {{arXiv}:2109.03220},
+	publisher = {{arXiv}},
+	author = {Zhang, Chunyuan and Song, Qi and Zhou, Hui and Ou, Yigui and Deng, Hongyao and Yang, Laurence Tianruo},
+	urldate = {2022-11-06},
+	date = {2021-09-07},
+	eprinttype = {arxiv},
+	eprint = {2109.03220 [cs]},
+	keywords = {68T07, Computer Science - Machine Learning, K.3.2},
+	annotation = {Comment: 12 pages,5 figures, {IEEE} Transactions on Neural Networks and Learning Systems under review},
+	file = {arXiv Fulltext PDF:C\:\\Users\\gince\\Zotero\\storage\\3TTLBCD7\\Zhang et al. - 2021 - Revisiting Recursive Least Squares for Training De.pdf:application/pdf;arXiv.org Snapshot:C\:\\Users\\gince\\Zotero\\storage\\BAPYNDG3\\2109.html:text/html},
+}
+
+@article{al-batah_modified_2010,
+	title = {Modified Recursive Least Squares algorithm to train the Hybrid Multilayered Perceptron ({HMLP}) network},
+	volume = {10},
+	issn = {1568-4946},
+	url = {https://www.sciencedirect.com/science/article/pii/S1568494609000891},
+	doi = {10.1016/j.asoc.2009.06.018},
+	abstract = {In this paper, a new learning algorithm, called the Modified Recursive Least Square ({MRLS}), is introduced for the Hybrid Multilayered Perceptron ({HMLP}) network. Adopting the Recursive Least Square ({RLS}) algorithm as its basis, the {MRLS} algorithm differs from {RLS} in the way that the weight of the linear connections for the {HMLP} network is estimated. The convergence rate of the {MRLS} algorithm is further improved by varying the forgetting factor, optimizing the way the momentum and learning rate are assigned. To investigate its applicability, the {MRLS} algorithm is demonstrated on the {HMLP} network using six benchmark data sets obtained from the {UCI} repository. The classification performance of the {HMLP} network trained with the {MRLS} algorithm is compared with those of the {HMLP} network trained with the Modified Recursive Prediction Error ({MRPE}) algorithm and the {MLP} trained with the standard {RLS} algorithm as well as with other commonly adopted machine learning classifiers. The comparison results indicated that the proposed {MRLS} trained {HMLP} network provides significant improvement over {RLS} trained {MLP} network, {MRPE} trained {HMLP} network, and other machine learning classifiers in terms of accuracy, convergence rate and mean square error ({MSE}).},
+	pages = {236--244},
+	number = {1},
+	journaltitle = {Applied Soft Computing},
+	shortjournal = {Applied Soft Computing},
+	author = {Al-Batah, Mohammad Subhi and Mat Isa, Nor Ashidi and Zamli, Kamal Zuhairi and Azizli, Khairun Azizi},
+	urldate = {2022-10-18},
+	date = {2010-01-01},
+	langid = {english},
+	keywords = {Artificial Neural Network, Hybrid Multilayered Perceptron, Modified Recursive Least Square, Multilayered Perceptron, Pattern recognition},
+	file = {ScienceDirect Full Text PDF:C\:\\Users\\gince\\Zotero\\storage\\CTQ6VNZX\\Al-Batah et al. - 2010 - Modified Recursive Least Squares algorithm to trai.pdf:application/pdf;ScienceDirect Snapshot:C\:\\Users\\gince\\Zotero\\storage\\SJ5I9P7U\\S1568494609000891.html:text/html},
+}
+
+

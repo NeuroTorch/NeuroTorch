@@ -4,6 +4,7 @@ from typing import Optional, Sequence, Union, Dict, Callable
 import torch
 
 from .learning_algorithm import LearningAlgorithm
+from ..utils import batchwise_temporal_filter
 
 
 class Eprop(LearningAlgorithm):
@@ -12,6 +13,7 @@ class Eprop(LearningAlgorithm):
 	algorithm to the given model.
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
+	CHECKPOINT_RN_FEEDBACK_WEIGHTS_KEY: str = "rn_feedback_weights"
 	
 	def __init__(
 			self,
@@ -41,29 +43,34 @@ class Eprop(LearningAlgorithm):
 		super().__init__(**kwargs)
 		self.params = params
 		self.optimizer = optimizer
-		if criterion is not None:
-			raise NotImplementedError("Custom criterion is not implemented yet.")
 		self.criterion = criterion
+		self.random_feedbacks = kwargs.get("random_feedbacks", True)
+		if not self.random_feedbacks:
+			raise NotImplementedError("Non-random feedbacks are not implemented yet.")
 		self.rn_feedback_weights = None
 		self.rn_gen = torch.Generator()
 		self.rn_gen.manual_seed(kwargs.get("seed", 0))
 	
-	def load_checkpoint_state(self, trainer, checkpoint: dict):
+	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
 			state = checkpoint.get(self.name, {})
 			opt_state_dict = state.get(self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY, None)
 			if opt_state_dict is not None:
 				self.optimizer.load_state_dict(opt_state_dict)
+			if self.random_feedbacks:
+				self.rn_feedback_weights = state.get(self.CHECKPOINT_RN_FEEDBACK_WEIGHTS_KEY, None)
 	
-	def get_checkpoint_state(self, trainer) -> object:
+	def get_checkpoint_state(self, trainer, **kwargs) -> object:
 		if self.save_state:
+			state = {}
 			if self.optimizer is not None:
-				return {
-					self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: self.optimizer.state_dict()
-				}
+				state[self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY] = self.optimizer.state_dict()
+			if self.random_feedbacks:
+				state[self.CHECKPOINT_RN_FEEDBACK_WEIGHTS_KEY] = self.rn_feedback_weights
+			return state
 		return None
 	
-	def start(self, trainer):
+	def start(self, trainer, **kwargs):
 		super().start(trainer)
 		if self.params is not None and self.optimizer is None:
 			self.optimizer = torch.optim.SGD(self.params, lr=1e-3)
@@ -80,50 +87,54 @@ class Eprop(LearningAlgorithm):
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
 	
-	def get_learning_signal(self, trainer):
+	def get_learning_signals(self, trainer, **kwargs):
 		y_batch = trainer.current_training_state.y_batch
 		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
-		if self.criterion is None:
-			if isinstance(y_batch, dict):
-				self.criterion = {key: torch.nn.MSELoss() for key in y_batch}
-			else:
-				self.criterion = torch.nn.MSELoss()
 		
-		if isinstance(self.criterion, dict):
-			if isinstance(y_batch, torch.Tensor):
-				y_batch = {k: y_batch for k in self.criterion}
+		if self.rn_feedback_weights is None:
+			self.rn_feedback_weights = [
+				torch.randn((pred_batch.shape[-1], w.shape[-1]), generator=self.rn_gen)
+				for w in self.params
+			]
+		
+		if isinstance(y_batch, dict):
 			if isinstance(pred_batch, torch.Tensor):
-				pred_batch = {k: pred_batch for k in self.criterion}
+				pred_batch = {k: pred_batch for k in y_batch}
 			assert isinstance(pred_batch, dict) and isinstance(y_batch, dict), \
-				"If criterion is a dict, pred, y_batch and pred must be a dict too."
-			batch_loss = sum(
-				[
-					self.criterion[k](pred_batch[k], y_batch[k].to(pred_batch[k].device))
-					for k in self.criterion
-				]
-			)
+				"If y_batch is a dict, pred must be a dict too."
+			batch_err = sum([
+					(pred_batch[k] - y_batch[k].to(pred_batch[k].device))
+					for k in y_batch
+			])
 		else:
 			if isinstance(pred_batch, dict) and len(pred_batch) == 1:
 				pred_batch = pred_batch[list(pred_batch.keys())[0]]
-			batch_loss = self.criterion(pred_batch, y_batch.to(pred_batch.device))
+			batch_err = (pred_batch - y_batch.to(pred_batch.device))
 		
-		trainer.update_state_(batch_loss=batch_loss)
-		return batch_loss
+		batch_learning_signals = [torch.matmul(batch_err, B) for B in self.rn_feedback_weights]
+		return batch_learning_signals
 	
-	def get_eligibility_trace(self, trainer):
-		if self.rn_feedback_weights is None:
-			self.rn_feedback_weights = torch.randn(
-				[trainer.batch_size, *trainer.current_training_state.pred_batch.shape[1:]],
-				generator=self.rn_gen
-			)
-		return self.rn_feedback_weights
+	def get_eligibility_trace(self, trainer, **kwargs):
+		# TODO: peut-être qu'il faudrait mette un décorateur comme dans tbptt
+		# TODO: le psi de l'équation (23) de l'article de e-prop est essentiellement la dérivé de la fonction d'activation
+		# TODO: de la layer. Il faut donc que je trouve un moyen de récupérer cette dérivé.
+		y_batch = trainer.current_training_state.y_batch
+		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+		eligibility_vectors = batchwise_temporal_filter(pred_batch)
+		return eligibility_vectors
+	
+	def apply_grads(self, learning_signals, eligibility_traces):
+		for i, (w, L, epsilon) in enumerate(zip(self.params, learning_signals, eligibility_traces)):
+			grad = torch.matmul(epsilon, L.T)
+			w.grad = grad
 	
 	def on_optimization_begin(self, trainer, **kwargs):
 		self.optimizer.zero_grad()
-		batch_loss = self.get_learning_signal(trainer)
-		batch_loss.backward()
+		learning_signals = self.get_learning_signals(trainer, **kwargs)
+		eligibility_traces = self.get_eligibility_trace(trainer, **kwargs)
+		self.apply_grads(learning_signals, eligibility_traces)
 		self.optimizer.step()
 	
-	def on_optimization_end(self, trainer):
+	def on_optimization_end(self, trainer, **kwargs):
 		self.optimizer.zero_grad()
 	

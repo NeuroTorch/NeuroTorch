@@ -37,7 +37,7 @@ class LinearLRScheduler(BaseCallback):
 		self.lr = self.lr_start
 		self.lr_decay = (self.lr_start - self.lr_end) / self.n_steps
 	
-	def on_iteration_end(self, trainer):
+	def on_iteration_end(self, trainer, **kwargs):
 		"""
 		Decrease the learning rate linearly.
 		
@@ -124,7 +124,7 @@ class LRSchedulerOnMetric(BaseCallback):
 		self.step = 0
 		self.optimizer = optimizer
 	
-	def on_iteration_end(self, trainer):
+	def on_iteration_end(self, trainer, **kwargs):
 		"""
 		Update the learning rate of the optimizer based on the metric value.
 		
@@ -179,7 +179,7 @@ class LRSchedulerOnMetric(BaseCallback):
 		self.step = next_step
 		return self.step
 	
-	def start(self, trainer):
+	def start(self, trainer, **kwargs):
 		"""
 		Initialize the learning rate of the optimizer and the :attr:`lr_start` attribute if necessary.
 		

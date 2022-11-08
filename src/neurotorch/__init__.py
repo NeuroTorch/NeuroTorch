@@ -23,7 +23,6 @@ from .modules.sequential import (
 )
 
 from .modules.layers import (
-	LearningType,
 	LayerType,
 	LILayer,
 	LIFLayer,
@@ -32,6 +31,7 @@ from .modules.layers import (
 	SpyALIFLayer,
 	ALIFLayer,
 	WilsonCowanLayer,
+	WilsonCowanCURBDLayer,
 )
 
 from .regularization import (
@@ -49,6 +49,7 @@ from .trainers import (
 	Trainer,
 	ClassificationTrainer,
 	RegressionTrainer,
+	TrainingState,
 )
 
 from .transforms import (
@@ -76,6 +77,12 @@ from .learning_algorithms import (
 	BPTT,
 	TBPTT,
 	Eprop,
+	WeakRLS,
+	RLS,
+)
+
+from .utils import (
+	set_seed,
 )
 
 import warnings

@@ -122,7 +122,7 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
 		self._lock = mp.Lock()
 		self._process = _VisualizerProcess(self._temp_path, self._lock)
 
-	def start(self, trainer):
+	def start(self, trainer, **kwargs):
 		"""
 		Start the process.
 		
@@ -134,7 +134,7 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
 		self._process.start()
 		self._is_open = True
 
-	def on_iteration_end(self, trainer):
+	def on_iteration_end(self, trainer, **kwargs):
 		"""
 		Update the training history.
 		
@@ -154,7 +154,7 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
 		"""
 		self.close(None)
 
-	def close(self, trainer):
+	def close(self, trainer, **kwargs):
 		"""
 		Close the process adn delete the temporary file.
 		

@@ -2,8 +2,10 @@ from typing import Dict, Iterable, Optional, Union
 import pythonbasictools as pybt
 import torch
 
+from ..callbacks.base_callback import BaseCallback
 
-class BaseRegularization(torch.nn.Module):
+
+class BaseRegularization(torch.nn.Module, BaseCallback):
 	"""
 	Base class for regularization.
 
@@ -15,7 +17,8 @@ class BaseRegularization(torch.nn.Module):
 	def __init__(
 			self,
 			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
-			Lambda: float = 1.0
+			Lambda: float = 1.0,
+			optimizer: Optional[torch.optim.Optimizer] = None,
 	):
 		"""
 		Constructor of the BaseRegularization class.
@@ -33,6 +36,7 @@ class BaseRegularization(torch.nn.Module):
 		self.params = torch.nn.ParameterList(self.params)
 		self.Lambda = Lambda
 		self.name = self.__class__.__name__
+		self.optimizer = optimizer
 
 	def __call__(self, *args, **kwargs) -> torch.Tensor:
 		"""
@@ -58,6 +62,14 @@ class BaseRegularization(torch.nn.Module):
 		:rtype: torch.Tensor
 		"""
 		raise NotImplementedError("forward method must be implemented")
+	
+	def on_optimization_begin(self, trainer, **kwargs):
+		reg_loss = self()
+		if self.optimizer is not None:
+			self.optimizer.zero_grad()
+		reg_loss.backward()
+		if self.optimizer is not None:
+			self.optimizer.step()
 
 
 class RegularizationList(BaseRegularization):
@@ -70,6 +82,7 @@ class RegularizationList(BaseRegularization):
 	def __init__(
 			self,
 			regularizations: Optional[Iterable[BaseRegularization]] = None,
+			optimizer: Optional[torch.optim.Optimizer] = None,
 	):
 		"""
 		Constructor of the RegularizationList class.
@@ -83,7 +96,8 @@ class RegularizationList(BaseRegularization):
 			_params.extend(regularization.params)
 		super(RegularizationList, self).__init__(
 			params=_params,
-			Lambda=1.0
+			Lambda=1.0,
+			optimizer=optimizer,
 		)
 		self.regularizations = regularizations if regularizations is not None else []
 

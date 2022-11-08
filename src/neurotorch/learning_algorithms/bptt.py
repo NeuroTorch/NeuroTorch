@@ -36,7 +36,7 @@ class BPTT(LearningAlgorithm):
 		"""
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
-		super().__init__(**kwargs)
+		super().__init__(params=params, **kwargs)
 		if params is None:
 			params = []
 		else:
@@ -50,14 +50,14 @@ class BPTT(LearningAlgorithm):
 		self.optimizer = optimizer
 		self.criterion = criterion
 		
-	def load_checkpoint_state(self, trainer, checkpoint: dict):
+	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
 			state = checkpoint.get(self.name, {})
 			opt_state_dict = state.get(self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY, None)
 			if opt_state_dict is not None:
 				self.optimizer.load_state_dict(opt_state_dict)
 			
-	def get_checkpoint_state(self, trainer) -> object:
+	def get_checkpoint_state(self, trainer, **kwargs) -> object:
 		if self.save_state:
 			if self.optimizer is not None:
 				return {
@@ -65,7 +65,7 @@ class BPTT(LearningAlgorithm):
 				}
 		return None
 	
-	def start(self, trainer):
+	def start(self, trainer, **kwargs):
 		super().start(trainer)
 		if self.params and self.optimizer is None:
 			self.optimizer = torch.optim.Adam(self.params)
@@ -119,6 +119,12 @@ class BPTT(LearningAlgorithm):
 		batch_loss = self._make_optim_step(pred_batch, y_batch)
 		trainer.update_state_(batch_loss=batch_loss)
 	
-	def on_optimization_end(self, trainer):
+	def on_optimization_end(self, trainer, **kwargs):
 		self.optimizer.zero_grad()
+	
+	def on_validation_batch_begin(self, trainer, **kwargs):
+		y_batch = trainer.current_validation_state.y_batch
+		pred_batch = trainer.format_pred_batch(trainer.current_validation_state.pred_batch, y_batch)
+		batch_loss = self.apply_criterion(pred_batch, y_batch)
+		trainer.update_state_(batch_loss=batch_loss)
 

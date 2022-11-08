@@ -304,7 +304,7 @@ class CheckpointManager(BaseCallback):
 		with open(self.checkpoints_meta_path, "w+") as jsonFile:
 			json.dump(info, jsonFile, indent=4)
 
-	def start(self, trainer):
+	def start(self, trainer, **kwargs):
 		"""
 		Call at the beginning of the training by the Trainer. Load the checkpoint base on the load_checkpoint_mode of
 		the trainer and update the current_training_state of the trainer.
@@ -336,7 +336,7 @@ class CheckpointManager(BaseCallback):
 			finally:
 				self.curr_checkpoint = checkpoint
 
-		trainer.current_training_state = trainer.current_training_state.update(iteration=start_itr)
+		trainer.update_state_(iteration=start_itr)
 		if self.minimise_metric:
 			self.curr_best_metric = trainer.training_history.min(self.metric)
 		else:
@@ -373,7 +373,7 @@ class CheckpointManager(BaseCallback):
 			)
 		return True
 
-	def on_iteration_end(self, trainer):
+	def on_iteration_end(self, trainer, **kwargs):
 		"""
 		Called when an iteration ends. An iteration is defined as one full pass through the training dataset and
 		the validation dataset. The checkpoint is saved if the current constraints are met.
@@ -401,7 +401,7 @@ class CheckpointManager(BaseCallback):
 			is_best = trainer.current_training_state.itr_metrics[self.metric] > self.curr_best_metric
 		return is_best
 	
-	def close(self, trainer):
+	def close(self, trainer, **kwargs):
 		"""
 		Called when the training is finished. Saves the current checkpoint.
 		

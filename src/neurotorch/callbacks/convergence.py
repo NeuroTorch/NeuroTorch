@@ -39,7 +39,7 @@ class ConvergenceTimeGetter(BaseCallback):
 		self.training_time = np.inf
 		self.start_time = None
 	
-	def load_checkpoint_state(self, trainer, checkpoint: dict):
+	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
 			state = checkpoint.get(self.name, {})
 			if state.get("threshold") == self.threshold and state.get("metric") == self.metric:
@@ -49,14 +49,14 @@ class ConvergenceTimeGetter(BaseCallback):
 					self.start_time -= state.get("training_time", 0)
 			# TODO: change start time and add training time, etc.
 	
-	def start(self, trainer):
+	def start(self, trainer, **kwargs):
 		super().start(trainer)
 		self.start_time = time.time()
 	
-	def close(self, trainer):
+	def close(self, trainer, **kwargs):
 		self.training_time = time.time() - self.start_time
 	
-	def on_iteration_end(self, trainer):
+	def on_iteration_end(self, trainer, **kwargs):
 		if not self.threshold_met:
 			if self.minimize_metric:
 				self.threshold_met = trainer.current_training_state.itr_metrics[self.metric] < self.threshold

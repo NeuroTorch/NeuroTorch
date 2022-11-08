@@ -16,13 +16,6 @@ from pythonbasictools.docstring import inherit_docstring, inherit_fields_docstri
 from ..utils import format_pseudo_rn_seed
 
 
-class LearningType(enum.Enum):
-	# TODO: Remove this class.
-	NONE = 0
-	BPTT = 1
-	E_PROP = 2
-
-
 class LayerType(enum.Enum):
 	LIF = 0
 	ALIF = 1
@@ -68,7 +61,6 @@ class BaseLayer(torch.nn.Module):
 			input_size: Optional[SizeTypes] = None,
 			output_size: Optional[SizeTypes] = None,
 			name: Optional[str] = None,
-			learning_type: LearningType = LearningType.BPTT,
 			device: Optional[torch.device] = None,
 			**kwargs
 	):
@@ -97,8 +89,7 @@ class BaseLayer(torch.nn.Module):
 		self.name = name
 		self._name_is_default = name is None
 
-		self._learning_type = learning_type
-		self._freeze_weights = kwargs.get("freeze_weights", learning_type != LearningType.BPTT)
+		self._freeze_weights = kwargs.get("freeze_weights", False)
 		self._device = device
 		if self._device is None:
 			self._set_default_device_()
@@ -131,16 +122,6 @@ class BaseLayer(torch.nn.Module):
 	@output_size.setter
 	def output_size(self, size: Optional[SizeTypes]):
 		self._output_size = self._format_size(size)
-	
-	@property
-	def learning_type(self):
-		return self._learning_type
-	
-	@learning_type.setter
-	def learning_type(self, learning_type: LearningType):
-		warnings.warn("The learning_type attribute is deprecated. Use freeze_weights instead.", DeprecationWarning)
-		self._learning_type = learning_type
-		self.requires_grad_(self.requires_grad)
 		
 	@property
 	def freeze_weights(self) -> bool:
@@ -412,7 +393,6 @@ class BaseNeuronsLayer(BaseLayer):
 			name: Optional[str] = None,
 			use_recurrent_connection: bool = True,
 			use_rec_eye_mask: bool = False,
-			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,
 			device: Optional[torch.device] = None,
 			**kwargs
@@ -466,7 +446,6 @@ class BaseNeuronsLayer(BaseLayer):
 			input_size=input_size,
 			output_size=output_size,
 			name=name,
-			learning_type=learning_type,
 			device=device,
 			**kwargs
 		)
@@ -745,7 +724,8 @@ class BaseNeuronsLayer(BaseLayer):
 		if self.use_recurrent_connection:
 			_repr += "<"
 		_repr += f"->{int(self.output_size)})"
-		_repr += f"[{self.learning_type}]"
+		if self.freeze_weights:
+			_repr += "[frozen]"
 		_repr += f"@{self.device}"
 		return _repr
 
@@ -819,7 +799,6 @@ class LIFLayer(BaseNeuronsLayer):
 			use_recurrent_connection: bool = True,
 			use_rec_eye_mask: bool = False,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
-			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,
 			device: Optional[torch.device] = None,
 			**kwargs
@@ -838,7 +817,6 @@ class LIFLayer(BaseNeuronsLayer):
 			name=name,
 			use_recurrent_connection=use_recurrent_connection,
 			use_rec_eye_mask=use_rec_eye_mask,
-			learning_type=learning_type,
 			dt=dt,
 			device=device,
 			**kwargs
@@ -1010,7 +988,6 @@ class SpyLIFLayer(BaseNeuronsLayer):
 			name: Optional[str] = None,
 			use_recurrent_connection: bool = True,
 			use_rec_eye_mask: bool = False,
-			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,
 			device: Optional[torch.device] = None,
 			**kwargs
@@ -1053,7 +1030,6 @@ class SpyLIFLayer(BaseNeuronsLayer):
 			name=name,
 			use_recurrent_connection=use_recurrent_connection,
 			use_rec_eye_mask=use_rec_eye_mask,
-			learning_type=learning_type,
 			dt=dt,
 			device=device,
 			**kwargs
@@ -1324,7 +1300,6 @@ class SpyALIFLayer(SpyLIFLayer):
 			name: Optional[str] = None,
 			use_recurrent_connection: bool = True,
 			use_rec_eye_mask: bool = False,
-			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,
 			device: Optional[torch.device] = None,
 			**kwargs
@@ -1367,7 +1342,6 @@ class SpyALIFLayer(SpyLIFLayer):
 			name=name,
 			use_recurrent_connection=use_recurrent_connection,
 			use_rec_eye_mask=use_rec_eye_mask,
-			learning_type=learning_type,
 			dt=dt,
 			device=device,
 			**kwargs
@@ -1589,7 +1563,6 @@ class ALIFLayer(LIFLayer):
 			use_recurrent_connection: bool = True,
 			use_rec_eye_mask: bool = False,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
-			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,
 			device: Optional[torch.device] = None,
 			**kwargs
@@ -1601,7 +1574,6 @@ class ALIFLayer(LIFLayer):
 			use_recurrent_connection=use_recurrent_connection,
 			use_rec_eye_mask=use_rec_eye_mask,
 			spike_func=spike_func,
-			learning_type=learning_type,
 			dt=dt,
 			device=device,
 			**kwargs
@@ -1701,7 +1673,6 @@ class IzhikevichLayer(BaseNeuronsLayer):
 			use_recurrent_connection=True,
 			use_rec_eye_mask=True,
 			spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
-			learning_type: LearningType = LearningType.BPTT,
 			dt=1e-3,
 			device=None,
 			**kwargs
@@ -1713,7 +1684,6 @@ class IzhikevichLayer(BaseNeuronsLayer):
 			name=name,
 			use_recurrent_connection=use_recurrent_connection,
 			use_rec_eye_mask=use_rec_eye_mask,
-			learning_type=learning_type,
 			dt=dt,
 			device=device,
 			**kwargs
@@ -1838,7 +1808,6 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			self,
 			input_size: Optional[SizeTypes] = None,
 			output_size: Optional[SizeTypes] = None,
-			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,
 			use_recurrent_connection: bool = False,
 			device=None,
@@ -1877,22 +1846,43 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			input_size=input_size,
 			output_size=output_size,
 			use_recurrent_connection=use_recurrent_connection,
-			learning_type=learning_type,
 			dt=dt,
 			device=device,
 			**kwargs
 		)
 		self.std_weight = self.kwargs["std_weight"]
-		self.mu = to_tensor(self.kwargs["mu"]).to(self.device)
+		self.mu = torch.nn.Parameter(to_tensor(self.kwargs["mu"]).to(self.device), requires_grad=False)
 		self.mean_mu = self.kwargs["mean_mu"]
 		self.std_mu = self.kwargs["std_mu"]
 		self.learn_mu = self.kwargs["learn_mu"]
-		self.tau = to_tensor(self.kwargs["tau"]).to(self.device)
+		self.tau = torch.nn.Parameter(to_tensor(self.kwargs["tau"]).to(self.device), requires_grad=False)
 		self.learn_tau = self.kwargs["learn_tau"]
-		self.r_sqrt = torch.sqrt(to_tensor(self.kwargs["r"], dtype=torch.float32)).to(self.device)
+		self.r_sqrt = torch.nn.Parameter(
+			torch.sqrt(to_tensor(self.kwargs["r"], dtype=torch.float32)).to(self.device), requires_grad=False
+		)
 		self.mean_r = self.kwargs["mean_r"]
 		self.std_r = self.kwargs["std_r"]
 		self.learn_r = self.kwargs["learn_r"]
+		self.activation = self._init_activation(self.kwargs["activation"])
+		
+	def _init_activation(self, activation: Union[torch.nn.Module, str]):
+		"""
+		Initialise the activation function.
+		
+		:param activation: Activation function.
+		:type activation: Union[torch.nn.Module, str]
+		"""
+		str_to_activation = {
+			"relu": torch.nn.ReLU(),
+			"tanh": torch.nn.Tanh(),
+			"sigmoid": torch.nn.Sigmoid(),
+		}
+		if isinstance(activation, str):
+			assert activation in str_to_activation.keys(), f"Activation {activation} is not implemented."
+			self.activation = str_to_activation[activation]
+		else:
+			self.activation = activation
+		return self.activation
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("std_weight", 1.0)
@@ -1907,6 +1897,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("mean_r", 2.0)
 		self.kwargs.setdefault("std_r", 0.0)
 		self.kwargs.setdefault("hh_init", "inputs")
+		self.kwargs.setdefault("activation", "sigmoid")
 
 	def _assert_kwargs(self):
 		assert self.std_weight >= 0.0, "std_weight must be greater or equal to 0.0"
@@ -1936,7 +1927,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		# unless stated otherwise by user.
 		if self.learn_mu:
 			if self.mu.dim() == 0:  # if mu is a scalar and a parameter -> convert it to a vector
-				self.mu = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
+				self.mu.data = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
 			self.mu = torch.nn.Parameter(self.mu, requires_grad=self.requires_grad)
 			torch.nn.init.normal_(self.mu, mean=self.mean_mu, std=self.std_mu)
 		if self.learn_r:
@@ -2004,9 +1995,33 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			rec_inputs = 0.0
 
 		transition_rate = (1 - hh * self.r)
-		sigmoid = torch.sigmoid(rec_inputs + torch.matmul(inputs, self.forward_weights) - self.mu)
-		output = hh * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
+		activation = self.activation(rec_inputs + torch.matmul(inputs, self.forward_weights) - self.mu)
+		output = hh * (1 - ratio_dt_tau) + transition_rate * activation * ratio_dt_tau
 		return output, (output, )
+
+
+class WilsonCowanCURBDLayer(WilsonCowanLayer):
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+	
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Optional[Tuple[torch.Tensor, ...]] = None,
+			**kwargs
+	) -> Tuple[torch.Tensor, Tuple[torch.Tensor]]:
+		batch_size, nb_features = inputs.shape
+		hh, = self._init_forward_state(state, batch_size, inputs=inputs)
+		output = self.activation(hh)
+		
+		if self.use_recurrent_connection:
+			rec_inputs = torch.matmul(hh, torch.mul(self.recurrent_weights, self.rec_mask))
+		else:
+			rec_inputs = 0.0
+		
+		r = rec_inputs + torch.matmul(output, self.forward_weights)
+		hh = hh + self.dt * (r - hh) / self.tau
+		return output, (hh, )
 
 
 # @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
@@ -2050,7 +2065,6 @@ class LILayer(BaseNeuronsLayer):
 			input_size: Optional[SizeTypes] = None,
 			output_size: Optional[SizeTypes] = None,
 			name: Optional[str] = None,
-			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,
 			device: Optional[torch.device] = None,
 			**kwargs
@@ -2060,7 +2074,6 @@ class LILayer(BaseNeuronsLayer):
 			output_size=output_size,
 			name=name,
 			use_recurrent_connection=False,
-			learning_type=learning_type,
 			dt=dt,
 			device=device,
 			**kwargs
@@ -2189,7 +2202,6 @@ class SpyLILayer(BaseNeuronsLayer):
 			input_size: Optional[SizeTypes] = None,
 			output_size: Optional[SizeTypes] = None,
 			name: Optional[str] = None,
-			learning_type: LearningType = LearningType.BPTT,
 			dt: float = 1e-3,
 			device: Optional[torch.device] = None,
 			**kwargs
@@ -2199,7 +2211,6 @@ class SpyLILayer(BaseNeuronsLayer):
 			output_size=output_size,
 			name=name,
 			use_recurrent_connection=False,
-			learning_type=learning_type,
 			dt=dt,
 			device=device,
 			**kwargs

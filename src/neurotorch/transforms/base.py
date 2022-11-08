@@ -1,3 +1,4 @@
+import numbers
 from typing import Any, Optional
 
 import numpy as np
@@ -19,8 +20,10 @@ def to_numpy(x: Any, dtype=np.float32):
 		return np.asarray(x, dtype=dtype)
 	elif isinstance(x, torch.Tensor):
 		return x.detach().cpu().numpy()
-	elif isinstance(x, (int, float)):
+	elif isinstance(x, numbers.Number):
 		return x
+	elif isinstance(x, dict):
+		return {k: to_numpy(v, dtype=dtype) for k, v in x.items()}
 	elif not isinstance(x, torch.Tensor):
 		return np.asarray(x, dtype=dtype)
 	raise ValueError(f"Unsupported type {type(x)}")

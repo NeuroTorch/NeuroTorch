@@ -264,35 +264,6 @@ class SequentialModel(BaseModel):
 		"""
 		return memory[max(0, len(memory) - memory_size):]
 
-	# def __new__(
-	# 		cls,
-	# 		*,
-	# 		input_sizes: Optional[Union[Dict[str, IntDimension], List[int], IntDimension]] = None,
-	# 		output_sizes: Optional[Union[Dict[str, int], List[int], int]] = None,
-	# 		# n_hidden_neurons: Optional[Union[int, Iterable[int]]] = None,
-	# 		use_recurrent_connection: Optional[Union[bool, Iterable[bool]]] = None,
-	# 		spike_funcs: Optional[Acceptable_Spike_Funcs] = None,
-	# 		hidden_layer_types: Optional[Acceptable_Layer_Types] = None,
-	# 		readout_layer_type: Optional[Acceptable_Layer_Type] = None,
-	# 		layers: Optional[Iterable[BaseLayer]] = None,
-	# 		**kwargs
-	# ):
-	# 	auto_construct_parameters = {
-	# 		"input_sizes": input_sizes,
-	# 		"output_sizes": output_sizes,
-	# 		# n_hidden_neurons,
-	# 		"use_recurrent_connection": use_recurrent_connection,
-	# 		"spike_funcs": spike_funcs,
-	# 		"hidden_layer_types": hidden_layer_types,
-	# 		"readout_layer_type": readout_layer_type
-	# 	}
-	# 	if layers is not None:
-	# 		assert all([p is None for _, p in auto_construct_parameters.items()]), \
-	# 			f"You can't use the named parameters: " \
-	# 			f"{auto_construct_parameters} and layers at the same time"
-	# 		return super(SequentialModel, cls).__new__(cls)
-	# 	raise NotImplementedError("Auto construct feature is not available yet.")
-
 	def __init__(
 			self,
 			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
@@ -540,102 +511,6 @@ class SequentialModel(BaseModel):
 				for layer_name, _ in self.input_layers.items()
 			}
 		self.input_sizes = {k: v.shape[1:] for k, v in inputs.items()}
-
-	def _format_spike_funcs_(
-			self,
-			spike_funcs: Union[Acceptable_Spike_Func, Iterable[Acceptable_Spike_Func]]
-	) -> List[SpikeFunction]:
-		warnings.warn(
-			"The spike functions are not used anymore in the SequentialModel.",
-			DeprecationWarning
-		)
-		if not isinstance(spike_funcs, Iterable):
-			spike_funcs = [spike_funcs]
-		for i, spike_func in enumerate(spike_funcs):
-			if isinstance(spike_func, SpikeFuncType):
-				spike_funcs[i] = SpikeFuncType2Func[spike_funcs]
-		assert len(spike_funcs) == len(self.n_hidden_neurons), \
-			"Number of spike functions must match number of hidden neurons"
-		return spike_funcs
-
-	def _format_layer_types_(
-			self,
-			layer_types: Union[Acceptable_Layer_Type, Iterable[Acceptable_Layer_Type]]
-	) -> List[Type[BaseLayer]]:
-		warnings.warn(
-			"This function is not used anymore in the SequentialModel.",
-			DeprecationWarning
-		)
-		if not isinstance(layer_types, Iterable):
-			layer_types = [layer_types]
-		for i, layer_type in enumerate(layer_types):
-			layer_types[i] = self._format_layer_type_(layer_type)
-		assert len(layer_types) == len(self.n_hidden_neurons), \
-			"Number of layer types must match number of hidden neurons"
-		return layer_types
-
-	def _add_input_layer_(self):
-		warnings.warn(
-			"This function is not used anymore in the SequentialModel.",
-			DeprecationWarning
-		)
-		if not self.n_hidden_neurons:
-			return
-		for l_name, in_size in self.input_sizes.items():
-			self.input_layers[l_name] = self.hidden_layer_types[0](
-				input_size=in_size,
-				output_size=self.n_hidden_neurons[0],
-				use_recurrent_connection=self.use_recurrent_connection,
-				spike_func=self.spike_funcs[0],
-				device=self._device,
-				**self.kwargs
-			)
-
-	def _add_hidden_layers_(self):
-		warnings.warn(
-			"This function is not used anymore in the SequentialModel.",
-			DeprecationWarning
-		)
-		if not self.n_hidden_neurons:
-			return
-		n_hidden_neurons = deepcopy(self.n_hidden_neurons)
-		n_hidden_neurons[0] = n_hidden_neurons[0] * len(self.input_sizes)
-		for i, hn in enumerate(n_hidden_neurons[:-1]):
-			self.hidden_layers[f"hidden_{i}"] = self.hidden_layer_types[i + 1](
-				input_size=hn,
-				output_size=n_hidden_neurons[i + 1],
-				use_recurrent_connection=self.use_recurrent_connection,
-				spike_func=self.spike_funcs[i + 1],
-				device=self._device,
-				**self.kwargs
-			)
-
-	def _add_readout_layer(self):
-		warnings.warn(
-			"This function is not used anymore in the SequentialModel.",
-			DeprecationWarning
-		)
-		if self.n_hidden_neurons:
-			in_size = self.n_hidden_neurons[-1]
-		else:
-			in_size = np.sum([s for s in self.input_sizes.values()])
-		for l_name, out_size in self.output_sizes.items():
-			self.output_layers[l_name] = self.readout_layer_type(
-				input_size=in_size,
-				output_size=out_size,
-				spike_func=self.spike_func,
-				device=self._device,
-				**self.kwargs
-			)
-
-	def _add_layers_(self):
-		warnings.warn(
-			"This function is not used anymore in the SequentialModel.",
-			DeprecationWarning
-		)
-		self._add_input_layer_()
-		self._add_hidden_layers_()
-		self._add_readout_layer()
 
 	def initialize_weights_(self):
 		"""

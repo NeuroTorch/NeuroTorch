@@ -10,16 +10,10 @@ import torchvision
 from matplotlib import pyplot as plt
 
 
-def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
+def batchwise_temporal_decay(x: torch.Tensor, decay: float = 0.9):
 	r"""
 	
-	Apply a low-pass filter to the input tensor along the temporal dimension.
-	
-	.. math::
-		\begin{equation}\label{eqn:low-pass-filter}
-			\mathcal{F}_\alpha\qty(x^t) = \alpha\mathcal{F}_\alpha\qty(x^{t-1}) + x^t.
-		\end{equation}
-		:label: eqn:low-pass-filter
+	Apply a decay filter to the input tensor along the temporal dimension.
 	
 	:param x: Input of shape (batch_size, time_steps, ...).
 	:type x: torch.Tensor
@@ -36,6 +30,36 @@ def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 	
 	x = torch.mul(x, weighs.unsqueeze(0).unsqueeze(-1))
 	x = torch.sum(x, dim=1)
+	return x
+
+
+def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
+	r"""
+
+	Apply a low-pass filter to the input tensor along the temporal dimension.
+
+	.. math::
+		\begin{equation}\label{eqn:low-pass-filter}
+			\mathcal{F}_\alpha\qty(x^t) = \alpha\mathcal{F}_\alpha\qty(x^{t-1}) + x^t.
+		\end{equation}
+		:label: eqn:low-pass-filter
+
+	:param x: Input of shape (batch_size, time_steps, ...).
+	:type x: torch.Tensor
+	:param decay: Decay factor of the filter.
+	:type decay: float
+
+	:return: Filtered input of shape (batch_size, time_steps, ...).
+	"""
+	batch_size, time_steps, *_ = x.shape
+	assert time_steps >= 1
+	
+	# TODO: check if this is correct
+	powers = torch.arange(time_steps, dtype=torch.float32, device=x.device).flip(0)
+	weighs = torch.pow(decay, powers)
+	
+	x = torch.mul(x, weighs.unsqueeze(0).unsqueeze(-1))
+	x = torch.cumsum(x, dim=1)
 	return x
 
 
@@ -230,3 +254,73 @@ def list_insert_replace_at(__list: List, idx: int, value: Any):
 	else:
 		__list.extend([None] * (idx - len(__list)))
 		__list.append(value)
+
+
+def zero_grad_params(params: Iterable[torch.nn.Parameter]):
+	"""
+	Set the gradient of the parameters to zero.
+	
+	:param params: The parameters to set the gradient to zero.
+	"""
+	for p in params:
+		if p.grad is not None:
+			p.grad.detach_()
+			p.grad.zero_()
+
+
+def compute_jacobian(
+		*,
+		model: Optional[torch.nn.Module] = None,
+		params: Optional[Iterable[torch.nn.Parameter]] = None,
+		x: Optional[torch.Tensor] = None,
+		y: Optional[torch.Tensor] = None,
+		strategy: str = "slow",
+):
+	"""
+	Compute the jacobian of the model with respect to the parameters.
+	
+	# TODO: check https://medium.com/@monadsblog/pytorch-backward-function-e5e2b7e60140
+	# TODO: see https://pytorch.org/tutorials/beginner/blitz/autograd_tutorial.html#sphx-glr-beginner-blitz-autograd-tutorial-py
+	
+	:param model: The model to compute the jacobian.
+	:param params: The parameters to compute the jacobian with respect to. If None, compute the jacobian
+		with respect to all the parameters of the model.
+	:param x: The input to compute the jacobian. If None, use y instead.
+	:param y: The output to compute the jacobian. If None, use x instead.
+	:param strategy: The strategy to use to compute the jacobian. Can be "slow" or "fast". At this time the only
+		strategy implemented is "slow".
+	
+	:return: The jacobian.
+	"""
+	if params is None:
+		assert model is not None, "If params is None, model must be provided."
+		params = model.parameters()
+	zero_grad_params(params)
+	
+	if y is not None:
+		if strategy.lower() == "fast":
+			y.backward(torch.ones_like(y))
+			jacobian = [p.grad.view(-1) for p in params]
+		elif strategy.lower() == "slow":
+			jacobian = [[] for _ in range(len(list(params)))]
+			grad_outputs = torch.eye(y.shape[-1], device=y.device)
+			for i in range(y.shape[-1]):
+				zero_grad_params(params)
+				y.backward(grad_outputs[i], retain_graph=True)
+				for p_idx, param in enumerate(params):
+					jacobian[p_idx].append(param.grad.view(-1).detach().clone())
+			jacobian = [torch.stack(jacobian[i], dim=-1).T for i in range(len(list(params)))]
+		else:
+			raise ValueError(f"Unsupported strategy: {strategy}")
+	elif x is not None:
+		jacobian = torch.autograd.functional.jacobian(model, x, params)
+	else:
+		raise ValueError("Either x or y must be provided.")
+	return jacobian
+
+
+def vmap(f):
+	# TODO: replace by torch.vmap when it is available
+	def wrapper(batch_tensor):
+		return torch.stack([f(batch_tensor[i]) for i in range(batch_tensor.shape[0])])
+	return wrapper

@@ -430,7 +430,7 @@ class Visualise:
 		
 		best_idx, most_var_idx, worst_idx = indices[0], var_diff_indices[0], indices[-1]
 		if spikes is not None:
-			spikes = np.squeeze(to_numpy(spikes))
+			spikes = to_numpy(spikes)
 			best_spikes = spikes[:, :, best_idx]
 			most_var_spikes = spikes[:, :, most_var_idx]
 			worst_spikes = spikes[:, :, worst_idx]

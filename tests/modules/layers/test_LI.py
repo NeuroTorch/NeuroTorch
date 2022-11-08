@@ -4,7 +4,7 @@ import warnings
 import torch
 import numpy as np
 
-from neurotorch.modules.layers import LILayer, LearningType
+from neurotorch.modules.layers import LILayer
 
 
 class TestLILayer(unittest.TestCase):
@@ -13,7 +13,6 @@ class TestLILayer(unittest.TestCase):
 			input_size=10,
 			output_size=5,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=0.1,
 			device=torch.device('cpu'),
 		)
@@ -22,7 +21,6 @@ class TestLILayer(unittest.TestCase):
 		self.assertEqual(int(layer.input_size), 10)
 		self.assertEqual(int(layer.output_size), 5)
 		self.assertEqual(layer.name, "test")
-		self.assertEqual(layer.learning_type, LearningType.BPTT)
 		self.assertEqual(layer.dt, 0.1)
 		self.assertEqual(layer.device, torch.device('cpu'))
 
@@ -31,7 +29,6 @@ class TestLILayer(unittest.TestCase):
 				input_size=20,
 				output_size=10,
 				name="test",
-				learning_type=LearningType.BPTT,
 				dt=0.01,
 				device=torch.device('cuda'),
 			)
@@ -40,7 +37,6 @@ class TestLILayer(unittest.TestCase):
 			self.assertEqual(int(layer.input_size), 20)
 			self.assertEqual(int(layer.output_size), 10)
 			self.assertEqual(layer.name, "test")
-			self.assertEqual(layer.learning_type, LearningType.BPTT)
 			self.assertEqual(layer.dt, 0.01)
 			self.assertEqual(layer.device, torch.device('cuda'))
 		else:
@@ -54,7 +50,6 @@ class TestLILayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=0.1,
 			device=torch.device('cpu'),
 		)
@@ -69,7 +64,6 @@ class TestLILayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=1,
 			device=torch.device('cpu'),
 		)
@@ -85,7 +79,6 @@ class TestLILayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=1,
 			device=torch.device('cpu'),
 			tau_out=1,
@@ -101,7 +94,6 @@ class TestLILayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=1,
 			device=torch.device('cpu'),
 			tau_out=1,
@@ -121,7 +113,6 @@ class TestLILayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=1,
 			device=torch.device('cpu'),
 		)
@@ -138,7 +129,6 @@ class TestLILayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=1,
 			device=torch.device('cpu'),
 			use_bias=False,
@@ -151,13 +141,13 @@ class TestLILayer(unittest.TestCase):
 		self.assertTrue(layer.forward_weights.requires_grad)
 		self.assertFalse(layer.bias_weights.requires_grad)
 
-		# learning type None
+		# frozen
 		layer = LILayer(
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.NONE,
 			dt=1,
+			freeze_weights=True,
 			device=torch.device('cpu'),
 		)
 		self.assertIs(layer.bias_weights, None)

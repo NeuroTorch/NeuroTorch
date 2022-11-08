@@ -5,7 +5,7 @@ import torch
 import numpy as np
 
 from neurotorch.modules import HeavisidePhiApprox, HeavisideSigmoidApprox
-from neurotorch.modules.layers import SpyLIFLayer, LearningType
+from neurotorch.modules.layers import SpyLIFLayer
 
 
 class TestSpyLIFLayer(unittest.TestCase):
@@ -14,7 +14,6 @@ class TestSpyLIFLayer(unittest.TestCase):
 			input_size=10,
 			output_size=5,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=0.1,
 			device=torch.device('cpu'),
 		)
@@ -23,7 +22,6 @@ class TestSpyLIFLayer(unittest.TestCase):
 		self.assertEqual(int(layer.input_size), 10)
 		self.assertEqual(int(layer.output_size), 5)
 		self.assertEqual(layer.name, "test")
-		self.assertEqual(layer.learning_type, LearningType.BPTT)
 		self.assertEqual(layer.dt, 0.1)
 		self.assertEqual(layer.device, torch.device('cpu'))
 
@@ -32,7 +30,6 @@ class TestSpyLIFLayer(unittest.TestCase):
 				input_size=20,
 				output_size=10,
 				name="test",
-				learning_type=LearningType.BPTT,
 				dt=0.01,
 				device=torch.device('cuda'),
 			)
@@ -41,7 +38,6 @@ class TestSpyLIFLayer(unittest.TestCase):
 			self.assertEqual(int(layer.input_size), 20)
 			self.assertEqual(int(layer.output_size), 10)
 			self.assertEqual(layer.name, "test")
-			self.assertEqual(layer.learning_type, LearningType.BPTT)
 			self.assertEqual(layer.dt, 0.01)
 			self.assertEqual(layer.device, torch.device('cuda'))
 		else:
@@ -55,7 +51,6 @@ class TestSpyLIFLayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=0.1,
 			device=torch.device('cpu'),
 		)
@@ -71,7 +66,6 @@ class TestSpyLIFLayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=1,
 			device=torch.device('cpu'),
 		)
@@ -96,7 +90,6 @@ class TestSpyLIFLayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=1,
 			device=torch.device('cpu'),
 			tau_syn=1,
@@ -124,7 +117,6 @@ class TestSpyLIFLayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=1,
 			device=torch.device('cpu'),
 			use_recurrent_connection=True,
@@ -142,7 +134,6 @@ class TestSpyLIFLayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.BPTT,
 			dt=1,
 			device=torch.device('cpu'),
 			use_recurrent_connection=False,
@@ -158,7 +149,7 @@ class TestSpyLIFLayer(unittest.TestCase):
 			input_size=5,
 			output_size=2,
 			name="test",
-			learning_type=LearningType.NONE,
+			freeze_weights=True,
 			dt=1,
 			device=torch.device('cpu'),
 		)

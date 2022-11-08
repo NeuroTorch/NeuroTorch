@@ -286,7 +286,7 @@ class RLAcademy:
 			p_bar.update(min(len(new_cumulative_rewards), n_trajectories - len(cumulative_rewards)))
 			cumulative_rewards.extend(new_cumulative_rewards)
 			p_bar.set_postfix(cumulative_reward=f"{np.mean(cumulative_rewards) if cumulative_rewards else 0.0:.3f}")
-			self.env.step()
+			self.env._update_k_p_on_datum()
 		p_bar.close()
 		return buffer, cumulative_rewards
 

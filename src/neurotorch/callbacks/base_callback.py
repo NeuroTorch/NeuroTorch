@@ -11,28 +11,34 @@ class BaseCallback:
 		- Batch: One forward pass through the network.
 		- Train: One full pass through the training dataset.
 		- Validation: One full pass through the validation dataset.
-		
+	
 	Callbacks methods are called in the following order:
 		- :meth:`start`
 		- :meth:`load_checkpoint_state`
-		- :meth:`on_iteration_begin`
-		- :meth:`on_train_begin`
-		- :meth:`on_epoch_begin`
-		- :meth:`on_batch_begin`
-		- :meth:`on_optimization_begin`
-		- :meth:`on_optimization_end`
-		- :meth:`on_batch_end`
-		- :meth:`on_epoch_end`
-		- :meth:`on_train_end`
-		- :meth:`on_validation_begin`
-		- :meth:`on_epoch_begin`
-		- :meth:`on_batch_begin`
-		- :meth:`on_batch_end`
-		- :meth:`on_epoch_end`
-		- :meth:`on_validation_end`
-		- :meth:`on_iteration_end`
+		* Executes n_iterations times:
+			- :meth:`on_iteration_begin`
+			- :meth:`on_train_begin`
+			* Executes n_epochs times:
+				- :meth:`on_epoch_begin`
+				* Executes n_batches times:
+					- :meth:`on_batch_begin`
+					- :meth:`on_optimization_begin`
+					- :meth:`on_optimization_end`
+					- :meth:`on_batch_end`
+				- :meth:`on_epoch_end`
+			- :meth:`on_train_end`
+			- :meth:`on_validation_begin`
+			- :meth:`on_epoch_begin`
+			* Executes n_batches times:
+				- :meth:`on_batch_begin`
+				- :meth:`on_validation_batch_begin`
+				- :meth:`on_validation_batch_end`
+				- :meth:`on_batch_end`
+			- :meth:`on_epoch_end`
+			- :meth:`on_validation_end`
+			- :meth:`on_iteration_end`
 		- :meth:`close`
-		
+	
 	:Note: The special method :meth:`get_checkpoint_state` is called by the object :class:`CheckpointManager` to
 		save the state of the callback in the checkpoint file. The when this method is called is then determined by
 		the :class:`CheckpointManager` object if it is used in the trainer callbacks. In the same way, the method
@@ -84,7 +90,7 @@ class BaseCallback:
 		self._start_flag = False
 		self._close_flag = False
 	
-	def load_checkpoint_state(self, trainer, checkpoint: dict):
+	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		"""
 		Loads the state of the callback from a dictionary.
 
@@ -100,7 +106,7 @@ class BaseCallback:
 			if state is not None:
 				self.__dict__.update(state)
 	
-	def get_checkpoint_state(self, trainer) -> object:
+	def get_checkpoint_state(self, trainer, **kwargs) -> object:
 		"""
 		Get the state of the callback. This is called when the checkpoint manager saves the state of the trainer.
 		Then this state is saved in the checkpoint file with the name of the callback as the key.
@@ -114,7 +120,7 @@ class BaseCallback:
 		if self.save_state:
 			return self.__dict__
 	
-	def start(self, trainer):
+	def start(self, trainer, **kwargs):
 		"""
 		Called when the training starts. This is the first callback called.
 		
@@ -126,7 +132,7 @@ class BaseCallback:
 		self.trainer = trainer
 		self._start_flag = True
 	
-	def close(self, trainer):
+	def close(self, trainer, **kwargs):
 		"""
 		Called when the training ends. This is the last callback called.
 		
@@ -137,7 +143,7 @@ class BaseCallback:
 		"""
 		self._close_flag = True
 
-	def on_train_begin(self, trainer):
+	def on_train_begin(self, trainer, **kwargs):
 		"""
 		Called when the train phase of an iteration starts. The train phase is defined as a full pass through the
 		training dataset.
@@ -149,7 +155,7 @@ class BaseCallback:
 		"""
 		pass
 
-	def on_train_end(self, trainer):
+	def on_train_end(self, trainer, **kwargs):
 		"""
 		Called when the train phase of an iteration ends. The train phase is defined as a full pass through the
 		training dataset.
@@ -161,7 +167,7 @@ class BaseCallback:
 		"""
 		pass
 
-	def on_epoch_begin(self, trainer):
+	def on_epoch_begin(self, trainer, **kwargs):
 		"""
 		Called when an epoch starts. An epoch is defined as one full pass through the training dataset or
 		the validation dataset.
@@ -173,7 +179,7 @@ class BaseCallback:
 		"""
 		pass
 
-	def on_epoch_end(self, trainer):
+	def on_epoch_end(self, trainer, **kwargs):
 		"""
 		Called when an epoch ends. An epoch is defined as one full pass through the training dataset or
 		the validation dataset.
@@ -185,7 +191,7 @@ class BaseCallback:
 		"""
 		pass
 
-	def on_batch_begin(self, trainer):
+	def on_batch_begin(self, trainer, **kwargs):
 		"""
 		Called when a batch starts. The batch is defined as one forward pass through the network.
 		
@@ -196,7 +202,7 @@ class BaseCallback:
 		"""
 		pass
 
-	def on_batch_end(self, trainer):
+	def on_batch_end(self, trainer, **kwargs):
 		"""
 		Called when a batch ends. The batch is defined as one forward pass through the network.
 		
@@ -207,7 +213,7 @@ class BaseCallback:
 		"""
 		pass
 
-	def on_validation_begin(self, trainer):
+	def on_validation_begin(self, trainer, **kwargs):
 		"""
 		Called when the validation phase of an iteration starts. The validation phase is defined as a full pass through
 		the validation dataset.
@@ -219,7 +225,7 @@ class BaseCallback:
 		"""
 		pass
 
-	def on_validation_end(self, trainer):
+	def on_validation_end(self, trainer, **kwargs):
 		"""
 		Called when the validation phase of an iteration ends. The validation phase is defined as a full pass through
 		the validation dataset.
@@ -231,7 +237,7 @@ class BaseCallback:
 		"""
 		pass
 
-	def on_iteration_begin(self, trainer):
+	def on_iteration_begin(self, trainer, **kwargs):
 		"""
 		Called when an iteration starts. An iteration is defined as one full pass through the training dataset and
 		the validation dataset.
@@ -243,7 +249,7 @@ class BaseCallback:
 		"""
 		pass
 
-	def on_iteration_end(self, trainer):
+	def on_iteration_end(self, trainer, **kwargs):
 		"""
 		Called when an iteration ends. An iteration is defined as one full pass through the training dataset and
 		the validation dataset.
@@ -272,10 +278,39 @@ class BaseCallback:
 		"""
 		pass
 	
-	def on_optimization_end(self, trainer):
+	def on_optimization_end(self, trainer, **kwargs):
 		"""
 		Called when the optimization phase of an iteration ends. The optimization phase is defined as
 		the moment where the model weights are updated.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+
+		:return: None
+		"""
+		pass
+	
+	def on_validation_batch_begin(self, trainer, **kwargs):
+		"""
+		Called when the validation batch starts. The validation batch is defined as one forward pass through the network
+		on the validation dataset. This is used to update the batch loss and metrics on the validation dataset.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		:param kwargs: Additional arguments.
+
+		:keyword x: The input data.
+		:keyword y: The target data.
+		:keyword pred: The predicted data.
+
+		:return: None
+		"""
+		pass
+	
+	def on_validation_batch_end(self, trainer, **kwargs):
+		"""
+		Called when the validation batch ends. The validation batch is defined as one forward pass through the network
+		on the validation dataset. This is used to update the batch loss and metrics on the validation dataset.
 
 		:param trainer: The trainer.
 		:type trainer: Trainer
@@ -303,6 +338,14 @@ class BaseCallback:
 		except:
 			pass
 		self.__class__.instance_counter -= 1
+		
+	def __repr__(self):
+		repr_str = f"{self.name}: ("
+		repr_str += f"priority={self.priority}, "
+		repr_str += f"save_state={self.save_state}, "
+		repr_str += f"load_state={self.load_state}"
+		repr_str += f")"
+		return repr_str
 
 	
 class CallbacksList:
@@ -371,6 +414,13 @@ class CallbacksList:
 		:rtype: int
 		"""
 		return self._length
+	
+	def __repr__(self):
+		repr_str = f"{self.__class__.__name__}(\n"
+		for callback in self.callbacks:
+			repr_str += f"\t{repr(callback)}, \n"
+		repr_str += f")"
+		return repr_str
 
 	def append(self, callback: BaseCallback):
 		"""
@@ -400,7 +450,7 @@ class CallbacksList:
 		self._length -= 1
 		self.sort_callbacks_()
 	
-	def load_checkpoint_state(self, trainer, checkpoint: dict):
+	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		"""
 		Loads the state of the callback from a dictionary.
 		
@@ -412,9 +462,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.load_checkpoint_state(trainer, checkpoint)
+			callback.load_checkpoint_state(trainer, checkpoint, **kwargs)
 	
-	def get_checkpoint_state(self, trainer) -> Dict[str, Any]:
+	def get_checkpoint_state(self, trainer, **kwargs) -> Dict[str, Any]:
 		"""
 		Collates the states of the callbacks. This is called when the checkpoint manager saves the state of the trainer.
 		Then those states are saved in the checkpoint file with the name of the callback as the key.
@@ -426,13 +476,13 @@ class CallbacksList:
 		:rtype: An pickleable dict.
 		"""
 		states = {
-			callback.name: callback.get_checkpoint_state(trainer)
+			callback.name: callback.get_checkpoint_state(trainer, **kwargs)
 			for callback in self.callbacks
 		}
 		states = {key: value for key, value in states.items() if value is not None}
 		return states
 	
-	def start(self, trainer):
+	def start(self, trainer, **kwargs):
 		"""
 		Called when the trainer starts.
 		
@@ -442,9 +492,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.start(trainer)
+			callback.start(trainer, **kwargs)
 	
-	def close(self, trainer):
+	def close(self, trainer, **kwargs):
 		"""
 		Called when the trainer closes.
 		
@@ -454,9 +504,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.close(trainer)
+			callback.close(trainer, **kwargs)
 	
-	def on_train_begin(self, trainer):
+	def on_train_begin(self, trainer, **kwargs):
 		"""
 		Called when the train phase of an iteration starts. The train phase is defined as a full pass through the
 		training dataset.
@@ -467,9 +517,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_train_begin(trainer)
+			callback.on_train_begin(trainer, **kwargs)
 	
-	def on_train_end(self, trainer):
+	def on_train_end(self, trainer, **kwargs):
 		"""
 		Called when the train phase of an iteration ends. The train phase is defined as a full pass through the
 		training dataset.
@@ -480,9 +530,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_train_end(trainer)
+			callback.on_train_end(trainer, **kwargs)
 	
-	def on_epoch_begin(self, trainer):
+	def on_epoch_begin(self, trainer, **kwargs):
 		"""
 		Called when an epoch starts. An epoch is defined as one full pass through the training dataset or
 		the validation dataset.
@@ -493,9 +543,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_epoch_begin(trainer)
+			callback.on_epoch_begin(trainer, **kwargs)
 	
-	def on_epoch_end(self, trainer):
+	def on_epoch_end(self, trainer, **kwargs):
 		"""
 		Called when an epoch ends. An epoch is defined as one full pass through the training dataset or
 		the validation dataset.
@@ -506,9 +556,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_epoch_end(trainer)
+			callback.on_epoch_end(trainer, **kwargs)
 	
-	def on_batch_begin(self, trainer):
+	def on_batch_begin(self, trainer, **kwargs):
 		"""
 		Called when a batch starts. The batch is defined as one forward pass through the network.
 		
@@ -518,9 +568,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_batch_begin(trainer)
+			callback.on_batch_begin(trainer, **kwargs)
 	
-	def on_batch_end(self, trainer):
+	def on_batch_end(self, trainer, **kwargs):
 		"""
 		Called when a batch ends. The batch is defined as one forward pass through the network.
 		
@@ -530,9 +580,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_batch_end(trainer)
+			callback.on_batch_end(trainer, **kwargs)
 	
-	def on_validation_begin(self, trainer):
+	def on_validation_begin(self, trainer, **kwargs):
 		"""
 		Called when the validation phase of an iteration starts. The validation phase is defined as a full pass through
 		the validation dataset.
@@ -543,9 +593,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_validation_begin(trainer)
+			callback.on_validation_begin(trainer, **kwargs)
 	
-	def on_validation_end(self, trainer):
+	def on_validation_end(self, trainer, **kwargs):
 		"""
 		Called when the validation phase of an iteration ends. The validation phase is defined as a full pass through
 		the validation dataset.
@@ -556,9 +606,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_validation_end(trainer)
+			callback.on_validation_end(trainer, **kwargs)
 
-	def on_iteration_begin(self, trainer):
+	def on_iteration_begin(self, trainer, **kwargs):
 		"""
 		Called when an iteration starts. An iteration is defined as one full pass through the training dataset and
 		the validation dataset.
@@ -569,9 +619,9 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_iteration_begin(trainer)
+			callback.on_iteration_begin(trainer, **kwargs)
 
-	def on_iteration_end(self, trainer):
+	def on_iteration_end(self, trainer, **kwargs):
 		"""
 		Called when an iteration ends. An iteration is defined as one full pass through the training dataset and
 		the validation dataset.
@@ -582,7 +632,7 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_iteration_end(trainer)
+			callback.on_iteration_end(trainer, **kwargs)
 			
 	def on_optimization_begin(self, trainer, **kwargs):
 		"""
@@ -598,7 +648,7 @@ class CallbacksList:
 		for callback in self.callbacks:
 			callback.on_optimization_begin(trainer, **kwargs)
 	
-	def on_optimization_end(self, trainer):
+	def on_optimization_end(self, trainer, **kwargs):
 		"""
 		Called when the optimization phase of an iteration ends. The optimization phase is defined as
 		the moment where the model weights are updated.
@@ -609,7 +659,38 @@ class CallbacksList:
 		:return: None
 		"""
 		for callback in self.callbacks:
-			callback.on_optimization_end(trainer)
+			callback.on_optimization_end(trainer, **kwargs)
+	
+	def on_validation_batch_begin(self, trainer, **kwargs):
+		"""
+		Called when the validation batch starts. The validation batch is defined as one forward pass through the network
+		on the validation dataset. This is used to update the batch loss and metrics on the validation dataset.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		:param kwargs: Additional arguments.
+
+		:keyword x: The input data.
+		:keyword y: The target data.
+		:keyword pred: The predicted data.
+
+		:return: None
+		"""
+		for callback in self.callbacks:
+			callback.on_validation_batch_begin(trainer, **kwargs)
+	
+	def on_validation_batch_end(self, trainer, **kwargs):
+		"""
+		Called when the validation batch ends. The validation batch is defined as one forward pass through the network
+		on the validation dataset. This is used to update the batch loss and metrics on the validation dataset.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+
+		:return: None
+		"""
+		for callback in self.callbacks:
+			callback.on_validation_batch_end(trainer, **kwargs)
 			
 	def on_pbar_update(self, trainer, **kwargs) -> dict:
 		"""

@@ -53,7 +53,7 @@ class EarlyStoppingThreshold(BaseCallback):
 		self.metric = metric
 		self.minimize_metric = minimize_metric
 	
-	def on_iteration_end(self, trainer):
+	def on_iteration_end(self, trainer, **kwargs):
 		if self.minimize_metric:
 			threshold_met = trainer.current_training_state.itr_metrics[self.metric] < self.threshold
 		else:

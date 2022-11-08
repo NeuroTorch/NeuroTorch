@@ -24,7 +24,7 @@ class MockTrainer:
 class TestBPTT(unittest.TestCase):
 	def setUp(self) -> None:
 		self.x_shape = (10, 10)
-		self.network = nt.SequentialModel(
+		self.network = nt.SequentialRNN(
 			layers=[
 				nt.LIFLayer(*self.x_shape),
 			],

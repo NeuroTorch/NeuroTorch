@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
-from neurotorch.modules import LIFLayer, SequentialModel
+from neurotorch.modules import LIFLayer, SequentialRNN
 from util import MockHistory, MockTrainer
 
 
@@ -352,7 +352,7 @@ class TestCheckpointManager(unittest.TestCase):
 	@_manage_temp_checkpoints_folder
 	def test_load_checkpoint_sequential_best(self):
 		# create model est optimizer
-		model = SequentialModel(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
+		model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
 		model.build()
 		opt = torch.optim.Adam(model.parameters(), lr=0.1)
 		
@@ -395,7 +395,7 @@ class TestCheckpointManager(unittest.TestCase):
 	@_manage_temp_checkpoints_folder
 	def test_load_checkpoint_sequential_not_best(self):
 		# create model est optimizer
-		model = SequentialModel(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
+		model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
 		model.build()
 		opt = torch.optim.Adam(model.parameters(), lr=0.1)
 		
@@ -466,7 +466,7 @@ class TestCheckpointManager(unittest.TestCase):
 	@_manage_temp_checkpoints_folder
 	def test_start_load_last_minimise(self):
 		# create model est optimizer
-		model = SequentialModel(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
+		model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
 		model.build()
 		opt = torch.optim.Adam(model.parameters(), lr=0.1)
 		
@@ -534,7 +534,7 @@ class TestCheckpointManager(unittest.TestCase):
 	@_manage_temp_checkpoints_folder
 	def test_start_load_last_maximise(self):
 		# create model est optimizer
-		model = SequentialModel(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
+		model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
 		model.build()
 		opt = torch.optim.Adam(model.parameters(), lr=0.1)
 		
@@ -602,7 +602,7 @@ class TestCheckpointManager(unittest.TestCase):
 	@_manage_temp_checkpoints_folder
 	def test_start_load_best_minimise(self):
 		# create model est optimizer
-		model = SequentialModel(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
+		model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
 		model.build()
 		opt = torch.optim.Adam(model.parameters(), lr=0.1)
 		
@@ -674,7 +674,7 @@ class TestCheckpointManager(unittest.TestCase):
 	@_manage_temp_checkpoints_folder
 	def test_start_load_best_maximise(self):
 		# create model est optimizer
-		model = SequentialModel(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
+		model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
 		model.build()
 		opt = torch.optim.Adam(model.parameters(), lr=0.1)
 		

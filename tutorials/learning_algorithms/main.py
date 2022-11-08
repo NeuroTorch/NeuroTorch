@@ -167,7 +167,7 @@ def train_with_params(
 		ws_layer_i.name = f"WilsonCowan_layer{i+1}"
 		layers.append(ws_layer_i)
 
-	model = nt.SequentialModel(layers=layers, device=device, foresight_time_steps=dataset.n_time_steps - 1).build()
+	model = nt.SequentialRNN(layers=layers, device=device, foresight_time_steps=dataset.n_time_steps - 1).build()
 
 	# Regularization on the connectome can be applied on one connectome or on all connectomes (or none).
 	if params["force_dale_law"]:

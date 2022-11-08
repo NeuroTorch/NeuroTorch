@@ -119,7 +119,7 @@ def curbd_train(data, model, **kwargs):
 
 if __name__ == '__main__':
 	curbd_data = np.load("data/ts/curbd_Adata.npy")
-	network = nt.SequentialModel(
+	network = nt.SequentialRNN(
 		# layers=[nt.WilsonCowanLayer(
 		# 	curbd_data.shape[0], curbd_data.shape[0],
 		# 	activation="tanh",

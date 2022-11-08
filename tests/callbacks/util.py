@@ -40,7 +40,7 @@ class MockTrainer:
 		self.load_checkpoint_mode = None
 		self.force_overwrite = False
 		self.current_training_state = CurrentTrainingState()
-		self.model = nt.SequentialModel(layers=[nt.LIFLayer(10, 10)]).build()
+		self.model = nt.SequentialRNN(layers=[nt.LIFLayer(10, 10)]).build()
 		self.optimizer = None
 	
 	def sort_callbacks_(self):

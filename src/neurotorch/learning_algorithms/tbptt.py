@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple
 
@@ -119,7 +120,9 @@ class TBPTT(BPTT):
 		pred_batch = self._get_pred_batch_from_buffer(layer_name)
 		batch_loss = self.apply_criterion(pred_batch, y_batch)
 		if batch_loss.grad_fn is None:
-			trainer = self.trainer
+			raise ValueError(
+				f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
+			)
 		batch_loss.backward()
 		self._layers_buffer[layer_name].clear()
 	

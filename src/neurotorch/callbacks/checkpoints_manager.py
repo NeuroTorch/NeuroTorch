@@ -392,6 +392,8 @@ class CheckpointManager(BaseCallback):
 				self.save_on(trainer)
 		elif self.save_freq > 0 and trainer.current_training_state.iteration % self.save_freq == 0:
 			self.save_on(trainer)
+		if trainer.current_training_state.iteration >= trainer.state.n_iterations - 1:
+			self.save_on(trainer)
 	
 	def _check_is_best(self, trainer) -> Optional[bool]:
 		if trainer.current_training_state.itr_metrics is None:

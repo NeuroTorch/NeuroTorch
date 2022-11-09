@@ -4,8 +4,8 @@ import torch
 
 from .spikes_decoders import MeanConv
 from .spikes_encoders import SpikesEncoder
-from .. import LearningType, SpyLIFLayer, LIFLayer, ALIFLayer
-from ..modules import BaseModel
+from ..modules.layers import SpyLIFLayer, LIFLayer, ALIFLayer
+from ..modules.base import BaseModel
 
 
 class SpikesAutoEncoder(BaseModel):
@@ -52,7 +52,6 @@ class SpikesAutoEncoder(BaseModel):
 			n_steps=self.n_encoder_steps,
 			n_units=self.n_units,
 			spikes_layer_type=self.encoder_type,
-			learning_type=LearningType.BPTT,
 			device=self.device,
 			dt=self.kwargs.pop("dt", 1e-3),
 			**self.kwargs,

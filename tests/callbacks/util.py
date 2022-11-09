@@ -43,6 +43,10 @@ class MockTrainer:
 		self.model = nt.SequentialRNN(layers=[nt.LIFLayer(10, 10)]).build()
 		self.optimizer = None
 	
+	@property
+	def state(self):
+		return self.current_training_state
+	
 	def sort_callbacks_(self):
 		self.sort_flag = True
 		self.callbacks.sort_callbacks_()

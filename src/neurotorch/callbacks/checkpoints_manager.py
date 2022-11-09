@@ -338,7 +338,7 @@ class CheckpointManager(BaseCallback):
 			finally:
 				self.curr_checkpoint = checkpoint
 
-		trainer.update_state_(iteration=min(start_itr, trainer.state.n_iterations))
+		trainer.update_state_(iteration=start_itr)
 		if self.minimise_metric:
 			self.curr_best_metric = trainer.training_history.min(self.metric)
 		else:

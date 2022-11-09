@@ -200,3 +200,15 @@ class LRSchedulerOnMetric(BaseCallback):
 			self.lr_start = self.optimizer.param_groups[0]['lr']
 		self.lr = self.lr_start
 		self._init_lr_decay()
+
+	def on_pbar_update(self, trainer, **kwargs) -> dict:
+		"""
+		Return the learning rate to display in the progress bar.
+		
+		:param trainer: The trainer object.
+		:type trainer: Trainer
+		
+		:return: The dictionary to update the progress bar.
+		:rtype: dict
+		"""
+		return {'lr': self.lr}

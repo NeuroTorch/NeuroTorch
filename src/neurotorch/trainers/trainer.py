@@ -239,10 +239,8 @@ class Trainer:
 		return optimizer
 	
 	def _maybe_add_learning_algorithm(self, learning_algorithm: Optional[LearningAlgorithm]) -> None:
-		if self.optimizer is not None and self.criterion is not None:
-			return
 		if len(self.learning_algorithms) == 0 and learning_algorithm is None:
-			learning_algorithm = BPTT()
+			learning_algorithm = BPTT(optimizer=self.optimizer, criterion=self.criterion)
 		if learning_algorithm is not None:
 			self.callbacks.append(learning_algorithm)
 			

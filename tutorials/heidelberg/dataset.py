@@ -89,6 +89,11 @@ class HeidelbergDataset(Dataset):
 			self.download()
 		else:
 			self.load_hdf5()
+	
+	def __getstate__(self):
+		state = self.__dict__.copy()
+		del state['data']
+		return state
 
 	@property
 	def n_units(self):
@@ -117,7 +122,7 @@ class HeidelbergDataset(Dataset):
 		if self.transform is not None:
 			sparse_ts = self.transform(sparse_ts)
 		if self.target_transform is not None:
-			labels = self.target_transform(labels)
+			labels = self.target_transform(labels).long()
 		return sparse_ts, labels
 
 	def getitem_as_dense(self, index: int):

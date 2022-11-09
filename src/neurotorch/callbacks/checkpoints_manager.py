@@ -83,9 +83,10 @@ class CheckpointManager(BaseCallback):
 		:param new_history: The new history object.
 		:return: None
 		"""
-		trainer.callbacks.remove(trainer.training_history)
-		trainer.callbacks.append(new_history)
-		trainer.training_history = new_history
+		# trainer.callbacks.remove(trainer.training_history)
+		# trainer.callbacks.append(new_history)
+		# trainer.training_history = new_history
+		trainer.training_history.load_checkpoint_state(trainer, new_history)
 		trainer.sort_callbacks_()
 
 	@staticmethod
@@ -155,6 +156,7 @@ class CheckpointManager(BaseCallback):
 		:type verbose: bool
 		:param kwargs: The keyword arguments to pass to the BaseCallback.
 		"""
+		kwargs.setdefault("save_state", False)
 		super().__init__(**kwargs)
 		os.makedirs(checkpoint_folder, exist_ok=True)
 		self.checkpoint_folder = checkpoint_folder
@@ -329,7 +331,7 @@ class CheckpointManager(BaseCallback):
 				if trainer.optimizer is not None:
 					trainer.optimizer.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY])
 				start_itr = int(checkpoint[CheckpointManager.CHECKPOINT_ITR_KEY]) + 1
-				self._replace_trainer_history(trainer, checkpoint[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY])
+				# self._replace_trainer_history(trainer, checkpoint[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY])
 			except FileNotFoundError as e:
 				if self.verbose:
 					logging.info("No such checkpoint. Fit from beginning.")
@@ -363,7 +365,7 @@ class CheckpointManager(BaseCallback):
 			trainer.current_training_state.iteration, itr_metrics, is_best,
 			state_dict=trainer.model.state_dict(),
 			optimizer_state_dict=trainer.optimizer.state_dict() if trainer.optimizer else None,
-			training_history=trainer.training_history,
+			training_history=trainer.training_history.get_checkpoint_state(trainer),
 			**other_states
 		)
 		if trainer.training_history:
@@ -403,11 +405,13 @@ class CheckpointManager(BaseCallback):
 	
 	def close(self, trainer, **kwargs):
 		"""
-		Called when the training is finished. Saves the current checkpoint.
+		Called when the training is finished. Saves the current checkpoint if the current iteration is lower than
+		the number of iterations i.e. there is new stuff to save.
 		
 		:param trainer: The trainer.
 		:type trainer: Trainer
 		
 		:return: None
 		"""
-		self.save_on(trainer)
+		if trainer.current_training_state.iteration < trainer.state.n_iterations:
+			self.save_on(trainer)

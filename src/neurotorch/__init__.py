@@ -19,7 +19,11 @@ from .dimension import (
 )
 
 from .modules.sequential import (
-	SequentialModel,
+	Sequential,
+)
+
+from .modules.sequential_rnn import (
+	SequentialRNN,
 )
 
 from .modules.layers import (
@@ -77,7 +81,6 @@ from .learning_algorithms import (
 	BPTT,
 	TBPTT,
 	Eprop,
-	WeakRLS,
 	RLS,
 )
 

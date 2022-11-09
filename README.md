@@ -125,13 +125,15 @@ dataloaders = get_dataloaders(
 	train_val_split_ratio=0.95,
 )
 
-network = nt.SequentialModel(
+network = nt.SequentialRNN(
 	layers=[
 		nt.LIFLayer(
-			input_size=nt.Size([
-				nt.Dimension(None, nt.DimensionProperty.TIME),
-				nt.Dimension(dataloaders["test"].dataset.n_units, nt.DimensionProperty.NONE)
-			]),
+			input_size=nt.Size(
+				[
+					nt.Dimension(None, nt.DimensionProperty.TIME),
+					nt.Dimension(dataloaders["test"].dataset.n_units, nt.DimensionProperty.NONE)
+				]
+			),
 			output_size=n_hidden_neurons,
 			use_recurrent_connection=True,
 		),
@@ -145,8 +147,8 @@ trainer = nt.ClassificationTrainer(
 	model=network,
 	optimizer=torch.optim.Adam(network.parameters(), lr=1e-3),
 	callbacks=[
-        checkpoint_manager,
-    ],
+		checkpoint_manager,
+	],
 	verbose=True,
 )
 training_history = trainer.train(
@@ -159,7 +161,9 @@ training_history.plot(show=True)
 
 network.load_checkpoint(checkpoint_manager.checkpoints_meta_path, nt.LoadCheckpointMode.BEST_ITR, verbose=True)
 predictions = {
-	k: nt.metrics.ClassificationMetrics.compute_y_true_y_pred(network, dataloader, verbose=True, desc=f"{k} predictions")
+	k: nt.metrics.ClassificationMetrics.compute_y_true_y_pred(
+		network, dataloader, verbose=True, desc=f"{k} predictions"
+		)
 	for k, dataloader in dataloaders.items()
 }
 accuracies = {

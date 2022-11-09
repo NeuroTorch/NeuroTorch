@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from ..transforms.base import to_numpy
+from ..transforms.base import to_numpy, ToTensor
 from ..learning_algorithms.bptt import BPTT
 from ..callbacks import CheckpointManager, LoadCheckpointMode, TrainingHistory
 from ..callbacks.base_callback import BaseCallback, CallbacksList
@@ -126,14 +126,17 @@ class Trainer:
 		:param device: Device to use for the training. Default is the device of the model.
 		:param verbose: Whether to print information during training.
 		:param kwargs: Additional arguments of the training.
-
-		:Keyword Arguments:
-			* <n_epochs>: int -> The number of epochs to train at each iteration. Default is 1.
-			* <lr>: float -> Learning rate of the main optimizer. Default is 1e-3.
-			* <reg_lr>: float -> Learning rate of the regularization optimizer. Default is 1e-2.
-			* <weight_decay>: float -> Weight decay of the main optimizer. Default is 0.0.
-			* <exec_metrics_on_train>: float -> Whether to compute metrics on the train dataset. This is useful when
+		
+		:keyword int n_epochs: The number of epochs to train at each iteration. Default is 1.
+		:keyword float lr: Learning rate of the main optimizer. Default is 1e-3.
+		:keyword float reg_lr: Learning rate of the regularization optimizer. Default is 1e-2.
+		:keyword float weight_decay: Weight decay of the main optimizer. Default is 0.0.
+		:keyword bool exec_metrics_on_train: Whether to compute metrics on the train dataset. This is useful when
 			you want to save time by not computing the metrics on the train dataset. Default is True.
+		:keyword x_transform: Transform to apply to the input data before passing it to the model.
+		:keyword y_transform: Transform to apply to the target data before passing it to the model. For example,
+			this can be used to convert the target data to a one-hot encoding or to long tensor
+			using `nt.ToTensor(dtype=torch.long)`.
 		"""
 		assert model.is_built, "Model must be built before training"
 		self.kwargs = self._set_default_kwargs(kwargs)
@@ -154,6 +157,9 @@ class Trainer:
 		self.verbose = verbose
 		self.training_history: TrainingHistory = self.training_histories[0]
 		self.current_training_state = CurrentTrainingState()
+		
+		self.x_transform = kwargs.get("x_transform", ToTensor())
+		self.y_transform = kwargs.get("y_transform", ToTensor())
 
 		self._load_checkpoint_mode = None
 		self._force_overwrite = None
@@ -233,10 +239,8 @@ class Trainer:
 		return optimizer
 	
 	def _maybe_add_learning_algorithm(self, learning_algorithm: Optional[LearningAlgorithm]) -> None:
-		if self.optimizer is not None and self.criterion is not None:
-			return
 		if len(self.learning_algorithms) == 0 and learning_algorithm is None:
-			learning_algorithm = BPTT()
+			learning_algorithm = BPTT(optimizer=self.optimizer, criterion=self.criterion)
 		if learning_algorithm is not None:
 			self.callbacks.append(learning_algorithm)
 			
@@ -403,6 +407,10 @@ class Trainer:
 		self.load_state()
 		if self.current_training_state.iteration is None:
 			self.update_state_(iteration=0)
+		if len(self.training_history) > 0:
+			self.update_itr_metrics_state_(**self.training_history.get_item_at(-1))
+		else:
+			self.update_state_(itr_metrics={})
 		p_bar = tqdm(
 			initial=self.current_training_state.iteration,
 			total=self.current_training_state.n_iterations,
@@ -414,7 +422,6 @@ class Trainer:
 		)
 		for i in self._iterations_generator(p_bar):
 			self.update_state_(iteration=i)
-			self.update_state_(itr_metrics={})
 			self.callbacks.on_iteration_begin(self)
 			itr_loss = self._exec_iteration(train_dataloader, val_dataloader)
 			if self.kwargs["exec_metrics_on_train"]:
@@ -528,8 +535,8 @@ class Trainer:
 			x_batch,
 			y_batch,
 	):
-		x_batch = self._batch_to_dense(self._batch_to_device(x_batch))
-		y_batch = self._batch_to_dense(self._batch_to_device(y_batch))
+		x_batch = self.x_transform(self._batch_to_dense(self._batch_to_device(x_batch)))
+		y_batch = self.y_transform(self._batch_to_dense(self._batch_to_device(y_batch)))
 		self.update_state_(x_batch=x_batch, y_batch=y_batch)
 		self.callbacks.on_batch_begin(self)
 		pred_batch = self.get_pred_batch(x_batch)

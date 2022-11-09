@@ -62,7 +62,7 @@ def train_with_params(
 	ws_layer_2.name = "WilsonCowan_layer2"
 
 	# The first model is for one layer while the second one is for two layers. Layers can be added as much as desired.
-	model = nt.SequentialModel(layers=[ws_layer], device=device, foresight_time_steps=x.shape[1] - 1)
+	model = nt.SequentialRNN(layers=[ws_layer], device=device, foresight_time_steps=x.shape[1] - 1)
 	#model = nt.SequentialModel(layers=[ws_layer, ws_layer_2], device=device, foresight_time_steps=x.shape[1] - 1)
 	model.build()
 

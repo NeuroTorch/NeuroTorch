@@ -25,6 +25,6 @@ from .base import (
 	BaseModel,
 )
 
-from .sequential import (
-	SequentialModel,
+from .sequential_rnn import (
+	SequentialRNN,
 )

@@ -8,15 +8,15 @@ import torch
 from torchvision.transforms import Compose
 
 from neurotorch.modules import ALIFLayer, LIFLayer, LILayer
-from neurotorch.modules import SequentialModel, BaseLayer
+from neurotorch.modules import SequentialRNN, BaseLayer
 from neurotorch import Dimension, DimensionProperty
 from neurotorch.utils import ravel_compose_transforms
 
 
-class TestSequential(unittest.TestCase):
+class TestSequentialRNN(unittest.TestCase):
 	def test_init_base(self):
 		model_name = "input"
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name=model_name),
 			]
@@ -28,7 +28,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(model.output_layers[model_name].name, model_name)
 
 	def test_init_sizes_specified(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				BaseLayer(Dimension(12, DimensionProperty.NONE), 256, name="input"),
 				BaseLayer(Dimension(256, DimensionProperty.NONE), 128, name="hidden"),
@@ -54,7 +54,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(int(model.output_layers["output"].output_size), 10)
 
 	def test_init_hidden_sizes_unspecified(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				BaseLayer(Dimension(12, DimensionProperty.NONE), name="input"),
 				BaseLayer(name="hidden"),
@@ -88,7 +88,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(int(model.output_layers["output"].output_size), 10)
 
 	def test_init_sizes_unspecified(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LIFLayer(name="input"),
 				ALIFLayer(name="hidden"),
@@ -122,7 +122,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(int(model.output_layers["output"].output_size), 10)
 
 	def test_init_sizes_unspecified_in_dict(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LIFLayer(name="input"),
 				ALIFLayer(name="hidden"),
@@ -156,7 +156,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(int(model.output_layers["output"].output_size), 10)
 
 	def test_init_input_dict(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				{"input_0": LIFLayer(6, name="input_0"), "input_1": LIFLayer(12, name="input_1")},
 				ALIFLayer(name="hidden"),
@@ -190,7 +190,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(int(model.output_layers["output"].output_size), 10)
 
 	def test_init_output_dict(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				{"input_0": LIFLayer(6), "input_1": LIFLayer(12)},
 				ALIFLayer(name="hidden"),
@@ -223,7 +223,7 @@ class TestSequential(unittest.TestCase):
 			self.assertEqual(int(v.input_size), model._default_n_hidden_neurons)
 
 	def test_init_input_output_list(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				[LIFLayer(6, name="input_0"), LIFLayer(12, name="input_1")],
 				ALIFLayer(name="hidden"),
@@ -256,7 +256,7 @@ class TestSequential(unittest.TestCase):
 			self.assertEqual(int(v.input_size), model._default_n_hidden_neurons)
 
 	def test_init_input_output_list_names_unspecified(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				[LIFLayer(6), LIFLayer(12)],
 				ALIFLayer(),
@@ -296,7 +296,7 @@ class TestSequential(unittest.TestCase):
 
 	def test_init_device_specified(self):
 		# Test that the model is initialized with the specified device
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input"),
 			],
@@ -309,7 +309,7 @@ class TestSequential(unittest.TestCase):
 
 		if torch.cuda.is_available():
 			# Test that the model is initialized with the specified device if it is specified in the layer
-			model = SequentialModel(
+			model = SequentialRNN(
 				layers=[
 					BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input", device=torch.device("cpu")),
 				],
@@ -321,7 +321,7 @@ class TestSequential(unittest.TestCase):
 				self.assertEqual(layer.device, torch.device("cuda"))
 
 			# Test that the model is initialized with the specified device if it is specified in the layer
-			model = SequentialModel(
+			model = SequentialRNN(
 				layers=[
 					BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input", device=torch.device("cuda")),
 				],
@@ -333,7 +333,7 @@ class TestSequential(unittest.TestCase):
 				self.assertEqual(layer.device, torch.device("cpu"))
 
 			# Test that the model is initialized with the specified device if it is specified in the layer
-			model = SequentialModel(
+			model = SequentialRNN(
 				layers=[
 					BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
 					BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
@@ -363,7 +363,7 @@ class TestSequential(unittest.TestCase):
 		hh_states_transposed = {
 			'0': tuple([torch.stack(e, dim=1) for e in list(zip(*hh_states['0']))])
 		}
-		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
+		hh_pred = SequentialRNN._format_hidden_outputs_traces(hh_states)
 		self.assertTrue(all(torch.allclose(x, y) for x, y in zip(hh_states_transposed['0'], hh_pred['0'])))
 
 		hh_states = {
@@ -372,7 +372,7 @@ class TestSequential(unittest.TestCase):
 		hh_states_transposed = {
 			'0': torch.stack([data for _ in range(time_steps)], dim=1)
 		}
-		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
+		hh_pred = SequentialRNN._format_hidden_outputs_traces(hh_states)
 		self.assertTrue(all(torch.allclose(x, y) for x, y in zip(hh_states_transposed['0'], hh_pred['0'])))
 
 		hh_states = {
@@ -381,7 +381,7 @@ class TestSequential(unittest.TestCase):
 		hh_states_transposed = {
 			'0': torch.stack([data for _ in range(time_steps)], dim=1)
 		}
-		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
+		hh_pred = SequentialRNN._format_hidden_outputs_traces(hh_states)
 		self.assertTrue(torch.allclose(hh_states_transposed['0'], hh_pred['0']))
 
 		hh_states = {
@@ -390,7 +390,7 @@ class TestSequential(unittest.TestCase):
 		hh_states_transposed = {
 			'0': [None for _ in range(time_steps)]
 		}
-		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
+		hh_pred = SequentialRNN._format_hidden_outputs_traces(hh_states)
 		self.assertEqual(hh_states_transposed['0'],  hh_pred['0'])
 
 		hh_states = {
@@ -399,12 +399,12 @@ class TestSequential(unittest.TestCase):
 		hh_states_transposed = {
 			'0': [None for _ in range(time_steps)]
 		}
-		hh_pred = SequentialModel._format_hidden_outputs_traces(hh_states)
+		hh_pred = SequentialRNN._format_hidden_outputs_traces(hh_states)
 		self.assertEqual(hh_states_transposed['0'], hh_pred['0'])
 
 	def test_init_transforms(self):
 		# Test that the model is initialized with the default transforms with one layer
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input"),
 			],
@@ -418,7 +418,7 @@ class TestSequential(unittest.TestCase):
 			)
 
 		# Test that the model is initialized with the default transforms with multiple layers
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
 				BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
@@ -438,7 +438,7 @@ class TestSequential(unittest.TestCase):
 		
 		trans = _DummyTransform()
 		# Test that the model is initialized with the specified transforms
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
 				BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
@@ -455,7 +455,7 @@ class TestSequential(unittest.TestCase):
 			self.assertIn(trans, ravel_compose_transforms(value))
 	
 	def test_get_prediction_trace_forward(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
@@ -513,7 +513,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(y.shape, torch.Size([1, min(model.out_memory_size, 50), 10]))
 
 	def test_if_grad(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
 				LILayer(Dimension(10, DimensionProperty.NONE), 2),
@@ -525,7 +525,7 @@ class TestSequential(unittest.TestCase):
 			self.assertTrue(layer.bias_weights.requires_grad)
 
 	def test_call_backward(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
@@ -555,7 +555,7 @@ class TestSequential(unittest.TestCase):
 			self.assertEqual(layer.bias_weights.grad.device.type, layer.device.type)
 
 	def test_get_prediction_trace_backward(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
@@ -585,7 +585,7 @@ class TestSequential(unittest.TestCase):
 			self.assertEqual(layer.bias_weights.grad.device.type, layer.device.type)
 
 	def test_get_raw_prediction_backward(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
@@ -615,7 +615,7 @@ class TestSequential(unittest.TestCase):
 			self.assertEqual(layer.bias_weights.grad.device.type, layer.device.type)
 
 	def test_get_prediction_proba_backward(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
@@ -645,7 +645,7 @@ class TestSequential(unittest.TestCase):
 			self.assertEqual(layer.bias_weights.grad.device.type, layer.device.type)
 
 	def test_get_prediction_log_proba_backward(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
 				LILayer(Dimension(10, DimensionProperty.NONE), 10),
@@ -686,7 +686,7 @@ class TestSequential(unittest.TestCase):
 		for layer in layers:
 			layer.update_regularization_loss = partial(_update, layer)
 
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=layers
 		)
 		model.build()
@@ -698,7 +698,7 @@ class TestSequential(unittest.TestCase):
 			self.assertTrue(torch.isclose(layer.get_regularization_loss(), torch.tensor(0.0)))
 			
 	def test_output_shape_with_out_memory_size(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10),
 			],
@@ -707,7 +707,7 @@ class TestSequential(unittest.TestCase):
 		y = model.get_prediction_trace(x)
 		self.assertEqual(y.shape, torch.Size((1, 100, 10)))
 		
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10),
 			],
@@ -717,7 +717,7 @@ class TestSequential(unittest.TestCase):
 		y = model.get_prediction_trace(x)
 		self.assertEqual(y.shape, torch.Size((1, 5, 10)))
 		
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10),
 			],
@@ -726,7 +726,7 @@ class TestSequential(unittest.TestCase):
 		y = model.get_prediction_trace(x, foresight_time_steps=20)
 		self.assertEqual(y.shape, torch.Size((1, 119, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
 		
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10),
 			],
@@ -735,7 +735,7 @@ class TestSequential(unittest.TestCase):
 		y = model.get_prediction_trace(x, foresight_time_steps=200, trunc_time_steps=20)
 		self.assertEqual(y.shape, torch.Size((1, 20, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
 		
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10),
 			],
@@ -745,7 +745,7 @@ class TestSequential(unittest.TestCase):
 		y = model.get_prediction_trace(x, foresight_time_steps=20, trunc_time_steps=200)
 		self.assertEqual(y.shape, torch.Size((1, 5, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
 		
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10),
 			],
@@ -757,7 +757,7 @@ class TestSequential(unittest.TestCase):
 		self.assertEqual(y.shape, torch.Size((1, 5, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
 	
 	def test_output_shape_with_hh_memory_size(self):
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10, name='layer'),
 			],
@@ -770,7 +770,7 @@ class TestSequential(unittest.TestCase):
 			hh = hh[0]
 		self.assertEqual(hh.shape[1], 100, msg=f"Shape of hh is {hh.shape} and should be (1, 100, 10)")
 		
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10, name='layer'),
 			],
@@ -784,7 +784,7 @@ class TestSequential(unittest.TestCase):
 			hh = hh[0]
 		self.assertEqual(hh.shape[1], 5)
 		
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10, name='layer'),
 			],
@@ -797,7 +797,7 @@ class TestSequential(unittest.TestCase):
 			hh = hh[0]
 		self.assertEqual(hh.shape[1], 119)
 		
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10, name='layer'),
 			],
@@ -810,7 +810,7 @@ class TestSequential(unittest.TestCase):
 			hh = hh[0]
 		self.assertEqual(hh.shape[1], 20)
 		
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10, name='layer'),
 			],
@@ -824,7 +824,7 @@ class TestSequential(unittest.TestCase):
 			hh = hh[0]
 		self.assertEqual(hh.shape[1], 5)
 		
-		model = SequentialModel(
+		model = SequentialRNN(
 			layers=[
 				LILayer(10, 10, name='layer'),
 			],

@@ -59,11 +59,13 @@ class BaseCallback:
 	
 	instance_counter = 0
 	
+	UNPICKEABLE_ATTRIBUTES = ["trainer"]
+	
 	def __init__(
 			self,
 			priority: Optional[int] = None,
 			name: Optional[str] = None,
-			save_state: bool = False,
+			save_state: bool = True,
 			load_state: Optional[bool] = None,
 			**kwargs
 	):
@@ -101,7 +103,7 @@ class BaseCallback:
 
 		:return: None
 		"""
-		if self.load_state:
+		if self.load_state and checkpoint is not None:
 			state = checkpoint.get(self.name, None)
 			if state is not None:
 				self.__dict__.update(state)
@@ -118,7 +120,7 @@ class BaseCallback:
 		:rtype: An pickleable object.
 		"""
 		if self.save_state:
-			return self.__dict__
+			return {k: v for k, v in self.__dict__.items() if k not in self.UNPICKEABLE_ATTRIBUTES}
 	
 	def start(self, trainer, **kwargs):
 		"""
@@ -339,11 +341,15 @@ class BaseCallback:
 			pass
 		self.__class__.instance_counter -= 1
 		
+	def extra_repr(self) -> str:
+		return ""
+	
 	def __repr__(self):
 		repr_str = f"{self.name}: ("
 		repr_str += f"priority={self.priority}, "
 		repr_str += f"save_state={self.save_state}, "
-		repr_str += f"load_state={self.load_state}"
+		repr_str += f"load_state={self.load_state}, "
+		repr_str += self.extra_repr()
 		repr_str += f")"
 		return repr_str
 

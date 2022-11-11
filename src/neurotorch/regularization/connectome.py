@@ -191,8 +191,9 @@ class ExecRatioTargetRegularization(BaseRegularization):
 			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
 			exec_target_ratio: float = 0.8,
 			Lambda: float = 1.0,
+			**kwargs
 	):
-		super(ExecRatioTargetRegularization, self).__init__(params, Lambda)
+		super(ExecRatioTargetRegularization, self).__init__(params, Lambda, **kwargs)
 		assert 0 < exec_target_ratio < 1, "exec_target_ratio must be between 0 and 1"
 		self.exec_target_ratio = exec_target_ratio
 		self.sign_func = torch.nn.Softsign()

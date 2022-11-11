@@ -70,12 +70,12 @@ def train_with_params(
 	# Regularization on the connectome can be applied on one connectome or on all connectomes (or none).
 	if force_dale_law:
 		optimizer_reg = torch.optim.Adam(ws_layer.get_sign_parameters(), lr=5e-3)
-		regularisation = ExecRatioTargetRegularization(ws_layer.get_sign_parameters(), optimizer=optimizer_reg, exec_target_ratio=0.8)
+		regularisation = ExecRatioTargetRegularization(ws_layer.get_sign_parameters(), optimizer=optimizer_reg, exec_target_ratio=0.7)
 	else:
 		regularisation = DaleLawL2(ws_layer.get_weights_parameters(), alpha=0.3, inh_ratio=0.5, rho=0.99)
 		optimizer_reg = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
 
-	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.1)
+	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.001)
 
 	checkpoint_manager = nt.CheckpointManager(
 		checkpoint_folder,
@@ -168,7 +168,7 @@ if __name__ == '__main__':
 		filename=None,
 		sigma=15,
 		learning_rate=1e-2,
-		n_iterations=1000,
+		n_iterations=1,
 		forward_weights=forward_weights,
 		std_weights=1,
 		dt=0.02,
@@ -184,7 +184,7 @@ if __name__ == '__main__':
 		learn_tau=True,
 		device=torch.device("cpu"),
 		hh_init="inputs",
-		force_dale_law=True
+		force_dale_law=False
 	)
 
 	if res["force_dale_law"]:
@@ -203,6 +203,27 @@ if __name__ == '__main__':
 		axes[1, 1].plot(res["sign"].ravel()[sort_idx])
 		axes[1, 1].set_title("Final signs")
 		plt.show()
+
+
+	viz_umap_target = Visualise(
+		timeseries=res["original_time_series"].T,
+		shape=nt.Size([
+			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
+		])
+	)
+
+	viz_umap = VisualiseUMAP(
+		timeseries=res["x_pred"].T,
+		shape=nt.Size([
+			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
+		])
+	).trajectory_umap(UMAPs=(1, ), target=viz_umap_target)
+
+
+
+
 
 	fig, axes = plt.subplots(ncols=2, nrows=4, figsize=(12, 8))
 	gs = axes[0, 0].get_gridspec()
@@ -240,7 +261,7 @@ if __name__ == '__main__':
 		traces_to_show_names=["Typical Neuron Prediction (1)", "Typical Neuron Prediction (2)",
 							  "Typical Neuron Prediction (3)"],
 		show=True,
-		filename="figures/WilsonCowanPrediction.png",
+		#filename="figures/WilsonCowanPredictionDaleConvDale.png",
 		dpi=600
 	)
 	plt.tight_layout()

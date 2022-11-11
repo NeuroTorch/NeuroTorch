@@ -169,7 +169,7 @@ if __name__ == '__main__':
 		filename=None,
 		sigma=20,
 		learning_rate=1e-2,
-		n_iterations=500,
+		n_iterations=10,
 		forward_weights=forward_weights,
 		std_weights=1,
 		dt=0.02,
@@ -204,36 +204,65 @@ if __name__ == '__main__':
 		axes[1, 1].plot(res["sign"].ravel()[sort_idx])
 		axes[1, 1].set_title("Final signs")
 		plt.show()
-
+	
+	fig, axes = plt.subplots(ncols=2, nrows=4, figsize=(12, 8))
+	gs = axes[0, 0].get_gridspec()
+	for ax in axes[0, :]:
+		ax.remove()
+	axbig = fig.add_subplot(gs[0, :])
 	viz = VisualiseKMeans(
 		res["x_pred"].T,
 		shape=nt.Size([
-			nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]"),
-			nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
+			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
 		])
 	)
-	viz.plot_timeseries_comparison(res["original_time_series"].T, title=f"Prediction", show=True)
+	viz.plot_timeseries_comparison(
+		res["original_time_series"].T,
+		title=f"Prediction",
+		fig=fig, axes=[axbig],
+		traces_to_show=["error_quad", ],
+		traces_to_show_names=["Squared error [-]", ],
+		show=False,
+	)
+	viz.plot_timeseries_comparison(
+		res["original_time_series"].T,
+		title=f"Prediction",
+		fig=fig, axes=axes[1:, 0],
+		traces_to_show=["best", "most_var", "worst"],
+		traces_to_show_names=["Best", "Most variable", "Worst"],
+		show=False,
+	)
+	viz.plot_timeseries_comparison(
+		res["original_time_series"].T,
+		title=f"Prediction",
+		fig=fig, axes=axes[1:, 1],
+		traces_to_show=[f"typical_{i}" for i in range(3)],
+		traces_to_show_names=["Typical 1", "Typical 2", "Typical 3"],
+		show=True,
+	)
+	plt.close(fig)
 
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	VisualiseKMeans(
 		res["original_time_series"],
 		nt.Size([
-			nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
-			nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
+			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")])
 	).heatmap(fig=fig, ax=axes[0], title="True time series")
 	VisualiseKMeans(
 		res["x_pred"],
 		nt.Size([
-			nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
-			nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")])
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
+			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")])
 	).heatmap(fig=fig, ax=axes[1], title="Predicted time series")
 	plt.show()
 
 	Visualise(
 		res["x_pred"],
 		nt.Size([
-			nt.Dimension(200, nt.DimensionProperty.NONE, "Neuron [-]"),
-			nt.Dimension(406, nt.DimensionProperty.TIME, "time [s]")
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
+			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")
 		])
 	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=True)
 

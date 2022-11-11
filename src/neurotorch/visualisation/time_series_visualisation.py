@@ -382,7 +382,7 @@ class Visualise:
 	) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
 		"""
 		Plot the timeseries comparison.
-		
+
 		:param target: Target timeseries. Must be in shape (n_time_steps, n_features).
 		:param spikes: Spikes of the latent space. Must be in shape (n_time_steps, n_spikes_steps, n_spikes).
 		:param n_spikes_steps: Number of spikes steps. If None, spikes must be None.
@@ -393,11 +393,15 @@ class Visualise:
 		:param fig: Figure to plot on. If None, a new figure is created.
 		:param axes: Axes to plot on. If None, new axes are created.
 		:param kwargs: Additional keyword arguments.
-		
+
 		:keyword bool close: Whether to close the figure after saving. Default: False.
 		:keyword int dpi: DPI of the figure. Default: 300.
 		:keyword str legend_loc: Location of the legend. Default: "upper right".
-		
+		:keyword List[str] traces_to_show: List of traces to show.
+				Available: ["best", "most_var", "worst", "typical_<int>"] where <int> is the index of the typical trace,
+				starting from 0. The typical ones refers to the ones that are closest to the mean pVar.
+				Default: ["best", "most_var", "worst"].
+
 		:return: Figure and axes.
 		"""
 		assert (fig is None) == (axes is None), "fig and axes must be both None or both not None"
@@ -414,48 +418,58 @@ class Visualise:
 			pVar = PVarianceLoss()(predictions, target.to(predictions.device))
 			title = f"{title} (pVar: {to_numpy(pVar).item():.3f})"
 		
+		pVar_per_feature = PVarianceLoss(reduction='feature')(predictions, target.to(predictions.device))
+		mean_pVar = pVar_per_feature.mean().item()
+		mean_pVar_sort, indices = torch.sort(pVar_per_feature, descending=True)
+		var_diff, var_diff_indices = torch.sort(torch.var(torch.diff(target, dim=0), dim=0), descending=True)
+		typical_pVar_sort, typical_indices = torch.sort(torch.abs(pVar_per_feature - mean_pVar), descending=False)
+		target = torch.squeeze(target).numpy().T
+		
+		traces_to_show = kwargs.get("traces_to_show", ["best", "most_var", "worst"])
+		traces_to_indexes = {
+			"best"    : indices[0],
+			"worst"   : indices[-1],
+			"most_var": var_diff_indices[0],
+		}
+		traces_to_names = {
+			"best"    : "Best",
+			"worst"   : "Worst",
+			"most_var": "Most Var",
+		}
+		for i, trace in enumerate(traces_to_show):
+			traces_to_show[i] = trace.lower()
+			if "typical" in trace:
+				typical_idx = int(trace.split("_")[1])
+				traces_to_indexes[trace] = typical_indices[typical_idx]
+				traces_to_names[trace] = f"Typical {typical_idx}"
+			if trace not in traces_to_indexes:
+				raise ValueError(f"Unknown trace to show: {trace}. Known traces: {list(traces_to_indexes.keys())}")
+		
 		if fig is None or axes is None:
-			fig, axes = plt.subplots(4, 1, figsize=(15, 8))
+			fig, axes = plt.subplots(len(traces_to_show) + 1, 1, figsize=(15, 8))
 		else:
-			assert len(axes) == 4, "axes must have length 4"
+			assert len(axes) == len(traces_to_show) + 1, f"axes must have length {len(traces_to_show) + 1}"
 		axes[0].plot(errors.detach().cpu().numpy())
 		axes[0].set_xlabel("Time [-]")
 		axes[0].set_ylabel("Squared Error [-]")
 		axes[0].set_title(title)
 		
-		pVar_per_feature = PVarianceLoss(reduction='feature')(predictions, target.to(predictions.device))
-		mean_error_sort, indices = torch.sort(pVar_per_feature, descending=True)
-		var_diff, var_diff_indices = torch.sort(torch.var(torch.diff(target, dim=0), dim=0), descending=True)
-		target = torch.squeeze(target).numpy().T
-		
-		best_idx, most_var_idx, worst_idx = indices[0], var_diff_indices[0], indices[-1]
 		if spikes is not None:
 			spikes = to_numpy(spikes)
-			best_spikes = spikes[:, :, best_idx]
-			most_var_spikes = spikes[:, :, most_var_idx]
-			worst_spikes = spikes[:, :, worst_idx]
+			trace_to_spikes_indexes = {
+				trace_name: spikes[:, :, indexes]
+				for trace_name, indexes in traces_to_indexes.items()
+			}
 		else:
-			best_spikes = None
-			most_var_spikes = None
-			worst_spikes = None
-		self.plot_single_timeseries_comparison(
-			best_idx, axes[1], target[best_idx], best_spikes,
-			n_spikes_steps=n_spikes_steps,
-			title=f"Best {desc}", desc=desc,
-			**kwargs
-		)
-		self.plot_single_timeseries_comparison(
-			most_var_idx, axes[2], target[most_var_idx], most_var_spikes,
-			n_spikes_steps=n_spikes_steps,
-			title=f"Most Var {desc}", desc=desc,
-			**kwargs
-		)
-		self.plot_single_timeseries_comparison(
-			worst_idx, axes[3], target[worst_idx], worst_spikes,
-			n_spikes_steps=n_spikes_steps,
-			title=f"Worst {desc}", desc=desc,
-			**kwargs
-		)
+			trace_to_spikes_indexes = {}
+		for i, trace in enumerate(traces_to_show):
+			self.plot_single_timeseries_comparison(
+				traces_to_indexes[trace], axes[i + 1], target[traces_to_indexes[trace]],
+				trace_to_spikes_indexes.get(trace, None),
+				n_spikes_steps=n_spikes_steps,
+				title=f"{traces_to_names[trace]} {desc}", desc=desc,
+				**kwargs
+			)
 		
 		fig.set_tight_layout(True)
 		if filename is not None:

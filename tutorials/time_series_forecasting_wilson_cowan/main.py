@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
 import neurotorch as nt
@@ -63,13 +64,13 @@ def train_with_params(
 
 	# The first model is for one layer while the second one is for two layers. Layers can be added as much as desired.
 	model = nt.SequentialRNN(layers=[ws_layer], device=device, foresight_time_steps=x.shape[1] - 1)
-	#model = nt.SequentialModel(layers=[ws_layer, ws_layer_2], device=device, foresight_time_steps=x.shape[1] - 1)
+	# model = nt.SequentialModel(layers=[ws_layer, ws_layer_2], device=device, foresight_time_steps=x.shape[1] - 1)
 	model.build()
 
 	# Regularization on the connectome can be applied on one connectome or on all connectomes (or none).
 	if force_dale_law:
-		regularisation = ExecRatioTargetRegularization(ws_layer.get_sign_parameters(), exec_target_ratio=0.8)
-		optimizer_reg = torch.optim.Adam(regularisation.parameters(), lr=5e-3)
+		optimizer_reg = torch.optim.Adam(ws_layer.get_sign_parameters(), lr=5e-3)
+		regularisation = ExecRatioTargetRegularization(ws_layer.get_sign_parameters(), optimizer=optimizer_reg, exec_target_ratio=0.8)
 	else:
 		regularisation = DaleLawL2(ws_layer.get_weights_parameters(), alpha=0.3, inh_ratio=0.5, rho=0.99)
 		optimizer_reg = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
@@ -96,6 +97,7 @@ def train_with_params(
 		checkpoint_manager,
 		convergence_time_getter,
 		EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
+		regularisation,
 	]
 
 	with torch.no_grad():
@@ -117,9 +119,7 @@ def train_with_params(
 		model,
 		predict_method="get_prediction_trace",
 		callbacks=callbacks,
-		regularization_optimizer=optimizer_reg,
 		criterion=nt.losses.PVarianceLoss(),
-		regularization=regularisation,
 		metrics=[regularisation],
 	)
 	trainer.train(
@@ -167,9 +167,9 @@ if __name__ == '__main__':
 
 	res = train_with_params(
 		filename=None,
-		sigma=20,
+		sigma=15,
 		learning_rate=1e-2,
-		n_iterations=10,
+		n_iterations=1000,
 		forward_weights=forward_weights,
 		std_weights=1,
 		dt=0.02,
@@ -185,7 +185,7 @@ if __name__ == '__main__':
 		learn_tau=True,
 		device=torch.device("cpu"),
 		hh_init="inputs",
-		force_dale_law=False
+		force_dale_law=True
 	)
 
 	if res["force_dale_law"]:
@@ -204,7 +204,7 @@ if __name__ == '__main__':
 		axes[1, 1].plot(res["sign"].ravel()[sort_idx])
 		axes[1, 1].set_title("Final signs")
 		plt.show()
-	
+
 	fig, axes = plt.subplots(ncols=2, nrows=4, figsize=(12, 8))
 	gs = axes[0, 0].get_gridspec()
 	for ax in axes[0, :]:
@@ -230,7 +230,7 @@ if __name__ == '__main__':
 		title=f"Prediction",
 		fig=fig, axes=axes[1:, 0],
 		traces_to_show=["best", "most_var", "worst"],
-		traces_to_show_names=["Best", "Most variable", "Worst"],
+		traces_to_show_names=["Best Neuron Prediction", "Most variable Neuron Prediction", "Worst Neuron Prediction"],
 		show=False,
 	)
 	viz.plot_timeseries_comparison(
@@ -238,9 +238,13 @@ if __name__ == '__main__':
 		title=f"Prediction",
 		fig=fig, axes=axes[1:, 1],
 		traces_to_show=[f"typical_{i}" for i in range(3)],
-		traces_to_show_names=["Typical 1", "Typical 2", "Typical 3"],
+		traces_to_show_names=["Typical Neuron Prediction (1)", "Typical Neuron Prediction (2)",
+							  "Typical Neuron Prediction (3)"],
 		show=True,
+		filename="figures/WilsonCowanPrediction.png",
+		dpi=600
 	)
+	plt.tight_layout()
 	plt.close(fig)
 
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))

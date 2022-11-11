@@ -19,6 +19,7 @@ class BaseRegularization(torch.nn.Module, BaseCallback):
 			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
 			Lambda: float = 1.0,
 			optimizer: Optional[torch.optim.Optimizer] = None,
+			**kwargs
 	):
 		"""
 		Constructor of the BaseRegularization class.
@@ -28,7 +29,7 @@ class BaseRegularization(torch.nn.Module, BaseCallback):
 		:param Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
 		:type Lambda: float
 		"""
-		super(BaseRegularization, self).__init__()
+		super(BaseRegularization, self).__init__(**kwargs)
 		if isinstance(params, dict):
 			self.params = list(params.values())
 		else:

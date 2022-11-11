@@ -710,7 +710,10 @@ class VisualiseUMAP(Visualise):
 		self.reduced_timeseries = self._compute_umap()
 
 	def _compute_umap(self):
-		import umap
+		try:
+			import umap
+		except ImportError:
+			raise ImportError("You must install umap-learn to use this class.")
 		fit = umap.UMAP(
 			n_neighbors=self.n_neighbors,
 			min_dist=self.min_dist,

@@ -120,7 +120,7 @@ def train_with_params(
 		predict_method="get_prediction_trace",
 		callbacks=callbacks,
 		criterion=nt.losses.PVarianceLoss(),
-		metrics=[regularisation],
+		# metrics=[regularisation],
 	)
 	trainer.train(
 		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),

@@ -29,7 +29,8 @@ class BaseRegularization(torch.nn.Module, BaseCallback):
 		:param Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
 		:type Lambda: float
 		"""
-		super(BaseRegularization, self).__init__(**kwargs)
+		super().__init__(**kwargs)
+		BaseCallback.__init__(self, **kwargs)
 		if isinstance(params, dict):
 			self.params = list(params.values())
 		else:
@@ -84,6 +85,7 @@ class RegularizationList(BaseRegularization):
 			self,
 			regularizations: Optional[Iterable[BaseRegularization]] = None,
 			optimizer: Optional[torch.optim.Optimizer] = None,
+			**kwargs
 	):
 		"""
 		Constructor of the RegularizationList class.
@@ -99,6 +101,7 @@ class RegularizationList(BaseRegularization):
 			params=_params,
 			Lambda=1.0,
 			optimizer=optimizer,
+			**kwargs
 		)
 		self.regularizations = regularizations if regularizations is not None else []
 
@@ -136,6 +139,7 @@ class Lp(BaseRegularization):
 			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
 			Lambda: float = 1.0,
 			p: int = 1,
+			**kwargs
 	):
 		"""
 		Constructor of the L1 class.
@@ -147,7 +151,7 @@ class Lp(BaseRegularization):
 		:param p: The p parameter of the LP norm. Example: p=1 -> L1 norm, p=2 -> L2 norm.
 		:type p: int
 		"""
-		super(Lp, self).__init__(params, Lambda)
+		super(Lp, self).__init__(params, Lambda, **kwargs)
 		self.p = p
 
 	def forward(self, *args, **kwargs) -> torch.Tensor:
@@ -175,6 +179,7 @@ class L1(Lp):
 			self,
 			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
 			Lambda: float = 1.0,
+			**kwargs
 	):
 		"""
 		Constructor of the L1 class.
@@ -184,7 +189,7 @@ class L1(Lp):
 		:param Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
 		:type Lambda: float
 		"""
-		super(L1, self).__init__(params, Lambda, p=1)
+		super(L1, self).__init__(params, Lambda, p=1, **kwargs)
 
 
 # @pybt.docstring.inherit_fields_docstring(fields=["Attributes"], bases=[Lp])
@@ -196,6 +201,7 @@ class L2(Lp):
 			self,
 			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
 			Lambda: float = 1.0,
+			**kwargs
 	):
 		"""
 		Constructor of the L2 class.
@@ -205,6 +211,6 @@ class L2(Lp):
 		:param Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
 		:type Lambda: float
 		"""
-		super(L2, self).__init__(params, Lambda, p=2)
+		super(L2, self).__init__(params, Lambda, p=2, **kwargs)
 
 

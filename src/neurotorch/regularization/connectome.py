@@ -3,6 +3,7 @@ import torch.nn as nn
 from typing import Optional, Union, Iterable, Dict
 import pythonbasictools as pybt
 from . import BaseRegularization
+from ..transforms.base import to_numpy
 from ..init import dale_
 
 
@@ -209,6 +210,11 @@ class ExecRatioTargetRegularization(BaseRegularization):
 			loss = torch.sum(torch.stack(loss_list))
 		return loss
 	
+	def on_pbar_update(self, trainer, **kwargs) -> dict:
+		loss = to_numpy(self().item())
+		exec_ratio = to_numpy(((torch.mean(self.sign_func(self.params[0])) + 1)/2).item())
+		return {"exec_ratio": exec_ratio, "exec_ratio_loss": loss}
+	
 
 class InhRatioTargetRegularization(ExecRatioTargetRegularization):
 	def __init__(
@@ -223,3 +229,8 @@ class InhRatioTargetRegularization(ExecRatioTargetRegularization):
 			Lambda=Lambda,
 			exec_target_ratio=1 - inh_target_ratio,
 		)
+	
+	def on_pbar_update(self, trainer, **kwargs) -> dict:
+		loss = to_numpy(self().item())
+		inh_ratio = to_numpy(((1 - torch.mean(self.sign_func(self.params[0])))/2).item())
+		return {"inh_ratio": inh_ratio, "inh_ratio_loss": loss}

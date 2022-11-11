@@ -481,7 +481,7 @@ class Visualise:
 				traces_to_indexes[trace], axes[i + int(plot_error_quad)], target[traces_to_indexes[trace]],
 				trace_to_spikes_indexes.get(trace, None),
 				n_spikes_steps=n_spikes_steps,
-				title=f"{traces_to_names[trace]} {desc}", desc=desc,
+				title=f"{traces_to_names[trace]}", desc=desc,
 				**kwargs
 			)
 		

@@ -1,4 +1,4 @@
-from time_series_visualisation import (
+from .time_series_visualisation import (
 	Visualise,
 	VisualiseKMeans,
 )

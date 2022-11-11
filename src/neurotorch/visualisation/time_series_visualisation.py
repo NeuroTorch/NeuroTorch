@@ -361,8 +361,8 @@ class Visualise:
 				label="Latent space", c='k', marker='|', linewidths=0.5, alpha=x_scatter_values,
 			)
 		
-		ax.set_xlabel("Time [-]")
-		ax.set_ylabel("Activity [-]")
+		ax.set_xlabel(self.shape[0].name)
+		ax.set_ylabel(kwargs.get("ylabel", self.shape[1].name))
 		ax.set_title(title)
 		ax.legend(loc=kwargs.get("legend_loc", "upper right"))
 		return ax
@@ -398,9 +398,10 @@ class Visualise:
 		:keyword int dpi: DPI of the figure. Default: 300.
 		:keyword str legend_loc: Location of the legend. Default: "upper right".
 		:keyword List[str] traces_to_show: List of traces to show.
-				Available: ["best", "most_var", "worst", "typical_<int>"] where <int> is the index of the typical trace,
+				Available: ["error_quad", "best", "most_var", "worst", "typical_<int>"]
+				where <int> is the index of the typical trace,
 				starting from 0. The typical ones refers to the ones that are closest to the mean pVar.
-				Default: ["best", "most_var", "worst"].
+				Default: ["error_quad", "best", "most_var", "worst"].
 
 		:return: Figure and axes.
 		"""
@@ -425,13 +426,17 @@ class Visualise:
 		typical_pVar_sort, typical_indices = torch.sort(torch.abs(pVar_per_feature - mean_pVar), descending=False)
 		target = torch.squeeze(target).numpy().T
 		
-		traces_to_show = kwargs.get("traces_to_show", ["best", "most_var", "worst"])
+		traces_to_show = kwargs.get("traces_to_show", ["error_quad", "best", "most_var", "worst"])
+		traces_to_show = [t.lower() for t in traces_to_show]
+		plot_error_quad = "error_quad" in traces_to_show
 		traces_to_indexes = {
+			"error_quad": None,
 			"best"    : indices[0],
 			"worst"   : indices[-1],
 			"most_var": var_diff_indices[0],
 		}
 		traces_to_names = {
+			"error_quad": "Squared Error [-]",
 			"best"    : "Best",
 			"worst"   : "Worst",
 			"most_var": "Most Var",
@@ -445,14 +450,23 @@ class Visualise:
 			if trace not in traces_to_indexes:
 				raise ValueError(f"Unknown trace to show: {trace}. Known traces: {list(traces_to_indexes.keys())}")
 		
+		given_names = kwargs.get("traces_to_show_names", [traces_to_names[t] for t in traces_to_show])
+		assert len(given_names) == len(traces_to_show), "traces_to_show_names must have the same length as traces_to_show"
+		for trace, trace_name in zip(traces_to_show, given_names):
+			traces_to_names[trace] = trace_name
+		if plot_error_quad:
+			traces_to_show.remove("error_quad")
+		
+		n_plot = len(traces_to_show) + int(plot_error_quad)
 		if fig is None or axes is None:
-			fig, axes = plt.subplots(len(traces_to_show) + 1, 1, figsize=(15, 8))
+			fig, axes = plt.subplots(n_plot, 1, figsize=(15, 8))
 		else:
-			assert len(axes) == len(traces_to_show) + 1, f"axes must have length {len(traces_to_show) + 1}"
-		axes[0].plot(errors.detach().cpu().numpy())
-		axes[0].set_xlabel("Time [-]")
-		axes[0].set_ylabel("Squared Error [-]")
-		axes[0].set_title(title)
+			assert len(axes) == n_plot, f"axes must have length {len(traces_to_show) + 1}"
+		if plot_error_quad:
+			axes[0].plot(to_numpy(errors))
+			axes[0].set_xlabel(self.shape[0].name)
+			axes[0].set_ylabel(traces_to_names["error_quad"])
+			axes[0].set_title(title)
 		
 		if spikes is not None:
 			spikes = to_numpy(spikes)
@@ -464,7 +478,7 @@ class Visualise:
 			trace_to_spikes_indexes = {}
 		for i, trace in enumerate(traces_to_show):
 			self.plot_single_timeseries_comparison(
-				traces_to_indexes[trace], axes[i + 1], target[traces_to_indexes[trace]],
+				traces_to_indexes[trace], axes[i + int(plot_error_quad)], target[traces_to_indexes[trace]],
 				trace_to_spikes_indexes.get(trace, None),
 				n_spikes_steps=n_spikes_steps,
 				title=f"{traces_to_names[trace]} {desc}", desc=desc,

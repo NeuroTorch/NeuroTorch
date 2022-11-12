@@ -43,6 +43,8 @@ class Visualise:
 		:keyword int start: Number to start with.
 		:keyword float x: x position of the number in the axes coordinate (see ax.transAxes). Default is 0.0.
 		:keyword float y: y position of the number in the axes coordinate (see ax.transAxes). Default is 1.2.
+		:keyword float fontsize: Font size of the number. Default is 12.
+		:keyword str fontweight: Font weight of the number. Default is "bold".
 		
 		:return: The axes with the number.
 		:rtype: Sequence[plt.Axes]
@@ -60,8 +62,8 @@ class Visualise:
 			ax.text(
 				kwargs.get("x", 0.0), kwargs.get("y", 1.2),
 				f"({axes_numbers[i]})",
-				transform=ax.transAxes, fontsize=12,
-				fontweight='bold', va='top'
+				transform=ax.transAxes, fontsize=kwargs.get("fontsize", 12),
+				fontweight=kwargs.get("fontweight", 'bold'), va='top'
 			)
 		return axes
 

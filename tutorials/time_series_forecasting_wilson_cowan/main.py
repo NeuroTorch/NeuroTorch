@@ -247,6 +247,7 @@ if __name__ == '__main__':
 	)
 
 	fig, axes = plt.subplots(ncols=2, nrows=3, figsize=(16, 8))
+	nt.Visualise.number_axes(axes)
 	viz_pca_target = Visualise(
 		timeseries=res["original_time_series"].T,
 		shape=nt.Size([
@@ -282,6 +283,7 @@ if __name__ == '__main__':
 	)
 
 	fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+	nt.Visualise.number_axes(axes)
 	VisualiseKMeans(
 		res["original_time_series"],
 		nt.Size([

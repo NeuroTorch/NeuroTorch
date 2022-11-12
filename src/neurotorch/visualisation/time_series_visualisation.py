@@ -780,11 +780,16 @@ class VisualiseUMAP(Visualise):
 
 	def trajectory_umap(
 			self,
-			UMAPs: Tuple[int, int] = (1, 2),
-			with_smooth: bool = False,
+			target: Optional = None,
+			UMAPs: Tuple = (1, 2),
 			degree: int = 5,
 			condition: float = 5,
 			reduction: int = 1,
+			traces: str = "all",
+			fig: Optional[plt.Figure] = None,
+			axes: Optional[plt.Axes] = None,
+			filename: Optional[str] = None,
+			show: bool = True,
 			**kwargs
 	):
 		"""
@@ -794,39 +799,73 @@ class VisualiseUMAP(Visualise):
 		:param degree: Degree of the polynomial used for smoothing.
 		:param condition: Smoothing condition.
 		:param reduction: Number by which we divide the number of samples.
+		:param traces: Which traces to plot. Can be "all", "UMAP_space" or "UMAP_wrt_time".
 		:param kwargs:
 			other_time_series: Other time series to plot.
 		"""
-		wrt_time = (len(UMAPs) == 1)
+		assert (fig is None and axes is None) or (fig is not None and axes is not None)
+		assert traces in ["all", "UMAP_space", "UMAP_wrt_time"]
+		if traces == "all" or traces == "UMAP_wrt_time":
+			wrt_time = True
 		if max(UMAPs) > self.n_components:
 			raise ValueError("UMAPs must be less than or equal to the number of UMAP")
-		plt.figure(figsize=(16, 8))
-		x = self.reduced_timeseries[:, UMAPs[0] - 1]
-		x = x[::reduction]
-		if not wrt_time:
-			y = self.reduced_timeseries[:, UMAPs[1] - 1]
-			y = y[::reduction]
-			if with_smooth:
-				smoothed_timeseries = interpolate.splprep([x, y], s=condition, k=degree, per=False)[0]
-				x, y = interpolate.splev(np.linspace(0, 1, 1000), smoothed_timeseries)
-			plt.plot(x, y)
-			plt.title("Two-dimensional trajectory in UMAP space")
-			if with_smooth:
-				plt.title("Two-dimensional trajectory in UMAP space with smoothing")
-			plt.xlabel(f"UMAP {UMAPs[0]}")
-			plt.ylabel(f"UMAP {UMAPs[1]}")
-		if "target" in kwargs:
-			target = kwargs.get("target", None)
+		if target is not None:
 			assert isinstance(target, Visualise)
 			target_reduced = self.umap_transform.transform(target.timeseries)
-			if wrt_time:
-				x_target = target_reduced[:, UMAPs[0] - 1]
-				x_target = x_target[::reduction]
-				plt.plot(x.flatten())
-				plt.plot(x_target.flatten())
-		plt.show()
 
+		n_plot = 2 if (traces == "all") else 1
+		if fig is None or axes is None:
+			fig, axes = plt.subplots(n_plot, 1, figsize=(15, 8))
+		else:
+			assert len(axes) == n_plot, f"axes must have length {n_plot}"
 
+		if traces == "all" or traces == "UMAP_space":
+			axes[0].set_title("Trajectory of the UMAP space")
+			axes[0].set_xlabel(f"UMAP {UMAPs[0]}")
+			axes[0].set_ylabel(f"UMAP {UMAPs[1]}")
+			axes[0].plot(
+				self.reduced_timeseries[::reduction, UMAPs[0] - 1],
+				self.reduced_timeseries[::reduction, UMAPs[1] - 1],
+				label="Predicted timeseries"
+			)
+			if target is not None:
+				axes[0].plot(
+					target_reduced[::reduction, UMAPs[0] - 1],
+					target_reduced[::reduction, UMAPs[1] - 1],
+					label="Real timeseries"
+				)
+			axes[0].legend()
+			axes[0].set_xlabel(f"UMAP {UMAPs[0]}")
+			axes[0].set_ylabel(f"UMAP {UMAPs[1]}")
+			axes[0].set_title("Trajectory of the UMAP space")
+
+		if traces == "all" or traces == "UMAP_wrt_time":
+			axes[n_plot - 1].set_title("Trajectory of the UMAP space wrt time")
+			axes[n_plot - 1].set_xlabel("Time")
+			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[0]}")
+			axes[n_plot - 1].plot(
+				self.reduced_timeseries[::reduction, UMAPs[0] - 1].flatten(),
+				label=f"Predicted timeseries UMAP {UMAPs[0]}"
+			)
+			print(target_reduced[::reduction, UMAPs[0] - 1].flatten().shape)
+			axes[n_plot - 1].plot(
+				target_reduced[::reduction, UMAPs[0] - 1].flatten(),
+				label=f"Real timeseries UMAP {UMAPs[0]}"
+			)
+			axes[n_plot - 1].legend()
+			axes[n_plot - 1].set_xlabel("Time [-]")
+			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[0]}")
+			axes[n_plot - 1].set_title("Trajectory of the UMAP space wrt time")
+
+		fig.tight_layout()
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
+		if show:
+			plt.show()
+		if kwargs.get("close", False):
+			plt.close(fig)
+		return fig, axes
 
 
 class VisualiseDBSCAN(Visualise):

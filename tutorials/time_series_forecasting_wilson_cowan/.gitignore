@@ -2,3 +2,5 @@
 *.pth
 tr_results
 checkpoints
+data
+figures

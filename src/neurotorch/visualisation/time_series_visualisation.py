@@ -29,6 +29,41 @@ class Visualise:
 	then visualise those clustered time series in scatter/trajectory in their clustered space.
 	TODO : Add axis and optional figure to Visualise. The user can therefore create its custom figures.
 	"""
+	
+	@staticmethod
+	def number_axes(axes: Sequence[plt.Axes], **kwargs) -> Sequence[plt.Axes]:
+		"""
+		Number the axes.
+		
+		:param axes: Axes to number.
+		:type axes: Sequence[plt.Axes]
+		:param kwargs: Keyword arguments.
+		
+		:keyword str num_type: Type of number to display. Can be either "alpha" or "numeric".
+		:keyword int start: Number to start with.
+		:keyword float x: x position of the number. Default is 0.0.
+		:keyword float y: y position of the number. Default is 1.2.
+		
+		:return: The axes with the number.
+		:rtype: Sequence[plt.Axes]
+		"""
+		axes_view = np.ravel(np.asarray(axes))
+		num_type = kwargs.get("num_type", "alpha")
+		start = kwargs.get("start", 0)
+		if num_type == "alpha":
+			axes_numbers = [chr(i) for i in range(97 + start, 97 + len(axes_view) + start)]
+		elif num_type == "numeric":
+			axes_numbers = [str(i) for i in range(1 + start, len(axes_view) + 1 + start)]
+		else:
+			raise ValueError(f"Unknown num_type {num_type}.")
+		for i, ax in enumerate(axes_view):
+			ax.text(
+				kwargs.get("x", 0.0), kwargs.get("y", 1.2),
+				f"({axes_numbers[i]})",
+				transform=ax.transAxes, fontsize=12,
+				fontweight='bold', va='top'
+			)
+		return axes
 
 	def __init__(
 			self,
@@ -548,10 +583,16 @@ class Visualise:
 				"Typical Neuron Prediction (2)",
 				"Typical Neuron Prediction (3)"
 			],
-			show=show,
-			filename=filename,
-			dpi=kwargs.get("dpi", 300),
+			show=False,
 		)
+		self.number_axes([axbig]+list(np.ravel(axes[1:])), **kwargs)
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
+		if show:
+			plt.show()
+		if kwargs.get("close", False):
+			plt.close(fig)
 		return fig, axes
 
 

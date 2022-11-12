@@ -208,6 +208,27 @@ if __name__ == '__main__':
 		axes[1, 1].set_title("Final signs")
 		plt.show()
 
+
+	viz_umap_target = Visualise(
+		timeseries=res["original_time_series"].T,
+		shape=nt.Size([
+			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
+		])
+	)
+
+	viz_umap = VisualiseUMAP(
+		timeseries=res["x_pred"].T,
+		shape=nt.Size([
+			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
+		])
+	).trajectory_umap(UMAPs=(1, ), target=viz_umap_target)
+
+
+
+
+
 	fig, axes = plt.subplots(ncols=2, nrows=4, figsize=(12, 8))
 	gs = axes[0, 0].get_gridspec()
 	for ax in axes[0, :]:
@@ -247,7 +268,7 @@ if __name__ == '__main__':
 			"Typical Neuron Prediction (3)"
 		],
 		show=True,
-		filename="figures/WilsonCowanPrediction.png",
+		#filename="figures/WilsonCowanPredictionDaleConvDale.png",
 		dpi=600
 	)
 	plt.tight_layout()

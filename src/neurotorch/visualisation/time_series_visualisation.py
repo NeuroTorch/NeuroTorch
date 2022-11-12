@@ -707,6 +707,7 @@ class VisualiseUMAP(Visualise):
 		self.min_dist = min_dist
 		self.n_components = n_components
 		self.kmeans_label = None
+		self.umap_transform = None
 		self.reduced_timeseries = self._compute_umap()
 
 	def _compute_umap(self):
@@ -714,13 +715,14 @@ class VisualiseUMAP(Visualise):
 			import umap
 		except ImportError:
 			raise ImportError("You must install umap-learn to use this class.")
-		fit = umap.UMAP(
+		self.umap_transform = umap.UMAP(
 			n_neighbors=self.n_neighbors,
 			min_dist=self.min_dist,
 			n_components=self.n_components,
 			metric='euclidean'
 		)
-		reduced_timeseries = fit.fit_transform(self.timeseries)
+		self.umap_transform.fit(self.timeseries)
+		reduced_timeseries = self.umap_transform.transform(self.timeseries)
 		return reduced_timeseries
 
 	def with_kmeans(self, n_clusters: int = 13, random_state: int = 0):
@@ -779,10 +781,11 @@ class VisualiseUMAP(Visualise):
 	def trajectory_umap(
 			self,
 			UMAPs: Tuple[int, int] = (1, 2),
-			with_smooth: bool = True,
+			with_smooth: bool = False,
 			degree: int = 5,
 			condition: float = 5,
-			reduction: int = 1
+			reduction: int = 1,
+			**kwargs
 	):
 		"""
 		Plot the trajectory of the UMAP space in 2D.
@@ -791,26 +794,39 @@ class VisualiseUMAP(Visualise):
 		:param degree: Degree of the polynomial used for smoothing.
 		:param condition: Smoothing condition.
 		:param reduction: Number by which we divide the number of samples.
+		:param kwargs:
+			other_time_series: Other time series to plot.
 		"""
-		if len(UMAPs) != 2:
-			raise ValueError("Can only plot the trajectory in UMAP space in 2D. UMAPs must have a length of 2")
+		wrt_time = (len(UMAPs) == 1)
 		if max(UMAPs) > self.n_components:
 			raise ValueError("UMAPs must be less than or equal to the number of UMAP")
 		plt.figure(figsize=(16, 8))
 		x = self.reduced_timeseries[:, UMAPs[0] - 1]
 		x = x[::reduction]
-		y = self.reduced_timeseries[:, UMAPs[1] - 1]
-		y = y[::reduction]
-		if with_smooth:
-			smoothed_timeseries = interpolate.splprep([x, y], s=condition, k=degree, per=False)[0]
-			x, y = interpolate.splev(np.linspace(0, 1, 1000), smoothed_timeseries)
-		plt.plot(x, y)
-		plt.title("Two-dimensional trajectory in UMAP space")
-		if with_smooth:
-			plt.title("Two-dimensional trajectory in UMAP space with smoothing")
-		plt.xlabel(f"UMAP {UMAPs[0]}")
-		plt.ylabel(f"UMAP {UMAPs[1]}")
+		if not wrt_time:
+			y = self.reduced_timeseries[:, UMAPs[1] - 1]
+			y = y[::reduction]
+			if with_smooth:
+				smoothed_timeseries = interpolate.splprep([x, y], s=condition, k=degree, per=False)[0]
+				x, y = interpolate.splev(np.linspace(0, 1, 1000), smoothed_timeseries)
+			plt.plot(x, y)
+			plt.title("Two-dimensional trajectory in UMAP space")
+			if with_smooth:
+				plt.title("Two-dimensional trajectory in UMAP space with smoothing")
+			plt.xlabel(f"UMAP {UMAPs[0]}")
+			plt.ylabel(f"UMAP {UMAPs[1]}")
+		if "target" in kwargs:
+			target = kwargs.get("target", None)
+			assert isinstance(target, Visualise)
+			target_reduced = self.umap_transform.transform(target.timeseries)
+			if wrt_time:
+				x_target = target_reduced[:, UMAPs[0] - 1]
+				x_target = x_target[::reduction]
+				plt.plot(x.flatten())
+				plt.plot(x_target.flatten())
 		plt.show()
+
+
 
 
 class VisualiseDBSCAN(Visualise):

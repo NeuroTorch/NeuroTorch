@@ -1,3 +1,5 @@
+import logging
+
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
@@ -33,9 +35,10 @@ def train_with_params(
 		device: torch.device = torch.device("cpu"),
 		hh_init: str = "inputs",
 		checkpoint_folder="./checkpoints",
-		force_dale_law: bool = True
+		force_dale_law: bool = True,
+		**kwargs,
 ):
-	dataset = WSDataset(filename=filename, sample_size=200, smoothing_sigma=sigma, device=device)
+	dataset = WSDataset(filename=filename, sample_size=kwargs.get("n_units", 200), smoothing_sigma=sigma, device=device)
 	x = dataset.full_time_series
 	ws_layer = WilsonCowanLayer(
 		x.shape[-1], x.shape[-1],
@@ -63,7 +66,12 @@ def train_with_params(
 	ws_layer_2.name = "WilsonCowan_layer2"
 
 	# The first model is for one layer while the second one is for two layers. Layers can be added as much as desired.
-	model = nt.SequentialRNN(layers=[ws_layer], device=device, foresight_time_steps=x.shape[1] - 1)
+	model = nt.SequentialRNN(
+		layers=[ws_layer],
+		device=device,
+		foresight_time_steps=x.shape[1] - 1,
+		checkpoint_folder=checkpoint_folder,
+	)
 	# model = nt.SequentialModel(layers=[ws_layer, ws_layer_2], device=device, foresight_time_steps=x.shape[1] - 1)
 	model.build()
 
@@ -93,7 +101,7 @@ def train_with_params(
 	callbacks = [
 		LRSchedulerOnMetric(
 			'train_loss',
-			metric_schedule=np.linspace(0.8, 1.0, 100),
+			metric_schedule=np.linspace(kwargs.get("lr_schedule_start", 0.95), 1.0, 100),
 			min_lr=learning_rate / 10,
 			retain_progress=True,
 		),
@@ -129,9 +137,19 @@ def train_with_params(
 		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),
 		n_iterations=n_iterations,
 		exec_metrics_on_train=True,
-		# load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
-		force_overwrite=True,
+		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
+		force_overwrite=kwargs.get("force_overwrite", False),
 	)
+	
+	try:
+		model.load_checkpoint(
+			checkpoint_manager.checkpoints_meta_path, nt.LoadCheckpointMode.BEST_ITR, verbose=True
+		)
+	except FileNotFoundError:
+		print("No best checkpoint found. Loading last checkpoint instead.")
+		model.load_checkpoint(
+			checkpoint_manager.checkpoints_meta_path, nt.LoadCheckpointMode.LAST_ITR, verbose=True
+		)
 
 	x_pred = torch.concat([
 		torch.unsqueeze(x[:, 0].clone(), dim=1).to(model.device),
@@ -154,6 +172,7 @@ def train_with_params(
 		"x_pred": nt.to_numpy(torch.squeeze(x_pred)).T,
 		"original_time_series": dataset.original_series,
 		"force_dale_law": force_dale_law,
+		"network": model,
 	}
 	if ws_layer.force_dale_law:
 		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_sign))) + 1) / 2
@@ -161,7 +180,6 @@ def train_with_params(
 	else:
 		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_weights))) + 1) / 2
 		out["sign"] = None
-
 	return out
 
 
@@ -171,8 +189,8 @@ if __name__ == '__main__':
 	res = train_with_params(
 		filename=None,
 		sigma=15,
-		learning_rate=1e-2,
-		n_iterations=500,
+		learning_rate=2e-4,
+		n_iterations=2_000,
 		forward_weights=forward_weights,
 		std_weights=1,
 		dt=0.02,
@@ -188,7 +206,10 @@ if __name__ == '__main__':
 		learn_tau=True,
 		device=torch.device("cpu"),
 		hh_init="inputs",
-		force_dale_law=False,
+		force_dale_law=True,
+		force_overwrite=False,
+		lr_schedule_start=0.9,
+		checkpoint_folder="data/tr_data/checkpoints_dale",
 	)
 
 	if res["force_dale_law"]:
@@ -208,6 +229,23 @@ if __name__ == '__main__':
 		axes[1, 1].set_title("Final signs")
 		plt.show()
 
+	viz = VisualiseKMeans(
+		res["x_pred"].T,
+		shape=nt.Size(
+			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
+				nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
+			]
+		)
+	)
+	viz.plot_timeseries_comparison_report(
+		res["original_time_series"].T,
+		title=f"Prediction",
+		filename=f"{res['network'].checkpoint_folder}/figures/WilsonCowanPredictionReport.png",
+		show=True,
+		dpi=600,
+	)
+
 	fig, axes = plt.subplots(ncols=2, nrows=3, figsize=(12, 8))
 
 	viz_pca_target = Visualise(
@@ -226,6 +264,7 @@ if __name__ == '__main__':
 		])
 	).trajectory_pca(target=viz_pca_target, fig=fig, axes=axes[:, 1], show=False)
 
+
 	viz_umap_target = Visualise(
 		timeseries=res["original_time_series"].T,
 		shape=nt.Size([
@@ -242,62 +281,13 @@ if __name__ == '__main__':
 		])
 	).trajectory_umap(UMAPs=(1, 2), target=viz_umap_target, fig=fig, axes=axes[:, 0], show=True)
 
-
-
-
-
-	fig, axes = plt.subplots(ncols=2, nrows=4, figsize=(12, 8))
-	gs = axes[0, 0].get_gridspec()
-	for ax in axes[0, :]:
-		ax.remove()
-	axbig = fig.add_subplot(gs[0, :])
-	viz = VisualiseKMeans(
-		res["x_pred"].T,
-		shape=nt.Size([
-			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
-			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
-		])
-	)
-	viz.plot_timeseries_comparison(
-		res["original_time_series"].T,
-		title=f"Prediction",
-		fig=fig, axes=[axbig],
-		traces_to_show=["error_quad", ],
-		traces_to_show_names=["Squared error [-]", ],
-		show=False,
-	)
-	viz.plot_timeseries_comparison(
-		res["original_time_series"].T,
-		title=f"Prediction",
-		fig=fig, axes=axes[1:, 0],
-		traces_to_show=["best", "most_var", "worst"],
-		traces_to_show_names=["Best Neuron Prediction", "Most variable Neuron Prediction", "Worst Neuron Prediction"],
-		show=False,
-	)
-	viz.plot_timeseries_comparison(
-		res["original_time_series"].T,
-		title=f"Prediction",
-		fig=fig, axes=axes[1:, 1],
-		traces_to_show=[f"typical_{i}" for i in range(3)],
-		traces_to_show_names=[
-			"Typical Neuron Prediction (1)",
-			"Typical Neuron Prediction (2)",
-			"Typical Neuron Prediction (3)"
-		],
-		show=True,
-		#filename="figures/WilsonCowanPredictionDaleConvDale.png",
-		dpi=600
-	)
-	plt.tight_layout()
-	plt.close(fig)
-
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	VisualiseKMeans(
 		res["original_time_series"],
 		nt.Size([
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
 			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")])
-	).heatmap(fig=fig, ax=axes[0], title="True time series")
+	).heatmap(fig=fig, ax=axes[0], title="True time series", show=False)
 	VisualiseKMeans(
 		res["x_pred"],
 		nt.Size([
@@ -314,9 +304,3 @@ if __name__ == '__main__':
 		])
 	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=True)
 
-	for i in range(200):
-		plt.plot(res["original_time_series"][i, :], label="True")
-		plt.plot(res["x_pred"][i, :], label="Pred")
-		plt.ylim([0, 1])
-		plt.legend()
-		plt.show()

@@ -69,13 +69,17 @@ def train_with_params(
 
 	# Regularization on the connectome can be applied on one connectome or on all connectomes (or none).
 	if force_dale_law:
-		optimizer_reg = torch.optim.Adam(ws_layer.get_sign_parameters(), lr=5e-3)
-		regularisation = ExecRatioTargetRegularization(ws_layer.get_sign_parameters(), optimizer=optimizer_reg, exec_target_ratio=0.8)
+		optimizer_reg = torch.optim.Adam(ws_layer.get_sign_parameters(), lr=5e-2*learning_rate)
+		regularisation = ExecRatioTargetRegularization(
+			ws_layer.get_sign_parameters(), optimizer=optimizer_reg, exec_target_ratio=0.8
+		)
 	else:
-		regularisation = DaleLawL2(ws_layer.get_weights_parameters(), alpha=0.3, inh_ratio=0.5, rho=0.99)
-		optimizer_reg = torch.optim.SGD(regularisation.parameters(), lr=5e-4)
-
-	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.1)
+		optimizer_reg = torch.optim.SGD(ws_layer.get_weights_parameters(), lr=5e-4)
+		regularisation = DaleLawL2(
+			ws_layer.get_weights_parameters(), alpha=0.3, inh_ratio=0.5, rho=0.99, optimizer=optimizer_reg
+		)
+		
+	optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, maximize=True, weight_decay=0.01)
 
 	checkpoint_manager = nt.CheckpointManager(
 		checkpoint_folder,
@@ -89,7 +93,7 @@ def train_with_params(
 	callbacks = [
 		LRSchedulerOnMetric(
 			'train_loss',
-			metric_schedule=np.linspace(0.97, 1.0, 100),
+			metric_schedule=np.linspace(0.8, 1.0, 100),
 			min_lr=learning_rate / 10,
 			retain_progress=True,
 		),
@@ -101,18 +105,18 @@ def train_with_params(
 	]
 
 	with torch.no_grad():
-		W0 = ws_layer.forward_weights.clone().detach().cpu().numpy()
+		W0 = nt.to_numpy(ws_layer.forward_weights.clone())
 		if force_dale_law:
-			sign0 = ws_layer.forward_sign.clone().detach().cpu().numpy()
+			sign0 = nt.to_numpy(ws_layer.forward_sign.clone())
 		else:
 			sign0 = None
 		mu0 = ws_layer.mu.clone()
 		r0 = ws_layer.r.clone()
 		tau0 = ws_layer.tau.clone()
 		if ws_layer.force_dale_law:
-			ratio_sign_0 = (np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy()) + 1) / 2
+			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_sign))) + 1) / 2
 		else:
-			ratio_sign_0 = (np.mean(torch.sign(ws_layer.forward_weights).detach().cpu().numpy()) + 1) / 2
+			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_weights))) + 1) / 2
 		print(f"ratio exec init: {ratio_sign_0 :.3f}")
 
 	trainer = nt.trainers.Trainer(
@@ -136,39 +140,39 @@ def train_with_params(
 	loss = PVarianceLoss()(x_pred, x)
 
 	out = {
-		"pVar": loss.detach().item(),
-		"W": ws_layer.forward_weights.detach().cpu().numpy(),
+		"pVar": nt.to_numpy(loss.detach().item()),
+		"W": nt.to_numpy(ws_layer.forward_weights),
 		"sign0": sign0,
-		"mu": ws_layer.mu.detach().numpy(),
-		"r": ws_layer.r.detach().numpy(),
+		"mu": nt.to_numpy(ws_layer.mu),
+		"r": nt.to_numpy(ws_layer.r),
 		"W0": W0,
 		"ratio_0": ratio_sign_0,
-		"mu0": mu0.numpy(),
-		"r0": r0.numpy(),
-		"tau0": tau0.numpy(),
-		"tau": ws_layer.tau.detach().numpy(),
-		"x_pred": torch.squeeze(x_pred).detach().numpy().T,
+		"mu0": nt.to_numpy(mu0),
+		"r0": nt.to_numpy(r0),
+		"tau0": nt.to_numpy(tau0),
+		"tau": nt.to_numpy(ws_layer.tau),
+		"x_pred": nt.to_numpy(torch.squeeze(x_pred)).T,
 		"original_time_series": dataset.original_series,
 		"force_dale_law": force_dale_law,
 	}
 	if ws_layer.force_dale_law:
-		out["ratio_end"] = (np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy()) + 1) / 2
-		out["sign"] = ws_layer.forward_sign.clone().detach().cpu().numpy()
+		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_sign))) + 1) / 2
+		out["sign"] = nt.to_numpy(ws_layer.forward_sign.clone())
 	else:
-		out["ratio_end"] = (np.mean(torch.sign(ws_layer.forward_weights).detach().cpu().numpy()) + 1) / 2
+		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_weights))) + 1) / 2
 		out["sign"] = None
 
 	return out
 
 
 if __name__ == '__main__':
-	forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.2)
+	forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.2, rho=0.2)
 
 	res = train_with_params(
 		filename=None,
 		sigma=15,
-		learning_rate=1e-2,
-		n_iterations=1000,
+		learning_rate=0.05,
+		n_iterations=10_000,
 		forward_weights=forward_weights,
 		std_weights=1,
 		dt=0.02,
@@ -184,7 +188,7 @@ if __name__ == '__main__':
 		learn_tau=True,
 		device=torch.device("cpu"),
 		hh_init="inputs",
-		force_dale_law=True
+		force_dale_law=True,
 	)
 
 	if res["force_dale_law"]:
@@ -237,8 +241,11 @@ if __name__ == '__main__':
 		title=f"Prediction",
 		fig=fig, axes=axes[1:, 1],
 		traces_to_show=[f"typical_{i}" for i in range(3)],
-		traces_to_show_names=["Typical Neuron Prediction (1)", "Typical Neuron Prediction (2)",
-							  "Typical Neuron Prediction (3)"],
+		traces_to_show_names=[
+			"Typical Neuron Prediction (1)",
+			"Typical Neuron Prediction (2)",
+			"Typical Neuron Prediction (3)"
+		],
 		show=True,
 		filename="figures/WilsonCowanPrediction.png",
 		dpi=600

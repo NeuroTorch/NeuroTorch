@@ -621,7 +621,7 @@ class VisualisePCA(Visualise):
 			timeseries: Any,
 			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = False,
-			n_PC: int = 5
+			n_PC: int = 2
 		):
 		"""
 		:param timeseries: Time series of shape (n_time_steps, n_neurons).
@@ -638,6 +638,7 @@ class VisualisePCA(Visualise):
 		)
 		self.n_PC = n_PC
 		self.params = {}
+		self.pca_transform = None
 		self.reduced_timeseries, self.params["var_ratio"], self.params["var_ratio_cumsum"] = self._compute_pca(n_PC)
 		self.kmean_label = None
 
@@ -647,9 +648,10 @@ class VisualisePCA(Visualise):
 		
 		:return: timeseries in PCA space, variance ratio, variance ratio cumulative sum.
 		"""
-		pca = PCA(n_components=n_PC).fit(self.timeseries.T)
-		reduced_timeseries = pca.transform(self.timeseries.T)
-		return reduced_timeseries, pca.explained_variance_ratio_, pca.explained_variance_ratio_.cumsum()
+		self.pca_transform = PCA(n_components=n_PC)
+		self.pca_transform.fit(self.timeseries)
+		reduced_timeseries = self.pca_transform.transform(self.timeseries)
+		return reduced_timeseries, self.pca_transform.explained_variance_ratio_, self.pca_transform.explained_variance_ratio_.cumsum()
 
 	def with_kmeans(self, n_clusters: int = 13, random_state: int = 0):
 		"""
@@ -708,39 +710,145 @@ class VisualisePCA(Visualise):
 
 	def trajectory_pca(
 			self,
+			target: Optional = None,
 			PCs: Tuple[int, int] = (1, 2),
 			with_smooth: bool = True,
 			degree: int = 5,
 			condition: float = 5,
-			reduction: int = 1
+			reduction: int = 1,
+			traces: str = "all",
+			fig: Optional[plt.Figure] = None,
+			axes: Optional[plt.Axes] = None,
+			filename: Optional[str] = None,
+			show: bool = True,
+			**kwargs
 	):
 		"""
 		Plot the trajectory of the PCA space in 2D.
-		
+
+		:param target: Target timeseries
 		:param PCs: List of PCs to plot. Always a list of length 2.
 		:param with_smooth: Whether to smooth the trajectory or not.
 		:param degree: Degree of the polynomial used for smoothing.
 		:param condition: Smoothing condition.
 		:param reduction: Number by which we divide the number of samples.
+		:param traces: Which traces to plot. Can be "all", "PCA_space", "PCA_wrt_time" or a list of indices.
 		"""
-		if len(PCs) != 2:
-			raise ValueError("Can only plot the trajectory in PCA space in 2D. PCs must have a length of 2")
+
+		assert (fig is None and axes is None) or (fig is not None and axes is not None)
+		assert traces in ["all", "PCA_space", "PCA_wrt_time"]
 		if max(PCs) > self.n_PC:
 			raise ValueError("PCs must be less than or equal to the number of PC")
-		plt.figure(figsize=(16, 8))
-		x = self.reduced_timeseries[:, PCs[0] - 1]
-		x = x[::reduction]
-		y = self.reduced_timeseries[:, PCs[1] - 1]
-		y = y[::reduction]
-		if with_smooth:
-			smoothed_timeseries = interpolate.splprep([x, y], s=condition, k=degree, per=False)[0]
-			x, y = interpolate.splev(np.linspace(0, 1, 1000), smoothed_timeseries)
-		plt.plot(x, y)
-		plt.title("Two-dimensional trajectory in PCA space")
-		if with_smooth:
-			plt.title("Two-dimensional trajectory in PCA space with smoothing")
-		plt.xlabel(f"PC {PCs[0]}")
-		plt.ylabel(f"PC {PCs[1]}")
+		if target is not None:
+			assert isinstance(target, Visualise)
+			target_reduced = self.pca_transform.transform(target.timeseries)
+
+		n_plot = 3 if (traces == "all") else 1
+		if fig is None or axes is None:
+			fig, axes = plt.subplots(n_plot, 1, figsize=(15, 8))
+		else:
+			assert len(axes) == n_plot, f"axes must be a list of length {n_plot}"
+
+		if traces == "all" or traces == "PCA_space":
+			axes[0].set_title("Trajectory in PCA space")
+			axes[0].set_xlabel(f"PC {PCs[0]}")
+			axes[0].set_ylabel(f"PC {PCs[1]}")
+			axes[0].plot(
+				self.reduced_timeseries[::reduction, PCs[0] - 1],
+				self.reduced_timeseries[::reduction, PCs[1] - 1],
+				label="Predicted time series"
+			)
+			if target is not None:
+				axes[0].plot(
+					target_reduced[::reduction, PCs[0] - 1],
+					target_reduced[::reduction, PCs[1] - 1],
+					label="Target time series"
+				)
+			axes[0].legend()
+			axes[0].set_xlabel(f"PC {PCs[0]}")
+			axes[0].set_ylabel(f"PC {PCs[1]}")
+			axes[0].set_title("Trajectory in PCA space")
+
+		if traces == "PCA_wrt_time":
+			axes[0].set_title("Trajectory in PCA space with respect to time")
+			axes[0].set_xlabel("Time")
+			axes[0].set_ylabel(f"PC {PCs[0]}")
+			axes[0].plot(
+				self.reduced_timeseries[::reduction, PCs[0] - 1].flatten(),
+				label="Predicted time series"
+			)
+			if target is not None:
+				axes[0].plot(
+					target_reduced[::reduction, PCs[0] - 1].flatten(),
+					label="Real time series"
+				)
+			axes[0].legend()
+			axes[0].set_xlabel("Time [-]")
+			axes[0].set_ylabel(f"PC {PCs[0]}")
+			if target is not None:
+				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, PCs[0] - 1], target_reduced[::reduction, PCs[0] - 1])
+				axes[0].set_title(f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+			else:
+				axes[0].set_title("Trajectory in PCA space with respect to time")
+
+		if traces == "all":
+			axes[n_plot - 2].set_title("Trajectory in PCA space with respect to time")
+			axes[n_plot - 2].set_xlabel("Time")
+			axes[n_plot - 2].set_ylabel(f"PC {PCs[0]}")
+			axes[n_plot - 2].plot(
+				self.reduced_timeseries[::reduction, PCs[0] - 1].flatten(),
+				label="Predicted timeseries"
+			)
+			if target is not None:
+				axes[n_plot - 2].plot(
+					target_reduced[::reduction, PCs[0] - 1].flatten(),
+					label="Real timeseries"
+				)
+			axes[n_plot - 2].legend()
+			axes[n_plot - 2].set_xlabel("Time [-]")
+			axes[n_plot - 2].set_ylabel(f"PC {PCs[0]}")
+			if target is not None:
+				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, PCs[0] - 1],
+									   target_reduced[::reduction, PCs[0] - 1])
+				axes[n_plot - 2].set_title(f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+			else:
+				axes[n_plot - 2].set_title("Trajectory in PCA space with respect to time")
+
+			axes[n_plot - 1].set_title("Trajectory in PCA space with respect to time")
+			axes[n_plot - 1].set_xlabel("Time")
+			axes[n_plot - 1].set_ylabel(f"PC {PCs[1]}")
+			axes[n_plot - 1].plot(
+				self.reduced_timeseries[::reduction, PCs[1] - 1].flatten(),
+				label="Predicted timeseries"
+			)
+			if target is not None:
+				axes[n_plot - 1].plot(
+					target_reduced[::reduction, PCs[1] - 1].flatten(),
+					label="Real timeseries"
+				)
+			axes[n_plot - 1].legend()
+			axes[n_plot - 1].set_xlabel("Time [-]")
+			axes[n_plot - 1].set_ylabel(f"PC {PCs[1]}")
+			if target is not None:
+				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, PCs[1] - 1],
+									   target_reduced[::reduction, PCs[1] - 1])
+				axes[n_plot - 1].set_title(f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+			else:
+				axes[n_plot - 1].set_title("Trajectory in PCA space with respect to time")
+
+			fig.tight_layout()
+			if filename is not None:
+				os.makedirs(os.path.dirname(filename), exist_ok=True)
+				fig.savefig(filename, dpi=kwargs.get("dpi", 300))
+			if show:
+				plt.show()
+			if kwargs.get("close", False):
+				plt.close(fig)
+			return fig, axes
+
+
+
+
 		plt.show()
 
 
@@ -860,13 +968,9 @@ class VisualiseUMAP(Visualise):
 		:param condition: Smoothing condition.
 		:param reduction: Number by which we divide the number of samples.
 		:param traces: Which traces to plot. Can be "all", "UMAP_space" or "UMAP_wrt_time".
-		:param kwargs:
-			other_time_series: Other time series to plot.
 		"""
 		assert (fig is None and axes is None) or (fig is not None and axes is not None)
 		assert traces in ["all", "UMAP_space", "UMAP_wrt_time"]
-		if traces == "all" or traces == "UMAP_wrt_time":
-			wrt_time = True
 		if max(UMAPs) > self.n_components:
 			raise ValueError("UMAPs must be less than or equal to the number of UMAP")
 		if target is not None:
@@ -897,7 +1001,7 @@ class VisualiseUMAP(Visualise):
 			axes[0].legend()
 			axes[0].set_xlabel(f"UMAP {UMAPs[0]}")
 			axes[0].set_ylabel(f"UMAP {UMAPs[1]}")
-			axes[0].set_title("Trajectory of the UMAP space")
+			axes[0].set_title("Trajectory in the UMAP space")
 
 		if traces == "UMAP_wrt_time":
 			axes[0].set_title("Trajectory in the UMAP space with respect to time")
@@ -918,9 +1022,9 @@ class VisualiseUMAP(Visualise):
 			axes[0].set_ylabel(f"UMAP {UMAPs[0]}")
 			if target is not None:
 				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[0] - 1], target_reduced[::reduction, UMAPs[0] - 1])
-				axes[0].set_title(f"Trajectory of the UMAP space with respect to time (pVar={to_numpy(pVar).item():.4f})")
+				axes[0].set_title(f"Trajectory in the UMAP space with respect to time (pVar={to_numpy(pVar).item():.4f})")
 			else:
-				axes[0].set_title("Trajectory of the UMAP space with respect to time")
+				axes[0].set_title("Trajectory in the UMAP space with respect to time")
 
 		if traces == "all":
 			axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
@@ -940,7 +1044,7 @@ class VisualiseUMAP(Visualise):
 			axes[n_plot - 2].set_ylabel(f"UMAP {UMAPs[0]}")
 			if target is not None:
 				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[0] - 1], target_reduced[::reduction, UMAPs[0] - 1])
-				axes[n_plot - 2].set_title(f"Trajectory of the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+				axes[n_plot - 2].set_title(f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
 			else:
 				axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
 
@@ -952,18 +1056,19 @@ class VisualiseUMAP(Visualise):
 				self.reduced_timeseries[::reduction, UMAPs[1] - 1].flatten(),
 				label=f"Predicted timeseries"
 			)
-			axes[n_plot - 1].plot(
-				target_reduced[::reduction, UMAPs[1] - 1].flatten(),
-				label=f"Real timeseries"
-			)
+			if target is not None:
+				axes[n_plot - 1].plot(
+					target_reduced[::reduction, UMAPs[1] - 1].flatten(),
+					label=f"Real timeseries"
+				)
 			axes[n_plot - 1].legend()
 			axes[n_plot - 1].set_xlabel("Time [-]")
 			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[1]}")
 			if target is not None:
 				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[1] - 1], target_reduced[::reduction, UMAPs[1] - 1])
-				axes[n_plot - 1].set_title(f"Trajectory of the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+				axes[n_plot - 1].set_title(f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
 			else:
-				axes[n_plot - 1].set_title("Trajectory of the UMAP space with respect to time")
+				axes[n_plot - 1].set_title("Trajectory in the UMAP space with respect to time")
 
 		fig.tight_layout()
 		if filename is not None:

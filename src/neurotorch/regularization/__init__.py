@@ -65,7 +65,7 @@ class BaseRegularization(torch.nn.Module, BaseCallback):
 		"""
 		raise NotImplementedError("forward method must be implemented")
 	
-	def on_optimization_begin(self, trainer, **kwargs):
+	def on_optimization_end(self, trainer, **kwargs):
 		reg_loss = self()
 		if self.optimizer is not None:
 			self.optimizer.zero_grad()

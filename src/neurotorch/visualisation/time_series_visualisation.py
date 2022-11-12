@@ -1089,7 +1089,7 @@ class VisualiseUMAP(Visualise):
 			axes[n_plot - 2].set_ylabel(f"UMAP {UMAPs[0]}")
 			if target is not None:
 				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[0] - 1], target_reduced[::reduction, UMAPs[0] - 1])
-				axes[n_plot - 2].set_title(f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+				axes[n_plot - 2].set_title(f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})")
 			else:
 				axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
 
@@ -1111,7 +1111,7 @@ class VisualiseUMAP(Visualise):
 			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[1]}")
 			if target is not None:
 				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[1] - 1], target_reduced[::reduction, UMAPs[1] - 1])
-				axes[n_plot - 1].set_title(f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+				axes[n_plot - 1].set_title(f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})")
 			else:
 				axes[n_plot - 1].set_title("Trajectory in the UMAP space with respect to time")
 

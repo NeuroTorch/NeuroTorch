@@ -12,6 +12,7 @@ from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
 from neurotorch.visualisation.connectome import visualize_init_final_weights
 from neurotorch.visualisation.time_series_visualisation import *
+from neurotorch.visualisation.utils import mix_report
 
 
 def train_with_params(
@@ -260,6 +261,11 @@ if __name__ == '__main__':
 		pred_viz, viz_target,
 		show=True, dpi=600,
 		filename=f"{res['network'].checkpoint_folder}/figures/WilsonCowan_UMAP_PCA_report.png",
+	)
+	mix_report(
+		pred_viz, viz_target,
+		show=True, dpi=600,
+		filename=f"{res['network'].checkpoint_folder}/figures/WilsonCowan_mix_UMAP_report.png",
 	)
 
 	fig, axes = plt.subplots(1, 2, figsize=(16, 8))

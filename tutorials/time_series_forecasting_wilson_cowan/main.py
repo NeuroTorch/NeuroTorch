@@ -260,7 +260,7 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
 		])
-	).trajectory_umap(UMAPs=(1, ), target=viz_umap_target)
+	).trajectory_umap(UMAPs=(1, 2), target=viz_umap_target)
 
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	VisualiseKMeans(

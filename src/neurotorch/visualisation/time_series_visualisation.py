@@ -755,7 +755,7 @@ class VisualiseUMAP(Visualise):
 			apply_zscore: bool = False,
 			n_neighbors: int = 10,
 			min_dist: float = 0.5,
-			n_components: int = 3
+			n_components: int = 2
 		):
 		super().__init__(
 			timeseries=timeseries,
@@ -872,14 +872,14 @@ class VisualiseUMAP(Visualise):
 			assert isinstance(target, Visualise)
 			target_reduced = self.umap_transform.transform(target.timeseries)
 
-		n_plot = 2 if (traces == "all") else 1
+		n_plot = 3 if (traces == "all") else 1
 		if fig is None or axes is None:
 			fig, axes = plt.subplots(n_plot, 1, figsize=(15, 8))
 		else:
 			assert len(axes) == n_plot, f"axes must have length {n_plot}"
 
 		if traces == "all" or traces == "UMAP_space":
-			axes[0].set_title("Trajectory of the UMAP space")
+			axes[0].set_title("Trajectory in the UMAP space")
 			axes[0].set_xlabel(f"UMAP {UMAPs[0]}")
 			axes[0].set_ylabel(f"UMAP {UMAPs[1]}")
 			axes[0].plot(
@@ -898,23 +898,71 @@ class VisualiseUMAP(Visualise):
 			axes[0].set_ylabel(f"UMAP {UMAPs[1]}")
 			axes[0].set_title("Trajectory of the UMAP space")
 
-		if traces == "all" or traces == "UMAP_wrt_time":
-			axes[n_plot - 1].set_title("Trajectory of the UMAP space wrt time")
-			axes[n_plot - 1].set_xlabel("Time")
-			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[0]}")
-			axes[n_plot - 1].plot(
+		if traces == "UMAP_wrt_time":
+			axes[0].set_title("Trajectory in the UMAP space with respect to time")
+			axes[0].set_xlabel("Time")
+			axes[0].set_ylabel(f"UMAP {UMAPs[0]}")
+			axes[0].plot(
 				self.reduced_timeseries[::reduction, UMAPs[0] - 1].flatten(),
-				label=f"Predicted timeseries UMAP {UMAPs[0]}"
+				label=f"Predicted timeseries"
+
 			)
-			print(target_reduced[::reduction, UMAPs[0] - 1].flatten().shape)
+			if target is not None:
+				axes[0].plot(
+					target_reduced[::reduction, UMAPs[0] - 1].flatten(),
+					label=f"Real timeseries"
+				)
+			axes[0].legend()
+			axes[0].set_xlabel("Time [-]")
+			axes[0].set_ylabel(f"UMAP {UMAPs[0]}")
+			if target is not None:
+				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[0] - 1], target_reduced[::reduction, UMAPs[0] - 1])
+				axes[0].set_title(f"Trajectory of the UMAP space with respect to time (pVar={to_numpy(pVar).item():.4f})")
+			else:
+				axes[0].set_title("Trajectory of the UMAP space with respect to time")
+
+		if traces == "all":
+			axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
+			axes[n_plot - 2].set_xlabel("Time")
+			axes[n_plot - 2].set_ylabel(f"UMAP {UMAPs[0]}")
+			axes[n_plot - 2].plot(
+				self.reduced_timeseries[::reduction, UMAPs[0] - 1].flatten(),
+				label=f"Predicted timeseries"
+			)
+			if target is not None:
+				axes[n_plot - 2].plot(
+					target_reduced[::reduction, UMAPs[0] - 1].flatten(),
+					label=f"Real timeseries"
+				)
+			axes[n_plot - 2].legend()
+			axes[n_plot - 2].set_xlabel("Time [-]")
+			axes[n_plot - 2].set_ylabel(f"UMAP {UMAPs[0]}")
+			if target is not None:
+				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[0] - 1], target_reduced[::reduction, UMAPs[0] - 1])
+				axes[n_plot - 2].set_title(f"Trajectory of the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+			else:
+				axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
+
+
+			axes[n_plot - 1].set_title("Trajectory in the UMAP space with respect to time")
+			axes[n_plot - 1].set_xlabel("Time")
+			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[1]}")
 			axes[n_plot - 1].plot(
-				target_reduced[::reduction, UMAPs[0] - 1].flatten(),
-				label=f"Real timeseries UMAP {UMAPs[0]}"
+				self.reduced_timeseries[::reduction, UMAPs[1] - 1].flatten(),
+				label=f"Predicted timeseries"
+			)
+			axes[n_plot - 1].plot(
+				target_reduced[::reduction, UMAPs[1] - 1].flatten(),
+				label=f"Real timeseries"
 			)
 			axes[n_plot - 1].legend()
 			axes[n_plot - 1].set_xlabel("Time [-]")
-			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[0]}")
-			axes[n_plot - 1].set_title("Trajectory of the UMAP space wrt time")
+			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[1]}")
+			if target is not None:
+				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[1] - 1], target_reduced[::reduction, UMAPs[1] - 1])
+				axes[n_plot - 1].set_title(f"Trajectory of the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+			else:
+				axes[n_plot - 1].set_title("Trajectory of the UMAP space with respect to time")
 
 		fig.tight_layout()
 		if filename is not None:

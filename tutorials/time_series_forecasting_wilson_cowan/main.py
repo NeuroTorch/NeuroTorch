@@ -228,7 +228,7 @@ if __name__ == '__main__':
 		axes[1, 1].plot(res["sign"].ravel()[sort_idx])
 		axes[1, 1].set_title("Final signs")
 		plt.show()
-	
+
 	viz = VisualiseKMeans(
 		res["x_pred"].T,
 		shape=nt.Size(
@@ -246,6 +246,25 @@ if __name__ == '__main__':
 		dpi=600,
 	)
 
+	fig, axes = plt.subplots(ncols=2, nrows=3, figsize=(12, 8))
+
+	viz_pca_target = Visualise(
+		timeseries=res["original_time_series"].T,
+		shape=nt.Size([
+			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
+		]),
+	)
+
+	viz_pca = VisualisePCA(
+		timeseries=res["x_pred"].T,
+		shape=nt.Size([
+			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
+			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
+		])
+	).trajectory_pca(target=viz_pca_target, fig=fig, axes=axes[:, 1], show=False)
+
+
 	viz_umap_target = Visualise(
 		timeseries=res["original_time_series"].T,
 		shape=nt.Size([
@@ -260,7 +279,7 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
 		])
-	).trajectory_umap(UMAPs=(1, 2), target=viz_umap_target)
+	).trajectory_umap(UMAPs=(1, 2), target=viz_umap_target, fig=fig, axes=axes[:, 0], show=True)
 
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	VisualiseKMeans(

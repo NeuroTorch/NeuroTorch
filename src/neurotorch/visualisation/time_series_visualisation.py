@@ -459,7 +459,7 @@ class Visualise:
 		
 		n_plot = len(traces_to_show) + int(plot_error_quad)
 		if fig is None or axes is None:
-			fig, axes = plt.subplots(n_plot, 1, figsize=(15, 8))
+			fig, axes = plt.subplots(n_plot, 1, figsize=kwargs.get("figsize", (16, 8)))
 		else:
 			assert len(axes) == n_plot, f"axes must have length {len(traces_to_show) + 1}"
 		if plot_error_quad:
@@ -509,7 +509,7 @@ class Visualise:
 			**kwargs
 	) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
 		if fig is None or axes is None:
-			fig, axes = plt.subplots(ncols=2, nrows=4, figsize=(12, 8))
+			fig, axes = plt.subplots(ncols=2, nrows=4, figsize=kwargs.get("figsize", (16, 8)))
 		else:
 			axes = np.asarray(axes)
 			assert axes.shape == (4, 2), f"axes must have shape (4, 2), got {axes.shape}"
@@ -744,7 +744,7 @@ class VisualisePCA(Visualise):
 
 		n_plot = 3 if (traces == "all") else 1
 		if fig is None or axes is None:
-			fig, axes = plt.subplots(n_plot, 1, figsize=(15, 8))
+			fig, axes = plt.subplots(n_plot, 1, figsize=kwargs.get("figsize", (16, 8)))
 		else:
 			assert len(axes) == n_plot, f"axes must be a list of length {n_plot}"
 
@@ -978,7 +978,7 @@ class VisualiseUMAP(Visualise):
 
 		n_plot = 3 if (traces == "all") else 1
 		if fig is None or axes is None:
-			fig, axes = plt.subplots(n_plot, 1, figsize=(15, 8))
+			fig, axes = plt.subplots(n_plot, 1, figsize=kwargs.get("figsize", (16, 8)))
 		else:
 			assert len(axes) == n_plot, f"axes must have length {n_plot}"
 

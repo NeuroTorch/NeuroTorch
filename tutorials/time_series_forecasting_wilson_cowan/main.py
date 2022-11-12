@@ -77,7 +77,7 @@ def train_with_params(
 
 	# Regularization on the connectome can be applied on one connectome or on all connectomes (or none).
 	if force_dale_law:
-		optimizer_reg = torch.optim.Adam(ws_layer.get_sign_parameters(), lr=5e-2*learning_rate)
+		optimizer_reg = torch.optim.Adam(ws_layer.get_sign_parameters(), lr=1e-2*learning_rate)
 		regularisation = ExecRatioTargetRegularization(
 			ws_layer.get_sign_parameters(), optimizer=optimizer_reg, exec_target_ratio=0.8
 		)
@@ -189,8 +189,8 @@ if __name__ == '__main__':
 	res = train_with_params(
 		filename=None,
 		sigma=15,
-		learning_rate=2e-4,
-		n_iterations=2_000,
+		learning_rate=0.1,
+		n_iterations=5_000,
 		forward_weights=forward_weights,
 		std_weights=1,
 		dt=0.02,
@@ -208,8 +208,8 @@ if __name__ == '__main__':
 		hh_init="inputs",
 		force_dale_law=True,
 		force_overwrite=False,
-		lr_schedule_start=0.9,
-		checkpoint_folder="data/tr_data/checkpoints_dale",
+		lr_schedule_start=0.85,
+		checkpoint_folder="data/tr_data/checkpoints_dale_sig15",
 	)
 
 	if res["force_dale_law"]:

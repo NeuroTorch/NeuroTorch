@@ -494,6 +494,66 @@ class Visualise:
 		if kwargs.get("close", False):
 			plt.close(fig)
 		return fig, axes
+	
+	def plot_timeseries_comparison_report(
+			self,
+			target: Any,
+			spikes: Optional[Any] = None,
+			n_spikes_steps: Optional[int] = None,
+			title: str = "",
+			desc: str = "Prediction",
+			filename: Optional[str] = None,
+			show: bool = False,
+			fig: Optional[plt.Figure] = None,
+			axes: Optional[Sequence[plt.Axes]] = None,
+			**kwargs
+	) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
+		if fig is None or axes is None:
+			fig, axes = plt.subplots(ncols=2, nrows=4, figsize=(12, 8))
+		else:
+			axes = np.asarray(axes)
+			assert axes.shape == (4, 2), f"axes must have shape (4, 2), got {axes.shape}"
+		gs = axes[0, 0].get_gridspec()
+		for ax in axes[0, :]:
+			ax.remove()
+		axbig = fig.add_subplot(gs[0, :])
+		self.plot_timeseries_comparison(
+			target, spikes,
+			n_spikes_steps=n_spikes_steps,
+			title=title, desc=desc,
+			fig=fig, axes=[axbig],
+			traces_to_show=["error_quad", ],
+			traces_to_show_names=["Squared error [-]", ],
+			show=False,
+		)
+		self.plot_timeseries_comparison(
+			target, spikes,
+			n_spikes_steps=n_spikes_steps,
+			title=title, desc=desc,
+			fig=fig, axes=axes[1:, 0],
+			traces_to_show=["best", "most_var", "worst"],
+			traces_to_show_names=[
+				"Best Neuron Prediction", "Most variable Neuron Prediction", "Worst Neuron Prediction"
+			],
+			show=False,
+		)
+		self.plot_timeseries_comparison(
+			target, spikes,
+			n_spikes_steps=n_spikes_steps,
+			title=title, desc=desc,
+			fig=fig, axes=axes[1:, 1],
+			traces_to_show=[f"typical_{i}" for i in range(3)],
+			traces_to_show_names=[
+				"Typical Neuron Prediction (1)",
+				"Typical Neuron Prediction (2)",
+				"Typical Neuron Prediction (3)"
+			],
+			show=show,
+			filename=filename,
+			dpi=kwargs.get("dpi", 600),
+		)
+		plt.tight_layout()
+		return fig, axes
 
 
 class VisualiseKMeans(Visualise):

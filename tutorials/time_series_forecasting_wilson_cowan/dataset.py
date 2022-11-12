@@ -46,7 +46,9 @@ class WSDataset(Dataset):
 			GoogleDriveDownloader(self.FILE_ID_NAME[filename], path, skip_existing=True, verbose=False).download()
 		ts = np.load(path)
 		n_neurons, self.max_time_steps = ts.shape
-		sample = np.random.randint(n_neurons, size=sample_size)
+		self.seed = kwargs.get("seed", 0)
+		self.random_generator = np.random.RandomState(self.seed)
+		sample = self.random_generator.randint(n_neurons, size=sample_size)
 		data = ts[sample, :]
 
 		for neuron in range(data.shape[0]):

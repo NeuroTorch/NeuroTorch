@@ -54,6 +54,7 @@ class DaleLawL2(BaseRegularization):
 			alpha: float = 0.8,
 			reference_weights: Optional[Iterable[torch.Tensor]] = None,
 			Lambda: float = 1.0,
+			optimizer: Optional[torch.optim.Optimizer] = None,
 			**dale_kwargs
 	):
 		"""
@@ -77,7 +78,7 @@ class DaleLawL2(BaseRegularization):
 			the neurons will be shuffled.
 		:keyword Optional[int] seed: seed for the random number generator. If None, the seed is not set.
 		"""
-		super(DaleLawL2, self).__init__(params, Lambda)
+		super(DaleLawL2, self).__init__(params, Lambda, optimizer=optimizer)
 		self.__name__ = self.__class__.__name__
 		self.alpha = alpha
 		if self.alpha > 1 or self.alpha < 0:

@@ -461,7 +461,7 @@ class Visualise:
 		if fig is None or axes is None:
 			fig, axes = plt.subplots(n_plot, 1, figsize=kwargs.get("figsize", (16, 8)))
 		else:
-			assert len(axes) == n_plot, f"axes must have length {len(traces_to_show) + 1}"
+			assert len(axes) == n_plot, f"axes must have length {n_plot}"
 		if plot_error_quad:
 			axes[0].plot(to_numpy(errors))
 			axes[0].set_xlabel(self.shape[0].name)

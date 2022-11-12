@@ -241,13 +241,12 @@ if __name__ == '__main__':
 	viz.plot_timeseries_comparison_report(
 		res["original_time_series"].T,
 		title=f"Prediction",
-		filename=f"{res['network'].checkpoint_folder}/figures/WilsonCowanPredictionReport.png",
+		filename=f"{res['network'].checkpoint_folder}/figures/WilsonCowan_prediction_report.png",
 		show=True,
 		dpi=600,
 	)
 
-	fig, axes = plt.subplots(ncols=2, nrows=3, figsize=(12, 8))
-
+	fig, axes = plt.subplots(ncols=2, nrows=3, figsize=(16, 8))
 	viz_pca_target = Visualise(
 		timeseries=res["original_time_series"].T,
 		shape=nt.Size([
@@ -255,7 +254,6 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
 		]),
 	)
-
 	viz_pca = VisualisePCA(
 		timeseries=res["x_pred"].T,
 		shape=nt.Size([
@@ -263,8 +261,6 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
 		])
 	).trajectory_pca(target=viz_pca_target, fig=fig, axes=axes[:, 1], show=False)
-
-
 	viz_umap_target = Visualise(
 		timeseries=res["original_time_series"].T,
 		shape=nt.Size([
@@ -272,16 +268,20 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
 		])
 	)
-
 	viz_umap = VisualiseUMAP(
 		timeseries=res["x_pred"].T,
 		shape=nt.Size([
 			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
 		])
-	).trajectory_umap(UMAPs=(1, 2), target=viz_umap_target, fig=fig, axes=axes[:, 0], show=True)
+	).trajectory_umap(
+		UMAPs=(1, 2), target=viz_umap_target,
+		fig=fig, axes=axes[:, 0],
+		filename=f"{res['network'].checkpoint_folder}/figures/WilsonCowan_UMAP_PCA_report.png",
+		show=True
+	)
 
-	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
+	fig, axes = plt.subplots(1, 2, figsize=(16, 8))
 	VisualiseKMeans(
 		res["original_time_series"],
 		nt.Size([

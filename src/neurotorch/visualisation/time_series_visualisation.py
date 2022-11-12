@@ -439,6 +439,7 @@ class Visualise:
 				where <int> is the index of the typical trace,
 				starting from 0. The typical ones refers to the ones that are closest to the mean pVar.
 				Default: ["error_quad", "best", "most_var", "worst"].
+		:keyword bool numbered: Whether to number the traces. Default: False.
 
 		:return: Figure and axes.
 		"""
@@ -523,6 +524,8 @@ class Visualise:
 			)
 		
 		fig.set_tight_layout(True)
+		if kwargs.get("numbered", False):
+			self.number_axes(axes)
 		if filename is not None:
 			os.makedirs(os.path.dirname(filename), exist_ok=True)
 			fig.savefig(filename, dpi=kwargs.get("dpi", 300))

@@ -4,3 +4,7 @@ from .time_series_visualisation import (
 	VisualisePCA,
 	VisualiseUMAP,
 )
+
+from .utils import (
+	UMAP_PCA_report,
+)

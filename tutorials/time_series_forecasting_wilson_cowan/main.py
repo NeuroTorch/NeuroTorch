@@ -229,7 +229,7 @@ if __name__ == '__main__':
 		axes[1, 1].set_title("Final signs")
 		plt.show()
 
-	viz = VisualiseKMeans(
+	pred_viz = Visualise(
 		res["x_pred"].T,
 		shape=nt.Size(
 			[
@@ -238,48 +238,28 @@ if __name__ == '__main__':
 			]
 		)
 	)
-	viz.plot_timeseries_comparison_report(
+	pred_viz.plot_timeseries_comparison_report(
 		res["original_time_series"].T,
 		title=f"Prediction",
 		filename=f"{res['network'].checkpoint_folder}/figures/WilsonCowan_prediction_report.png",
 		show=True,
 		dpi=600,
 	)
-
-	fig, axes = plt.subplots(ncols=2, nrows=3, figsize=(16, 8))
-	nt.Visualise.number_axes(axes)
-	viz_pca_target = Visualise(
+	
+	viz_target = Visualise(
 		timeseries=res["original_time_series"].T,
-		shape=nt.Size([
-			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
-			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
-		]),
+		shape=nt.Size(
+			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
+				nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
+			]
+		),
 	)
-	viz_pca = VisualisePCA(
-		timeseries=res["x_pred"].T,
-		shape=nt.Size([
-			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
-			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
-		])
-	).trajectory_pca(target=viz_pca_target, fig=fig, axes=axes[:, 1], show=False)
-	viz_umap_target = Visualise(
-		timeseries=res["original_time_series"].T,
-		shape=nt.Size([
-			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
-			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
-		])
-	)
-	viz_umap = VisualiseUMAP(
-		timeseries=res["x_pred"].T,
-		shape=nt.Size([
-			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
-			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
-		])
-	).trajectory_umap(
-		UMAPs=(1, 2), target=viz_umap_target,
-		fig=fig, axes=axes[:, 0],
+	
+	nt.visualisation.UMAP_PCA_report(
+		pred_viz, viz_target,
+		show=True, dpi=600,
 		filename=f"{res['network'].checkpoint_folder}/figures/WilsonCowan_UMAP_PCA_report.png",
-		show=True
 	)
 
 	fig, axes = plt.subplots(1, 2, figsize=(16, 8))

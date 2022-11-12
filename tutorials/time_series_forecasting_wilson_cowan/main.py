@@ -166,13 +166,13 @@ def train_with_params(
 
 
 if __name__ == '__main__':
-	forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.2, rho=0.2)
+	forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.2)
 
 	res = train_with_params(
 		filename=None,
 		sigma=15,
-		learning_rate=0.05,
-		n_iterations=10_000,
+		learning_rate=1e-2,
+		n_iterations=500,
 		forward_weights=forward_weights,
 		std_weights=1,
 		dt=0.02,
@@ -188,7 +188,7 @@ if __name__ == '__main__':
 		learn_tau=True,
 		device=torch.device("cpu"),
 		hh_init="inputs",
-		force_dale_law=True,
+		force_dale_law=False,
 	)
 
 	if res["force_dale_law"]:
@@ -223,7 +223,7 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
 		])
-	).trajectory_umap(UMAPs=(1, ), target=viz_umap_target)
+	).trajectory_umap(UMAPs=(1, 2), target=viz_umap_target)
 
 
 

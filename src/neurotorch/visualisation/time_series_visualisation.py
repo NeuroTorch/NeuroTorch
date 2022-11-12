@@ -550,9 +550,8 @@ class Visualise:
 			],
 			show=show,
 			filename=filename,
-			dpi=kwargs.get("dpi", 600),
+			dpi=kwargs.get("dpi", 300),
 		)
-		plt.tight_layout()
 		return fig, axes
 
 

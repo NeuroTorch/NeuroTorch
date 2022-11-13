@@ -79,15 +79,16 @@ class Visualise:
 		to identify the dtype of the time series. If the shape is Size, make sure to set the name of the dimensions as
 		you want them to be displayed.
 		
-		:Note: If the times series is 3 dimensional, the first dimension is assumed to be the batch size.
+		:Note: If the times series is 3+ dimensional, the first dimension is assumed to be the batch size.
 			The time series will be mean over the batch size.
 		"""
 		self.timeseries = to_numpy(timeseries)
 		self._given_timeseries = deepcopy(self.timeseries)
-		if len(self.timeseries.shape) == 3:
-			self.timeseries = np.mean(self.timeseries, axis=0)
-			self._mean_given_timeseries = np.mean(self._given_timeseries, axis=0)
-			self._std_given_timeseries = np.std(self._given_timeseries, axis=0)
+		self.given_shape_mean = (-1, *self.timeseries.shape[-2:])
+		if len(self.timeseries.shape) >= 3:
+			self.timeseries = np.mean(self.timeseries.reshape(self.given_shape_mean), axis=0)
+			self._mean_given_timeseries = np.mean(self._given_timeseries.reshape(self.given_shape_mean), axis=0)
+			self._std_given_timeseries = np.std(self._given_timeseries.reshape(self.given_shape_mean), axis=0)
 			self.is_mean = True
 		else:
 			self._mean_given_timeseries = self._given_timeseries

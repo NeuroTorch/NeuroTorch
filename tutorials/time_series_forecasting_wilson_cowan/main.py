@@ -185,13 +185,14 @@ def train_with_params(
 
 
 if __name__ == '__main__':
-	forward_weights = nt.init.dale_(torch.zeros(200, 200), inh_ratio=0.5, rho=0.2)
+	n_units = 512
+	forward_weights = nt.init.dale_(torch.zeros(n_units, n_units), inh_ratio=0.5, rho=0.2)
 
 	res = train_with_params(
-		filename=None,
+		filename="ts_nobaselines_fish3_800t.npy",
 		sigma=15,
 		learning_rate=0.1,
-		n_iterations=5_000,
+		n_iterations=10_000,
 		forward_weights=forward_weights,
 		std_weights=1,
 		dt=0.02,
@@ -210,7 +211,8 @@ if __name__ == '__main__':
 		force_dale_law=True,
 		force_overwrite=False,
 		lr_schedule_start=0.85,
-		checkpoint_folder="data/tr_data/checkpoints_dale_sig15",
+		n_units=n_units,
+		checkpoint_folder="data/tr_data/checkpoints_dale_fish3-800t_sig15",
 	)
 
 	if res["force_dale_law"]:

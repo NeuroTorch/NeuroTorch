@@ -84,6 +84,13 @@ from .learning_algorithms import (
 	RLS,
 )
 
+from .visualisation import (
+	Visualise,
+	VisualiseKMeans,
+	VisualisePCA,
+	VisualiseUMAP,
+)
+
 from .utils import (
 	set_seed,
 )

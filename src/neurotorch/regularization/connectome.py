@@ -3,6 +3,7 @@ import torch.nn as nn
 from typing import Optional, Union, Iterable, Dict
 import pythonbasictools as pybt
 from . import BaseRegularization
+from ..transforms.base import to_numpy
 from ..init import dale_
 
 
@@ -53,6 +54,7 @@ class DaleLawL2(BaseRegularization):
 			alpha: float = 0.8,
 			reference_weights: Optional[Iterable[torch.Tensor]] = None,
 			Lambda: float = 1.0,
+			optimizer: Optional[torch.optim.Optimizer] = None,
 			**dale_kwargs
 	):
 		"""
@@ -76,7 +78,7 @@ class DaleLawL2(BaseRegularization):
 			the neurons will be shuffled.
 		:keyword Optional[int] seed: seed for the random number generator. If None, the seed is not set.
 		"""
-		super(DaleLawL2, self).__init__(params, Lambda)
+		super(DaleLawL2, self).__init__(params, Lambda, optimizer=optimizer)
 		self.__name__ = self.__class__.__name__
 		self.alpha = alpha
 		if self.alpha > 1 or self.alpha < 0:
@@ -191,8 +193,9 @@ class ExecRatioTargetRegularization(BaseRegularization):
 			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
 			exec_target_ratio: float = 0.8,
 			Lambda: float = 1.0,
+			**kwargs
 	):
-		super(ExecRatioTargetRegularization, self).__init__(params, Lambda)
+		super(ExecRatioTargetRegularization, self).__init__(params, Lambda, **kwargs)
 		assert 0 < exec_target_ratio < 1, "exec_target_ratio must be between 0 and 1"
 		self.exec_target_ratio = exec_target_ratio
 		self.sign_func = torch.nn.Softsign()
@@ -208,6 +211,11 @@ class ExecRatioTargetRegularization(BaseRegularization):
 			loss = torch.sum(torch.stack(loss_list))
 		return loss
 	
+	def on_pbar_update(self, trainer, **kwargs) -> dict:
+		loss = to_numpy(self().item())
+		exec_ratio = to_numpy(((torch.mean(self.sign_func(self.params[0])) + 1)/2).item())
+		return {"exec_ratio": exec_ratio, "exec_ratio_loss": loss}
+	
 
 class InhRatioTargetRegularization(ExecRatioTargetRegularization):
 	def __init__(
@@ -222,3 +230,8 @@ class InhRatioTargetRegularization(ExecRatioTargetRegularization):
 			Lambda=Lambda,
 			exec_target_ratio=1 - inh_target_ratio,
 		)
+	
+	def on_pbar_update(self, trainer, **kwargs) -> dict:
+		loss = to_numpy(self().item())
+		inh_ratio = to_numpy(((1 - torch.mean(self.sign_func(self.params[0])))/2).item())
+		return {"inh_ratio": inh_ratio, "inh_ratio_loss": loss}

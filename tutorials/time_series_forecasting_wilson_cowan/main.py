@@ -189,10 +189,10 @@ if __name__ == '__main__':
 	forward_weights = nt.init.dale_(torch.zeros(n_units, n_units), inh_ratio=0.5, rho=0.2)
 
 	res = train_with_params(
-		filename="ts_nobaselines_fish3_800t.npy",
+		filename=None,
 		sigma=15,
 		learning_rate=0.1,
-		n_iterations=10_000,
+		n_iterations=10,
 		forward_weights=forward_weights,
 		std_weights=1,
 		dt=0.02,

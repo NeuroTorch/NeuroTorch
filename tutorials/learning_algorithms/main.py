@@ -286,7 +286,7 @@ if __name__ == '__main__':
 			"filename": None,
 			"smoothing_sigma": 15.0,
 			"n_units": 200,
-			"n_time_steps": 10,
+			"n_time_steps": 16,
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
 			"force_dale_law": False,

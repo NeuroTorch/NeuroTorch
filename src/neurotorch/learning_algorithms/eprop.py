@@ -1,13 +1,15 @@
 import warnings
+from collections import defaultdict
 from typing import Optional, Sequence, Union, Dict, Callable
 
 import torch
 
 from .learning_algorithm import LearningAlgorithm
-from ..utils import batchwise_temporal_filter
+from ..learning_algorithms.tbptt import TBPTT
+from ..utils import batchwise_temporal_filter, list_insert_replace_at, zero_grad_params
 
 
-class Eprop(LearningAlgorithm):
+class Eprop(TBPTT):
 	r"""
 	Apply the eligibility trace forward propagation (e-prop) :cite:t:`bellec_solution_2020`
 	algorithm to the given model.
@@ -19,8 +21,7 @@ class Eprop(LearningAlgorithm):
 			self,
 			*,
 			params: Optional[Sequence[torch.nn.Parameter]] = None,
-			optimizer: Optional[torch.optim.Optimizer] = None,
-			criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
+			layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
 			**kwargs
 	):
 		"""
@@ -40,16 +41,25 @@ class Eprop(LearningAlgorithm):
 		warnings.warn("Eprop is still in beta and may not work as expected or act exactly as BPTT.")
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
-		super().__init__(**kwargs)
-		self.params = params
-		self.optimizer = optimizer
-		self.criterion = criterion
+		assert "backward_time_steps" not in kwargs, f"{self.__class__} does not support backward_time_steps."
+		assert "optim_time_steps" not in kwargs, f"{self.__class__} does not support optim_time_steps."
+		assert params is None, f"{self.__class__} does not support params yet."
+		assert layers is not None, f"{self.__class__} requires layers."
+		super().__init__(
+			params=params,
+			layers=layers,
+			backward_time_steps=1,
+			optim_time_steps=1,
+			**kwargs
+		)
 		self.random_feedbacks = kwargs.get("random_feedbacks", True)
 		if not self.random_feedbacks:
 			raise NotImplementedError("Non-random feedbacks are not implemented yet.")
 		self.rn_feedback_weights = None
 		self.rn_gen = torch.Generator()
 		self.rn_gen.manual_seed(kwargs.get("seed", 0))
+		self.eligibility_traces = None
+		self.layers_to_params = defaultdict(list)
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
@@ -70,24 +80,86 @@ class Eprop(LearningAlgorithm):
 			return state
 		return None
 	
-	def start(self, trainer, **kwargs):
-		super().start(trainer)
-		if self.params is not None and self.optimizer is None:
-			self.optimizer = torch.optim.SGD(self.params, lr=1e-3)
-		elif self.params is None and self.optimizer is not None:
-			self.params = [
-				param
-				for i in range(len(self.optimizer.param_groups))
-				for param in self.optimizer.param_groups[i]["params"]
+	def initialize_eligibility_traces(self):
+		self.eligibility_traces = {
+			layer.name: [
+				torch.zeros_like(p)
+				for p in self.layers_to_params[layer.name]
 			]
+			for layer in self.layers
+		}
+	
+	def start(self, trainer, **kwargs):
+		LearningAlgorithm.start(self, trainer, **kwargs)
+		if self.params and self.optimizer is None:
+			self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0e-3))
+		elif not self.params and self.optimizer is not None:
+			self.params.extend(
+				[
+					param
+					for i in range(len(self.optimizer.param_groups))
+					for param in self.optimizer.param_groups[i]["params"]
+				]
+			)
 		else:
-			self.params = trainer.model.parameters()
-			self.optimizer = torch.optim.SGD(self.params, lr=1e-3)
+			self.params = list(trainer.model.parameters())
+			self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0e-3))
 		
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
+		
+		# filter params to get only the ones that require gradients
+		self.params = [param for param in self.params if param.requires_grad]
+		assert all(param.ndim == 2 for param in self.params), "Eprop only supports 2D parameters for now."
+		self.layers_to_params = {
+			layer.name: [
+				param for param in layer.parameters() if param.requires_grad
+			]
+			for layer in self.layers
+		}
+		
+		self.output_layers: torch.nn.ModuleDict = torch.nn.ModuleDict({layer.name: layer for layer in self.layers})
+		self._initialize_original_forwards()
+		self.initialize_eligibility_traces()
+		
+	def decorate_forwards(self):
+		if self.trainer.model.training:
+			if not self._forwards_decorated:
+				self._initialize_original_forwards()
+			for layer in self.output_layers.values():
+				layer.forward = self._decorate_forward(layer.forward, layer.name)
+			self._forwards_decorated = True
+	
+	def _decorate_forward(self, forward, layer_name: str):
+		def _forward(*args, **kwargs):
+			out = forward(*args, **kwargs)
+			t = kwargs.get("t", None)
+			if t is None:
+				return out
+			out_tensor = self._get_out_tensor(out)
+			if t == 0:  # Hotfix for the first time step  TODO: fix this
+				ready = bool(self._layers_buffer[layer_name])
+			else:
+				ready = True
+			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
+			if len(self._layers_buffer[layer_name]) == self.backward_time_steps and ready:
+				self._backward_at_t(t, self.backward_time_steps, layer_name)
+			return out
+		return _forward
+	
+	def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
+		pred_batch = torch.squeeze(self._get_pred_batch_from_buffer(layer_name))
+		grad_outputs = torch.eye(pred_batch.shape[-1], device=pred_batch.device)
+		params = self.layers_to_params[layer_name]
+		for i in range(grad_outputs.shape[0]):
+			zero_grad_params(params)
+			pred_batch.backward(grad_outputs[i], retain_graph=True)
+			for p_idx, param in enumerate(params):
+				self.eligibility_traces[layer_name][p_idx][i] += param.grad.detach().clone()[i]
+		self._layers_buffer[layer_name].clear()
 	
 	def get_learning_signals(self, trainer, **kwargs):
+		# TODO: faire pour seulement un pas de temps
 		y_batch = trainer.current_training_state.y_batch
 		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		

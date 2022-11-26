@@ -29,7 +29,7 @@ class Visualise:
 	then visualise those clustered time series in scatter/trajectory in their clustered space.
 	TODO : Add axis and optional figure to Visualise. The user can therefore create its custom figures.
 	"""
-	
+
 	@staticmethod
 	def number_axes(axes: Sequence[plt.Axes], **kwargs) -> Sequence[plt.Axes]:
 		"""
@@ -72,7 +72,7 @@ class Visualise:
 			timeseries: Any,
 			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = False
-		):
+	):
 		"""
 		:param timeseries: Time series of shape (Batch size, Time Steps, Features).
 		:param shape: Shape of the time series. If shape is None, the shape is inferred from the time series. Useful
@@ -94,20 +94,20 @@ class Visualise:
 			self._mean_given_timeseries = self._given_timeseries
 			self._std_given_timeseries = np.zeros_like(self._given_timeseries)
 			self.is_mean = False
-		
+
 		self._is_transposed = False
 		self.shape = self._set_dimension(shape)
 		self._transpose_given_time_series_if_needed()
 		if apply_zscore:
 			self._zscore_timeseries()
-	
+
 	def _transpose_given_time_series_if_needed(self):
 		if self._is_transposed:
 			if self.is_mean:
 				self._given_timeseries = self._given_timeseries.transpose(0, 2, 1)
 			else:
 				self._given_timeseries = self._given_timeseries.transpose(1, 0)
-	
+
 	def _zscore_timeseries(self):
 		"""
 		Z-score the time series.
@@ -130,7 +130,7 @@ class Visualise:
 
 		shape = Size(shape)
 		assert len(shape) == 2, "The shape of the time series must be 2 dimensional. If the time series includes a " \
-			"batch dimension, the batch must not be included in the shape. "
+								"batch dimension, the batch must not be included in the shape. "
 		if all(dim.dtype == DimensionProperty.NONE for dim in shape):
 			shape[0].dtype = DimensionProperty.TIME
 			for dim in shape:
@@ -141,7 +141,7 @@ class Visualise:
 		for i, dim in enumerate(shape):
 			if dim.size is None:
 				dim.size = self.timeseries.shape[i]
-		
+
 		if shape[0].dtype == DimensionProperty.NONE:
 			self.timeseries = self.timeseries.T
 			self._is_transposed = True
@@ -297,7 +297,8 @@ class Visualise:
 		if not show_axis:
 			ax.axis("off")
 		ax.set_title(kwargs.get("title", ""))
-		fig.colorbar(im)
+		cbar = fig.colorbar(im)
+		cbar.set_label('Activity [-]', rotation=270)
 		if filename is not None:
 			os.makedirs(os.path.dirname(filename), exist_ok=True)
 			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
@@ -348,7 +349,7 @@ class Visualise:
 		if show:
 			plt.show()
 		return fig, ax
-	
+
 	def plot_single_timeseries_comparison(
 			self,
 			feature_index: int,
@@ -357,7 +358,7 @@ class Visualise:
 			spikes: Optional[Any] = None,
 			n_spikes_steps: Optional[int] = None,
 			title: str = "",
-			desc: str = "Prediction",
+			desc: str = "Predicted time series",
 			**kwargs
 	) -> plt.Axes:
 		predictions, target = to_tensor(self._mean_given_timeseries[:, feature_index]), to_tensor(target)
@@ -368,11 +369,15 @@ class Visualise:
 				to_numpy(predictions) + to_numpy(self._std_given_timeseries[:, feature_index]),
 				alpha=0.2, color="blue"
 			)
-		
+
 		pVar = PVarianceLoss()(predictions, target)
-		ax.plot(to_numpy(predictions), label=f"{desc} (pVar: {to_numpy(pVar).item():.3f})", c="blue")
-		ax.plot(to_numpy(target), label="Target", c="orange")
-		
+		ax.plot(to_numpy(predictions), label=f"{desc} (pVar: {to_numpy(pVar).item():.3f})", c="tab:blue",
+				linewidth=kwargs.get("linewidth", 2.5))
+		ax.plot(to_numpy(target), label="Real time series", c="tab:orange", linewidth=kwargs.get("linewidth", 2.5))
+
+		if "box_aspect" in kwargs:
+			ax.set_box_aspect(kwargs.get("box_aspect"))
+
 		if spikes is not None:
 			spikes = to_tensor(spikes)
 			assert len(spikes.shape) == 2, "spikes must be a 2D tensor"
@@ -398,13 +403,17 @@ class Visualise:
 				x_scatter_spikes, y=[y_max * 1.1] * len(x_scatter_spikes),
 				label="Latent space", c='k', marker='|', linewidths=0.5, alpha=x_scatter_values,
 			)
-		
+
 		ax.set_xlabel(self.shape[0].name)
 		ax.set_ylabel(kwargs.get("ylabel", self.shape[1].name))
 		ax.set_title(title)
-		ax.legend(loc=kwargs.get("legend_loc", "upper right"))
+		if spikes is not None:
+			ax.legend(loc=kwargs.get("legend_loc", "upper right"),
+					  bbox_to_anchor=kwargs.get("legend_bbox_to_anchor", (1, 0.93)))
+		else:
+			ax.legend(loc=kwargs.get("legend_loc", "upper right"))
 		return ax
-	
+
 	def plot_timeseries_comparison(
 			self,
 			target: Any,
@@ -447,8 +456,8 @@ class Visualise:
 		assert (fig is None) == (axes is None), "fig and axes must be both None or both not None"
 		predictions, target = to_tensor(self._mean_given_timeseries), to_tensor(target)
 		target = torch.squeeze(target.detach().cpu())
-		
-		errors = torch.squeeze(predictions - target.to(predictions.device))**2
+
+		errors = torch.squeeze(predictions - target.to(predictions.device)) ** 2
 		if self.is_mean:
 			mean_pVar, std_pVar = PVarianceLoss().mean_std_over_batch(self._given_timeseries, target[np.newaxis, ...])
 			mean_pVar, std_pVar = to_numpy(mean_pVar).item(), to_numpy(std_pVar).item()
@@ -457,27 +466,27 @@ class Visualise:
 		else:
 			pVar = PVarianceLoss()(predictions, target.to(predictions.device))
 			title = f"{title} (pVar: {to_numpy(pVar).item():.3f})"
-		
+
 		pVar_per_feature = PVarianceLoss(reduction='feature')(predictions, target.to(predictions.device))
-		mean_pVar = pVar_per_feature.mean().item()
+		mean_pVar = PVarianceLoss(reduction='mean')(predictions, target.to(predictions.device))
 		mean_pVar_sort, indices = torch.sort(pVar_per_feature, descending=True)
 		var_diff, var_diff_indices = torch.sort(torch.var(torch.diff(target, dim=0), dim=0), descending=True)
 		typical_pVar_sort, typical_indices = torch.sort(torch.abs(pVar_per_feature - mean_pVar), descending=False)
 		target = torch.squeeze(target).numpy().T
-		
+
 		traces_to_show = kwargs.get("traces_to_show", ["error_quad", "best", "most_var", "worst"])
 		traces_to_show = [t.lower() for t in traces_to_show]
 		plot_error_quad = "error_quad" in traces_to_show
 		traces_to_indexes = {
 			"error_quad": None,
-			"best"    : indices[0],
-			"worst"   : indices[-1],
+			"best": indices[0],
+			"worst": indices[-1],
 			"most_var": var_diff_indices[0],
 		}
 		traces_to_names = {
 			"error_quad": "Squared Error [-]",
-			"best"    : "Best",
-			"worst"   : "Worst",
+			"best": "Best",
+			"worst": "Worst",
 			"most_var": "Most Var",
 		}
 		for i, trace in enumerate(traces_to_show):
@@ -488,14 +497,15 @@ class Visualise:
 				traces_to_names[trace] = f"Typical {typical_idx}"
 			if trace not in traces_to_indexes:
 				raise ValueError(f"Unknown trace to show: {trace}. Known traces: {list(traces_to_indexes.keys())}")
-		
+
 		given_names = kwargs.get("traces_to_show_names", [traces_to_names[t] for t in traces_to_show])
-		assert len(given_names) == len(traces_to_show), "traces_to_show_names must have the same length as traces_to_show"
+		assert len(given_names) == len(
+			traces_to_show), "traces_to_show_names must have the same length as traces_to_show"
 		for trace, trace_name in zip(traces_to_show, given_names):
 			traces_to_names[trace] = trace_name
 		if plot_error_quad:
 			traces_to_show.remove("error_quad")
-		
+
 		n_plot = len(traces_to_show) + int(plot_error_quad)
 		if fig is None or axes is None:
 			fig, axes = plt.subplots(n_plot, 1, figsize=kwargs.get("figsize", (16, 8)))
@@ -506,7 +516,7 @@ class Visualise:
 			axes[0].set_xlabel(self.shape[0].name)
 			axes[0].set_ylabel(traces_to_names["error_quad"])
 			axes[0].set_title(title)
-		
+
 		if spikes is not None:
 			spikes = to_numpy(spikes)
 			trace_to_spikes_indexes = {
@@ -523,7 +533,7 @@ class Visualise:
 				title=f"{traces_to_names[trace]}", desc=desc,
 				**kwargs
 			)
-		
+
 		fig.set_tight_layout(True)
 		if kwargs.get("numbered", False):
 			self.number_axes(axes)
@@ -535,7 +545,7 @@ class Visualise:
 		if kwargs.get("close", False):
 			plt.close(fig)
 		return fig, axes
-	
+
 	def plot_timeseries_comparison_report(
 			self,
 			target: Any,
@@ -591,7 +601,7 @@ class Visualise:
 			],
 			show=False,
 		)
-		self.number_axes([axbig]+list(np.ravel(axes[1:])), **kwargs)
+		self.number_axes([axbig] + list(np.ravel(axes[1:])), **kwargs)
 		if filename is not None:
 			os.makedirs(os.path.dirname(filename), exist_ok=True)
 			fig.savefig(filename, dpi=kwargs.get("dpi", 300))
@@ -614,7 +624,7 @@ class VisualiseKMeans(Visualise):
 			apply_zscore: bool = False,
 			n_clusters: int = 13,
 			random_state: int = 0
-		):
+	):
 		"""
 		Constructor of the class.
 		
@@ -668,7 +678,7 @@ class VisualisePCA(Visualise):
 			shape: Optional[DimensionsLike] = None,
 			apply_zscore: bool = False,
 			n_PC: int = 2
-		):
+	):
 		"""
 		:param timeseries: Time series of shape (n_time_steps, n_neurons).
 		:param shape: Shape of the time series. If shape is None, the shape is inferred from the time series. Useful
@@ -799,17 +809,29 @@ class VisualisePCA(Visualise):
 			axes[0].set_title("Trajectory in PCA space")
 			axes[0].set_xlabel(f"PC {PCs[0]}")
 			axes[0].set_ylabel(f"PC {PCs[1]}")
-			axes[0].plot(
-				self.reduced_timeseries[::reduction, PCs[0] - 1],
-				self.reduced_timeseries[::reduction, PCs[1] - 1],
-				label="Predicted time series"
-			)
 			if target is not None:
 				axes[0].plot(
 					target_reduced[::reduction, PCs[0] - 1],
 					target_reduced[::reduction, PCs[1] - 1],
-					label="Target time series"
+					label="Real time series",
+					c="tab:orange"
 				)
+			axes[0].plot(
+				self.reduced_timeseries[::reduction, PCs[0] - 1],
+				self.reduced_timeseries[::reduction, PCs[1] - 1],
+				label="Predicted time series",
+				c="tab:blue"
+			)
+			bbox = dict(boxstyle="round", fc="0.8")
+			axes[0].plot(self.reduced_timeseries[0, PCs[0] - 1], self.reduced_timeseries[0, PCs[1] - 1], marker="o", color="black")
+			axes[0].annotate(r"$t_0$", (self.reduced_timeseries[0, PCs[0] - 1], self.reduced_timeseries[0, PCs[1] - 1]+0.8), bbox=bbox)
+			axes[0].annotate(r"$t_f$",
+							 (self.reduced_timeseries[-1, PCs[0] - 1], self.reduced_timeseries[-1, PCs[1] - 1] - 1.5),
+							 bbox=bbox)
+
+			axes[0].plot(self.reduced_timeseries[-1, PCs[0] - 1],self.reduced_timeseries[-1, PCs[1] - 1], marker="o", color="black")
+			if "box_aspect" in kwargs:
+				axes[0].set_box_aspect(kwargs["box_aspect"])
 			axes[0].legend()
 			axes[0].set_xlabel(f"PC {PCs[0]}")
 			axes[0].set_ylabel(f"PC {PCs[1]}")
@@ -819,68 +841,83 @@ class VisualisePCA(Visualise):
 			axes[0].set_title("Trajectory in PCA space with respect to time")
 			axes[0].set_xlabel("Time")
 			axes[0].set_ylabel(f"PC {PCs[0]}")
-			axes[0].plot(
-				self.reduced_timeseries[::reduction, PCs[0] - 1].flatten(),
-				label="Predicted time series"
-			)
 			if target is not None:
 				axes[0].plot(
 					target_reduced[::reduction, PCs[0] - 1].flatten(),
-					label="Real time series"
+					label="Real time series",
+					c="tab:orange"
 				)
+			axes[0].plot(
+				self.reduced_timeseries[::reduction, PCs[0] - 1].flatten(),
+				label="Predicted time series",
+				c="tab:blue"
+			)
 			axes[0].legend()
 			axes[0].set_xlabel("Time [-]")
 			axes[0].set_ylabel(f"PC {PCs[0]}")
 			if target is not None:
-				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, PCs[0] - 1], target_reduced[::reduction, PCs[0] - 1])
+				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, PCs[0] - 1],
+									   target_reduced[::reduction, PCs[0] - 1])
 				axes[0].set_title(f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
 			else:
 				axes[0].set_title("Trajectory in PCA space with respect to time")
+			if "box_aspect" in kwargs:
+				axes[0].set_box_aspect(kwargs["box_aspect"])
 
 		if traces == "all":
 			axes[n_plot - 2].set_title("Trajectory in PCA space with respect to time")
 			axes[n_plot - 2].set_xlabel("Time")
 			axes[n_plot - 2].set_ylabel(f"PC {PCs[0]}")
-			axes[n_plot - 2].plot(
-				self.reduced_timeseries[::reduction, PCs[0] - 1].flatten(),
-				label="Predicted timeseries"
-			)
 			if target is not None:
 				axes[n_plot - 2].plot(
 					target_reduced[::reduction, PCs[0] - 1].flatten(),
-					label="Real timeseries"
+					label="Real timeseries",
+					c="tab:orange"
 				)
+			axes[n_plot - 2].plot(
+				self.reduced_timeseries[::reduction, PCs[0] - 1].flatten(),
+				label="Predicted timeseries",
+				c="tab:blue"
+			)
 			axes[n_plot - 2].legend()
 			axes[n_plot - 2].set_xlabel("Time [-]")
 			axes[n_plot - 2].set_ylabel(f"PC {PCs[0]}")
 			if target is not None:
 				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, PCs[0] - 1],
 									   target_reduced[::reduction, PCs[0] - 1])
-				axes[n_plot - 2].set_title(f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+				axes[n_plot - 2].set_title(
+					f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
 			else:
 				axes[n_plot - 2].set_title("Trajectory in PCA space with respect to time")
+			if "box_aspect" in kwargs:
+				axes[n_plot - 1].set_box_aspect(kwargs["box_aspect"])
 
 			axes[n_plot - 1].set_title("Trajectory in PCA space with respect to time")
 			axes[n_plot - 1].set_xlabel("Time")
 			axes[n_plot - 1].set_ylabel(f"PC {PCs[1]}")
-			axes[n_plot - 1].plot(
-				self.reduced_timeseries[::reduction, PCs[1] - 1].flatten(),
-				label="Predicted timeseries"
-			)
 			if target is not None:
 				axes[n_plot - 1].plot(
 					target_reduced[::reduction, PCs[1] - 1].flatten(),
-					label="Real timeseries"
+					label="Real timeseries",
+					c="tab:orange"
 				)
+			axes[n_plot - 1].plot(
+				self.reduced_timeseries[::reduction, PCs[1] - 1].flatten(),
+				label="Predicted timeseries",
+				c="tab:blue"
+			)
 			axes[n_plot - 1].legend()
 			axes[n_plot - 1].set_xlabel("Time [-]")
 			axes[n_plot - 1].set_ylabel(f"PC {PCs[1]}")
 			if target is not None:
 				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, PCs[1] - 1],
 									   target_reduced[::reduction, PCs[1] - 1])
-				axes[n_plot - 1].set_title(f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+				axes[n_plot - 1].set_title(
+					f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
 			else:
 				axes[n_plot - 1].set_title("Trajectory in PCA space with respect to time")
+			if "box_aspect" in kwargs:
+				axes[n_plot - 1].set_box_aspect(kwargs["box_aspect"])
 
 			fig.tight_layout()
 			if filename is not None:
@@ -891,9 +928,6 @@ class VisualisePCA(Visualise):
 			if kwargs.get("close", False):
 				plt.close(fig)
 			return fig, axes
-
-
-
 
 		plt.show()
 
@@ -911,7 +945,7 @@ class VisualiseUMAP(Visualise):
 			n_neighbors: int = 10,
 			min_dist: float = 0.5,
 			n_components: int = 2
-		):
+	):
 		super().__init__(
 			timeseries=timeseries,
 			shape=shape,
@@ -1033,17 +1067,29 @@ class VisualiseUMAP(Visualise):
 			axes[0].set_title("Trajectory in the UMAP space")
 			axes[0].set_xlabel(f"UMAP {UMAPs[0]}")
 			axes[0].set_ylabel(f"UMAP {UMAPs[1]}")
-			axes[0].plot(
-				self.reduced_timeseries[::reduction, UMAPs[0] - 1],
-				self.reduced_timeseries[::reduction, UMAPs[1] - 1],
-				label="Predicted timeseries"
-			)
 			if target is not None:
 				axes[0].plot(
 					target_reduced[::reduction, UMAPs[0] - 1],
 					target_reduced[::reduction, UMAPs[1] - 1],
-					label="Real timeseries"
+					label="Real timeseries",
+					c="tab:orange"
 				)
+			axes[0].plot(
+				self.reduced_timeseries[::reduction, UMAPs[0] - 1],
+				self.reduced_timeseries[::reduction, UMAPs[1] - 1],
+				label="Predicted timeseries",
+				c="tab:blue"
+			)
+			bbox = dict(boxstyle="round", fc="0.8")
+			axes[0].plot(self.reduced_timeseries[0, UMAPs[0] - 1], self.reduced_timeseries[0, UMAPs[1] - 1], marker="o", color="black")
+			axes[0].annotate(r"$t_0$", (self.reduced_timeseries[0, UMAPs[0] - 1], self.reduced_timeseries[0, UMAPs[1] - 1]+2), bbox=bbox)
+			axes[0].annotate(r"$t_f$",
+							 (self.reduced_timeseries[-1, UMAPs[0] - 1], self.reduced_timeseries[-1, UMAPs[1] - 1] - 3.7),
+							 bbox=bbox)
+
+			axes[0].plot(self.reduced_timeseries[-1, UMAPs[0] - 1],self.reduced_timeseries[-1, UMAPs[1] - 1], marker="o", color="black")
+			if "box_aspect" in kwargs:
+				axes[0].set_box_aspect(kwargs["box_aspect"])
 			axes[0].legend()
 			axes[0].set_xlabel(f"UMAP {UMAPs[0]}")
 			axes[0].set_ylabel(f"UMAP {UMAPs[1]}")
@@ -1053,68 +1099,84 @@ class VisualiseUMAP(Visualise):
 			axes[0].set_title("Trajectory in the UMAP space with respect to time")
 			axes[0].set_xlabel("Time")
 			axes[0].set_ylabel(f"UMAP {UMAPs[0]}")
-			axes[0].plot(
-				self.reduced_timeseries[::reduction, UMAPs[0] - 1].flatten(),
-				label=f"Predicted timeseries"
-
-			)
 			if target is not None:
 				axes[0].plot(
 					target_reduced[::reduction, UMAPs[0] - 1].flatten(),
-					label=f"Real timeseries"
+					label=f"Real timeseries",
+					c="tab:orange"
 				)
+			axes[0].plot(
+				self.reduced_timeseries[::reduction, UMAPs[0] - 1].flatten(),
+				label=f"Predicted timeseries",
+				c="tab:blue"
+			)
 			axes[0].legend()
 			axes[0].set_xlabel("Time [-]")
 			axes[0].set_ylabel(f"UMAP {UMAPs[0]}")
 			if target is not None:
-				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[0] - 1], target_reduced[::reduction, UMAPs[0] - 1])
-				axes[0].set_title(f"Trajectory in the UMAP space with respect to time (pVar={to_numpy(pVar).item():.4f})")
+				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[0] - 1],
+									   target_reduced[::reduction, UMAPs[0] - 1])
+				axes[0].set_title(
+					f"Trajectory in the UMAP space with respect to time (pVar={to_numpy(pVar).item():.4f})")
 			else:
 				axes[0].set_title("Trajectory in the UMAP space with respect to time")
+			if "box_aspect" in kwargs:
+				axes[0].set_box_aspect(kwargs["box_aspect"])
 
 		if traces == "all":
 			axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
 			axes[n_plot - 2].set_xlabel("Time")
 			axes[n_plot - 2].set_ylabel(f"UMAP {UMAPs[0]}")
-			axes[n_plot - 2].plot(
-				self.reduced_timeseries[::reduction, UMAPs[0] - 1].flatten(),
-				label=f"Predicted timeseries"
-			)
 			if target is not None:
 				axes[n_plot - 2].plot(
 					target_reduced[::reduction, UMAPs[0] - 1].flatten(),
-					label=f"Real timeseries"
+					label=f"Real timeseries",
+					c="tab:orange"
 				)
+			axes[n_plot - 2].plot(
+				self.reduced_timeseries[::reduction, UMAPs[0] - 1].flatten(),
+				label=f"Predicted timeseries",
+				c="tab:blue"
+			)
 			axes[n_plot - 2].legend()
 			axes[n_plot - 2].set_xlabel("Time [-]")
 			axes[n_plot - 2].set_ylabel(f"UMAP {UMAPs[0]}")
 			if target is not None:
-				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[0] - 1], target_reduced[::reduction, UMAPs[0] - 1])
-				axes[n_plot - 2].set_title(f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})")
+				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[0] - 1],
+									   target_reduced[::reduction, UMAPs[0] - 1])
+				axes[n_plot - 2].set_title(
+					f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})")
 			else:
 				axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
-
+			if "box_aspect" in kwargs:
+				axes[n_plot - 2].set_box_aspect(kwargs["box_aspect"])
 
 			axes[n_plot - 1].set_title("Trajectory in the UMAP space with respect to time")
 			axes[n_plot - 1].set_xlabel("Time")
 			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[1]}")
-			axes[n_plot - 1].plot(
-				self.reduced_timeseries[::reduction, UMAPs[1] - 1].flatten(),
-				label=f"Predicted timeseries"
-			)
 			if target is not None:
 				axes[n_plot - 1].plot(
 					target_reduced[::reduction, UMAPs[1] - 1].flatten(),
-					label=f"Real timeseries"
+					label=f"Real timeseries",
+					c="tab:orange"
 				)
+			axes[n_plot - 1].plot(
+				self.reduced_timeseries[::reduction, UMAPs[1] - 1].flatten(),
+				label=f"Predicted timeseries",
+				c="tab:blue"
+			)
 			axes[n_plot - 1].legend()
 			axes[n_plot - 1].set_xlabel("Time [-]")
 			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[1]}")
 			if target is not None:
-				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[1] - 1], target_reduced[::reduction, UMAPs[1] - 1])
-				axes[n_plot - 1].set_title(f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})")
+				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[1] - 1],
+									   target_reduced[::reduction, UMAPs[1] - 1])
+				axes[n_plot - 1].set_title(
+					f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})")
 			else:
 				axes[n_plot - 1].set_title("Trajectory in the UMAP space with respect to time")
+			if "box_aspect" in kwargs:
+				axes[n_plot - 1].set_box_aspect(kwargs["box_aspect"])
 
 		fig.tight_layout()
 		if filename is not None:
@@ -1139,7 +1201,7 @@ class VisualiseDBSCAN(Visualise):
 			apply_zscore: bool = True,
 			eps: float = 25,
 			min_samples: int = 3,
-			):
+	):
 		super().__init__(
 			timeseries=timeseries,
 			shape=shape,

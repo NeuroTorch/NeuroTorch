@@ -80,7 +80,8 @@ def make_learning_algorithm(**kwargs):
 	elif la_name == "eprop":
 		learning_algorithm = nt.Eprop(
 			layers=[kwargs["model"].get_layer()],
-			criterion=nt.losses.PVarianceLoss()
+			criterion=nt.losses.PVarianceLoss(),
+			lr=0.5,
 		)
 	elif la_name == "tbptt":
 		optimizer = torch.optim.AdamW(
@@ -286,7 +287,7 @@ if __name__ == '__main__':
 			"filename": None,
 			"smoothing_sigma": 15.0,
 			"n_units": 200,
-			"n_time_steps": 16,
+			"n_time_steps": 10,
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
@@ -300,9 +301,9 @@ if __name__ == '__main__':
 			"rls_strategy": "inputs",
 			# "add_aux_tbptt": True,
 		},
-		n_iterations=100,
+		n_iterations=1_000,
 		device=torch.device("cpu"),
-		force_overwrite=False,
+		force_overwrite=True,
 		batch_size=1,
 	)
 	pprint.pprint({k: v for k, v in res.items() if isinstance(v, (int, float, str, bool))})

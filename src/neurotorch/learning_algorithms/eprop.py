@@ -129,6 +129,8 @@ class Eprop(TBPTT):
 			]
 			for layer in self.layers
 		}
+		self.params = [p for params in self.layers_to_params.values() for p in params]
+		self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0e-3))
 		
 		self.output_layers: torch.nn.ModuleDict = torch.nn.ModuleDict({layer.name: layer for layer in self.layers})
 		self._initialize_original_forwards()
@@ -140,6 +142,17 @@ class Eprop(TBPTT):
 			if self.feedback_weights is None:
 				self.initialize_feedback_weights(self.trainer.current_training_state.y_batch)
 			self.initialize_running_grads()
+			self._last_et = {
+				layer.name: [
+					torch.zeros_like(p)
+					for p in self.layers_to_params[layer.name]
+				]
+				for layer in self.layers
+			}
+			# For Debugging
+			self.mean_eligibility_traces = defaultdict(list)
+			self.mean_learning_signals = defaultdict(list)
+			
 	
 	def decorate_forwards(self):
 		if self.trainer.model.training:
@@ -168,16 +181,21 @@ class Eprop(TBPTT):
 	
 	def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
 		y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
+		# TODO: must have a pred batch for the layer and one for the output_layer to compute the learning signals correctly
 		pred_batch = torch.squeeze(self._get_pred_batch_from_buffer(layer_name))
 		grad_outputs = torch.eye(pred_batch.shape[-1], device=pred_batch.device)
 		params = self.layers_to_params[layer_name]
 		instantaneous_eligibility_traces = [torch.zeros_like(p) for p in params]
+		# TODO: try to understand what is going on here: https://github.com/IGITUGraz/eligibility_propagation/blob/efd02e6879c01cda3fa9a7838e8e2fd08163c16e/Figure_3_and_S7_e_prop_tutorials/tutorial_pattern_generation.py#L98
 		for i in range(grad_outputs.shape[0]):
 			zero_grad_params(params)
 			pred_batch.backward(grad_outputs[i], retain_graph=True)
 			for p_idx, param in enumerate(params):
-				instantaneous_eligibility_traces[p_idx][i] += param.grad.detach().clone()[i]
-		
+				# TODO: pas sur du slicing
+				instantaneous_eligibility_traces[p_idx][i] += (
+					0.1 * self._last_et[layer_name][p_idx][i] + param.grad.detach().clone()[i]
+				)
+		self._last_et[layer_name] = instantaneous_eligibility_traces
 		mean_error = torch.mean((y_batch - pred_batch).view(-1, y_batch.shape[-1]), dim=0)
 		instantaneous_learning_signals = [
 			torch.matmul(mean_error, self.feedback_weights[layer_name][p_idx]).view(1, -1)
@@ -190,43 +208,17 @@ class Eprop(TBPTT):
 			for p_idx in range(len(self.running_grads[layer_name]))
 		]
 		self._layers_buffer[layer_name].clear()
-	
-	def get_learning_signals(self, trainer, **kwargs):
-		# TODO: faire pour seulement un pas de temps
-		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		
-		if self.feedback_weights is None:
-			self.initialize_feedback_weights()
-		
-		if isinstance(y_batch, dict):
-			if isinstance(pred_batch, torch.Tensor):
-				pred_batch = {k: pred_batch for k in y_batch}
-			assert isinstance(pred_batch, dict) and isinstance(y_batch, dict), \
-				"If y_batch is a dict, pred must be a dict too."
-			batch_err = sum([
-					(pred_batch[k] - y_batch[k].to(pred_batch[k].device))
-					for k in y_batch
-			])
-		else:
-			if isinstance(pred_batch, dict) and len(pred_batch) == 1:
-				pred_batch = pred_batch[list(pred_batch.keys())[0]]
-			batch_err = (pred_batch - y_batch.to(pred_batch.device))
-		
-		batch_learning_signals = [torch.matmul(batch_err, B) for B in self.feedback_weights]
-		return batch_learning_signals
-	
-	def get_eligibility_trace(self, trainer, **kwargs):
-		# TODO: peut-être qu'il faudrait mette un décorateur comme dans tbptt
-		# TODO: le psi de l'équation (23) de l'article de e-prop est essentiellement la dérivé de la fonction d'activation
-		# TODO: de la layer. Il faut donc que je trouve un moyen de récupérer cette dérivé.
-		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
-		eligibility_vectors = batchwise_temporal_filter(pred_batch)
-		return eligibility_vectors
+		# For Debugging
+		self.mean_eligibility_traces[layer_name].append(
+			to_numpy(torch.mean(torch.abs(torch.cat(instantaneous_eligibility_traces, dim=0)))).item()
+		)
+		self.mean_learning_signals[layer_name].append(
+			to_numpy(torch.mean(torch.abs(torch.cat(instantaneous_learning_signals, dim=0)))).item()
+		)
 	
 	def apply_grads(self):
-		for layer_name, params in self.running_grads.items():
+		for layer_name, params in self.layers_to_params.items():
 			for p_idx, param in enumerate(params):
 				param.grad = self.running_grads[layer_name][p_idx].detach().clone()
 	
@@ -243,9 +235,14 @@ class Eprop(TBPTT):
 	
 	def on_pbar_update(self, trainer, **kwargs) -> dict:
 		return {
-			"mean_grads": {
-				layer_name: [to_numpy(torch.mean(p.grad.detach().clone())) for p in self.running_grads[layer_name]]
-				for layer_name in self.running_grads
-			}
+			# "mean_grads": {
+			# 	layer_name: [
+			# 		to_numpy(torch.mean(torch.abs(p.grad.detach().clone()))).item()
+			# 		for p in self.running_grads[layer_name]
+			# 	]
+			# 	for layer_name in self.running_grads
+			# },
+			# "mean_eligibility_traces": self.mean_eligibility_traces,
+			# "mean_learning_signals": self.mean_learning_signals,
 		}
 	

@@ -82,6 +82,7 @@ class BaseCallback:
 			save_state.
 		:type load_state: bool, optional
 		"""
+		self.kwargs = kwargs
 		self.priority = priority if priority is not None else self.DEFAULT_PRIORITY
 		self.instance_id = self.instance_counter
 		self.name = name if name is not None else f"{self.__class__.__name__}<{self.instance_id}>"

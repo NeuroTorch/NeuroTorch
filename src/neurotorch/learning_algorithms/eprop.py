@@ -60,6 +60,8 @@ class Eprop(TBPTT):
 		self.rn_gen = torch.Generator()
 		self.rn_gen.manual_seed(kwargs.get("seed", 0))
 		self.running_grads = None
+		self.eligibility_traces = defaultdict(list)
+		self.learning_signals = defaultdict(list)
 		self.layers_to_params = defaultdict(list)
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
@@ -141,6 +143,8 @@ class Eprop(TBPTT):
 		if trainer.model.training:
 			if self.feedback_weights is None:
 				self.initialize_feedback_weights(self.trainer.current_training_state.y_batch)
+			self.eligibility_traces = defaultdict(list)
+			self.learning_signals = defaultdict(list)
 			self.initialize_running_grads()
 			self._last_et = {
 				layer.name: [
@@ -152,7 +156,6 @@ class Eprop(TBPTT):
 			# For Debugging
 			self.mean_eligibility_traces = defaultdict(list)
 			self.mean_learning_signals = defaultdict(list)
-			
 	
 	def decorate_forwards(self):
 		if self.trainer.model.training:
@@ -196,11 +199,13 @@ class Eprop(TBPTT):
 					0.1 * self._last_et[layer_name][p_idx][i] + param.grad.detach().clone()[i]
 				)
 		self._last_et[layer_name] = instantaneous_eligibility_traces
+		self.eligibility_traces[layer_name].append(instantaneous_eligibility_traces)
 		mean_error = torch.mean((y_batch - pred_batch).view(-1, y_batch.shape[-1]), dim=0)
 		instantaneous_learning_signals = [
 			torch.matmul(mean_error, self.feedback_weights[layer_name][p_idx]).view(1, -1)
 			for p_idx in range(len(self.feedback_weights[layer_name]))
 		]
+		self.learning_signals[layer_name].append(instantaneous_learning_signals)
 		self.running_grads[layer_name] = [
 			self.running_grads[layer_name][p_idx] + (
 					instantaneous_learning_signals[p_idx] * instantaneous_eligibility_traces[p_idx]

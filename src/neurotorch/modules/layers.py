@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from . import HeavisideSigmoidApprox, SpikeFunction
+from . import HeavisideSigmoidApprox, SpikeFunction, HeavisidePhiApprox
 from ..dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 from ..transforms import to_tensor, ToDevice
 from pythonbasictools.docstring import inherit_docstring, inherit_fields_docstring
@@ -720,6 +720,8 @@ class BaseNeuronsLayer(BaseLayer):
 		_repr = f"{self.__class__.__name__}"
 		if self.name_is_set:
 			_repr += f"<{self.name}>"
+		if self.force_dale_law:
+			_repr += f"[Dale]"
 		_repr += f"({int(self.input_size)}"
 		if self.use_recurrent_connection:
 			_repr += "<"
@@ -728,6 +730,88 @@ class BaseNeuronsLayer(BaseLayer):
 			_repr += "[frozen]"
 		_repr += f"@{self.device}"
 		return _repr
+
+
+class Linear(BaseNeuronsLayer):
+	def __init__(
+			self,
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
+			device: Optional[torch.device] = None,
+			**kwargs
+	):
+		super().__init__(
+			input_size=input_size,
+			output_size=output_size,
+			name=name,
+			use_recurrent_connection=False,
+			device=device,
+			**kwargs
+		)
+		self.bias_weights = None
+		self.activation = self._init_activation(self.kwargs["activation"])
+	
+	def _set_default_kwargs(self):
+		self.kwargs.setdefault("use_bias", True)
+		self.kwargs.setdefault("activation", "identity")
+	
+	def _init_activation(self, activation: Union[torch.nn.Module, str]):
+		"""
+		Initialise the activation function.
+
+		:param activation: Activation function.
+		:type activation: Union[torch.nn.Module, str]
+		"""
+		str_to_activation = {
+			"identity": torch.nn.Identity(),
+			"relu"    : torch.nn.ReLU(),
+			"tanh"    : torch.nn.Tanh(),
+			"sigmoid" : torch.nn.Sigmoid(),
+		}
+		if isinstance(activation, str):
+			assert activation in str_to_activation.keys(), f"Activation {activation} is not implemented."
+			self.activation = str_to_activation[activation]
+		else:
+			self.activation = activation
+		return self.activation
+	
+	def build(self) -> 'Linear':
+		if self.kwargs["use_bias"]:
+			self.bias_weights = nn.Parameter(
+				torch.empty((int(self.output_size),), device=self._device),
+				requires_grad=self.requires_grad,
+			)
+		else:
+			self.bias_weights = torch.zeros((int(self.output_size),), dtype=torch.float32, device=self._device)
+		super().build()
+		self.initialize_weights_()
+		return self
+	
+	def initialize_weights_(self):
+		super().initialize_weights_()
+		if "bias_weights" in self.kwargs:
+			self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
+		else:
+			torch.nn.init.constant_(self.bias_weights, 0.0)
+	
+	def create_empty_state(
+			self,
+			batch_size: int = 1,
+			**kwargs
+	) -> Tuple[torch.Tensor, ...]:
+		kwargs.setdefault("n_hh", 0)
+		return super().create_empty_state(batch_size=batch_size, **kwargs)
+	
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Tuple[torch.Tensor, ...] = None,
+			**kwargs
+	):
+		# assert inputs.ndim == 2
+		# batch_size, nb_features = inputs.shape
+		return self.activation(torch.matmul(inputs, self.forward_weights) + self.bias_weights)
 
 
 # @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
@@ -1656,6 +1740,56 @@ class ALIFLayer(LIFLayer):
 		self._regularization_loss += self.kwargs["spikes_regularization_factor"]*torch.sum(next_Z)
 		# self._regularization_loss += 2e-6*torch.mean(torch.sum(next_Z, dim=-1)**2)
 		return self._regularization_loss
+	
+
+class BellecLIFLayer(LIFLayer):
+	"""
+	Layer implementing the LIF neuron model from the paper:
+		"A solution to the learning dilemma for recurrent networks of spiking neurons"
+		by Bellec et al. (2020) :cite:t:`bellec_solution_2020`.
+	"""
+	
+	def __init__(
+			self,
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
+			use_recurrent_connection: bool = True,
+			use_rec_eye_mask: bool = True,
+			spike_func: Type[SpikeFunction] = HeavisidePhiApprox,
+			dt: float = 1e-3,
+			device: Optional[torch.device] = None,
+			**kwargs
+	):
+		super().__init__(
+			input_size=input_size,
+			output_size=output_size,
+			name=name,
+			use_recurrent_connection=use_recurrent_connection,
+			use_rec_eye_mask=use_rec_eye_mask,
+			spike_func=spike_func,
+			dt=dt,
+			device=device,
+			**kwargs
+		)
+		
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Tuple[torch.Tensor, ...] = None,
+			**kwargs
+	):
+		assert inputs.ndim == 2
+		batch_size, nb_features = inputs.shape
+		V, Z = self._init_forward_state(state, batch_size, inputs=inputs)
+		input_current = torch.matmul(inputs, self.forward_weights)
+		if self.use_recurrent_connection:
+			rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+		else:
+			rec_current = 0.0
+		next_V = (self.alpha * V + input_current + rec_current) - Z.detach()*self.threshold
+		next_Z = self.spike_func.apply(next_V, self.threshold, self.gamma)
+		return next_Z, (next_V, next_Z)
 
 
 # @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
@@ -1873,6 +2007,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		:type activation: Union[torch.nn.Module, str]
 		"""
 		str_to_activation = {
+			"identity": torch.nn.Identity(),
 			"relu": torch.nn.ReLU(),
 			"tanh": torch.nn.Tanh(),
 			"sigmoid": torch.nn.Sigmoid(),
@@ -1927,11 +2062,11 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		# unless stated otherwise by user.
 		if self.learn_mu:
 			if self.mu.dim() == 0:  # if mu is a scalar and a parameter -> convert it to a vector
-				self.mu.data = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
+				self.mu.data = torch.empty((1, int(self.output_size)), dtype=torch.float32, device=self.device)
 			self.mu = torch.nn.Parameter(self.mu, requires_grad=self.requires_grad)
 			torch.nn.init.normal_(self.mu, mean=self.mean_mu, std=self.std_mu)
 		if self.learn_r:
-			_r = torch.empty((1, self.forward_weights.shape[0]), dtype=torch.float32, device=self.device)
+			_r = torch.empty((1, int(self.output_size)), dtype=torch.float32, device=self.device)
 			torch.nn.init.normal_(_r, mean=self.mean_r, std=self.std_r)
 			self.r_sqrt = torch.nn.Parameter(torch.sqrt(torch.abs(_r)), requires_grad=self.requires_grad)
 		if self.learn_tau:
@@ -1947,7 +2082,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			) for _ in range(1)]
 		elif self.kwargs["hh_init"] == "random":
 			mu, std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", 1.0)
-			gen = torch.Generator()
+			gen = torch.Generator(device=self.device)
 			gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
 			state = [(torch.rand(
 				(batch_size, int(self.output_size)),
@@ -2079,10 +2214,11 @@ class LILayer(BaseNeuronsLayer):
 			**kwargs
 		)
 		self.bias_weights = None
-		self.kappa = torch.tensor(np.exp(-self.dt / self.kwargs["tau_out"]), dtype=torch.float32, device=self._device)
+		self.kappa = torch.tensor(self.kwargs["kappa"], dtype=torch.float32, device=self.device)
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_out", 10.0 * self.dt)
+		self.kwargs.setdefault("kappa", np.exp(-self.dt / self.kwargs["tau_out"]))
 		self.kwargs.setdefault("use_bias", True)
 
 	def build(self) -> 'LILayer':

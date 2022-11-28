@@ -324,3 +324,26 @@ def vmap(f):
 	def wrapper(batch_tensor):
 		return torch.stack([f(batch_tensor[i]) for i in range(batch_tensor.shape[0])])
 	return wrapper
+
+
+def unpack_out_hh(out):
+	"""
+	Unpack the output of a recurrent network.
+	
+	:param out: The output of a recurrent network.
+	
+	:return: The output of the recurrent network with the hidden state.
+				If there is no hidden state, consider it as None.
+	"""
+	out_tensor, hh = None, None
+	if isinstance(out, (tuple, list)):
+		if len(out) == 2:
+			out_tensor, hh = out
+		elif len(out) == 1:
+			out_tensor = out[0]
+		elif len(out) > 2:
+			out_tensor, *hh = out
+	else:
+		out_tensor = out
+	
+	return out_tensor, hh

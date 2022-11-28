@@ -1,6 +1,6 @@
 import warnings
 from collections import defaultdict
-from typing import Optional, Sequence, Union, Dict, Callable
+from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List
 
 import torch
 
@@ -42,6 +42,7 @@ class Eprop(TBPTT):
 		warnings.warn("Eprop is still in beta and may not work as expected or act exactly as BPTT.")
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
+		# TODO: implement a optim step at each `optim_time_steps` steps.
 		assert "backward_time_steps" not in kwargs, f"{self.__class__} does not support backward_time_steps."
 		assert "optim_time_steps" not in kwargs, f"{self.__class__} does not support optim_time_steps."
 		assert params is None, f"{self.__class__} does not support params yet."
@@ -156,6 +157,11 @@ class Eprop(TBPTT):
 			# For Debugging
 			self.mean_eligibility_traces = defaultdict(list)
 			self.mean_learning_signals = defaultdict(list)
+			
+	def _get_hidden_tensor(self, out: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]]):
+		if isinstance(out, (tuple, list)):
+			out = out[-1]
+		return out
 	
 	def decorate_forwards(self):
 		if self.trainer.model.training:
@@ -172,6 +178,7 @@ class Eprop(TBPTT):
 			if t is None:
 				return out
 			out_tensor = self._get_out_tensor(out)
+			h_tensor = self._get_hidden_tensor(out)
 			if t == 0:  # Hotfix for the first time step  TODO: fix this
 				ready = bool(self._layers_buffer[layer_name])
 			else:
@@ -186,6 +193,8 @@ class Eprop(TBPTT):
 		y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
 		# TODO: must have a pred batch for the layer and one for the output_layer to compute the learning signals correctly
 		pred_batch = torch.squeeze(self._get_pred_batch_from_buffer(layer_name))
+		
+		# compute dz/dw
 		grad_outputs = torch.eye(pred_batch.shape[-1], device=pred_batch.device)
 		params = self.layers_to_params[layer_name]
 		instantaneous_eligibility_traces = [torch.zeros_like(p) for p in params]
@@ -196,10 +205,13 @@ class Eprop(TBPTT):
 			for p_idx, param in enumerate(params):
 				# TODO: pas sur du slicing
 				instantaneous_eligibility_traces[p_idx][i] += (
-					0.1 * self._last_et[layer_name][p_idx][i] + param.grad.detach().clone()[i]
+					# 0.1 * self._last_et[layer_name][p_idx][i] + param.grad.detach().clone()[i]
+					param.grad.detach().clone()[i]
 				)
 		self._last_et[layer_name] = instantaneous_eligibility_traces
 		self.eligibility_traces[layer_name].append(instantaneous_eligibility_traces)
+		
+		# compute learning signals
 		mean_error = torch.mean((y_batch - pred_batch).view(-1, y_batch.shape[-1]), dim=0)
 		instantaneous_learning_signals = [
 			torch.matmul(mean_error, self.feedback_weights[layer_name][p_idx]).view(1, -1)

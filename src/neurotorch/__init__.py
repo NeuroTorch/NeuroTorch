@@ -28,6 +28,7 @@ from .modules.sequential_rnn import (
 
 from .modules.layers import (
 	LayerType,
+	Linear,
 	LILayer,
 	LIFLayer,
 	SpyLILayer,

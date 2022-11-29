@@ -76,7 +76,8 @@ def dummy_train(targets: torch.Tensor):
 		param.grad = grad
 		loss = criterion(preds, targets)
 		optimizer.step()
-		p_bar.set_description(f"Loss: {loss.item():.4f}, mean_grad: {np.mean(np.abs(to_numpy(grad))):.4f}")
+		mean_grad = np.mean(np.abs(to_numpy(grad)))
+		p_bar.set_description(f"Loss: {loss.item():.4f}, mean_grad: {mean_grad:.4f}")
 	return torch.squeeze(preds)
 
 

@@ -48,20 +48,33 @@ def dummy_train(targets: torch.Tensor):
 		output_size=targets.shape[-1],
 		device=targets.device
 	).build()
+	feedback_weights = torch.randn_like(layer.forward_weights)
+	param = layer.forward_weights
 	optimizer = torch.optim.Adam(layer.parameters(), lr=0.1, maximize=True)
 	criterion = PVarianceLoss()
 	preds = None
 	p_bar = tqdm(range(100))
 	for i in p_bar:
+		eligibility_trace = []
 		output_list, hh_list = [targets[:, 0]], [None]
 		for t in range(1, targets.shape[1]):
 			out, hh = unpack_out_hh(layer(output_list[t-1], hh_list[t-1]))
 			output_list.append(out)
 			hh_list.append(hh)
+			
+			instantaneous_eligibility_trace = torch.zeros_like(param)
+			grad_outputs = torch.eye(out.shape[-1], device=targets.device)
+			for g_idx in range(grad_outputs.shape[0]):
+				param.grad.zero_()
+				instantaneous_eligibility_trace[g_idx] = torch.autograd.grad(out[:, g_idx], param, retain_graph=True)[0][g_idx]
+			eligibility_trace.append(instantaneous_eligibility_trace)
 		preds = torch.stack(output_list, dim=1)
+		mean_error = targets - preds
+		learning_signal = torch.einsum("btf,fn->tn", mean_error, feedback_weights)
+		eligibility_trace = torch.stack(eligibility_trace, dim=1)
+		grad = torch.einsum("tn,tno->no", learning_signal, eligibility_trace)
+		param.grad = grad
 		loss = criterion(preds, targets)
-		optimizer.zero_grad()
-		loss.backward()
 		optimizer.step()
 		p_bar.set_description(f"Loss: {loss.item():.4f}")
 	return torch.squeeze(preds)

@@ -53,6 +53,7 @@ def dummy_train(targets: torch.Tensor):
 	optimizer = torch.optim.SGD(layer.parameters(), lr=0.1, maximize=True)
 	criterion = PVarianceLoss()
 	preds = None
+	grad_list = []
 	p_bar = tqdm(range(100))
 	for i in p_bar:
 		eligibility_trace = []
@@ -62,12 +63,15 @@ def dummy_train(targets: torch.Tensor):
 			output_list.append(out)
 			hh_list.append(hh)
 			
+			# Compute eligibility trace
 			instantaneous_eligibility_trace = torch.zeros_like(param)
 			grad_outputs = torch.eye(out.shape[-1], device=targets.device)
 			for g_idx in range(grad_outputs.shape[0]):
 				param.grad = torch.zeros_like(param)
 				instantaneous_eligibility_trace[g_idx] = torch.autograd.grad(out[:, g_idx], param, retain_graph=True)[0][g_idx]
+			out.detach_()
 			eligibility_trace.append(instantaneous_eligibility_trace)
+			
 		preds = torch.stack(output_list, dim=1)
 		mean_error = targets[:, 1:] - preds[:, 1:]
 		learning_signal = torch.einsum("btf,fn->tn", mean_error, feedback_weights)
@@ -77,17 +81,21 @@ def dummy_train(targets: torch.Tensor):
 		optimizer.step()
 		loss = criterion(preds, targets)
 		mean_grad = np.mean(np.abs(to_numpy(grad)))
+		grad_list.append(mean_grad)
 		p_bar.set_description(f"Loss: {loss.item():.4f}, mean_grad: {mean_grad:.4f}")
-	return torch.squeeze(preds)
+	return torch.squeeze(preds), grad_list
 
 
 if __name__ == '__main__':
 	target = torch.stack([torch.sin(torch.linspace(0, 2 * np.pi, 100)) for i in range(2)], dim=-1)
-	predictions = dummy_train(target)
+	predictions, gradients = dummy_train(target)
 	
-	fig, ax = plt.subplots()
-	ax.plot(to_numpy(target), label="target")
-	ax.plot(to_numpy(predictions), label="predictions")
-	ax.legend()
+	fig, axes = plt.subplots(1, 2)
+	axes[0].plot(to_numpy(target), label="target")
+	axes[0].plot(to_numpy(predictions), label="predictions")
+	axes[0].legend()
+	
+	axes[1].plot(gradients, label="mean abs. gradients")
+	axes[1].legend()
 	plt.show()
 

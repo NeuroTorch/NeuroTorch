@@ -50,7 +50,7 @@ def dummy_train(targets: torch.Tensor):
 	).build()
 	feedback_weights = torch.randn_like(layer.forward_weights)
 	param = layer.forward_weights
-	optimizer = torch.optim.Adam(layer.parameters(), lr=0.1, maximize=True)
+	optimizer = torch.optim.SGD(layer.parameters(), lr=0.1, maximize=True)
 	criterion = PVarianceLoss()
 	preds = None
 	p_bar = tqdm(range(100))
@@ -65,28 +65,28 @@ def dummy_train(targets: torch.Tensor):
 			instantaneous_eligibility_trace = torch.zeros_like(param)
 			grad_outputs = torch.eye(out.shape[-1], device=targets.device)
 			for g_idx in range(grad_outputs.shape[0]):
-				param.grad.zero_()
+				param.grad = torch.zeros_like(param)
 				instantaneous_eligibility_trace[g_idx] = torch.autograd.grad(out[:, g_idx], param, retain_graph=True)[0][g_idx]
 			eligibility_trace.append(instantaneous_eligibility_trace)
 		preds = torch.stack(output_list, dim=1)
-		mean_error = targets - preds
+		mean_error = targets[:, 1:] - preds[:, 1:]
 		learning_signal = torch.einsum("btf,fn->tn", mean_error, feedback_weights)
-		eligibility_trace = torch.stack(eligibility_trace, dim=1)
-		grad = torch.einsum("tn,tno->no", learning_signal, eligibility_trace)
+		eligibility_trace = torch.stack(eligibility_trace, dim=0)
+		grad = torch.einsum("tno->no", learning_signal[:, np.newaxis] * eligibility_trace)
 		param.grad = grad
 		loss = criterion(preds, targets)
 		optimizer.step()
-		p_bar.set_description(f"Loss: {loss.item():.4f}")
+		p_bar.set_description(f"Loss: {loss.item():.4f}, mean_grad: {np.mean(np.abs(to_numpy(grad))):.4f}")
 	return torch.squeeze(preds)
 
 
 if __name__ == '__main__':
-	target = torch.stack([torch.sin(torch.linspace(0, 2 * np.pi, 100)) for i in range(2)])
+	target = torch.stack([torch.sin(torch.linspace(0, 2 * np.pi, 100)) for i in range(2)], dim=-1)
 	predictions = dummy_train(target)
 	
 	fig, ax = plt.subplots()
-	ax.plot(to_numpy(target).T, label="target")
-	ax.plot(to_numpy(predictions).T, label="predictions")
+	ax.plot(to_numpy(target), label="target")
+	ax.plot(to_numpy(predictions), label="predictions")
 	ax.legend()
 	plt.show()
 

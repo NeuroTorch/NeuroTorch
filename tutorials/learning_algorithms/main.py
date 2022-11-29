@@ -301,7 +301,7 @@ if __name__ == '__main__':
 			"rls_strategy": "inputs",
 			# "add_aux_tbptt": True,
 		},
-		n_iterations=1_000,
+		n_iterations=100,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,

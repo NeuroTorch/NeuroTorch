@@ -185,10 +185,10 @@ def train_with_params(
 if __name__ == '__main__':
 	res = train_with_params(
 		params={
-			"filename": "ts_nobaselines_fish3.npy",
+			# "filename": "ts_nobaselines_fish3.npy",
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
-			# "filename"                      : None,
+			"filename"                      : None,
 			"smoothing_sigma"               : 15.0,
 			"n_units"                       : 200,
 			"n_aux_units"                   : 200,

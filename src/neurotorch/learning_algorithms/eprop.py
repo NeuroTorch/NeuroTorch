@@ -201,12 +201,14 @@ class Eprop(TBPTT):
 		# TODO: try to understand what is going on here: https://github.com/IGITUGraz/eligibility_propagation/blob/efd02e6879c01cda3fa9a7838e8e2fd08163c16e/Figure_3_and_S7_e_prop_tutorials/tutorial_pattern_generation.py#L98
 		for i in range(grad_outputs.shape[0]):
 			zero_grad_params(params)
-			pred_batch.backward(grad_outputs[i], retain_graph=True)
+			
+			# pred_batch.backward(grad_outputs[i], retain_graph=True)
 			for p_idx, param in enumerate(params):
 				# TODO: pas sur du slicing
-				instantaneous_eligibility_traces[p_idx][i] += (
+				instantaneous_eligibility_traces[p_idx][i] = (
 					# 0.1 * self._last_et[layer_name][p_idx][i] + param.grad.detach().clone()[i]
-					param.grad.detach().clone()[i]
+					# param.grad.detach().clone()[i]
+					torch.autograd.grad(pred_batch[i], param, retain_graph=True)[0][i]
 				)
 		self._last_et[layer_name] = instantaneous_eligibility_traces
 		self.eligibility_traces[layer_name].append(instantaneous_eligibility_traces)

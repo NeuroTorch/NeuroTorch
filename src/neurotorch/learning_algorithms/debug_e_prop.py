@@ -74,8 +74,8 @@ def dummy_train(targets: torch.Tensor):
 		eligibility_trace = torch.stack(eligibility_trace, dim=0)
 		grad = torch.einsum("tno->no", learning_signal[:, np.newaxis] * eligibility_trace)
 		param.grad = grad
-		loss = criterion(preds, targets)
 		optimizer.step()
+		loss = criterion(preds, targets)
 		mean_grad = np.mean(np.abs(to_numpy(grad)))
 		p_bar.set_description(f"Loss: {loss.item():.4f}, mean_grad: {mean_grad:.4f}")
 	return torch.squeeze(preds)

@@ -139,10 +139,12 @@ def dummy_train(targets: torch.Tensor):
 
 
 if __name__ == '__main__':
+	T = 100
+	inputs_spikes = torch.rand((1, T, 1)) < 0.1
 	# target = torch.stack([torch.cos(torch.linspace(0, 2 * np.pi, 100)) for i in range(100)], dim=-1)
 	# target = (target - target.mean(dim=0, keepdim=True)) / target.std(dim=0, keepdim=True)
 	# target = (target - target.min(dim=0, keepdim=True)[0]) / (target.max(dim=0, keepdim=True)[0] - target.min(dim=0, keepdim=True)[0])
-	target = torch.stack([-torch.exp(torch.linspace(0, 1, 100)) for i in range(1)], dim=-1)
+	target = torch.stack([-torch.exp(torch.linspace(0, 1, T)) for i in range(1)], dim=-1)
 	target = (target - target.min(dim=0, keepdim=True)[0]) / (
 				target.max(dim=0, keepdim=True)[0] - target.min(dim=0, keepdim=True)[0])
 	if target.ndim == 1:

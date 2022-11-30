@@ -3,6 +3,7 @@ import time
 import warnings
 from copy import deepcopy
 from typing import Any, List, Optional, Sized, Tuple, Type, Union, Iterable
+import inspect
 
 import numpy as np
 import torch
@@ -2214,11 +2215,15 @@ class LILayer(BaseNeuronsLayer):
 			**kwargs
 		)
 		self.bias_weights = None
-		self.kappa = torch.tensor(self.kwargs["kappa"], dtype=torch.float32, device=self.device)
+		self.kappa = torch.nn.Parameter(
+			torch.tensor(self.kwargs["kappa"], dtype=torch.float32, device=self.device),
+			requires_grad=self.kwargs["learn_kappa"]
+		)
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_out", 10.0 * self.dt)
 		self.kwargs.setdefault("kappa", np.exp(-self.dt / self.kwargs["tau_out"]))
+		self.kwargs.setdefault("learn_kappa", False)
 		self.kwargs.setdefault("use_bias", True)
 
 	def build(self) -> 'LILayer':
@@ -2352,12 +2357,22 @@ class SpyLILayer(BaseNeuronsLayer):
 			**kwargs
 		)
 		self.bias_weights = None
-		self.alpha = torch.tensor(np.exp(-dt / self.kwargs["tau_syn"]), dtype=torch.float32, device=self._device)
-		self.beta = torch.tensor(np.exp(-dt / self.kwargs["tau_mem"]), dtype=torch.float32, device=self._device)
+		self.alpha = torch.nn.Parameter(
+			torch.tensor(self.kwargs["alpha"], dtype=torch.float32, device=self.device),
+			requires_grad=self.kwargs["learn_alpha"]
+		)
+		self.beta = torch.nn.Parameter(
+			torch.tensor(self.kwargs["beta"], dtype=torch.float32, device=self.device),
+			requires_grad=self.kwargs["learn_beta"]
+		)
 
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_syn", 5.0 * self.dt)
+		self.kwargs.setdefault("alpha", np.exp(-self.dt / self.kwargs["tau_syn"]))
+		self.kwargs.setdefault("learn_alpha", False)
 		self.kwargs.setdefault("tau_mem", 10.0 * self.dt)
+		self.kwargs.setdefault("beta", np.exp(-self.dt / self.kwargs["tau_mem"]))
+		self.kwargs.setdefault("learn_beta", False)
 		self.kwargs.setdefault("use_bias", False)
 
 	def build(self) -> 'SpyLILayer':

@@ -13,3 +13,4 @@ scikit-learn>=1.1.1
 h5py>=3.5.0
 
 PythonBasicTools
+unstable

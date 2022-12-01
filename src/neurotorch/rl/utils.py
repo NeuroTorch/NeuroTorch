@@ -1,11 +1,16 @@
 import os
 from collections import defaultdict
-from typing import Optional, Union
+from typing import Optional, Union, Sequence, Dict, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+import gym
+import torch
 
 from .curriculum import Curriculum
+from ..dimension import SizeTypes
+from ..modules.layers import BaseNeuronsLayer
+from ..transforms.base import to_tensor, to_numpy
 from ..callbacks import TrainingHistory
 from ..utils import legend_without_duplicate_labels_
 
@@ -122,7 +127,159 @@ class TrainingHistoriesMap:
 		if show:
 			plt.show()
 		plt.close(fig)
+		
 
+def space_to_spec(space: gym.spaces.Space):
+	spec = {}
+	if hasattr(space, 'spaces'):
+		for k, v in space.spaces.items():
+			spec[k] = space_to_spec(v)
+	else:
+		spec[str(type(space).__name__)] = space
+	return spec
+
+
+def space_to_continuous_shape(
+		space: gym.spaces.Space,
+		flatten_spaces=False
+) -> Union[Tuple[int, ...], Dict[str, Tuple[int, ...]]]:
+	if hasattr(space, 'spaces'):
+		shapes = {}
+		for k, v in space.spaces.items():
+			shapes[k] = space_to_continuous_shape(v)
+		return shapes
+	else:
+		if isinstance(space, (gym.spaces.Discrete, )):
+			return (space.n, )
+		else:
+			shape = space.shape
+			if flatten_spaces:
+				shape = (np.prod(shape), )
+			return shape
+
+
+def obs_sequence_to_batch(
+		obs: Sequence[Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]]
+) -> Union[torch.Tensor, Dict[str, torch.Tensor]]:
+	"""
+	Convert a sequence of observations to a batch of observations.
+
+	:param obs: The sequence of observations.
+	:type obs: Sequence[Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]]
+
+	:return: The batch of observations.
+	:rtype: Union[torch.Tensor, Dict[str, torch.Tensor]]
+	"""
+	obs_as_tensor = [to_tensor(obs_i) for obs_i in obs]
+	if isinstance(obs_as_tensor[0], dict):
+		return {k: torch.stack([o[k] for o in obs_as_tensor]) for k in obs[0].keys()}
+	else:
+		return torch.stack(obs_as_tensor)
+
+
+def obs_batch_to_sequence(
+		obs: Union[torch.Tensor, Dict[str, torch.Tensor]],
+		as_numpy: bool = False
+) -> Sequence[Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]]:
+	"""
+	Convert a batch of observations to a sequence of observations.
+
+	:param obs: The batch of observations.
+	:type obs: Union[torch.Tensor, Dict[str, torch.Tensor]]
+	:param as_numpy: Whether to convert the observations to numpy arrays.
+	:type as_numpy: bool
+
+	:return: The sequence of observations.
+	:rtype: Sequence[Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]]
+	"""
+	if as_numpy:
+		obs = to_numpy(obs)
+	if isinstance(obs, dict):
+		return [{k: obs[k][i] for k in obs.keys()} for i in range(obs[list(obs.keys())[0]].shape[0])]
+	else:
+		return [obs[i] for i in range(obs.shape[0])]
+
+
+class Linear(BaseNeuronsLayer):
+	def __init__(
+			self,
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
+			device: Optional[torch.device] = None,
+			**kwargs
+	):
+		super().__init__(
+			input_size=input_size,
+			output_size=output_size,
+			name=name,
+			use_recurrent_connection=False,
+			device=device,
+			**kwargs
+		)
+		self.bias_weights = None
+		self.activation = self._init_activation(self.kwargs["activation"])
+	
+	def _set_default_kwargs(self):
+		self.kwargs.setdefault("use_bias", True)
+		self.kwargs.setdefault("activation", "identity")
+	
+	def _init_activation(self, activation: Union[torch.nn.Module, str]):
+		"""
+		Initialise the activation function.
+		:param activation: Activation function.
+		:type activation: Union[torch.nn.Module, str]
+		"""
+		str_to_activation = {
+			"identity": torch.nn.Identity(),
+			"relu"    : torch.nn.ReLU(),
+			"tanh"    : torch.nn.Tanh(),
+			"sigmoid" : torch.nn.Sigmoid(),
+		}
+		if isinstance(activation, str):
+			activation = activation.lower()
+			assert activation in str_to_activation.keys(), f"Activation {activation} is not implemented."
+			self.activation = str_to_activation[activation]
+		else:
+			self.activation = activation
+		return self.activation
+	
+	def build(self) -> 'Linear':
+		if self.kwargs["use_bias"]:
+			self.bias_weights = torch.nn.Parameter(
+				torch.empty((int(self.output_size),), device=self._device),
+				requires_grad=self.requires_grad,
+			)
+		else:
+			self.bias_weights = torch.zeros((int(self.output_size),), dtype=torch.float32, device=self._device)
+		super().build()
+		self.initialize_weights_()
+		return self
+	
+	def initialize_weights_(self):
+		super().initialize_weights_()
+		if "bias_weights" in self.kwargs:
+			self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
+		else:
+			torch.nn.init.constant_(self.bias_weights, 0.0)
+	
+	def create_empty_state(
+			self,
+			batch_size: int = 1,
+			**kwargs
+	) -> Tuple[torch.Tensor, ...]:
+		kwargs.setdefault("n_hh", 0)
+		return super().create_empty_state(batch_size=batch_size, **kwargs)
+	
+	def forward(
+			self,
+			inputs: torch.Tensor,
+			state: Tuple[torch.Tensor, ...] = None,
+			**kwargs
+	):
+		# assert inputs.ndim == 2
+		# batch_size, nb_features = inputs.shape
+		return self.activation(torch.matmul(inputs, self.forward_weights) + self.bias_weights)
 
 
 

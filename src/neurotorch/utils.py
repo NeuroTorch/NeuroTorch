@@ -2,6 +2,7 @@ import collections.abc
 import hashlib
 import pickle
 import time
+import warnings
 from typing import Callable, Dict, List, Any, Tuple, Union, Iterable, Optional, Sequence
 
 import numpy as np
@@ -53,6 +54,11 @@ def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 
 	:return: Filtered input of shape (batch_size, time_steps, ...).
 	"""
+	warnings.warn(
+		"This function is supposed to compute the same result as `batchwise_temporal_recursive_filter` but it "
+		"doesn't. Use `batchwise_temporal_recursive_filter` instead.",
+		DeprecationWarning
+	)
 	batch_size, time_steps, *_ = x.shape
 	assert time_steps >= 1
 	

@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torchvision
 from matplotlib import pyplot as plt
+from unstable import unstable
 
 from .transforms.base import to_tensor
 
@@ -36,6 +37,7 @@ def batchwise_temporal_decay(x: torch.Tensor, decay: float = 0.9):
 	return x
 
 
+@unstable
 def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 	r"""
 
@@ -382,3 +384,18 @@ def unpack_out_hh(out):
 		out_tensor = out
 	
 	return out_tensor, hh
+
+
+def filter_parameters(
+		parameters: Union[Sequence[torch.nn.Parameter], torch.nn.ParameterList],
+		requires_grad: bool = True
+) -> List[torch.nn.Parameter]:
+	"""
+	Filter the parameters by their requires_grad attribute.
+	
+	:param parameters: The parameters to filter.
+	:param requires_grad: The value of the requires_grad attribute to filter.
+	
+	:return: The filtered parameters.
+	"""
+	return [p for p in parameters if p.requires_grad == requires_grad]

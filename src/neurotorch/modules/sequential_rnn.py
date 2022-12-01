@@ -20,7 +20,7 @@ from . import (
 )
 from ..dimension import Dimension
 from ..transforms.base import ToDevice
-from ..utils import sequence_get
+from ..utils import sequence_get, unpack_out_hh
 from .sequential import Sequential
 
 Acceptable_Spike_Func = Union[Type[SpikeFunction], SpikeFuncType]
@@ -374,7 +374,7 @@ class SequentialRNN(Sequential):
 		features_list = []
 		for layer_name, layer in self.input_layers.items():
 			hh = sequence_get(hidden_states.get(layer.name, []), idx=-1, default=None)
-			features, hh = layer(inputs[layer_name][:, t], hh, t=t)
+			features, hh = unpack_out_hh(layer(inputs[layer_name][:, t], hh, t=t))
 			hidden_states[layer_name].append(self._memory_device_transform(hh))
 			features_list.append(features)
 		if features_list:
@@ -391,7 +391,7 @@ class SequentialRNN(Sequential):
 	) -> torch.Tensor:
 		for layer_idx, layer in enumerate(self.hidden_layers):
 			hh = sequence_get(hidden_states.get(layer.name, []), idx=-1, default=None)
-			forward_tensor, hh = layer(forward_tensor, hh, t=t)
+			forward_tensor, hh = unpack_out_hh(layer(forward_tensor, hh, t=t))
 			hidden_states[layer.name].append(self._memory_device_transform(hh))
 		return forward_tensor
 
@@ -404,7 +404,7 @@ class SequentialRNN(Sequential):
 	):
 		for layer_name, layer in self.output_layers.items():
 			hh = sequence_get(hidden_states.get(layer.name, []), idx=-1, default=None)
-			out, hh = layer(forward_tensor, hh, t=t)
+			out, hh = unpack_out_hh(layer(forward_tensor, hh, t=t))
 			outputs_trace[layer_name].append(self._memory_device_transform(out))
 			hidden_states[layer_name].append(self._memory_device_transform(hh))
 		return outputs_trace

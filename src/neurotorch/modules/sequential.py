@@ -72,6 +72,8 @@ class Sequential(BaseModel):
 				"The layer names must be the same as the keys."
 		else:
 			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for layer in layers)
+		
+		# TODO: add support for torch.nn.Module
 		assert all_base_layer, "All layers must be of type BaseLayer"
 		if not isinstance(layers, dict):
 			for layer_idx, layer in enumerate(layers):

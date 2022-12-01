@@ -134,6 +134,12 @@ class HeavisidePhiApprox(SpikeFunction):
 	epsilon = 1e-5
 	
 	@staticmethod
+	def pseudo_derivative(inputs, threshold, gamma):
+		return (gamma / (threshold + HeavisidePhiApprox.epsilon)) * torch.max(
+			torch.zeros_like(inputs), 1 - torch.abs((inputs - threshold) / (threshold + HeavisidePhiApprox.epsilon))
+		)
+	
+	@staticmethod
 	def backward(ctx: torch.autograd.function.FunctionCtx, grad_outputs):
 		"""
 		The implementation of the equation :eq:`heaviside_phi_approx`.

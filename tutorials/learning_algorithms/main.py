@@ -78,7 +78,11 @@ def make_learning_algorithm(**kwargs):
 		)
 		learning_algorithm = nt.BPTT(optimizer=optimizer, criterion=nt.losses.PVarianceLoss())
 	elif la_name == "eprop":
-		learning_algorithm = nt.Eprop(criterion=nt.losses.PVarianceLoss())
+		learning_algorithm = nt.Eprop(
+			layers=[kwargs["model"].get_layer()],
+			criterion=nt.losses.PVarianceLoss(),
+			lr=0.5,
+		)
 	elif la_name == "tbptt":
 		optimizer = torch.optim.AdamW(
 			kwargs["model"].parameters(), lr=kwargs["learning_rate"], maximize=True,
@@ -88,15 +92,6 @@ def make_learning_algorithm(**kwargs):
 			optimizer=optimizer, criterion=nt.losses.PVarianceLoss(),
 			auto_backward_time_steps_ratio=kwargs.get("auto_backward_time_steps_ratio", 0.1)
 		)
-	elif la_name == "weakrls":
-		learning_algorithm = nt.WeakRLS(
-			criterion=nt.losses.PVarianceLoss(),
-			# criterion=torch.nn.MSELoss(),
-			# device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-			device=torch.device("cpu"),
-			reduction='mean',
-			is_recurrent=True,
-		)
 	elif la_name == "rls":
 		learning_algorithm = nt.RLS(
 			params=[kwargs["model"].get_layer().forward_weights],
@@ -105,12 +100,6 @@ def make_learning_algorithm(**kwargs):
 			strategy=kwargs.get("rls_strategy", "inputs"),
 			is_recurrent=True,
 			auto_backward_time_steps_ratio=kwargs.get("auto_backward_time_steps_ratio", 0)
-		)
-	elif la_name == "curbd":
-		learning_algorithm = CURBD(
-			params=[kwargs["model"].get_layer().forward_weights],
-			criterion=nt.losses.PVarianceLoss(),
-			device=torch.device("cpu"),
 		)
 	else:
 		raise ValueError(f"Unknown learning algorithm: {la_name}")
@@ -292,28 +281,29 @@ def train_with_params(
 if __name__ == '__main__':
 	res = train_with_params(
 		params={
-			"filename": "ts_nobaselines_fish3.npy",
+			# "filename": "ts_nobaselines_fish3.npy",
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
-			"smoothing_sigma": 10.0,
+			"filename": None,
+			"smoothing_sigma": 15.0,
 			"n_units": 200,
-			"n_time_steps": -1,
+			"n_time_steps": 10,
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
-			"learning_algorithm": "RLS",
+			"learning_algorithm": "eprop",
 			"auto_backward_time_steps_ratio": 0.0,
 			"weight_decay": 1e-5,
-			"learn_mu": True,
-			"learn_r": True,
-			"learn_tau": True,
+			"learn_mu": False,
+			"learn_r": False,
+			"learn_tau": False,
 			"activation": "sigmoid",
 			"rls_strategy": "inputs",
-			"add_aux_tbptt": True,
+			# "add_aux_tbptt": True,
 		},
 		n_iterations=100,
-		device=torch.device("cuda"),
-		force_overwrite=False,
+		device=torch.device("cpu"),
+		force_overwrite=True,
 		batch_size=1,
 	)
 	pprint.pprint({k: v for k, v in res.items() if isinstance(v, (int, float, str, bool))})

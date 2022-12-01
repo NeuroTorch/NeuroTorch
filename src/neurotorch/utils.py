@@ -2,12 +2,15 @@ import collections.abc
 import hashlib
 import pickle
 import time
+import warnings
 from typing import Callable, Dict, List, Any, Tuple, Union, Iterable, Optional, Sequence
 
 import numpy as np
 import torch
 import torchvision
 from matplotlib import pyplot as plt
+
+from .transforms.base import to_tensor
 
 
 def batchwise_temporal_decay(x: torch.Tensor, decay: float = 0.9):
@@ -51,6 +54,11 @@ def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 
 	:return: Filtered input of shape (batch_size, time_steps, ...).
 	"""
+	warnings.warn(
+		"This function is supposed to compute the same result as `batchwise_temporal_recursive_filter` but it "
+		"doesn't. Use `batchwise_temporal_recursive_filter` instead.",
+		DeprecationWarning
+	)
 	batch_size, time_steps, *_ = x.shape
 	assert time_steps >= 1
 	
@@ -58,9 +66,36 @@ def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 	powers = torch.arange(time_steps, dtype=torch.float32, device=x.device).flip(0)
 	weighs = torch.pow(decay, powers)
 	
-	x = torch.mul(x, weighs.unsqueeze(0).unsqueeze(-1))
-	x = torch.cumsum(x, dim=1)
-	return x
+	y = torch.mul(x, weighs.unsqueeze(0).unsqueeze(-1))
+	y = torch.cumsum(y, dim=1)
+	return y
+
+
+def batchwise_temporal_recursive_filter(x, decay: float = 0.9):
+	r"""
+	Apply a low-pass filter to the input tensor along the temporal dimension recursively.
+
+	.. math::
+		\begin{equation}\label{eqn:low-pass-filter}
+			\mathcal{F}_\alpha\qty(x^t) = \alpha\mathcal{F}_\alpha\qty(x^{t-1}) + x^t.
+		\end{equation}
+		:label: eqn:low-pass-filter
+
+	:param x: Input of shape (batch_size, time_steps, ...).
+	:type x: torch.Tensor
+	:param decay: Decay factor of the filter.
+	:type decay: float
+
+	:return: Filtered input of shape (batch_size, time_steps, ...).
+	"""
+	y = to_tensor(x).detach().clone()
+	batch_size, time_steps, *_ = x.shape
+	assert time_steps >= 1
+	fx = 0.0
+	for t in range(time_steps):
+		fx = decay * fx + y[:, t]
+		y[:, t] = fx
+	return y
 
 
 def mapping_update_recursively(d, u):
@@ -324,3 +359,26 @@ def vmap(f):
 	def wrapper(batch_tensor):
 		return torch.stack([f(batch_tensor[i]) for i in range(batch_tensor.shape[0])])
 	return wrapper
+
+
+def unpack_out_hh(out):
+	"""
+	Unpack the output of a recurrent network.
+	
+	:param out: The output of a recurrent network.
+	
+	:return: The output of the recurrent network with the hidden state.
+				If there is no hidden state, consider it as None.
+	"""
+	out_tensor, hh = None, None
+	if isinstance(out, (tuple, list)):
+		if len(out) == 2:
+			out_tensor, hh = out
+		elif len(out) == 1:
+			out_tensor = out[0]
+		elif len(out) > 2:
+			out_tensor, *hh = out
+	else:
+		out_tensor = out
+	
+	return out_tensor, hh

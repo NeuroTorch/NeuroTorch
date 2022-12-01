@@ -2,26 +2,26 @@ import os
 import shutil
 import time
 import warnings
-from collections import defaultdict, deque
+from collections import defaultdict, deque, OrderedDict
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import gym
 import numpy as np
 import torch
-from mlagents_envs.base_env import BaseEnv, DecisionSteps, TerminalSteps
 from torch import nn
 from tqdm.auto import tqdm
 
-from PythonAcademy.src.base_agent import BaseAgent
-from PythonAcademy.src.buffers import BatchExperience, Experience, ReplayBuffer, Trajectory
-from PythonAcademy.src.checkpoints_manager import CheckpointManager, LoadCheckpointMode
-from PythonAcademy.src.curriculum import Curriculum
-from PythonAcademy.src.utils import TensorActionTuple, TrainingHistoriesMap, TrainingHistory, linear_decay
-from PythonAcademy.src.utils import unbatch_actions
+from .agent import Agent
+from .buffers import ReplayBuffer, Trajectory, Experience, BatchExperience
+from .. import Trainer, LoadCheckpointMode
+from ..callbacks.base_callback import BaseCallback, CallbacksList
+from ..learning_algorithms.learning_algorithm import LearningAlgorithm
+from ..utils import linear_decay
 
 
 class AgentsHistoryMaps:
-	"""
+	r"""
 	Class to store the mapping between agents and their history maps
 
 	Attributes:
@@ -35,7 +35,7 @@ class AgentsHistoryMaps:
 		self.buffer = buffer if buffer is not None else ReplayBuffer()
 		self.trajectories: Dict[int, Trajectory] = defaultdict(Trajectory)
 		self.last_obs: Dict[int, Any] = defaultdict()
-		self.last_action: Dict[int, TensorActionTuple] = defaultdict()
+		self.last_action: Dict[int, Any] = defaultdict()
 		self.cumulative_reward: Dict[int, float] = defaultdict(lambda: 0.0)
 		self._terminal_counter = 0
 
@@ -51,8 +51,10 @@ class AgentsHistoryMaps:
 			terminal_steps: TerminalSteps
 	) -> List[float]:
 		"""
-		Execute terminal steps and return the rewards
-		:param terminal_steps: The terminal steps
+		Execute terminal steps and return the rewards.
+		
+		:param terminal_steps: The terminal steps.
+		
 		:return: The rewards
 		"""
 		cumulative_rewards = []
@@ -123,7 +125,7 @@ class AgentsHistoryMaps:
 	) -> Optional[List[float]]:
 		"""
 		Update the replay buffer with the given steps.
-		:param buffer: The replay buffer to store the experiences
+		
 		:param decision_steps: The decision steps
 		:param terminal_steps: The terminal steps
 		:param actions: The actions
@@ -140,14 +142,14 @@ class AgentsHistoryMaps:
 		return cumulative_rewards
 
 
-class RLAcademy:
+class RLAcademy(Trainer):
 	def __init__(
 			self,
-			env: BaseEnv,
-			agent: BaseAgent,
-			behavior_name: Optional[str] = None,
-			checkpoint_folder: Optional[str] = None,
-			curriculum: Optional[Curriculum] = None,
+			agent: Agent,
+			*,
+			predict_method: str = "get_actions",
+			learning_algorithm: Optional[LearningAlgorithm] = None,
+			callbacks: Optional[Union[List[BaseCallback], CallbacksList, BaseCallback]] = None,
 			verbose: bool = True,
 			**kwargs
 	):
@@ -160,41 +162,25 @@ class RLAcademy:
 		:param curriculum:
 		:param kwargs:
 		"""
-		self.env = env
-		self.behavior_name = behavior_name if behavior_name is not None else list(env.behavior_specs)[0]
-		self.behavior_short_name = self.behavior_name.split('?')[0]
-		self.policy = agent
-		self._last_policy = self._copy_policy()
-		if checkpoint_folder is None:
-			checkpoint_folder = f"checkpoints_{self.policy.name}_{self.behavior_short_name}"
-		self.checkpoint_folder = checkpoint_folder
-		self.verbose = verbose
-		self.kwargs = self._set_default_academy_kwargs(kwargs)
-		self.curriculum = curriculum
-		self.training_histories = TrainingHistoriesMap(self.curriculum)
-		self.checkpoint_manager = CheckpointManager(
-			checkpoint_folder,
-			meta_path_prefix=f"{self.policy.name}_{self.behavior_short_name}"
+		self.agent = agent
+		kwargs = self._set_default_academy_kwargs(**kwargs)
+		super().__init__(
+			model=agent.policy,
+			predict_method=predict_method,
+			learning_algorithm=learning_algorithm,
+			callbacks=callbacks,
+			verbose=verbose,
+			**kwargs
 		)
-
-		self.policy_optimizer = torch.optim.Adam(
-			self.policy.parameters(),
-			lr=self.kwargs["init_lr"],
-			weight_decay=self.kwargs["weight_decay"],
-		)
-		if self.curriculum is None:
-			self.cloning_optimizer = None
-		else:
-			self.cloning_optimizer = torch.optim.Adam(
-				self.policy.parameters(),
-				lr=self.kwargs["init_lr"] * self.kwargs["bc_strength"],
-				weight_decay=self.kwargs["weight_decay"],
-			)
-		self.continuous_criterion = nn.MSELoss()
-		self.discrete_criterion = nn.MSELoss()
+	
+	@property
+	def env(self):
+		if "env" not in self.state.objects:
+			raise ValueError("The environment is not set.")
+		return self.state.objects["env"]
 
 	@staticmethod
-	def _set_default_academy_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+	def _set_default_academy_kwargs(**kwargs) -> Dict[str, Any]:
 		"""
 		Set default values for the kwargs of the fit method.
 		:param kwargs:
@@ -237,7 +223,7 @@ class RLAcademy:
 		assert kwargs["batch_size"] > 0
 		return kwargs
 
-	def _copy_policy(self, requires_grad: bool = False) -> BaseAgent:
+	def _copy_policy(self, requires_grad: bool = False) -> Agent:
 		"""
 		Copy the policy to a new instance.
 		:return: The copied policy.
@@ -267,21 +253,22 @@ class RLAcademy:
 			buffer = ReplayBuffer(self.kwargs["buffer_size"], use_priority=self.kwargs["use_priority_buffer"])
 		if verbose is None:
 			verbose = self.verbose
-		self.env.reset()
 		agents_history_maps = AgentsHistoryMaps(buffer)
 		cumulative_rewards: List[float] = []
 		p_bar = tqdm(
 			total=n_trajectories, disable=not verbose, desc="Generating Trajectories", position=p_bar_position
 		)
+		observations = self.env.reset()
 		while agents_history_maps.terminals_count < n_trajectories:  # While not enough data in the buffer
-			decision_steps, terminal_steps = self.env.get_steps(self.behavior_name)
+			decision_steps, terminal_steps = self.env.step()
 			actions = None
 			if len(decision_steps) > 0:
 				if np.random.random() < epsilon:
-					actions = self.policy.get_random_actions(len(decision_steps))
+					actions = self.agent.get_random_actions(len(decision_steps))
 				else:
-					actions = self.policy.get_actions(decision_steps.obs)
+					actions = self.agent.get_actions(decision_steps.obs)
 				self.env.set_actions(self.behavior_name, actions.to_numpy())
+				observations, rewards, dones, infos = self.env.step(actions)
 			new_cumulative_rewards = agents_history_maps.update_(decision_steps, terminal_steps, actions)
 			p_bar.update(min(len(new_cumulative_rewards), n_trajectories - len(cumulative_rewards)))
 			cumulative_rewards.extend(new_cumulative_rewards)
@@ -348,80 +335,110 @@ class RLAcademy:
 
 	def train(
 			self,
-			n_iterations: int = int(1e6),
+			env,
+			n_iterations: Optional[int] = None,
+			*,
+			n_epochs: int = 1,
 			load_checkpoint_mode: LoadCheckpointMode = None,
 			force_overwrite: bool = False,
-			save_freq: int = int(1e2),
-			max_seconds: float = np.inf,
+			p_bar_position: Optional[int] = None,
+			p_bar_leave: Optional[bool] = None,
 			**kwargs
-	) -> Union[TrainingHistory, TrainingHistoriesMap]:
-		"""
-		Train the agent in the given environment.
-		:param n_iterations: The number of iterations to train the agent.
-		:param load_checkpoint_mode: The mode to use when loading a checkpoint.
-		:param force_overwrite: True to overwrite the checkpoint if it already exists.
-		:param save_freq: The frequency with which to save the checkpoint.
-		:param max_seconds: The maximum number of seconds to train for.
-		:param kwargs: The fit kwargs.
-		:return: The training history.
-		"""
-		# TODO: add learning rate decay
+	):
+		self._load_checkpoint_mode = load_checkpoint_mode
+		self._force_overwrite = force_overwrite
 		self.kwargs.update(kwargs)
-		self._update_optimizer_()
-
-		start_time = time.time()
-		start_itr = self.check_and_load_state_from_academy_checkpoint(load_checkpoint_mode, force_overwrite)
-		best_rewards = self.training_histories.max("Rewards")
-		best_saved_rewards = best_rewards
+		self.update_state_(
+			n_iterations=n_iterations,
+			n_epochs=n_epochs,
+			objects={**self.current_training_state.objects, **{"env": env}}
+		)
+		self.sort_callbacks_()
+		self.callbacks.start(self)
+		self.load_state()
+		if self.current_training_state.iteration is None:
+			self.update_state_(iteration=0)
+		if len(self.training_history) > 0:
+			self.update_itr_metrics_state_(**self.training_history.get_item_at(-1))
+		else:
+			self.update_state_(itr_metrics={})
+		env.reset()
 		buffer = self._init_train_buffer()
-		self.env.reset()
-		last_save_rewards = deque(maxlen=save_freq)
-		p_bar = tqdm(range(start_itr, n_iterations), disable=not self.verbose, desc="Training")
-		for i in p_bar:
-			if self.curriculum is not None:
-				self.curriculum.on_iteration_start()
-			break_flag = False
-			epsilon = linear_decay(
-				self.kwargs["init_epsilon"], self.kwargs["min_epsilon"], self.kwargs["epsilon_decay"], i
-			)
-			teacher_loss = self.fit_curriculum_buffer()
-			itr_metrics = self._exec_fit_itr_(epsilon, buffer)
-			best_rewards = max(best_rewards, itr_metrics["Rewards"])
-			last_save_rewards.append(itr_metrics["Rewards"])
-			p_bar_postfix = {
-				"loss": f"{itr_metrics['Loss']:.3f}",
-				"itr_rewards": f"{itr_metrics['Rewards']:.3f}",
-				f"last_{save_freq}_rewards": f"{np.mean(last_save_rewards):.3f}",
-				"best_rewards": f"{best_rewards:.3f}",
-			}
-			if teacher_loss is not None:
-				itr_metrics.update(TeacherLoss=teacher_loss)
-				p_bar_postfix.update(TeacherLoss=f"{teacher_loss:.3f}")
-			self.training_histories.concat(itr_metrics)
-			if self.curriculum is not None:
-				curriculum_out = self.curriculum.on_iteration_end(itr_metrics)
-				p_bar_postfix.update(curriculum_out.messages)
-				break_flag = self.curriculum.is_completed
-				if curriculum_out.lesson_completed:
-					best_saved_rewards = -np.inf
-					best_rewards = -np.inf
-					self._update_bc_optimizer_()
-			p_bar.set_postfix(p_bar_postfix)
-			if time.time() - start_time > max_seconds:
-				warnings.warn(f"Training stopped after {max_seconds} seconds.")
-				break_flag = True
-			if i % save_freq == 0 or break_flag or i == n_iterations - 1:
-				best_saved_rewards = self._make_itr_checkpoint(i, itr_metrics, best_saved_rewards)
-			if break_flag:
+		p_bar = tqdm(
+			initial=self.current_training_state.iteration,
+			total=self.current_training_state.n_iterations,
+			desc=kwargs.get("desc", "Training"),
+			disable=not self.verbose,
+			position=p_bar_position,
+			unit="itr",
+			leave=p_bar_leave
+		)
+		# last_save_rewards = deque(maxlen=save_freq)
+		for i in self._iterations_generator(p_bar):
+			self.update_state_(iteration=i)
+			self.callbacks.on_iteration_begin(self)
+			env = self.current_training_state.objects["env"]
+			env.reset()
+			itr_loss = self._exec_iteration(env)
+			self.update_itr_metrics_state_(**itr_loss)
+			postfix = {f"{k}": f"{v:.5e}" for k, v in self.state.itr_metrics.items()}
+			postfix.update(self.callbacks.on_pbar_update(self))
+			self.callbacks.on_iteration_end(self)
+			p_bar.set_postfix(postfix)
+			if self.current_training_state.stop_training_flag:
+				p_bar.set_postfix(OrderedDict(**{"stop_flag": "True"}, **postfix))
 				break
+			# teacher_loss = self.fit_curriculum_buffer()
+			# itr_metrics = self._exec_fit_itr_(epsilon, buffer)
+			# best_rewards = max(best_rewards, itr_metrics["Rewards"])
+			# last_save_rewards.append(itr_metrics["Rewards"])
+			# p_bar_postfix = {
+			# 	"loss": f"{itr_metrics['Loss']:.3f}",
+			# 	"itr_rewards": f"{itr_metrics['Rewards']:.3f}",
+			# 	f"last_{save_freq}_rewards": f"{np.mean(last_save_rewards):.3f}",
+			# 	"best_rewards": f"{best_rewards:.3f}",
+			# }
+		
+		self.callbacks.close(self)
 		p_bar.close()
 		if self.kwargs.get("close_env", True):
-			self.env.close()
-		self.plot_training_history(show=False)
-
-		if self.curriculum is None:
-			return self.training_histories.report_history
-		return self.training_histories
+			env.close()
+		return self.training_history
+	
+	def _exec_iteration(
+			self,
+			env: gym.Env,
+			**kwargs,
+	) -> Dict[str, float]:
+		with torch.no_grad():
+			torch.cuda.empty_cache()
+		losses = {}
+		
+		self.model.train()
+		self.callbacks.on_train_begin(self)
+		self.update_state_(batch_is_train=True)
+		train_losses = []
+		for epoch_idx in range(self.current_training_state.n_epochs):
+			self.update_state_(epoch=epoch_idx)
+			train_losses.append(self._exec_epoch(train_dataloader))
+		train_loss = np.mean(train_losses)
+		self.update_state_(train_loss=train_loss)
+		self.callbacks.on_train_end(self)
+		losses["train_loss"] = train_loss
+		
+		# if val_dataloader is not None:
+		# 	with torch.no_grad():
+		# 		self.model.eval()
+		# 		self.callbacks.on_validation_begin(self)
+		# 		self.update_state_(batch_is_train=False)
+		# 		val_loss = self._exec_epoch(val_dataloader)
+		# 		self.update_state_(val_loss=val_loss)
+		# 		self.callbacks.on_validation_end(self)
+		# 		losses["val_loss"] = val_loss
+		
+		with torch.no_grad():
+			torch.cuda.empty_cache()
+		return losses
 
 	def _make_itr_checkpoint(self, itr: int, itr_metrics: Dict[str, float], best_saved_rewards: float) -> float:
 		is_best = itr_metrics["Rewards"] > best_saved_rewards
@@ -461,6 +478,7 @@ class RLAcademy:
 	def fit_curriculum_buffer(self) -> Optional[float]:
 		"""
 		Fit the curriculum buffer.
+		
 		:return: The teacher loss.
 		"""
 		buffer = self.curriculum.teacher_buffer
@@ -537,96 +555,6 @@ class RLAcademy:
 		bc_loss.backward()
 		self.cloning_optimizer.step()
 		return bc_loss.detach().cpu().numpy().item()
-
-	def _compute_continuous_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
-		if torch.numel(batch.continuous_actions) == 0:
-			continuous_loss = 0.0
-		else:
-			targets = (
-					batch.rewards
-					+ (1.0 - batch.terminals)
-					* self.kwargs["gamma"]
-					* targets
-			).to(self.policy.device)
-			continuous_loss = self.continuous_criterion(predictions, targets)
-		return continuous_loss
-
-	def _compute_discrete_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
-		if torch.numel(batch.discrete_actions) == 0:
-			discrete_loss = 0.0
-		else:
-			targets = (
-					batch.rewards
-					+ (1.0 - batch.terminals)
-					* self.kwargs["gamma"]
-					* targets
-			).to(self.policy.device)
-			warnings.warn("Discrete loss is not implemented with cross entropy loss. This is a temporary solution.")
-			discrete_loss = self.discrete_criterion(predictions, targets)
-		return discrete_loss
-
-	def _compute_proximal_policy_optimization_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
-		if torch.numel(batch.continuous_actions) == 0:
-			continuous_loss = 0.0
-		else:
-			targets = (
-					batch.rewards
-					+ (1.0 - batch.terminals)
-					* self.kwargs["gamma"]
-					* targets
-			).to(self.policy.device)
-			continuous_loss = self.continuous_criterion(predictions, targets)
-		return continuous_loss
-
-	def update_weights(
-			self,
-			batch: BatchExperience,
-			predictions: TensorActionTuple,
-			targets: TensorActionTuple,
-	) -> float:
-		warnings.warn("This method is deprecated. Please use update_policy_weights instead.", DeprecationWarning)
-		"""
-		Performs a single update of the Q-Network using the provided optimizer and buffer
-		"""
-		assert torch.numel(batch.continuous_actions) + torch.numel(batch.discrete_actions) > 0
-		continuous_loss = self._compute_continuous_loss(batch, predictions.continuous, targets.continuous)
-		discrete_loss = self._compute_discrete_loss(batch, predictions.discrete, targets.discrete)
-		loss = continuous_loss + discrete_loss
-		# Perform the backpropagation
-		self.policy_optimizer.zero_grad()
-		loss.backward()
-		self.policy_optimizer.step()
-		return loss.detach().cpu().numpy().item()
-
-	def _compute_policy_ratio(self, batch: BatchExperience) -> torch.Tensor:
-		policy_predictions = self.policy.get_logits(batch.obs)
-		last_policy_predictions = self._last_policy.get_logits(batch.obs)
-		return policy_predictions / (last_policy_predictions + 1e-8)
-
-	def _compute_policy_loss(self, batch: BatchExperience) -> torch.Tensor:
-		policy_ratio = self._compute_policy_ratio(batch)
-		policy_loss = -torch.mean(
-			torch.minimum(
-				policy_ratio * batch.advantages,
-				torch.clamp(
-					policy_ratio,
-					1 - self.kwargs["clip_ratio"],
-					1 + self.kwargs["clip_ratio"]
-				) * batch.advantages
-			)
-		)
-		return policy_loss
-
-	def update_policy_weights(self, batch: BatchExperience) -> float:
-		"""
-		Performs a single update of the policy network using the provided optimizer and buffer
-		"""
-		policy_loss = self._compute_policy_loss(batch)
-		# Perform the backpropagation
-		self.policy_optimizer.zero_grad()
-		policy_loss.backward()
-		self.policy_optimizer.step()
-		return policy_loss.detach().cpu().numpy().item()
 
 	def close(self):
 		self.env.close()

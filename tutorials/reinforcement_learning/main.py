@@ -1,3 +1,7 @@
+"""
+This tutorial is a work in progress. It will be completed in the version 0.0.1 of NeuroTorch. Stay tuned!
+"""
+
 import gym
 from neurotorch.rl.agent import Agent
 

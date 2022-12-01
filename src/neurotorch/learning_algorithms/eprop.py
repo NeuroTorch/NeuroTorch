@@ -3,6 +3,7 @@ from collections import defaultdict
 from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List
 
 import torch
+from unstable import unstable
 
 from .learning_algorithm import LearningAlgorithm
 from ..transforms.base import to_numpy
@@ -10,6 +11,7 @@ from ..learning_algorithms.tbptt import TBPTT
 from ..utils import batchwise_temporal_filter, list_insert_replace_at, zero_grad_params
 
 
+@unstable
 class Eprop(TBPTT):
 	r"""
 	Apply the eligibility trace forward propagation (e-prop) :cite:t:`bellec_solution_2020`

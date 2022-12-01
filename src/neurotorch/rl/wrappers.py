@@ -2,7 +2,11 @@ from typing import Any, Optional
 
 import numpy as np
 import torch
-from mlagents_envs.base_env import ActionTuple
+# from mlagents_envs.base_env import ActionTuple
+
+
+class ActionTuple:
+	pass
 
 
 class TensorActionTuple:

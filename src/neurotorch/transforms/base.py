@@ -10,6 +10,10 @@ def to_tensor(x: Any, dtype=torch.float32):
 		return torch.from_numpy(x).type(dtype)
 	elif isinstance(x, torch.Tensor):
 		return x.type(dtype)
+	elif isinstance(x, numbers.Number):
+		return torch.tensor(x, dtype=dtype)
+	elif isinstance(x, dict):
+		return {k: to_tensor(v, dtype=dtype) for k, v in x.items()}
 	elif not isinstance(x, torch.Tensor):
 		return torch.tensor(x, dtype=dtype)
 	raise ValueError(f"Unsupported type {type(x)}")

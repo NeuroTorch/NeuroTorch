@@ -39,7 +39,7 @@ class Eprop(TBPTT):
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
 		"""
-		warnings.warn("Eprop is still in beta and may not work as expected or act exactly as BPTT.")
+		warnings.warn("Eprop is still in beta and may not work as expected or act exactly as BPTT.", DeprecationWarning)
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
 		# TODO: implement a optim step at each `optim_time_steps` steps.

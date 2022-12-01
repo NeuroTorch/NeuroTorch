@@ -6,9 +6,6 @@ import numpy as np
 import torch
 from queue import PriorityQueue
 
-from .wrappers import TensorActionTuple
-
-
 class Experience:
 	"""
 	An experience contains the data of one Agent transition.
@@ -21,7 +18,7 @@ class Experience:
 	def __init__(
 			self,
 			obs: Any,
-			action: TensorActionTuple,
+			action: Any,
 			reward: float,
 			terminal: bool,
 			next_obs: Any,
@@ -294,7 +291,7 @@ class ReplayBuffer:
 		for i, e in enumerate(buffer_copy.data):
 			buffer_copy.data[i] = Experience(
 				obs=e.obs,
-				action=e.action.to_numpy(),
+				action=e.action,
 				reward=e.reward,
 				terminal=e.terminal,
 				next_obs=e.next_obs,
@@ -309,7 +306,7 @@ class ReplayBuffer:
 		for i, e in enumerate(buffer.data):
 			buffer.data[i] = Experience(
 				obs=e.obs,
-				action=TensorActionTuple.from_numpy(e.action),
+				action=e.action,
 				reward=e.reward,
 				terminal=e.terminal,
 				next_obs=e.next_obs,

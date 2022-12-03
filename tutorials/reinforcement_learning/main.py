@@ -4,28 +4,34 @@ This tutorial is a work in progress. It will be completed in the version 0.0.1 o
 
 import gym
 from neurotorch.rl.agent import Agent
+from neurotorch.rl.rl_academy import RLAcademy
 
-debug_space = gym.spaces.Dict({
-   "discrete": gym.spaces.Discrete(2),
-   "box": gym.spaces.Box(low=0, high=1, shape=(2,)),
-   "continuous": gym.spaces.Box(low=0, high=1, shape=(10,)),
-})
-
-env = gym.make("LunarLander-v2", render_mode="human")
-
-agent = Agent(
-    observation_space=env.observation_space,
-    action_space=env.action_space,
-    behavior_name=str(env.spec.id),
-    policy=None,
-)
-print(agent)
-
-observation, info = env.reset(seed=42)
-for _ in range(1000):
-   action = agent.get_actions([observation])[0]
-   observation, reward, terminated, truncated, info = env.step(action)
-   
-   if terminated or truncated:
-      observation, info = env.reset()
-env.close()
+if __name__ == '__main__':
+    debug_space = gym.spaces.Dict({
+       "discrete": gym.spaces.Discrete(2),
+       "box": gym.spaces.Box(low=0, high=1, shape=(2,)),
+       "continuous": gym.spaces.Box(low=0, high=1, shape=(10,)),
+    })
+    env_id = "LunarLander-v2"
+    env = gym.vector.make(env_id, num_envs=4, render_mode="human")
+    
+    agent = Agent(
+        env=env,
+        behavior_name=env_id,
+        policy=None,
+    )
+    print(agent)
+    
+    academy = RLAcademy(
+        agent=agent,
+    )
+    buffer, cumulative_rewards = academy.generate_trajectories(10, epsilon=1.0, verbose=True, env=env)
+    
+    # observation, info = env.reset(seed=42)
+    # for _ in range(1000):
+    #    action = agent.get_actions([observation])[0]
+    #    observation, reward, terminated, truncated, info = env.step(action)
+    #
+    #    if terminated or truncated:
+    #       observation, info = env.reset()
+    env.close()

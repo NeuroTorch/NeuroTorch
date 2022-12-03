@@ -142,8 +142,8 @@ class Trainer:
 		self.kwargs = self._set_default_kwargs(kwargs)
 		self.model = model
 		self.predict_method = predict_method
-		assert hasattr(model, predict_method), f"Model does not have a method named '{predict_method}'"
-		assert callable(getattr(model, predict_method)), f"Model method '{predict_method}' is not callable"
+		assert hasattr(model, predict_method), f"Model {model.__class__} does not have a method named '{predict_method}'"
+		assert callable(getattr(model, predict_method)), f"Model method '{model.__class__}.{predict_method}' is not callable"
 		self.criterion = self._set_default_criterion(criterion)
 		self.regularization = self._set_default_regularization(regularization)
 		# self._maybe_add_regularization(self.regularization)

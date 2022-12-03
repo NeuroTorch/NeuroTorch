@@ -1,6 +1,6 @@
 import os
 from collections import defaultdict
-from typing import Optional, Union, Sequence, Dict, Tuple
+from typing import Optional, Union, Sequence, Dict, Tuple, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -282,4 +282,61 @@ class Linear(BaseNeuronsLayer):
 		return self.activation(torch.matmul(inputs, self.forward_weights) + self.bias_weights)
 
 
+def env_batch_step(
+		env: gym.Env,
+		actions: Any
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+	"""
+	Step the environment in batch mode.
+
+	:param env: The environment.
+	:type env: gym.Env
+	:param actions: The actions to take.
+	:type actions: Any
+
+	:return: The batch of observations, rewards, dones, truncated and infos.
+	:rtype: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+	"""
+	if isinstance(env, gym.vector.VectorEnv):
+		observations, rewards, dones, truncateds, infos = env.step(actions)
+	else:
+		observation, reward, done, truncated, info = env.step(actions)
+		observations = np.array([observation])
+		rewards = np.array([reward])
+		dones = np.array([done])
+		truncateds = np.array([truncated])
+		infos = np.array([info])
+	return observations, rewards, dones, truncateds, infos
+
+
+def get_single_observation_space(env: gym.Env) -> gym.spaces.Space:
+	"""
+	Return the observation space of a single environment.
+
+	:param env: The environment.
+	:type env: gym.Env
+
+	:return: The observation space.
+	:rtype: gym.spaces.Space
+	"""
+	if isinstance(env, gym.vector.VectorEnv):
+		return env.single_observation_space
+	else:
+		return env.observation_space
+
+
+def get_single_action_space(env: gym.Env) -> gym.spaces.Space:
+	"""
+	Return the action space of a single environment.
+
+	:param env: The environment.
+	:type env: gym.Env
+
+	:return: The action space.
+	:rtype: gym.spaces.Space
+	"""
+	if isinstance(env, gym.vector.VectorEnv):
+		return env.single_action_space
+	else:
+		return env.action_space
 

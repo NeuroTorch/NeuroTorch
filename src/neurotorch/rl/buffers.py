@@ -142,15 +142,26 @@ class Trajectory:
 		self.experiences = experiences if experiences is not None else []
 		self._terminal_flag = experiences[-1].terminal if experiences else False
 		self.gamma = gamma
+	
+	@property
+	def terminated(self):
+		return self._terminal_flag
 
 	@property
 	def _default_gamma(self):
 		return self.gamma if self.gamma is not None else 0.99
+	
+	@property
+	def cumulative_reward(self):
+		return sum([exp.reward for i, exp in enumerate(self.experiences)])
 
 	def set_terminal(self, terminal: bool):
 		self._terminal_flag = terminal
 		if self._terminal_flag:
 			self.propagate_rewards()
+			
+	def terminate(self):
+		self.set_terminal(True)
 
 	def propagate_rewards(self, gamma: Optional[float] = 0.99):
 		"""
@@ -191,6 +202,7 @@ class Trajectory:
 class ReplayBuffer:
 	def __init__(self, capacity=np.inf, seed=None, use_priority=True):
 		self.__capacity = capacity
+		self._seed = seed
 		self.random_generator = np.random.RandomState(seed)
 		self.data: List[Experience] = []
 		self._counter = 0
@@ -204,6 +216,15 @@ class ReplayBuffer:
 	@property
 	def capacity(self):
 		return self.__capacity
+	
+	def __str__(self):
+		_repr = f"ReplayBuffer("
+		_repr += f"capacity={self.capacity}"
+		_repr += f", size={len(self)}"
+		_repr += f", use_priority={self.use_priority}"
+		_repr += f", seed={self._seed}"
+		_repr += f")"
+		return _repr
 	
 	def set_seed(self, seed: int):
 		self.random_generator.seed(seed)

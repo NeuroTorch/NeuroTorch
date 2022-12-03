@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import gym
 
+from ..transforms.base import to_numpy, to_tensor
 from ..modules.base import BaseModel
 from ..modules.sequential import Sequential
 try:
@@ -121,14 +122,14 @@ class Agent:
 	
 	def get_actions(
 			self,
-			obs: Sequence[Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]],
+			obs: Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]],
 			**kwargs
 	) -> Any:
 		"""
 		Get the actions for the given observations.
 		
-		:param obs: The observations.
-		:type obs: Sequence[Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]]
+		:param obs: The observations. The observations must be batched.
+		:type obs: Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]
 		:param kwargs: Keywords arguments.
 		
 		:keyword str re_format: The format to reformat the discrete actions to. Default is "index" which
@@ -138,22 +139,23 @@ class Agent:
 		:return: The actions.
 		"""
 		self.env = kwargs.get("env", self.env)
-		as_batch = kwargs.get("as_batch", True)
-		as_sequence = kwargs.get("as_sequence", False)
-		assert not (as_batch and as_sequence), "Cannot return actions as both batch and sequence."
-		re_as_dict = kwargs.get("re_as_dict", isinstance(obs[0], dict))
+		re_as_dict = kwargs.get("re_as_dict", isinstance(obs, dict) or isinstance(obs[0], dict))
 		re_format = kwargs.get("re_format", "index")
 		as_numpy = kwargs.get("as_numpy", True)
 		
-		obs_as_batch = obs_sequence_to_batch(obs)
-		actions_as_batch = self.policy(obs_as_batch, **kwargs)
-		actions_as_batch_fmt = self.format_batch_discrete_actions(actions_as_batch, re_format=re_format)
-		actions_as_seq = obs_batch_to_sequence(actions_as_batch_fmt, as_numpy=as_numpy)
-		if not re_as_dict:
-			if not all([len(a) == 1 for a in actions_as_seq]):
-				raise ValueError("Cannot re-assemble actions as sequence because they are not all of length 1.")
-			actions_as_seq = [a[list(a.keys())[0]] for a in actions_as_seq]
-		return actions_as_seq
+		obs_as_tensor = to_tensor(obs)
+		re_actions = self.policy(obs_as_tensor, **kwargs)
+		re_actions = self.format_batch_discrete_actions(re_actions, re_format=re_format)
+		if as_numpy:
+			re_actions = to_numpy(re_actions)
+		if not re_as_dict and isinstance(re_actions, dict):
+			if not len(re_actions) == 1:
+				raise ValueError("Cannot unpack actions from dict because it has not a length of 1.")
+			re_actions = re_actions[list(re_actions.keys())[0]]
+		elif re_as_dict and not isinstance(re_actions, dict):
+			keys = self.discrete_actions + self.continuous_actions
+			re_actions = {k: re_actions for k in keys}
+		return re_actions
 	
 	def format_batch_discrete_actions(
 			self,

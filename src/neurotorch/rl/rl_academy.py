@@ -15,7 +15,7 @@ from tqdm.auto import tqdm
 from .agent import Agent
 from .buffers import ReplayBuffer, Trajectory, Experience, BatchExperience
 from .utils import env_batch_step
-from .. import Trainer, LoadCheckpointMode
+from .. import Trainer, LoadCheckpointMode, to_numpy
 from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 from ..utils import linear_decay
@@ -37,17 +37,13 @@ class AgentsHistoryMaps:
 
 	Attributes:
 		trajectories (Dict[int, Trajectory]): Mapping between agent ids and their trajectories
-		last_obs (Dict[int, np.ndarray]): Mapping between agent ids and their last observations
-		last_action (Dict[int, np.ndarray]): Mapping between agent ids and their last actions
-		cumulative_reward (Dict[int, float]): Mapping between agent ids and their cumulative rewards
+		cumulative_rewards (Dict[int, float]): Mapping between agent ids and their cumulative rewards
 	"""
 
 	def __init__(self, buffer: Optional[ReplayBuffer] = None):
 		self.buffer = buffer if buffer is not None else ReplayBuffer()
 		self.trajectories: Dict[int, Trajectory] = defaultdict(Trajectory)
-		self.last_obs: Dict[int, Any] = defaultdict()
-		self.last_action: Dict[int, Any] = defaultdict()
-		self.cumulative_reward: Dict[int, float] = defaultdict(lambda: 0.0)
+		self.cumulative_rewards: Dict[int, float] = defaultdict(lambda: 0.0)
 		self._terminal_counter = 0
 
 	@property
@@ -56,101 +52,51 @@ class AgentsHistoryMaps:
 		:return: The number of terminal steps
 		"""
 		return self._terminal_counter
-
-	def update_terminals_(
+	
+	def update_trajectories_(
 			self,
-			terminal_steps: TerminalSteps
-	) -> List[float]:
-		"""
-		Execute terminal steps and return the rewards.
-		
-		:param terminal_steps: The terminal steps.
-		
-		:return: The rewards
-		"""
-		cumulative_rewards = []
-		# For all Agents with a Terminal Step:
-		for agent_id_terminated in terminal_steps:
-			# Create its last experience (is last because the Agent terminated)
-			last_experience = Experience(
-				obs=deepcopy(self.last_obs[agent_id_terminated]),
-				reward=terminal_steps[agent_id_terminated].reward,
-				terminal=not terminal_steps[agent_id_terminated].interrupted,
-				action=self.last_action[agent_id_terminated].copy(),
-				next_obs=terminal_steps[agent_id_terminated].obs,
-			)
-			self.trajectories[agent_id_terminated].append_and_terminate(last_experience)
-			# Clear its last observation and action (Since the trajectory is over)
-			self.last_obs.pop(agent_id_terminated)
-			self.last_action.pop(agent_id_terminated)
-			# Report the cumulative reward
-			cumulative_rewards.append(
-				self.cumulative_reward.pop(agent_id_terminated, 0.0)
-				+ terminal_steps[agent_id_terminated].reward
-			)
-			# Add the Trajectory to the buffer
-			self.buffer.extend(self.trajectories.pop(agent_id_terminated))
+			*,
+			observations,
+			actions,
+			next_observations,
+			rewards,
+			dones,
+			truncated=None,
+			infos=None
+	):
+		actions = deepcopy(to_numpy(actions))
+		observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(to_numpy(next_observations))
+		rewards, dones = deepcopy(to_numpy(rewards)), deepcopy(to_numpy(dones))
+		for i in range(len(dones)):
+			if self.trajectories[i].terminated:
+				continue
+			if dones[i]:
+				self.trajectories[i].append_and_terminate(Experience(
+					obs=observations[i],
+					reward=rewards[i],
+					terminal=dones[i],
+					action=actions[i],
+					next_obs=next_observations[i],
+				))
+				self.cumulative_rewards[i] = self.trajectories[i].cumulative_reward
+				self.buffer.extend(self.trajectories.pop(i))
+				self._terminal_counter += 1
+			else:
+				self.trajectories[i].append(Experience(
+					obs=observations[i],
+					reward=rewards[i],
+					terminal=dones[i],
+					action=actions[i],
+					next_obs=next_observations[i],
+				))
+				
+	def terminate_all(self):
+		for i in range(len(self.trajectories)):
+			if not self.trajectories[i].terminated:
+				self.trajectories[i].terminate()
+			self.cumulative_rewards[i] = self.trajectories[i].cumulative_reward
+			self.buffer.extend(self.trajectories.pop(i))
 			self._terminal_counter += 1
-		return cumulative_rewards
-
-	def update_decisions_(self, decision_steps: DecisionSteps):
-		"""
-		Execute the decision steps of the agents
-		:param decision_steps: The decision steps
-		:return: None
-		"""
-		# For all Agents with a Decision Step:
-		for agent_id_decisions in decision_steps:
-			# If the Agent requesting a decision has a "last observation"
-			if agent_id_decisions in self.last_obs:
-				# Create an Experience from the last observation and the Decision Step
-				exp = Experience(
-					obs=deepcopy(self.last_obs[agent_id_decisions]),
-					reward=decision_steps[agent_id_decisions].reward,
-					terminal=False,
-					action=self.last_action[agent_id_decisions].copy(),
-					next_obs=decision_steps[agent_id_decisions].obs,
-				)
-				# Update the Trajectory of the Agent and its cumulative reward
-				self.trajectories[agent_id_decisions].append(exp)
-				self.cumulative_reward[agent_id_decisions] += decision_steps[agent_id_decisions].reward
-			# Store the observation as the new "last observation"
-			self.last_obs[agent_id_decisions] = decision_steps[agent_id_decisions].obs
-
-	def update_actions_(self, actions: TensorActionTuple, decision_steps: DecisionSteps):
-		"""
-		Add the actions to the last observation of the agents.
-		:param actions: The actions
-		:param decision_steps: The decision steps
-		:return: None
-		"""
-		actions_list = unbatch_actions(actions)
-		for agent_index, agent_id in enumerate(decision_steps.agent_id):
-			self.last_action[agent_id] = actions_list[agent_index]
-
-	def update_(
-			self,
-			decision_steps: Optional[DecisionSteps] = None,
-			terminal_steps: Optional[TerminalSteps] = None,
-			actions: Optional[TensorActionTuple] = None,
-	) -> Optional[List[float]]:
-		"""
-		Update the replay buffer with the given steps.
-		
-		:param decision_steps: The decision steps
-		:param terminal_steps: The terminal steps
-		:param actions: The actions
-		:return: The cumulative rewards if the terminal steps are given
-		"""
-		cumulative_rewards = None
-		if terminal_steps is not None:
-			cumulative_rewards = self.update_terminals_(terminal_steps)
-		if decision_steps is not None:
-			self.update_decisions_(decision_steps)
-		if actions is not None:
-			assert decision_steps is not None, "If actions are given, decision_steps must be given"
-			self.update_actions_(actions, decision_steps)
-		return cumulative_rewards
 
 
 class RLAcademy(Trainer):
@@ -267,40 +213,33 @@ class RLAcademy(Trainer):
 			verbose = self.verbose
 		if "env" in kwargs:
 			self.update_objects_state_(env=kwargs["env"])
-		# agents_history_maps = AgentsHistoryMaps(buffer)
+		agents_history_maps = AgentsHistoryMaps(buffer)
 		cumulative_rewards: List[float] = []
 		p_bar = tqdm(
 			total=n_trajectories, disable=not verbose, desc="Generating Trajectories", position=p_bar_position
 		)
-		terminals_count = 0
 		observations, info = self.env.reset()
-		while terminals_count < n_trajectories:  # While not enough data in the buffer
+		while agents_history_maps.terminals_count < n_trajectories:  # While not enough data in the buffer
 			if np.random.random() < epsilon:
 				actions = self.agent.get_random_actions(env=self.env)
 			else:
 				actions = self.agent.get_actions(observations, env=self.env)
-			observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions)
-			terminals_count += np.sum(dones)
-			cumulative_rewards.append(np.sum(rewards).item())
+			next_observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions)
+			agents_history_maps.update_trajectories_(
+				observations=observations,
+				actions=actions,
+				next_observations=next_observations,
+				rewards=rewards,
+				dones=dones,
+			)
+			cumulative_rewards = list(agents_history_maps.cumulative_rewards.values())
 			if all(dones):
-				observations, info = self.env.reset()
-			
-			
-			# decision_steps, terminal_steps = self.env.step()
-			# actions = None
-			# if len(decision_steps) > 0:
-			# 	if np.random.random() < epsilon:
-			# 		actions = self.agent.get_random_actions(len(decision_steps))
-			# 	else:
-			# 		actions = self.agent.get_actions(decision_steps.obs)
-			# 	self.env.set_actions(self.behavior_name, actions.to_numpy())
-			# 	observations, rewards, dones, infos = self.env.step(actions)
-			# new_cumulative_rewards = agents_history_maps.update_(decision_steps, terminal_steps, actions)
-			# p_bar.update(min(len(new_cumulative_rewards), n_trajectories - len(cumulative_rewards)))
-			# cumulative_rewards.extend(new_cumulative_rewards)
-			p_bar.update(min(np.sum(dones), n_trajectories - np.sum(dones)))
+				agents_history_maps.terminate_all()
+				next_observations, info = self.env.reset()
+			p_bar.update(min(sum(dones), max(0, n_trajectories - sum(dones))))
 			p_bar.set_postfix(cumulative_reward=f"{np.mean(cumulative_rewards) if cumulative_rewards else 0.0:.3f}")
-			# self.env._update_k_p_on_datum()
+			observations = next_observations
+		
 		p_bar.close()
 		return buffer, cumulative_rewards
 

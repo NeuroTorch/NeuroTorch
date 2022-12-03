@@ -25,7 +25,10 @@ if __name__ == '__main__':
     academy = RLAcademy(
         agent=agent,
     )
-    buffer, cumulative_rewards = academy.generate_trajectories(10, epsilon=1.0, verbose=True, env=env)
+    buffer, cumulative_rewards = academy.generate_trajectories(100, epsilon=0.0, verbose=True, env=env)
+    print(f"Buffer: {buffer}")
+    n_terminated = sum([int(e.terminal) for e in buffer])
+    print(f"{n_terminated = }")
     
     # observation, info = env.reset(seed=42)
     # for _ in range(1000):

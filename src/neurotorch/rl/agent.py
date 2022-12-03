@@ -9,30 +9,53 @@ from ..modules.sequential import Sequential
 try:
 	from ..modules.layers import Linear
 except ImportError:
-	from .utils import Linear, space_to_spec, obs_batch_to_sequence, space_to_continuous_shape
+	from .utils import Linear, space_to_spec, obs_batch_to_sequence, space_to_continuous_shape, \
+	get_single_observation_space, get_single_action_space
 from .utils import obs_sequence_to_batch
 
 
 class Agent:
 	def __init__(
 			self,
-			observation_space: gym.spaces.Space,
-			action_space: gym.spaces.Space,
-			behavior_name: str,
+			*,
+			env: Optional[gym.Env] = None,
+			observation_space: Optional[gym.spaces.Space] = None,
+			action_space: Optional[gym.spaces.Space] = None,
+			behavior_name: Optional[str] = None,
 			policy: Optional[BaseModel] = None,
 			**kwargs
 	):
 		"""
 		Constructor for BaseAgent class.
-
+		
+		:param env: The environment.
+		:type env: Optional[gym.Env]
+		:param observation_space: The observation space. Must be a single space not batched. Must be provided if
+			`env` is not provided. If `env` is provided, then this will be ignored.
+		:type observation_space: Optional[gym.spaces.Space]
+		:param action_space: The action space. Must be a single space not batched. Must be provided if
+			`env` is not provided. If `env` is provided, then this will be ignored.
+		:type action_space: Optional[gym.spaces.Space]
+		:param behavior_name: The name of the behavior.
+		:type behavior_name: Optional[str]
 		:param policy: The model to use.
 		:type policy: BaseModel
 		"""
 		super().__init__(**kwargs)
 		self.kwargs = kwargs
-		self.observation_space = observation_space
-		self.action_space = action_space
-		self.behavior_name = behavior_name
+		self.env = env
+		if env:
+			self.observation_space = get_single_observation_space(env)
+			self.action_space = get_single_action_space(env)
+		else:
+			self.observation_space = observation_space
+			self.action_space = action_space
+		if behavior_name:
+			self.behavior_name = behavior_name
+		elif env.spec:
+			self.behavior_name = env.spec.id
+		else:
+			self.behavior_name = "default"
 		self.policy = policy
 		if self.policy is None:
 			self.policy = self._create_default_policy()
@@ -114,7 +137,10 @@ class Agent:
 		
 		:return: The actions.
 		"""
-		as_batch = kwargs.get("as_batch", True)  # TODO: if as_batch is False, then return a single action
+		self.env = kwargs.get("env", self.env)
+		as_batch = kwargs.get("as_batch", True)
+		as_sequence = kwargs.get("as_sequence", False)
+		assert not (as_batch and as_sequence), "Cannot return actions as both batch and sequence."
 		re_as_dict = kwargs.get("re_as_dict", isinstance(obs[0], dict))
 		re_format = kwargs.get("re_format", "index")
 		as_numpy = kwargs.get("as_numpy", True)
@@ -181,9 +207,23 @@ class Agent:
 		else:
 			raise ValueError(f"Unknown re-formatting option {re_format}.")
 	
-	def get_random_actions(self, batch_size: int = 1, **kwargs) -> Any:
+	def get_random_actions(self, n_samples: int = 1, **kwargs) -> Any:
 		as_batch = kwargs.get("as_batch", False)
-		return [self.action_space.sample() for _ in range(batch_size)]
+		as_sequence = kwargs.get("as_sequence", False)
+		assert not (as_batch and as_sequence), "Cannot return actions as both batch and sequence."
+		as_single = not (as_batch or as_sequence)
+		self.env = kwargs.get("env", self.env)
+		if self.env:
+			action_space = self.env.action_space
+		else:
+			action_space = self.action_space
+		if as_single and n_samples == 1:
+			return action_space.sample()
+		seq = [action_space.sample() for _ in range(n_samples)]
+		if as_batch:
+			return obs_sequence_to_batch(seq)
+		elif as_sequence:
+			return seq
 	
 	def __str__(self):
 		policy_repr = str(self.policy)

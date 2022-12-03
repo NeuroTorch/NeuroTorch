@@ -1,0 +1,6 @@
+[dD]ata
+*results
+*.pth
+tr_data
+*tr_data*
+checkpoints

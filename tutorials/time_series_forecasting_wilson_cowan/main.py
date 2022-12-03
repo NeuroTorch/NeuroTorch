@@ -138,7 +138,7 @@ def train_with_params(
 		DataLoader(dataset, shuffle=False, num_workers=0, pin_memory=device.type == "cpu"),
 		n_iterations=n_iterations,
 		exec_metrics_on_train=True,
-		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
+		#load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
 		force_overwrite=kwargs.get("force_overwrite", False),
 	)
 	
@@ -189,10 +189,10 @@ if __name__ == '__main__':
 	forward_weights = nt.init.dale_(torch.zeros(n_units, n_units), inh_ratio=0.5, rho=0.2)
 
 	res = train_with_params(
-		filename=None,
+		filename="SampleZebrafishData_PaulDeKoninckLab_2020-12-16.npy",
 		sigma=15,
-		learning_rate=0.1,
-		n_iterations=10,
+		learning_rate=1e-2,
+		n_iterations=100,
 		forward_weights=forward_weights,
 		std_weights=1,
 		dt=0.02,
@@ -208,11 +208,11 @@ if __name__ == '__main__':
 		learn_tau=True,
 		device=torch.device("cpu"),
 		hh_init="inputs",
-		force_dale_law=True,
+		force_dale_law=False,
 		force_overwrite=False,
 		lr_schedule_start=0.85,
 		n_units=n_units,
-		checkpoint_folder="data/tr_data/checkpoints_dale_fish3-800t_sig15",
+		#checkpoint_folder="data/tr_data/checkpoints_dale_fish3-800t_sig15",
 	)
 
 	if res["force_dale_law"]:

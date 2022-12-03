@@ -14,10 +14,21 @@ from tqdm.auto import tqdm
 
 from .agent import Agent
 from .buffers import ReplayBuffer, Trajectory, Experience, BatchExperience
+from .utils import env_batch_step
 from .. import Trainer, LoadCheckpointMode
 from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 from ..utils import linear_decay
+
+
+class TerminalSteps:
+	pass
+
+class DecisionSteps:
+	pass
+
+class TensorActionTuple:
+	pass
 
 
 class AgentsHistoryMaps:
@@ -147,7 +158,7 @@ class RLAcademy(Trainer):
 			self,
 			agent: Agent,
 			*,
-			predict_method: str = "get_actions",
+			predict_method: str = "__call__",
 			learning_algorithm: Optional[LearningAlgorithm] = None,
 			callbacks: Optional[Union[List[BaseCallback], CallbacksList, BaseCallback]] = None,
 			verbose: bool = True,
@@ -247,84 +258,51 @@ class RLAcademy(Trainer):
 			buffer: Optional[ReplayBuffer] = None,
 			epsilon: float = 0.0,
 			p_bar_position: int = 0,
-			verbose: Optional[bool] = None
+			verbose: Optional[bool] = None,
+			**kwargs
 	) -> Tuple[ReplayBuffer, List[float]]:
 		if buffer is None:
 			buffer = ReplayBuffer(self.kwargs["buffer_size"], use_priority=self.kwargs["use_priority_buffer"])
 		if verbose is None:
 			verbose = self.verbose
-		agents_history_maps = AgentsHistoryMaps(buffer)
+		if "env" in kwargs:
+			self.update_objects_state_(env=kwargs["env"])
+		# agents_history_maps = AgentsHistoryMaps(buffer)
 		cumulative_rewards: List[float] = []
 		p_bar = tqdm(
 			total=n_trajectories, disable=not verbose, desc="Generating Trajectories", position=p_bar_position
 		)
-		observations = self.env.reset()
-		while agents_history_maps.terminals_count < n_trajectories:  # While not enough data in the buffer
-			decision_steps, terminal_steps = self.env.step()
-			actions = None
-			if len(decision_steps) > 0:
-				if np.random.random() < epsilon:
-					actions = self.agent.get_random_actions(len(decision_steps))
-				else:
-					actions = self.agent.get_actions(decision_steps.obs)
-				self.env.set_actions(self.behavior_name, actions.to_numpy())
-				observations, rewards, dones, infos = self.env.step(actions)
-			new_cumulative_rewards = agents_history_maps.update_(decision_steps, terminal_steps, actions)
-			p_bar.update(min(len(new_cumulative_rewards), n_trajectories - len(cumulative_rewards)))
-			cumulative_rewards.extend(new_cumulative_rewards)
+		terminals_count = 0
+		observations, info = self.env.reset()
+		while terminals_count < n_trajectories:  # While not enough data in the buffer
+			if np.random.random() < epsilon:
+				actions = self.agent.get_random_actions(env=self.env)
+			else:
+				actions = self.agent.get_actions(observations, env=self.env)
+			observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions)
+			terminals_count += np.sum(dones)
+			cumulative_rewards.append(np.sum(rewards).item())
+			if all(dones):
+				observations, info = self.env.reset()
+			
+			
+			# decision_steps, terminal_steps = self.env.step()
+			# actions = None
+			# if len(decision_steps) > 0:
+			# 	if np.random.random() < epsilon:
+			# 		actions = self.agent.get_random_actions(len(decision_steps))
+			# 	else:
+			# 		actions = self.agent.get_actions(decision_steps.obs)
+			# 	self.env.set_actions(self.behavior_name, actions.to_numpy())
+			# 	observations, rewards, dones, infos = self.env.step(actions)
+			# new_cumulative_rewards = agents_history_maps.update_(decision_steps, terminal_steps, actions)
+			# p_bar.update(min(len(new_cumulative_rewards), n_trajectories - len(cumulative_rewards)))
+			# cumulative_rewards.extend(new_cumulative_rewards)
+			p_bar.update(min(np.sum(dones), n_trajectories - np.sum(dones)))
 			p_bar.set_postfix(cumulative_reward=f"{np.mean(cumulative_rewards) if cumulative_rewards else 0.0:.3f}")
-			self.env._update_k_p_on_datum()
+			# self.env._update_k_p_on_datum()
 		p_bar.close()
 		return buffer, cumulative_rewards
-
-	def load_checkpoint(
-			self,
-			load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR
-	) -> dict:
-		checkpoint = self.checkpoint_manager.load_checkpoint(load_checkpoint_mode)
-		self.policy.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
-		return checkpoint
-
-	def plot_training_history(self, training_history: TrainingHistory = None, show: bool = False) -> str:
-		if training_history is None:
-			training_history = self.training_histories
-		save_path = f"./{self.checkpoint_folder}/training_history.png"
-		os.makedirs(f"./{self.checkpoint_folder}/", exist_ok=True)
-		training_history.plot(save_path=save_path, show=show)
-		return save_path
-
-	def check_and_load_state_from_academy_checkpoint(
-			self,
-			load_checkpoint_mode: LoadCheckpointMode = None,
-			force_overwrite: bool = False,
-	) -> int:
-		start_itr = 0
-		if load_checkpoint_mode is None:
-			if os.path.exists(self.checkpoint_manager.checkpoints_meta_path):
-				if force_overwrite:
-					shutil.rmtree(self.checkpoint_folder)
-				else:
-					raise ValueError(
-						f"{self.checkpoint_manager.checkpoints_meta_path} already exists. "
-						f"Set force_overwrite flag to True to overwrite existing saves."
-					)
-		else:
-			try:
-				checkpoint = self.load_checkpoint(load_checkpoint_mode)
-				self.policy.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
-				self.policy_optimizer.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY])
-				start_itr = int(checkpoint[CheckpointManager.CHECKPOINT_ITR_KEY]) + 1
-				self.training_histories: TrainingHistoriesMap = checkpoint[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY]
-				temp_curriculum = self.curriculum
-				self.curriculum = self.training_histories.curriculum
-				if temp_curriculum is not None:
-					self.curriculum.update_teachers_and_channels(temp_curriculum)
-				self.plot_training_history(show=False)
-			except FileNotFoundError as e:
-				if self.verbose:
-					warnings.warn(f"Error: {e}", Warning)
-					warnings.warn("No such checkpoint. Fit from beginning.")
-		return start_itr
 
 	def _init_train_buffer(self) -> ReplayBuffer:
 		self.env.reset()

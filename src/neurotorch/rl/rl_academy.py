@@ -10,25 +10,17 @@ import gym
 import numpy as np
 import torch
 from torch import nn
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from .agent import Agent
 from .buffers import ReplayBuffer, Trajectory, Experience, BatchExperience
+from .ppo import PPO
 from .utils import env_batch_step
 from .. import Trainer, LoadCheckpointMode, to_numpy
 from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 from ..utils import linear_decay
-
-
-class TerminalSteps:
-	pass
-
-class DecisionSteps:
-	pass
-
-class TensorActionTuple:
-	pass
 
 
 class AgentsHistoryMaps:
@@ -179,6 +171,12 @@ class RLAcademy(Trainer):
 		assert kwargs["batch_size"] <= kwargs["buffer_size"]
 		assert kwargs["batch_size"] > 0
 		return kwargs
+	
+	def _maybe_add_learning_algorithm(self, learning_algorithm: Optional[LearningAlgorithm]) -> None:
+		if len(self.learning_algorithms) == 0 and learning_algorithm is None:
+			learning_algorithm = PPO(optimizer=self.optimizer, criterion=self.criterion)
+		if learning_algorithm is not None:
+			self.callbacks.append(learning_algorithm)
 
 	def _copy_policy(self, requires_grad: bool = False) -> Agent:
 		"""
@@ -245,8 +243,6 @@ class RLAcademy(Trainer):
 
 	def _init_train_buffer(self) -> ReplayBuffer:
 		self.env.reset()
-		if self.curriculum is not None:
-			self.curriculum.on_iteration_start()
 		buffer, _ = self.generate_trajectories(self.kwargs["batch_size"])
 		return buffer
 
@@ -281,6 +277,7 @@ class RLAcademy(Trainer):
 			self.update_state_(itr_metrics={})
 		env.reset()
 		buffer = self._init_train_buffer()
+		self.update_objects_state_(buffer=buffer)
 		p_bar = tqdm(
 			initial=self.current_training_state.iteration,
 			total=self.current_training_state.n_iterations,
@@ -294,9 +291,13 @@ class RLAcademy(Trainer):
 		for i in self._iterations_generator(p_bar):
 			self.update_state_(iteration=i)
 			self.callbacks.on_iteration_begin(self)
+			epsilon = linear_decay(
+				self.kwargs["init_epsilon"], self.kwargs["min_epsilon"], self.kwargs["epsilon_decay"], i
+			)
 			env = self.current_training_state.objects["env"]
+			buffer = self.current_training_state.objects["buffer"]
 			env.reset()
-			itr_loss = self._exec_iteration(env)
+			itr_loss = self._exec_iteration(env, buffer, epsilon=epsilon)
 			self.update_itr_metrics_state_(**itr_loss)
 			postfix = {f"{k}": f"{v:.5e}" for k, v in self.state.itr_metrics.items()}
 			postfix.update(self.callbacks.on_pbar_update(self))
@@ -325,6 +326,7 @@ class RLAcademy(Trainer):
 	def _exec_iteration(
 			self,
 			env: gym.Env,
+			buffer: ReplayBuffer,
 			**kwargs,
 	) -> Dict[str, float]:
 		with torch.no_grad():
@@ -333,11 +335,17 @@ class RLAcademy(Trainer):
 		
 		self.model.train()
 		self.callbacks.on_train_begin(self)
+		
+		buffer, cumulative_rewards = self.generate_trajectories(
+			self.kwargs["update_freq"], buffer, kwargs.get("epsilon", 0.0),
+			p_bar_position=0, verbose=False,
+		)
+		losses["Rewards"] = np.mean(cumulative_rewards)
 		self.update_state_(batch_is_train=True)
 		train_losses = []
 		for epoch_idx in range(self.current_training_state.n_epochs):
 			self.update_state_(epoch=epoch_idx)
-			train_losses.append(self._exec_epoch(train_dataloader))
+			train_losses.append(self._exec_epoch(buffer))
 		train_loss = np.mean(train_losses)
 		self.update_state_(train_loss=train_loss)
 		self.callbacks.on_train_end(self)
@@ -356,19 +364,44 @@ class RLAcademy(Trainer):
 		with torch.no_grad():
 			torch.cuda.empty_cache()
 		return losses
-
-	def _make_itr_checkpoint(self, itr: int, itr_metrics: Dict[str, float], best_saved_rewards: float) -> float:
-		is_best = itr_metrics["Rewards"] > best_saved_rewards
-		if is_best:
-			best_saved_rewards = itr_metrics["Rewards"]
-		self.checkpoint_manager.save_checkpoint(
-			itr, itr_metrics, is_best,
-			state_dict=self.policy.state_dict(),
-			optimizer_state_dict=self.policy_optimizer.state_dict(),
-			training_history=self.training_histories,
+	
+	def _exec_epoch(
+			self,
+			buffer: ReplayBuffer,
+	) -> float:
+		self.callbacks.on_epoch_begin(self)
+		batch_size = min(len(buffer), self.kwargs["batch_size"])
+		batches = buffer.get_batch_generator(
+			batch_size, self.kwargs["n_batches"], randomize=True, device=self.agent.policy.device
 		)
-		self.plot_training_history(show=False)
-		return best_saved_rewards
+		batch_losses = []
+		for i, exp_batch in enumerate(batches):
+			self.update_state_(batch=i)
+			batch_losses.append(to_numpy(self._exec_batch(exp_batch)))
+		mean_loss = np.mean(batch_losses)
+		self.callbacks.on_epoch_end(self)
+		return mean_loss
+	
+	def _exec_batch(
+			self,
+			exp_batch: BatchExperience,
+			**kwargs,
+	):
+		self.update_state_(x_batch=exp_batch)
+		self.callbacks.on_batch_begin(self)
+		if self.model.training:
+			self.callbacks.on_optimization_begin(self, x=exp_batch)
+			self.callbacks.on_optimization_end(self)
+		else:
+			self.callbacks.on_validation_batch_begin(self, x=exp_batch)
+			self.callbacks.on_validation_batch_end(self)
+		self.callbacks.on_batch_end(self)
+		batch_loss = self.current_training_state.batch_loss
+		if batch_loss is None:
+			batch_loss = 0.0
+		else:
+			batch_loss = batch_loss.item()
+		return batch_loss
 
 	def _update_bc_optimizer_(self):
 		if self.curriculum.teacher_buffer is None:

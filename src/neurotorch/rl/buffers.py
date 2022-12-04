@@ -6,6 +6,9 @@ import numpy as np
 import torch
 from queue import PriorityQueue
 
+from ..transforms.base import to_tensor, ToDevice
+
+
 class Experience:
 	"""
 	An experience contains the data of one Agent transition.
@@ -58,7 +61,7 @@ class BatchExperience:
 	def __init__(
 			self,
 			batch: List[Experience],
-			device='cpu'
+			device: torch.device("cpu"),
 	):
 		"""
 		An object that contains a batch of experiences as tensors.
@@ -67,13 +70,13 @@ class BatchExperience:
 		:param device: The device to use for the tensors.
 		"""
 		self._device = device
-		self._nb_obs = len(batch[0].obs)
+		self._to = ToDevice(device=device)
+		# self._nb_obs = len(batch[0].obs)
 
 		self.obs: List[torch.Tensor] = self._make_obs_batch(batch)
 		self.rewards: torch.Tensor = self._make_rewards_batch(batch)
 		self.terminals: torch.Tensor = self._make_terminals_batch(batch)
-		self.continuous_actions = torch.stack([ex.action.continuous.to(device) for ex in batch])
-		self.discrete_actions = torch.stack([ex.action.discrete.to(device) for ex in batch])
+		self.actions = self._make_actions_batch(batch)
 		self.next_obs: List[torch.Tensor] = self._make_next_obs_batch(batch)
 		self.discounted_rewards: torch.Tensor = self._make_discounted_rewards_batch(batch)
 		self.advantages: torch.Tensor = self._make_advantages_batch(batch)
@@ -85,49 +88,57 @@ class BatchExperience:
 	@device.setter
 	def device(self, value):
 		self._device = value
-		self.obs = [obs.to(value) for obs in self.obs]
-		self.next_obs = [next_obs.to(value) for next_obs in self.next_obs]
-		self.rewards = self.rewards.to(value)
-		self.terminals = self.terminals.to(value)
-		self.continuous_actions = self.continuous_actions.to(value)
-		self.discrete_actions = self.discrete_actions.to(value)
-		self.discounted_rewards = self.discounted_rewards.to(value)
-		self.advantages = self.advantages.to(value)
+		# self.obs = [obs.to(value) for obs in self.obs]
+		# self.next_obs = [next_obs.to(value) for next_obs in self.next_obs]
+		# self.rewards = self.rewards.to(value)
+		# self.terminals = self.terminals.to(value)
+		# self.continuous_actions = self.continuous_actions.to(value)
+		# self.discrete_actions = self.discrete_actions.to(value)
+		# self.discounted_rewards = self.discounted_rewards.to(value)
+		# self.advantages = self.advantages.to(value)
+		self._to.device = value
 
 	def __len__(self):
 		return self.rewards.shape[0]
 
 	def _make_obs_batch(self, batch: List[Experience]) -> List[torch.Tensor]:
-		return [
-			torch.from_numpy(np.stack([ex.obs[i] for ex in batch])).to(self.device)
-			for i in range(self._nb_obs)
-		]
+		as_dict = isinstance(batch[0].obs, dict)
+		if as_dict:
+			obs = deepcopy(batch[0].obs)
+			for key in obs:
+				obs[key] = torch.stack([to_tensor(ex.obs[key]) for ex in batch])
+			return self._to(obs)
+		return self._to(torch.stack([to_tensor(ex.obs) for ex in batch]))
 
 	def _make_next_obs_batch(self, batch: List[Experience]) -> List[torch.Tensor]:
-		return [
-			torch.from_numpy(np.stack([ex.next_obs[i] for ex in batch])).to(self.device)
-			for i in range(self._nb_obs)
-		]
+		as_dict = isinstance(batch[0].next_obs, dict)
+		if as_dict:
+			obs = deepcopy(batch[0].next_obs)
+			for key in obs:
+				obs[key] = torch.stack([to_tensor(ex.next_obs[key]) for ex in batch])
+			return self._to(obs)
+		return self._to(torch.stack([to_tensor(ex.next_obs) for ex in batch]))
 
 	def _make_rewards_batch(self, batch: List[Experience]) -> torch.Tensor:
-		return torch.from_numpy(
-			np.array([ex.reward for ex in batch], dtype=np.float32).reshape(-1, 1)
-		).to(self.device)
+		return self._to(torch.stack([to_tensor(ex.reward) for ex in batch]))
 
 	def _make_terminals_batch(self, batch: List[Experience]) -> torch.Tensor:
-		return torch.from_numpy(
-			np.array([ex.terminal for ex in batch], dtype=np.float32).reshape(-1, 1)
-		).to(self.device)
+		return self._to(torch.stack([to_tensor(ex.terminal) for ex in batch]))
 
 	def _make_discounted_rewards_batch(self, batch: List[Experience]) -> torch.Tensor:
-		return torch.from_numpy(
-			np.array([ex.discounted_reward for ex in batch], dtype=np.float32).reshape(-1, 1)
-		).to(self.device)
+		return self._to(torch.stack([to_tensor(ex.discounted_reward) for ex in batch]))
 
 	def _make_advantages_batch(self, batch: List[Experience]) -> torch.Tensor:
-		return torch.from_numpy(
-			np.array([ex.advantage for ex in batch], dtype=np.float32).reshape(-1, 1)
-		).to(self.device)
+		return self._to(torch.stack([to_tensor(ex.advantage) for ex in batch]))
+	
+	def _make_actions_batch(self, batch: List[Experience]) -> torch.Tensor:
+		as_dict = isinstance(batch[0].action, dict)
+		if as_dict:
+			action = deepcopy(batch[0].action)
+			for key in action:
+				action[key] = torch.stack([to_tensor(ex.action[key]) for ex in batch])
+			return self._to(action)
+		return self._to(torch.stack([to_tensor(ex.action) for ex in batch]))
 
 
 class Trajectory:

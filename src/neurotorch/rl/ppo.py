@@ -1,7 +1,9 @@
+import warnings
 from typing import Optional, Sequence, Union, Dict, Callable, List
 
 import torch
 
+from .buffers import BatchExperience
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 
 
@@ -64,8 +66,8 @@ class PPO(LearningAlgorithm):
 	def update_weights(
 			self,
 			batch: BatchExperience,
-			predictions: TensorActionTuple,
-			targets: TensorActionTuple,
+			predictions,
+			targets,
 	) -> float:
 		warnings.warn("This method is deprecated. Please use update_policy_weights instead.", DeprecationWarning)
 		"""
@@ -110,3 +112,4 @@ class PPO(LearningAlgorithm):
 		policy_loss.backward()
 		self.policy_optimizer.step()
 		return policy_loss.detach().cpu().numpy().item()
+

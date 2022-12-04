@@ -22,6 +22,11 @@ class PPO(LearningAlgorithm):
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
 		super().__init__(params=params, **kwargs)
+		self._last_policy = None
+		
+	def start(self, trainer, **kwargs):
+		super().start(trainer, **kwargs)
+		self._last_policy = trainer.policy.clone()
 	
 	def _compute_continuous_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
 		if torch.numel(batch.continuous_actions) == 0:

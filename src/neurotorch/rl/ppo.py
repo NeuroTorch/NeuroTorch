@@ -23,7 +23,15 @@ class PPO(LearningAlgorithm):
 		kwargs.setdefault("load_state", True)
 		super().__init__(params=params, **kwargs)
 		self._last_policy = None
-		
+		self.continuous_criterion = torch.nn.MSELoss()
+		self.discrete_criterion = torch.nn.CrossEntropyLoss()
+	
+	@property
+	def policy(self):
+		if self.trainer is None:
+			return None
+		return self.trainer.policy
+	
 	def start(self, trainer, **kwargs):
 		super().start(trainer, **kwargs)
 		self._last_policy = trainer.policy.clone()

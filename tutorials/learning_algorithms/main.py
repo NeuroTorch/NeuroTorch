@@ -1,3 +1,8 @@
+"""
+This tutorial is currently under construction. Will be finished in the next version, stay tuned.
+"""
+
+
 import pprint
 
 import matplotlib.pyplot as plt
@@ -8,7 +13,6 @@ from neurotorch.callbacks.convergence import ConvergenceTimeGetter
 from neurotorch.callbacks.early_stopping import EarlyStoppingThreshold
 from neurotorch.callbacks.events import EventOnMetricThreshold
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
-from neurotorch.learning_algorithms.curbd import CURBD
 from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
 from neurotorch.utils import hash_params
@@ -287,11 +291,11 @@ if __name__ == '__main__':
 			"filename": None,
 			"smoothing_sigma": 15.0,
 			"n_units": 200,
-			"n_time_steps": 10,
+			"n_time_steps": -1,
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
-			"learning_algorithm": "eprop",
+			"learning_algorithm": "rls",
 			"auto_backward_time_steps_ratio": 0.0,
 			"weight_decay": 1e-5,
 			"learn_mu": False,

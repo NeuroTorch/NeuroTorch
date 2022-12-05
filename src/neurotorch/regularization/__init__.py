@@ -3,6 +3,7 @@ import pythonbasictools as pybt
 import torch
 
 from ..callbacks.base_callback import BaseCallback
+from ..utils import filter_parameters
 
 
 class BaseRegularization(torch.nn.Module, BaseCallback):
@@ -165,7 +166,7 @@ class Lp(BaseRegularization):
 		:rtype: torch.Tensor
 		"""
 		loss = torch.tensor(0.0, requires_grad=True).to(self.params[0].device)
-		for param in self.params:
+		for param in filter_parameters(self.params, requires_grad=True):
 			loss += torch.linalg.norm(param, self.p)
 		return loss
 

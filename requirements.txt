@@ -12,3 +12,4 @@ docutils>=0.17.1
 scipy>=1.8.0
 six>=1.16.0
 pythonbasictools
+unstable

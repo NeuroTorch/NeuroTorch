@@ -3,6 +3,8 @@ from typing import Callable, Dict, List, Optional, Union
 import torch
 
 from . import Trainer
+from ..learning_algorithms.bptt import BPTT
+from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 from ..transforms.base import ToTensor
 from ..metrics import ClassificationMetrics
 
@@ -29,6 +31,15 @@ class ClassificationTrainer(Trainer):
 		if metrics is None:
 			metrics = [ClassificationMetrics(self.model)]
 		return metrics
+	
+	def _maybe_add_learning_algorithm(self, learning_algorithm: Optional[LearningAlgorithm]) -> None:
+		if len(self.learning_algorithms) == 0 and learning_algorithm is None:
+			learning_algorithm = BPTT(
+				optimizer=torch.optim.Adam(self.model.parameters()),
+				criterion=self._set_default_criterion(None)
+			)
+		if learning_algorithm is not None:
+			self.callbacks.append(learning_algorithm)
 
 
 

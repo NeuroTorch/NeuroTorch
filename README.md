@@ -14,19 +14,19 @@
 
 # 1. Description
 
-It's time to bring deep learning and neuroscience together. In this library, we offer machine learning 
+It's time to bring deep learning and neuroscience together. With this library, we offer machine learning 
 tools to neuroscientists and we offer neuroscience tools to computer scientists. These two domains were created 
-to be one.
+to be one!
 
 
-NeuroTorch is developed to be easy to use, so that you can do simple things in a few lines of code. 
+NeuroTorch was developed to be easy to use and you can do simple things with few lines of code. 
 Moreover, NeuroTorch is modular so you can adapt it to your needs relatively quickly. Thanks and stay tuned, 
 because more is coming!
 
 
 ### Current Version (v0.0.1-beta0)
 
-What can we do with NeuroTorch in the current version? 
+What can be done with NeuroTorch in the current version? 
 - Image classification with spiking networks.
 - Classification of spiking time series with spiking networks.
 - Time series classification with spiking or Wilson-Cowan.
@@ -148,7 +148,7 @@ used in both ML and neuroscience to ensure that both fields can benefit from the
 this library seems to be very similar to NeuroTorch at first glance. However, the main difference is that NeuroTorch
 is focused on the development of learning algorithms for spiking neural networks and other bio-inspired dynamics like 
 Wilson-Cowan, while Norse is focused on the development of spiking neural networks layers itself. In addition,  
-NeuroTorch will soon allow to easily use the modules from Norse.
+NeuroTorch will soon allow to easily use modules from Norse.
 * [SpyTorch](https://github.com/fzenke/spytorch) presents a set of tutorials for training SNNs with the surrogate 
 gradient approach SuperSpike by [F. Zenke, and S. Ganguli (2017)](https://arxiv.org/abs/1705.11146). In fact,
 the prefix 'Spy' of certain layers in NeuroTorch is a reference to SpyTorch.
@@ -158,7 +158,7 @@ the prefix 'Spy' of certain layers in NeuroTorch is a reference to SpyTorch.
 # 7. About
 
 This package is part of a postgraduate research project realized by [Jérémie Gince](https://github.com/JeremieGince) 
-and supervised by [Simon Hardy]() and [Patrick Desrosiers](https://github.com/pdesrosiers). 
+and supervised by [Simon V Hardy]() and [Patrick Desrosiers](https://github.com/pdesrosiers). 
 Our work was supported by: (1) [UNIQUE](https://www.unique.quebec/home), a FRQNT-funded research center, (2) 
 the [Sentinelle Nord](https://sentinellenord.ulaval.ca/en) program of Université Laval, funded by the Canada 
 First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).

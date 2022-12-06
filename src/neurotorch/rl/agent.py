@@ -24,6 +24,7 @@ class Agent:
 			action_space: Optional[gym.spaces.Space] = None,
 			behavior_name: Optional[str] = None,
 			policy: Optional[BaseModel] = None,
+			policy_kwargs: Optional[Dict[str, Any]] = None,
 			**kwargs
 	):
 		"""
@@ -44,6 +45,12 @@ class Agent:
 		"""
 		super().__init__(**kwargs)
 		self.kwargs = kwargs
+		self.policy_kwargs = policy_kwargs if policy_kwargs is not None else {}
+		self.env = env
+		self.observation_space = observation_space
+		self.action_space = action_space
+		self.behavior_name = behavior_name
+		self.policy = policy if policy is not None else self._create_default_policy()
 		self.env = env
 		if env:
 			self.observation_space = get_single_observation_space(env)
@@ -109,7 +116,9 @@ class Agent:
 				)
 				for k, v in self.action_spec.items()
 			}
-		]).build()
+		],
+			**self.policy_kwargs
+		).build()
 		return default_policy
 
 	def __call__(self, *args, **kwargs):

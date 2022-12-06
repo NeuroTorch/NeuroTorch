@@ -11,6 +11,7 @@ if __name__ == '__main__':
     # env_id = "LunarLander-v2"
     env_id = "CartPole-v1"
     env = gym.vector.make(env_id, num_envs=1, render_mode="human")
+    # env = gym.make(env_id, render_mode="human")
     checkpoint_manager = nt.CheckpointManager(
         checkpoint_folder=f"data/tr_data/checkpoints_{env_id}_default-policy",
         save_freq=10,
@@ -36,7 +37,8 @@ if __name__ == '__main__':
         env,
         n_iterations=30,
         n_epochs=80,
-        batch_size=4096,
+        batch_size=256,
+        buffer_size=256,
         load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
         force_overwrite=True,
         verbose=True,

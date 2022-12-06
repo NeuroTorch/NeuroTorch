@@ -20,6 +20,7 @@ from .utils import env_batch_step
 from .. import Trainer, LoadCheckpointMode, to_numpy
 from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
+from ..modules import BaseModel
 from ..utils import linear_decay
 
 
@@ -102,15 +103,6 @@ class RLAcademy(Trainer):
 			verbose: bool = True,
 			**kwargs
 	):
-		"""
-		Initialize the RL Academy.
-		:param env: The environment to train the agent in.
-		:param agent:
-		:param behavior_name:
-		:param checkpoint_folder:
-		:param curriculum:
-		:param kwargs:
-		"""
 		self.agent = agent
 		kwargs = self._set_default_academy_kwargs(**kwargs)
 		super().__init__(
@@ -127,6 +119,13 @@ class RLAcademy(Trainer):
 		if "env" not in self.state.objects:
 			raise ValueError("The environment is not set.")
 		return self.state.objects["env"]
+	
+	@property
+	def policy(self) -> BaseModel:
+		"""
+		:return: The policy of the academy.
+		"""
+		return self.model
 
 	@staticmethod
 	def _set_default_academy_kwargs(**kwargs) -> Dict[str, Any]:
@@ -178,7 +177,7 @@ class RLAcademy(Trainer):
 		if learning_algorithm is not None:
 			self.callbacks.append(learning_algorithm)
 
-	def _copy_policy(self, requires_grad: bool = False) -> Agent:
+	def copy_policy(self, requires_grad: bool = False) -> BaseModel:
 		"""
 		Copy the policy to a new instance.
 		:return: The copied policy.
@@ -399,7 +398,7 @@ class RLAcademy(Trainer):
 		batch_loss = self.current_training_state.batch_loss
 		if batch_loss is None:
 			batch_loss = 0.0
-		else:
+		elif hasattr(batch_loss, "item") and callable(batch_loss.item):
 			batch_loss = batch_loss.item()
 		return batch_loss
 
@@ -443,7 +442,7 @@ class RLAcademy(Trainer):
 			for batch in batches:
 				loss = self._behaviour_cloning_update_weights(batch)
 				losses.append(loss)
-		self._last_policy = self._copy_policy(requires_grad=False)
+		self._last_policy = self.copy_policy(requires_grad=False)
 		return float(np.mean(losses))
 
 	def fit_buffer(
@@ -471,7 +470,7 @@ class RLAcademy(Trainer):
 				# self._last_policy = self._copy_policy(requires_grad=False)
 				self._last_policy.soft_update(self.policy, tau=self.kwargs["tau"])
 				losses.append(loss)
-		self._last_policy = self._copy_policy(requires_grad=False)
+		self._last_policy = self.copy_policy(requires_grad=False)
 		return float(np.mean(losses))
 
 	def _behaviour_cloning_compute_continuous_loss(self, batch: BatchExperience, predictions) -> torch.Tensor:
@@ -505,6 +504,66 @@ class RLAcademy(Trainer):
 		bc_loss.backward()
 		self.cloning_optimizer.step()
 		return bc_loss.detach().cpu().numpy().item()
+	
+	def _compute_continuous_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
+		if torch.numel(batch.continuous_actions) == 0:
+			continuous_loss = 0.0
+		else:
+			targets = (
+					batch.rewards
+					+ (1.0 - batch.terminals)
+					* self.kwargs["gamma"]
+					* targets
+			).to(self.policy.device)
+			continuous_loss = self.continuous_criterion(predictions, targets)
+		return continuous_loss
+	
+	def _compute_discrete_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
+		if torch.numel(batch.discrete_actions) == 0:
+			discrete_loss = 0.0
+		else:
+			targets = (
+					batch.rewards
+					+ (1.0 - batch.terminals)
+					* self.kwargs["gamma"]
+					* targets
+			).to(self.policy.device)
+			warnings.warn("Discrete loss is not implemented with cross entropy loss. This is a temporary solution.")
+			discrete_loss = self.discrete_criterion(predictions, targets)
+		return discrete_loss
+	
+	def _compute_proximal_policy_optimization_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
+		if torch.numel(batch.continuous_actions) == 0:
+			continuous_loss = 0.0
+		else:
+			targets = (
+					batch.rewards
+					+ (1.0 - batch.terminals)
+					* self.kwargs["gamma"]
+					* targets
+			).to(self.policy.device)
+			continuous_loss = self.continuous_criterion(predictions, targets)
+		return continuous_loss
+	
+	def update_weights(
+			self,
+			batch: BatchExperience,
+			predictions,
+			targets,
+	) -> float:
+		warnings.warn("This method is deprecated. Please use update_policy_weights instead.", DeprecationWarning)
+		"""
+		Performs a single update of the Q-Network using the provided optimizer and buffer
+		"""
+		assert torch.numel(batch.continuous_actions) + torch.numel(batch.discrete_actions) > 0
+		continuous_loss = self._compute_continuous_loss(batch, predictions.continuous, targets.continuous)
+		discrete_loss = self._compute_discrete_loss(batch, predictions.discrete, targets.discrete)
+		loss = continuous_loss + discrete_loss
+		# Perform the backpropagation
+		self.policy_optimizer.zero_grad()
+		loss.backward()
+		self.policy_optimizer.step()
+		return loss.detach().cpu().numpy().item()
 
 	def close(self):
 		self.env.close()

@@ -33,11 +33,14 @@ class AgentsHistoryMaps:
 		cumulative_rewards (Dict[int, float]): Mapping between agent ids and their cumulative rewards
 	"""
 
-	def __init__(self, buffer: Optional[ReplayBuffer] = None):
+	def __init__(self, buffer: Optional[ReplayBuffer] = None, **kwargs):
 		self.buffer = buffer if buffer is not None else ReplayBuffer()
 		self.trajectories: Dict[int, Trajectory] = defaultdict(Trajectory)
 		self.cumulative_rewards: Dict[int, float] = defaultdict(lambda: 0.0)
 		self._terminal_counter = 0
+		self.min_rewards = kwargs.get("min_rewards", float('inf'))
+		self.max_rewards = kwargs.get("max_rewards", float('-inf'))
+		self.normalize_rewards = kwargs.get("normalize_rewards", False)
 
 	@property
 	def terminals_count(self) -> int:
@@ -45,6 +48,13 @@ class AgentsHistoryMaps:
 		:return: The number of terminal steps
 		"""
 		return self._terminal_counter
+	
+	@property
+	def max_abs_rewards(self) -> float:
+		"""
+		:return: The maximum absolute reward
+		"""
+		return max(abs(self.min_rewards), abs(self.max_rewards))
 	
 	def update_trajectories_(
 			self,
@@ -60,6 +70,10 @@ class AgentsHistoryMaps:
 		actions = deepcopy(to_numpy(actions))
 		observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(to_numpy(next_observations))
 		rewards, dones = deepcopy(to_numpy(rewards)), deepcopy(to_numpy(dones))
+		self.min_rewards = min(self.min_rewards, np.min(rewards))
+		self.max_rewards = max(self.max_rewards, np.max(rewards))
+		if self.normalize_rewards:
+			rewards = rewards / (self.max_abs_rewards + 1e-8)
 		for i in range(len(dones)):
 			if self.trajectories[i].terminated:
 				continue
@@ -115,6 +129,7 @@ class RLAcademy(Trainer):
 			verbose=verbose,
 			**kwargs
 		)
+		self._agents_history_maps_meta = {}
 	
 	@property
 	def env(self):
@@ -161,6 +176,7 @@ class RLAcademy(Trainer):
 		kwargs.setdefault("buffer_size", 4096)
 		kwargs.setdefault("clip_ratio", 0.2)
 		kwargs.setdefault("use_priority_buffer", True)
+		kwargs.setdefault("normalize_rewards", False)
 
 		assert kwargs["batch_size"] <= kwargs["buffer_size"]
 		assert kwargs["batch_size"] > 0
@@ -175,6 +191,7 @@ class RLAcademy(Trainer):
 	def copy_policy(self, requires_grad: bool = False) -> BaseModel:
 		"""
 		Copy the policy to a new instance.
+		
 		:return: The copied policy.
 		"""
 		policy_copy = deepcopy(self.policy)
@@ -182,6 +199,16 @@ class RLAcademy(Trainer):
 			param.requires_grad = requires_grad
 		policy_copy.eval()
 		return policy_copy
+	
+	def copy_agent(self, requires_grad: bool = False) -> Agent:
+		"""
+		Copy the agent to a new instance.
+		
+		:return: The copied agent.
+		"""
+		agent_copy = Agent.copy_from_agent(self.agent, requires_grad=requires_grad)
+		agent_copy.policy.eval()
+		return agent_copy
 
 	def _update_optimizer_(self):
 		self.policy_optimizer = torch.optim.Adam(
@@ -189,6 +216,12 @@ class RLAcademy(Trainer):
 			lr=self.kwargs["init_lr"],
 			weight_decay=self.kwargs["weight_decay"]
 		)
+		
+	def _update_agents_history_maps_meta(self, agents_history_maps: AgentsHistoryMaps):
+		self._agents_history_maps_meta = {
+			"min_rewards": agents_history_maps.min_rewards,
+			"max_rewards": agents_history_maps.max_rewards,
+		}
 
 	def generate_trajectories(
 			self,
@@ -207,7 +240,9 @@ class RLAcademy(Trainer):
 			verbose = self.verbose
 		if "env" in kwargs:
 			self.update_objects_state_(env=kwargs["env"])
-		agents_history_maps = AgentsHistoryMaps(buffer)
+		agents_history_maps = AgentsHistoryMaps(
+			buffer, normalize_rewards=self.kwargs["normalize_rewards"], **self._agents_history_maps_meta
+		)
 		cumulative_rewards: List[float] = []
 		p_bar = tqdm(
 			total=n_trajectories, disable=not verbose, desc="Generating Trajectories", position=p_bar_position
@@ -233,7 +268,7 @@ class RLAcademy(Trainer):
 			p_bar.update(min(sum(dones), max(0, n_trajectories - sum(dones))))
 			p_bar.set_postfix(cumulative_reward=f"{np.mean(cumulative_rewards) if cumulative_rewards else 0.0:.3f}")
 			observations = next_observations
-		
+		self._update_agents_history_maps_meta(agents_history_maps)
 		p_bar.close()
 		return buffer, cumulative_rewards
 
@@ -398,169 +433,6 @@ class RLAcademy(Trainer):
 		elif hasattr(batch_loss, "item") and callable(batch_loss.item):
 			batch_loss = batch_loss.item()
 		return batch_loss
-
-	def _update_bc_optimizer_(self):
-		if self.curriculum.teacher_buffer is None:
-			return None
-		base_lr = self.kwargs["lr"]
-		bc_strength = self.kwargs["bc_strength"]
-		if self.curriculum.current_lesson.teacher_strength is not None:
-			bc_strength = self.curriculum.current_lesson.teacher_strength
-		for g in self.cloning_optimizer.param_groups:
-			g['lr'] = base_lr * bc_strength
-
-	def _exec_fit_itr_(
-			self,
-			epsilon: float,
-			buffer: ReplayBuffer,
-	) -> Dict[str, float]:
-		buffer, cumulative_rewards = self.generate_trajectories(
-			self.kwargs["update_freq"], buffer, epsilon, p_bar_position=0, verbose=False,
-		)
-		cum_rewards = np.mean(cumulative_rewards)
-		itr_loss = self.fit_buffer(buffer)
-		return dict(Rewards=cum_rewards, Loss=itr_loss)
-
-	def fit_curriculum_buffer(self) -> Optional[float]:
-		"""
-		Fit the curriculum buffer.
-		
-		:return: The teacher loss.
-		"""
-		buffer = self.curriculum.teacher_buffer
-		if buffer is None:
-			return None
-		batch_size = min(len(buffer), self.kwargs["batch_size"])
-		batches = buffer.get_batch_generator(
-			batch_size, self.kwargs["n_batches"], randomize=True, device=self.policy.device
-		)
-		losses = []
-		for _ in range(self.kwargs["n_epochs"]):
-			for batch in batches:
-				loss = self._behaviour_cloning_update_weights(batch)
-				losses.append(loss)
-		self._last_policy = self.copy_policy(requires_grad=False)
-		return float(np.mean(losses))
-
-	def fit_buffer(
-			self,
-			buffer: ReplayBuffer,
-	) -> float:
-		"""
-		Fit the agent on the given buffer.
-		:param buffer: The replay buffer.
-		:return: The loss.
-		"""
-		batch_size = min(len(buffer), self.kwargs["batch_size"])
-		batches = buffer.get_batch_generator(
-			batch_size, self.kwargs["n_batches"], randomize=True, device=self.policy.device
-		)
-		losses = []
-		for _ in range(self.kwargs["n_epochs"]):
-			for batch in batches:
-				# predictions = self.policy.get_actions(batch.obs, as_numpy=False)
-				# targets = self._last_policy.get_actions(batch.next_obs, as_numpy=False)
-				# loss = self.update_weights(batch, predictions, targets)
-				# self._last_policy.soft_update(self.policy, tau=self.kwargs["tau"])
-
-				loss = self.update_policy_weights(batch)
-				# self._last_policy = self._copy_policy(requires_grad=False)
-				self._last_policy.soft_update(self.policy, tau=self.kwargs["tau"])
-				losses.append(loss)
-		self._last_policy = self.copy_policy(requires_grad=False)
-		return float(np.mean(losses))
-
-	def _behaviour_cloning_compute_continuous_loss(self, batch: BatchExperience, predictions) -> torch.Tensor:
-		targets = batch.continuous_actions
-		if torch.numel(batch.continuous_actions) == 0:
-			continuous_loss = 0.0
-		else:
-			continuous_loss = self.continuous_criterion(predictions, targets.to(self.policy.device))
-		return continuous_loss
-
-	def _behaviour_cloning_compute_discrete_loss(self, batch: BatchExperience, predictions) -> torch.Tensor:
-		targets = batch.discrete_actions
-		if torch.numel(batch.discrete_actions) == 0:
-			discrete_loss = 0.0
-		else:
-			warnings.warn("Discrete loss is not implemented with cross entropy loss. This is a temporary solution.")
-			discrete_loss = self.discrete_criterion(predictions, targets.to(self.policy.device))
-		return discrete_loss
-
-	def _behaviour_cloning_update_weights(
-			self,
-			batch: BatchExperience,
-	) -> float:
-		assert torch.numel(batch.continuous_actions) + torch.numel(batch.discrete_actions) > 0
-		predictions = self.policy.get_actions(batch.obs)
-		bc_continuous_loss = self._behaviour_cloning_compute_continuous_loss(batch, predictions.continuous)
-		bc_discrete_loss = self._behaviour_cloning_compute_discrete_loss(batch, predictions.discrete)
-		bc_loss = bc_continuous_loss + bc_discrete_loss
-		# Perform the backpropagation
-		self.cloning_optimizer.zero_grad()
-		bc_loss.backward()
-		self.cloning_optimizer.step()
-		return bc_loss.detach().cpu().numpy().item()
-	
-	def _compute_continuous_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
-		if torch.numel(batch.continuous_actions) == 0:
-			continuous_loss = 0.0
-		else:
-			targets = (
-					batch.rewards
-					+ (1.0 - batch.terminals)
-					* self.kwargs["gamma"]
-					* targets
-			).to(self.policy.device)
-			continuous_loss = self.continuous_criterion(predictions, targets)
-		return continuous_loss
-	
-	def _compute_discrete_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
-		if torch.numel(batch.discrete_actions) == 0:
-			discrete_loss = 0.0
-		else:
-			targets = (
-					batch.rewards
-					+ (1.0 - batch.terminals)
-					* self.kwargs["gamma"]
-					* targets
-			).to(self.policy.device)
-			warnings.warn("Discrete loss is not implemented with cross entropy loss. This is a temporary solution.")
-			discrete_loss = self.discrete_criterion(predictions, targets)
-		return discrete_loss
-	
-	def _compute_proximal_policy_optimization_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
-		if torch.numel(batch.continuous_actions) == 0:
-			continuous_loss = 0.0
-		else:
-			targets = (
-					batch.rewards
-					+ (1.0 - batch.terminals)
-					* self.kwargs["gamma"]
-					* targets
-			).to(self.policy.device)
-			continuous_loss = self.continuous_criterion(predictions, targets)
-		return continuous_loss
-	
-	def update_weights(
-			self,
-			batch: BatchExperience,
-			predictions,
-			targets,
-	) -> float:
-		warnings.warn("This method is deprecated. Please use update_policy_weights instead.", DeprecationWarning)
-		"""
-		Performs a single update of the Q-Network using the provided optimizer and buffer
-		"""
-		assert torch.numel(batch.continuous_actions) + torch.numel(batch.discrete_actions) > 0
-		continuous_loss = self._compute_continuous_loss(batch, predictions.continuous, targets.continuous)
-		discrete_loss = self._compute_discrete_loss(batch, predictions.discrete, targets.discrete)
-		loss = continuous_loss + discrete_loss
-		# Perform the backpropagation
-		self.policy_optimizer.zero_grad()
-		loss.backward()
-		self.policy_optimizer.step()
-		return loss.detach().cpu().numpy().item()
 
 	def close(self):
 		self.env.close()

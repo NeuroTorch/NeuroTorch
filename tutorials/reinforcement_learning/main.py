@@ -29,6 +29,7 @@ if __name__ == '__main__':
     academy = RLAcademy(
         agent=agent,
         callbacks=[checkpoint_manager],
+        normalize_rewards=True,
     )
     history = academy.train(
         env,
@@ -36,6 +37,7 @@ if __name__ == '__main__':
         n_epochs=3,
         batch_size=256,
         load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
+        force_overwrite=True,
         verbose=True,
     )
     history.plot(show=True)

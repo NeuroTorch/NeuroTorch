@@ -17,7 +17,7 @@ from .agent import Agent
 from .buffers import ReplayBuffer, Trajectory, Experience, BatchExperience
 from .ppo import PPO
 from .utils import env_batch_step
-from .. import Trainer, LoadCheckpointMode, to_numpy
+from .. import Trainer, LoadCheckpointMode, to_numpy, TrainingHistory
 from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 from ..modules import BaseModel
@@ -93,6 +93,8 @@ class AgentsHistoryMaps:
 
 
 class RLAcademy(Trainer):
+	REWARD_METRIC_KEY = "rewards"
+	
 	def __init__(
 			self,
 			agent: Agent,
@@ -149,20 +151,13 @@ class RLAcademy(Trainer):
 		:return:
 		"""
 		kwargs.setdefault("close_env", False)
-		kwargs.setdefault("n_epochs", 3)
-		kwargs.setdefault("init_lr", 3.0e-4)
-		kwargs.setdefault("min_lr", 3.0e-4)
-		kwargs.setdefault("lr", kwargs["init_lr"])
-		kwargs.setdefault("weight_decay", 1e-5)
 		kwargs.setdefault("init_epsilon", 0.01)
 		kwargs.setdefault("epsilon_decay", 0.995)
 		kwargs.setdefault("min_epsilon", 0.0)
-		kwargs.setdefault("gamma", 0.99)
 		kwargs.setdefault("n_batches", 3)
 		kwargs.setdefault("tau", 1/kwargs["n_batches"])
 		kwargs.setdefault("batch_size", 256)
-		kwargs.setdefault("update_freq", 32)
-		kwargs.setdefault("bc_strength", 0.5)
+		kwargs.setdefault("n_new_trajectories", 32)
 		kwargs.setdefault("buffer_size", 4096)
 		kwargs.setdefault("clip_ratio", 0.2)
 		kwargs.setdefault("use_priority_buffer", True)
@@ -197,13 +192,15 @@ class RLAcademy(Trainer):
 
 	def generate_trajectories(
 			self,
-			n_trajectories: int,
+			n_trajectories: Optional[int] = None,
 			buffer: Optional[ReplayBuffer] = None,
 			epsilon: float = 0.0,
 			p_bar_position: int = 0,
 			verbose: Optional[bool] = None,
 			**kwargs
 	) -> Tuple[ReplayBuffer, List[float]]:
+		if n_trajectories is None:
+			n_trajectories = self.kwargs["n_new_trajectories"]
 		if buffer is None:
 			buffer = ReplayBuffer(self.kwargs["buffer_size"], use_priority=self.kwargs["use_priority_buffer"])
 		if verbose is None:
@@ -256,7 +253,7 @@ class RLAcademy(Trainer):
 			p_bar_position: Optional[int] = None,
 			p_bar_leave: Optional[bool] = None,
 			**kwargs
-	):
+	) -> TrainingHistory:
 		self._load_checkpoint_mode = load_checkpoint_mode
 		self._force_overwrite = force_overwrite
 		self.kwargs.update(kwargs)
@@ -297,7 +294,7 @@ class RLAcademy(Trainer):
 			buffer = self.current_training_state.objects["buffer"]
 			env.reset()
 			itr_loss = self._exec_iteration(env, buffer, epsilon=epsilon)
-			self.update_itr_metrics_state_(**itr_loss)
+			self.update_itr_metrics_state_(**itr_loss, epsilon=epsilon)
 			postfix = {f"{k}": f"{v:.5e}" for k, v in self.state.itr_metrics.items()}
 			postfix.update(self.callbacks.on_pbar_update(self))
 			self.callbacks.on_iteration_end(self)
@@ -336,10 +333,10 @@ class RLAcademy(Trainer):
 		self.callbacks.on_train_begin(self)
 		
 		buffer, cumulative_rewards = self.generate_trajectories(
-			self.kwargs["update_freq"], buffer, kwargs.get("epsilon", 0.0),
+			self.kwargs["n_new_trajectories"], buffer, kwargs.get("epsilon", 0.0),
 			p_bar_position=0, verbose=False,
 		)
-		losses["Rewards"] = np.mean(cumulative_rewards)
+		losses[self.REWARD_METRIC_KEY] = np.mean(cumulative_rewards)
 		self.update_state_(batch_is_train=True)
 		train_losses = []
 		for epoch_idx in range(self.current_training_state.n_epochs):

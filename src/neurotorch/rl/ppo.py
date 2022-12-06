@@ -1,6 +1,7 @@
 import warnings
 from typing import Optional, Sequence, Union, Dict, Callable, List
 
+import numpy as np
 import torch
 
 from .buffers import BatchExperience
@@ -30,6 +31,7 @@ class PPO(LearningAlgorithm):
 		self.discrete_criterion = torch.nn.CrossEntropyLoss()
 		self.clip_ratio = kwargs.get("clip_ratio", 0.2)
 		self.tau = kwargs.get("tau", None)
+		self.kwargs.setdefault("default_lr", 3e-4)
 	
 	@property
 	def policy(self):
@@ -71,7 +73,7 @@ class PPO(LearningAlgorithm):
 	def start(self, trainer, **kwargs):
 		super().start(trainer, **kwargs)
 		if self.params and self.optimizer is None:
-			self.optimizer = torch.optim.Adam(self.params, lr=2e-4)
+			self.optimizer = torch.optim.Adam(self.params, lr=self.kwargs["default_lr"])
 		elif not self.params and self.optimizer is not None:
 			self.params.extend([
 				param
@@ -80,14 +82,16 @@ class PPO(LearningAlgorithm):
 			])
 		else:
 			self.params = trainer.model.parameters()
-			self.optimizer = torch.optim.Adam(self.params, lr=2e-4)
+			self.optimizer = torch.optim.Adam(self.params, lr=self.kwargs["default_lr"])
 		self.last_agent = trainer.copy_agent()
 		if self.tau is None:
 			self.tau = 1 / trainer.state.n_epochs
+		assert self.tau >= 0, "The parameter `tau` must be greater or equal to 0."
 	
 	def _compute_policy_ratio(self, batch: BatchExperience) -> torch.Tensor:
 		policy_predictions = self.agent.get_actions(to_tensor(batch.obs), re_format="probs", as_numpy=False)
-		last_policy_predictions = self.last_agent.get_actions(to_tensor(batch.obs), re_format="probs", as_numpy=False)
+		# last_policy_predictions = self.last_agent.get_actions(to_tensor(batch.obs), re_format="probs", as_numpy=False)
+		last_policy_predictions = batch.actions
 		if isinstance(policy_predictions, dict):
 			policy_ratio = {
 				key: policy_predictions[key] / (last_policy_predictions[key] + 1e-8)
@@ -105,7 +109,7 @@ class PPO(LearningAlgorithm):
 		for key, ratio in policy_ratio.items():
 			view_shape = [policy_ratio[key].shape[0], ] + (policy_ratio[key].ndim - 1) * [1]
 			policy_loss += -torch.mean(
-				torch.minimum(
+				torch.min(
 					policy_ratio[key] * batch.advantages.view(*view_shape).to(self.policy.device),
 					torch.clamp(
 						policy_ratio[key],
@@ -135,7 +139,8 @@ class PPO(LearningAlgorithm):
 	
 	def on_optimization_end(self, trainer, **kwargs):
 		super().on_optimization_end(trainer, **kwargs)
-		self.last_policy.soft_update(self.policy, tau=self.tau)
+		if not np.isclose(self.tau, 0.0):
+			self.last_policy.soft_update(self.policy, tau=self.tau)
 
 	def on_iteration_begin(self, trainer, **kwargs):
 		super().on_iteration_begin(trainer, **kwargs)

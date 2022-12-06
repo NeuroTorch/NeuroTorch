@@ -169,22 +169,28 @@ class Agent:
 		"""
 		self.env = kwargs.get("env", self.env)
 		re_as_dict = kwargs.get("re_as_dict", isinstance(obs, dict) or isinstance(obs[0], dict))
-		re_format = kwargs.get("re_format", "index")
+		re_formats = kwargs.get("re_format", "index").split(",")
 		as_numpy = kwargs.get("as_numpy", True)
 		
 		obs_as_tensor = to_tensor(obs)
-		re_actions = self.policy(obs_as_tensor, **kwargs)
-		re_actions = self.format_batch_discrete_actions(re_actions, re_format=re_format)
+		out_actions = self.policy(obs_as_tensor, **kwargs)
+		re_actions_list = [
+			self.format_batch_discrete_actions(out_actions, re_format=re_format)
+			for re_format in re_formats
+		]
 		if as_numpy:
-			re_actions = to_numpy(re_actions)
-		if not re_as_dict and isinstance(re_actions, dict):
-			if not len(re_actions) == 1:
-				raise ValueError("Cannot unpack actions from dict because it has not a length of 1.")
-			re_actions = re_actions[list(re_actions.keys())[0]]
-		elif re_as_dict and not isinstance(re_actions, dict):
-			keys = self.discrete_actions + self.continuous_actions
-			re_actions = {k: re_actions for k in keys}
-		return re_actions
+			re_actions_list = [to_numpy(re_actions) for re_actions in re_actions_list]
+		for i, re_actions in enumerate(re_actions_list):
+			if not re_as_dict and isinstance(re_actions, dict):
+				if not len(re_actions) == 1:
+					raise ValueError("Cannot unpack actions from dict because it has not a length of 1.")
+				re_actions_list[i] = re_actions[list(re_actions.keys())[0]]
+			elif re_as_dict and not isinstance(re_actions, dict):
+				keys = self.discrete_actions + self.continuous_actions
+				re_actions_list[i] = {k: re_actions for k in keys}
+		if len(re_actions_list) == 1:
+			return re_actions_list[0]
+		return re_actions_list
 	
 	def format_batch_discrete_actions(
 			self,
@@ -203,7 +209,7 @@ class Agent:
 		:return: The formatted actions.
 		"""
 		discrete_actions = kwargs.get("discrete_actions", self.discrete_actions)
-		if re_format.lower() == "logits":
+		if re_format.lower() in ["logits", "raw"]:
 			return actions
 		elif re_format.lower() == "probs":
 			if isinstance(actions, torch.Tensor):
@@ -241,6 +247,7 @@ class Agent:
 	def get_random_actions(self, n_samples: int = 1, **kwargs) -> Any:
 		as_batch = kwargs.get("as_batch", False)
 		as_sequence = kwargs.get("as_sequence", False)
+		re_formats = kwargs.get("re_format", "raw").split(",")
 		assert not (as_batch and as_sequence), "Cannot return actions as both batch and sequence."
 		as_single = not (as_batch or as_sequence)
 		self.env = kwargs.get("env", self.env)
@@ -249,12 +256,19 @@ class Agent:
 		else:
 			action_space = self.action_space
 		if as_single and n_samples == 1:
-			return action_space.sample()
-		seq = [action_space.sample() for _ in range(n_samples)]
-		if as_batch:
-			return obs_sequence_to_batch(seq)
-		elif as_sequence:
-			return seq
+			out_actions = action_space.sample()
+		else:
+			out_actions = [action_space.sample() for _ in range(n_samples)]
+			if as_batch:
+				out_actions = obs_sequence_to_batch(out_actions)
+		re_actions_list = [
+			self.format_batch_discrete_actions(out_actions, re_format=re_format)
+			for re_format in re_formats
+		]
+		if len(re_actions_list) == 1:
+			return re_actions_list[0]
+		return re_actions_list
+		
 	
 	def __str__(self):
 		policy_repr = str(self.policy)

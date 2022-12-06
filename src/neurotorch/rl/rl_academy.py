@@ -37,7 +37,9 @@ class AgentsHistoryMaps:
 		self.buffer = buffer if buffer is not None else ReplayBuffer()
 		self.trajectories: Dict[int, Trajectory] = defaultdict(Trajectory)
 		self.cumulative_rewards: Dict[int, float] = defaultdict(lambda: 0.0)
+		self.terminal_rewards: Dict[int, float] = defaultdict(lambda: 0.0)
 		self._terminal_counter = 0
+		self._experience_counter = 0
 		self.min_rewards = kwargs.get("min_rewards", float('inf'))
 		self.max_rewards = kwargs.get("max_rewards", float('-inf'))
 		self.normalize_rewards = kwargs.get("normalize_rewards", False)
@@ -48,6 +50,13 @@ class AgentsHistoryMaps:
 		:return: The number of terminal steps
 		"""
 		return self._terminal_counter
+	
+	@property
+	def experience_count(self) -> int:
+		"""
+		:return: The number of experiences
+		"""
+		return self._experience_counter
 	
 	@property
 	def max_abs_rewards(self) -> float:
@@ -86,8 +95,10 @@ class AgentsHistoryMaps:
 					next_obs=next_observations[i],
 				))
 				self.cumulative_rewards[i] = self.trajectories[i].cumulative_reward
+				self.terminal_rewards[i] = self.trajectories[i].terminal_reward
 				self.buffer.extend(self.trajectories.pop(i))
 				self._terminal_counter += 1
+				self._experience_counter += 1
 			else:
 				self.trajectories[i].append(Experience(
 					obs=observations[i],
@@ -96,6 +107,7 @@ class AgentsHistoryMaps:
 					action=actions[i],
 					next_obs=next_observations[i],
 				))
+				self._experience_counter += 1
 				
 	def terminate_all(self):
 		for i in range(len(self.trajectories)):
@@ -107,7 +119,8 @@ class AgentsHistoryMaps:
 
 
 class RLAcademy(Trainer):
-	REWARD_METRIC_KEY = "rewards"
+	CUM_REWARDS_METRIC_KEY = "cum_rewards"
+	TERMINAL_REWARDS_METRIC_KEY = "terminal_rewards"
 	
 	def __init__(
 			self,
@@ -169,10 +182,10 @@ class RLAcademy(Trainer):
 		kwargs.setdefault("init_epsilon", 0.01)
 		kwargs.setdefault("epsilon_decay", 0.995)
 		kwargs.setdefault("min_epsilon", 0.0)
-		kwargs.setdefault("n_batches", 3)
-		kwargs.setdefault("tau", 1/kwargs["n_batches"])
+		kwargs.setdefault("n_batches", None)
+		kwargs.setdefault("tau", 0.0)
 		kwargs.setdefault("batch_size", 256)
-		kwargs.setdefault("n_new_trajectories", 32)
+		kwargs.setdefault("n_new_trajectories", None)
 		kwargs.setdefault("buffer_size", 4096)
 		kwargs.setdefault("clip_ratio", 0.2)
 		kwargs.setdefault("use_priority_buffer", True)
@@ -225,15 +238,19 @@ class RLAcademy(Trainer):
 
 	def generate_trajectories(
 			self,
+			*,
 			n_trajectories: Optional[int] = None,
+			n_experiences: Optional[int] = None,
 			buffer: Optional[ReplayBuffer] = None,
 			epsilon: float = 0.0,
 			p_bar_position: int = 0,
 			verbose: Optional[bool] = None,
 			**kwargs
-	) -> Tuple[ReplayBuffer, List[float]]:
+	) -> Tuple[ReplayBuffer, np.ndarray, np.ndarray]:
 		if n_trajectories is None:
 			n_trajectories = self.kwargs["n_new_trajectories"]
+		if n_experiences is None:
+			n_experiences = self.kwargs["buffer_size"]
 		if buffer is None:
 			buffer = ReplayBuffer(self.kwargs["buffer_size"], use_priority=self.kwargs["use_priority_buffer"])
 		if verbose is None:
@@ -244,37 +261,61 @@ class RLAcademy(Trainer):
 			buffer, normalize_rewards=self.kwargs["normalize_rewards"], **self._agents_history_maps_meta
 		)
 		cumulative_rewards: List[float] = []
+		terminal_rewards: List[float] = []
 		p_bar = tqdm(
-			total=n_trajectories, disable=not verbose, desc="Generating Trajectories", position=p_bar_position
+			total=n_experiences if n_trajectories is None else n_trajectories,
+			disable=not verbose, desc="Generating Trajectories", position=p_bar_position,
+			unit="trajectory" if n_trajectories is not None else "experience"
 		)
 		observations, info = self.env.reset()
-		while agents_history_maps.terminals_count < n_trajectories:  # While not enough data in the buffer
+		while not self._update_gen_trajectories_break_flag(agents_history_maps, n_trajectories, n_experiences):
 			if np.random.random() < epsilon:
-				actions = self.agent.get_random_actions(env=self.env)
+				actions_index, actions_probs = self.agent.get_random_actions(env=self.env, re_format="raw,probs")
 			else:
-				actions = self.agent.get_actions(observations, env=self.env)
-			next_observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions)
+				actions_index, actions_probs = self.agent.get_actions(observations, env=self.env, re_format="index,probs")
+			next_observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions_index)
 			agents_history_maps.update_trajectories_(
 				observations=observations,
-				actions=actions,
+				actions=actions_probs,
 				next_observations=next_observations,
 				rewards=rewards,
 				dones=dones,
 			)
 			cumulative_rewards = list(agents_history_maps.cumulative_rewards.values())
+			terminal_rewards = list(agents_history_maps.terminal_rewards.values())
 			if all(dones):
 				agents_history_maps.terminate_all()
 				next_observations, info = self.env.reset()
-			p_bar.update(min(sum(dones), max(0, n_trajectories - sum(dones))))
-			p_bar.set_postfix(cumulative_reward=f"{np.mean(cumulative_rewards) if cumulative_rewards else 0.0:.3f}")
+			if n_trajectories is None:
+				p_bar.update(min(len(dones), max(0, n_experiences - len(dones))))
+			else:
+				p_bar.update(min(sum(dones), max(0, n_trajectories - sum(dones))))
+			p_bar.set_postfix(
+				cumulative_reward=f"{np.mean(cumulative_rewards) if cumulative_rewards else 0.0:.3f}",
+				terminal_rewards=f"{np.mean(terminal_rewards) if terminal_rewards else 0.0:.3f}",
+			)
 			observations = next_observations
 		self._update_agents_history_maps_meta(agents_history_maps)
 		p_bar.close()
-		return buffer, cumulative_rewards
+		return buffer, np.asarray(cumulative_rewards), np.asarray(terminal_rewards)
+	
+	def _update_gen_trajectories_break_flag(
+			self,
+			agents_history_maps: AgentsHistoryMaps,
+			n_trajectories: Optional[int],
+			n_experiences: Optional[int],
+	) -> bool:
+		if n_trajectories is not None:
+			break_flag = agents_history_maps.terminals_count >= n_trajectories
+		elif n_experiences is not None:
+			break_flag = agents_history_maps.experience_count >= n_experiences
+		else:
+			break_flag = agents_history_maps.experience_count >= agents_history_maps.buffer.capacity
+		return break_flag
 
 	def _init_train_buffer(self) -> ReplayBuffer:
 		self.env.reset()
-		buffer, _ = self.generate_trajectories(self.kwargs["batch_size"])
+		buffer, *_ = self.generate_trajectories(n_experiences=self.kwargs["batch_size"])
 		return buffer
 
 	def train(
@@ -367,11 +408,14 @@ class RLAcademy(Trainer):
 		self.model.train()
 		self.callbacks.on_train_begin(self)
 		
-		buffer, cumulative_rewards = self.generate_trajectories(
-			self.kwargs["n_new_trajectories"], buffer, kwargs.get("epsilon", 0.0),
+		buffer, cumulative_rewards, terminal_rewards = self.generate_trajectories(
+			n_trajectories=self.kwargs["n_new_trajectories"],
+			buffer=buffer,
+			epsilon=kwargs.get("epsilon", 0.0),
 			p_bar_position=0, verbose=False,
 		)
-		losses[self.REWARD_METRIC_KEY] = np.mean(cumulative_rewards)
+		losses[self.CUM_REWARDS_METRIC_KEY] = np.mean(cumulative_rewards)
+		losses[self.TERMINAL_REWARDS_METRIC_KEY] = np.mean(terminal_rewards)
 		self.update_state_(batch_is_train=True)
 		train_losses = []
 		for epoch_idx in range(self.current_training_state.n_epochs):

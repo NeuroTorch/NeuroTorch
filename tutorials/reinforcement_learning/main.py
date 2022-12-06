@@ -8,12 +8,13 @@ from neurotorch.rl.agent import Agent
 from neurotorch.rl.rl_academy import RLAcademy
 
 if __name__ == '__main__':
-    env_id = "LunarLander-v2"
-    env = gym.vector.make(env_id, num_envs=6, render_mode="human")
+    # env_id = "LunarLander-v2"
+    env_id = "CartPole-v1"
+    env = gym.vector.make(env_id, num_envs=1, render_mode="human")
     checkpoint_manager = nt.CheckpointManager(
         checkpoint_folder=f"data/tr_data/checkpoints_{env_id}_default-policy",
         save_freq=10,
-        metric=RLAcademy.REWARD_METRIC_KEY,
+        metric=RLAcademy.CUM_REWARDS_METRIC_KEY,
         minimise_metric=False,
         save_best_only=True,
     )
@@ -28,21 +29,23 @@ if __name__ == '__main__':
     
     academy = RLAcademy(
         agent=agent,
-        callbacks=[checkpoint_manager],
-        normalize_rewards=True,
+        callbacks=[checkpoint_manager, nt.rl.PPO(tau=0.0)],
+        normalize_rewards=False,
     )
     history = academy.train(
         env,
-        n_iterations=100,
-        n_epochs=3,
-        batch_size=256,
+        n_iterations=30,
+        n_epochs=80,
+        batch_size=4096,
         load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
         force_overwrite=True,
         verbose=True,
     )
     history.plot(show=True)
     
-    buffer, cumulative_rewards = academy.generate_trajectories(10, epsilon=0.0, verbose=True, env=env)
+    buffer, cumulative_rewards, terminal_rewards = academy.generate_trajectories(
+        n_trajectories=10, epsilon=0.0, verbose=True, env=env
+    )
     print(f"Buffer: {buffer}")
     n_terminated = sum([int(e.terminal) for e in buffer])
     print(f"{n_terminated = }")

@@ -165,6 +165,10 @@ class Trajectory:
 	@property
 	def cumulative_reward(self):
 		return sum([exp.reward for i, exp in enumerate(self.experiences)])
+	
+	@property
+	def terminal_reward(self):
+		return self.experiences[-1].reward
 
 	def set_terminal(self, terminal: bool):
 		self._terminal_flag = terminal

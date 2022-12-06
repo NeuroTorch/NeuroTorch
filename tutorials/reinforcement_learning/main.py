@@ -13,7 +13,7 @@ if __name__ == '__main__':
     checkpoint_manager = nt.CheckpointManager(
         checkpoint_folder=f"data/tr_data/checkpoints_{env_id}_default-policy",
         save_freq=10,
-        metric="rewards",
+        metric=RLAcademy.REWARD_METRIC_KEY,
         minimise_metric=False,
         save_best_only=True,
     )

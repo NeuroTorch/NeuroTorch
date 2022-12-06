@@ -340,3 +340,31 @@ def get_single_action_space(env: gym.Env) -> gym.spaces.Space:
 	else:
 		return env.action_space
 
+
+def sample_action_space(action_space: gym.spaces.Space, re_format: str = "raw"):
+	"""
+	Sample an action from the action space.
+
+	:param action_space: The action space.
+	:type action_space: gym.spaces.Space
+	:param re_format: The format to return the action in.
+	:type re_format: str
+
+	:return: The sampled action.
+	:rtype: Any
+	"""
+	if isinstance(action_space, (gym.spaces.Discrete, gym.spaces.MultiDiscrete, gym.spaces.Box)):
+		action = action_space.sample()
+	else:
+		raise NotImplementedError(f"Action space {action_space} is not implemented.")
+	if re_format == "raw":
+		return action
+	elif re_format == "one_hot":
+		if isinstance(action_space, gym.spaces.Discrete):
+			return np.eye(action_space.n)[action]
+		elif isinstance(action_space, gym.spaces.MultiDiscrete):
+			return np.stack([np.eye(n)[a] for n, a in zip(action_space.nvec, action)])
+		else:
+			raise NotImplementedError(f"Action space {action_space} is not implemented.")
+	else:
+		raise NotImplementedError(f"Format {re_format} is not implemented.")

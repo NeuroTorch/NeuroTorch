@@ -34,7 +34,7 @@ if __name__ == '__main__':
         env,
         n_iterations=100,
         n_epochs=3,
-        batch_size=1024,
+        batch_size=256,
         load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
         verbose=True,
     )

@@ -269,8 +269,9 @@ class RLAcademy(Trainer):
 		)
 		observations, info = self.env.reset()
 		while not self._update_gen_trajectories_break_flag(agents_history_maps, n_trajectories, n_experiences):
-			if np.random.random() < epsilon:
-				actions_index, actions_probs = self.agent.get_random_actions(env=self.env, re_format="raw,probs")
+			rn_action_flag = np.random.random() < epsilon
+			if rn_action_flag:
+				actions_index, actions_probs = self.agent.get_random_actions(env=self.env, re_format="index,one_hot")
 			else:
 				actions_index, actions_probs = self.agent.get_actions(observations, env=self.env, re_format="index,probs")
 			next_observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions_index)

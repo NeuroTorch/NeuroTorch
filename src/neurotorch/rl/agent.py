@@ -12,7 +12,7 @@ try:
 	from ..modules.layers import Linear
 except ImportError:
 	from .utils import Linear, space_to_spec, obs_batch_to_sequence, space_to_continuous_shape, \
-	get_single_observation_space, get_single_action_space
+	get_single_observation_space, get_single_action_space, sample_action_space
 from .utils import obs_sequence_to_batch
 
 
@@ -209,6 +209,7 @@ class Agent:
 		:return: The formatted actions.
 		"""
 		discrete_actions = kwargs.get("discrete_actions", self.discrete_actions)
+		actions = to_tensor(actions)
 		if re_format.lower() in ["logits", "raw"]:
 			return actions
 		elif re_format.lower() == "probs":
@@ -220,9 +221,9 @@ class Agent:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
 		elif re_format.lower() == "index":
 			if isinstance(actions, torch.Tensor):
-				return torch.argmax(actions, dim=-1) if len(discrete_actions) >= 1 else actions
+				return torch.argmax(actions, dim=-1).long() if len(discrete_actions) >= 1 else actions
 			elif isinstance(actions, dict):
-				return {k: (torch.argmax(v, dim=-1) if k in discrete_actions else v) for k, v in actions.items()}
+				return {k: (torch.argmax(v, dim=-1).long() if k in discrete_actions else v) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
 		elif re_format.lower() == "one_hot":
@@ -247,7 +248,8 @@ class Agent:
 	def get_random_actions(self, n_samples: int = 1, **kwargs) -> Any:
 		as_batch = kwargs.get("as_batch", False)
 		as_sequence = kwargs.get("as_sequence", False)
-		re_formats = kwargs.get("re_format", "raw").split(",")
+		re_formats = kwargs.get("re_format", "index").split(",")
+		as_numpy = kwargs.get("as_numpy", True)
 		assert not (as_batch and as_sequence), "Cannot return actions as both batch and sequence."
 		as_single = not (as_batch or as_sequence)
 		self.env = kwargs.get("env", self.env)
@@ -256,19 +258,20 @@ class Agent:
 		else:
 			action_space = self.action_space
 		if as_single and n_samples == 1:
-			out_actions = action_space.sample()
+			out_actions = sample_action_space(action_space, re_format="one_hot")
 		else:
-			out_actions = [action_space.sample() for _ in range(n_samples)]
+			out_actions = [sample_action_space(action_space, re_format="one_hot") for _ in range(n_samples)]
 			if as_batch:
 				out_actions = obs_sequence_to_batch(out_actions)
 		re_actions_list = [
 			self.format_batch_discrete_actions(out_actions, re_format=re_format)
 			for re_format in re_formats
 		]
+		if as_numpy:
+			re_actions_list = [to_numpy(re_actions) for re_actions in re_actions_list]
 		if len(re_actions_list) == 1:
 			return re_actions_list[0]
 		return re_actions_list
-		
 	
 	def __str__(self):
 		policy_repr = str(self.policy)

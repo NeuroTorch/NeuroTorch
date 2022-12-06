@@ -42,15 +42,12 @@ class Agent:
 		:type behavior_name: Optional[str]
 		:param policy: The model to use.
 		:type policy: BaseModel
+		:param policy_kwargs: The keyword arguments to pass to the policy if it is created by default.
+		:type policy_kwargs: Optional[Dict[str, Any]]
 		"""
 		super().__init__(**kwargs)
 		self.kwargs = kwargs
 		self.policy_kwargs = policy_kwargs if policy_kwargs is not None else {}
-		self.env = env
-		self.observation_space = observation_space
-		self.action_space = action_space
-		self.behavior_name = behavior_name
-		self.policy = policy if policy is not None else self._create_default_policy()
 		self.env = env
 		if env:
 			self.observation_space = get_single_observation_space(env)

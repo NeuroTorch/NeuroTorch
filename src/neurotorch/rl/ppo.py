@@ -4,6 +4,7 @@ from typing import Optional, Sequence, Union, Dict, Callable, List
 import torch
 
 from .buffers import BatchExperience
+from .. import to_numpy, to_tensor
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 
 
@@ -23,8 +24,11 @@ class PPO(LearningAlgorithm):
 		kwargs.setdefault("load_state", True)
 		super().__init__(params=params, **kwargs)
 		self._last_policy = None
+		self.optimizer = optimizer
 		self.continuous_criterion = torch.nn.MSELoss()
 		self.discrete_criterion = torch.nn.CrossEntropyLoss()
+		self.clip_ratio = kwargs.get("clip_ratio", 0.2)
+		self.tau = kwargs.get("tau", None)
 	
 	@property
 	def policy(self):
@@ -32,87 +36,67 @@ class PPO(LearningAlgorithm):
 			return None
 		return self.trainer.policy
 	
+	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
+		if self.save_state:
+			state = checkpoint.get(self.name, {})
+			opt_state_dict = state.get(self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY, None)
+			if opt_state_dict is not None:
+				self.optimizer.load_state_dict(opt_state_dict)
+	
+	def get_checkpoint_state(self, trainer, **kwargs) -> object:
+		if self.save_state:
+			if self.optimizer is not None:
+				return {
+					self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: self.optimizer.state_dict()
+				}
+		return None
+	
 	def start(self, trainer, **kwargs):
 		super().start(trainer, **kwargs)
-		self._last_policy = trainer.policy.clone()
-	
-	def _compute_continuous_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
-		if torch.numel(batch.continuous_actions) == 0:
-			continuous_loss = 0.0
+		if self.params and self.optimizer is None:
+			self.optimizer = torch.optim.Adam(self.params, lr=2e-4)
+		elif not self.params and self.optimizer is not None:
+			self.params.extend([
+				param
+				for i in range(len(self.optimizer.param_groups))
+				for param in self.optimizer.param_groups[i]["params"]
+			])
 		else:
-			targets = (
-					batch.rewards
-					+ (1.0 - batch.terminals)
-					* self.kwargs["gamma"]
-					* targets
-			).to(self.policy.device)
-			continuous_loss = self.continuous_criterion(predictions, targets)
-		return continuous_loss
-
-	def _compute_discrete_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
-		if torch.numel(batch.discrete_actions) == 0:
-			discrete_loss = 0.0
-		else:
-			targets = (
-					batch.rewards
-					+ (1.0 - batch.terminals)
-					* self.kwargs["gamma"]
-					* targets
-			).to(self.policy.device)
-			warnings.warn("Discrete loss is not implemented with cross entropy loss. This is a temporary solution.")
-			discrete_loss = self.discrete_criterion(predictions, targets)
-		return discrete_loss
-
-	def _compute_proximal_policy_optimization_loss(self, batch: BatchExperience, predictions, targets) -> torch.Tensor:
-		if torch.numel(batch.continuous_actions) == 0:
-			continuous_loss = 0.0
-		else:
-			targets = (
-					batch.rewards
-					+ (1.0 - batch.terminals)
-					* self.kwargs["gamma"]
-					* targets
-			).to(self.policy.device)
-			continuous_loss = self.continuous_criterion(predictions, targets)
-		return continuous_loss
-	
-	def update_weights(
-			self,
-			batch: BatchExperience,
-			predictions,
-			targets,
-	) -> float:
-		warnings.warn("This method is deprecated. Please use update_policy_weights instead.", DeprecationWarning)
-		"""
-		Performs a single update of the Q-Network using the provided optimizer and buffer
-		"""
-		assert torch.numel(batch.continuous_actions) + torch.numel(batch.discrete_actions) > 0
-		continuous_loss = self._compute_continuous_loss(batch, predictions.continuous, targets.continuous)
-		discrete_loss = self._compute_discrete_loss(batch, predictions.discrete, targets.discrete)
-		loss = continuous_loss + discrete_loss
-		# Perform the backpropagation
-		self.policy_optimizer.zero_grad()
-		loss.backward()
-		self.policy_optimizer.step()
-		return loss.detach().cpu().numpy().item()
+			self.params = trainer.model.parameters()
+			self.optimizer = torch.optim.Adam(self.params, lr=2e-4)
+		self._last_policy = trainer.copy_policy()
+		if self.tau is None:
+			self.tau = 1 / trainer.state.n_epochs
 	
 	def _compute_policy_ratio(self, batch: BatchExperience) -> torch.Tensor:
-		policy_predictions = self.policy.get_logits(batch.obs)
-		last_policy_predictions = self._last_policy.get_logits(batch.obs)
-		return policy_predictions / (last_policy_predictions + 1e-8)
+		policy_predictions = self.policy(to_tensor(batch.obs))
+		last_policy_predictions = self._last_policy(to_tensor(batch.obs))
+		if isinstance(policy_predictions, dict):
+			policy_ratio = {
+				key: policy_predictions[key] / (last_policy_predictions[key] + 1e-8)
+				for key in policy_predictions
+			}
+		else:
+			policy_ratio = policy_predictions / (last_policy_predictions + 1e-8)
+		return policy_ratio
 
 	def _compute_policy_loss(self, batch: BatchExperience) -> torch.Tensor:
 		policy_ratio = self._compute_policy_ratio(batch)
-		policy_loss = -torch.mean(
-			torch.minimum(
-				policy_ratio * batch.advantages,
-				torch.clamp(
-					policy_ratio,
-					1 - self.kwargs["clip_ratio"],
-					1 + self.kwargs["clip_ratio"]
-				) * batch.advantages
+		if not isinstance(policy_ratio, dict):
+			policy_ratio = {"default": policy_ratio}
+		policy_loss = to_tensor(0.0).to(self.policy.device)
+		for key, ratio in policy_ratio.items():
+			view_shape = [policy_ratio[key].shape[0], ] + (policy_ratio[key].ndim - 1) * [1]
+			policy_loss += -torch.mean(
+				torch.minimum(
+					policy_ratio[key] * batch.advantages.view(*view_shape),
+					torch.clamp(
+						policy_ratio[key],
+						1 - self.clip_ratio,
+						1 + self.clip_ratio
+					) * batch.advantages.view(*view_shape)
+				)
 			)
-		)
 		return policy_loss
 
 	def update_policy_weights(self, batch: BatchExperience) -> float:
@@ -121,8 +105,21 @@ class PPO(LearningAlgorithm):
 		"""
 		policy_loss = self._compute_policy_loss(batch)
 		# Perform the backpropagation
-		self.policy_optimizer.zero_grad()
+		self.optimizer.zero_grad()
 		policy_loss.backward()
-		self.policy_optimizer.step()
-		return policy_loss.detach().cpu().numpy().item()
+		self.optimizer.step()
+		return to_numpy(policy_loss).item()
+	
+	def on_optimization_begin(self, trainer, **kwargs):
+		super().on_optimization_begin(trainer, **kwargs)
+		batch = trainer.current_training_state.x_batch
+		batch_loss = self.update_policy_weights(batch)
+		trainer.update_state_(batch_loss=batch_loss)
+	
+	def on_optimization_end(self, trainer, **kwargs):
+		super().on_optimization_end(trainer, **kwargs)
+		self._last_policy.soft_update(self.policy, tau=self.tau)
 
+	def on_iteration_begin(self, trainer, **kwargs):
+		super().on_iteration_begin(trainer, **kwargs)
+		self._last_policy = trainer.copy_policy()

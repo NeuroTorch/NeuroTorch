@@ -10,7 +10,8 @@ from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 
 class PPO(LearningAlgorithm):
 	r"""
-	Apply the Proximal Policy Optimization algorithm to the given model.
+	Apply the Proximal Policy Optimization algorithm to the given model. The algorithm is described in the paper
+	`Proximal Policy Optimization Algorithms <https://arxiv.org/abs/1707.06347>`.
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
 	
@@ -23,7 +24,7 @@ class PPO(LearningAlgorithm):
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
 		super().__init__(params=params, **kwargs)
-		self._last_policy = None
+		self.last_agent = None
 		self.optimizer = optimizer
 		self.continuous_criterion = torch.nn.MSELoss()
 		self.discrete_criterion = torch.nn.CrossEntropyLoss()
@@ -32,9 +33,25 @@ class PPO(LearningAlgorithm):
 	
 	@property
 	def policy(self):
+		if self.agent is None:
+			return None
+		return self.agent.policy
+	
+	@property
+	def last_policy(self):
+		if self.last_agent is None:
+			return None
+		return self.last_agent.policy
+	
+	@last_policy.setter
+	def last_policy(self, policy):
+		self.last_agent.policy = policy
+	
+	@property
+	def agent(self):
 		if self.trainer is None:
 			return None
-		return self.trainer.policy
+		return self.trainer.agent
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
@@ -64,13 +81,13 @@ class PPO(LearningAlgorithm):
 		else:
 			self.params = trainer.model.parameters()
 			self.optimizer = torch.optim.Adam(self.params, lr=2e-4)
-		self._last_policy = trainer.copy_policy()
+		self.last_agent = trainer.copy_agent()
 		if self.tau is None:
 			self.tau = 1 / trainer.state.n_epochs
 	
 	def _compute_policy_ratio(self, batch: BatchExperience) -> torch.Tensor:
-		policy_predictions = self.policy(to_tensor(batch.obs))
-		last_policy_predictions = self._last_policy(to_tensor(batch.obs))
+		policy_predictions = self.agent.get_actions(to_tensor(batch.obs), re_format="probs", as_numpy=False)
+		last_policy_predictions = self.last_agent.get_actions(to_tensor(batch.obs), re_format="probs", as_numpy=False)
 		if isinstance(policy_predictions, dict):
 			policy_ratio = {
 				key: policy_predictions[key] / (last_policy_predictions[key] + 1e-8)
@@ -89,12 +106,12 @@ class PPO(LearningAlgorithm):
 			view_shape = [policy_ratio[key].shape[0], ] + (policy_ratio[key].ndim - 1) * [1]
 			policy_loss += -torch.mean(
 				torch.minimum(
-					policy_ratio[key] * batch.advantages.view(*view_shape),
+					policy_ratio[key] * batch.advantages.view(*view_shape).to(self.policy.device),
 					torch.clamp(
 						policy_ratio[key],
 						1 - self.clip_ratio,
 						1 + self.clip_ratio
-					) * batch.advantages.view(*view_shape)
+					) * batch.advantages.view(*view_shape).to(self.policy.device)
 				)
 			)
 		return policy_loss
@@ -118,8 +135,8 @@ class PPO(LearningAlgorithm):
 	
 	def on_optimization_end(self, trainer, **kwargs):
 		super().on_optimization_end(trainer, **kwargs)
-		self._last_policy.soft_update(self.policy, tau=self.tau)
+		self.last_policy.soft_update(self.policy, tau=self.tau)
 
 	def on_iteration_begin(self, trainer, **kwargs):
 		super().on_iteration_begin(trainer, **kwargs)
-		self._last_policy = trainer.copy_policy()
+		self.last_policy = trainer.copy_policy()

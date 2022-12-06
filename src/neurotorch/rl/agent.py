@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Sequence, Union, Optional, Dict, Any, List
 
 import numpy as np
@@ -16,6 +17,28 @@ from .utils import obs_sequence_to_batch
 
 
 class Agent:
+	
+	@staticmethod
+	def copy_from_agent(agent: "Agent", requires_grad: Optional[bool] = None) -> "Agent":
+		"""
+		Copy the agent.
+
+		:param agent: The agent to copy.
+		:type agent: Agent
+		:param requires_grad: Whether to require gradients.
+		:type requires_grad: Optional[bool]
+		:return: The copied agent.
+		:rtype: Agent
+		"""
+		return Agent(
+			env=agent.env,
+			observation_space=agent.observation_space,
+			action_space=agent.action_space,
+			behavior_name=agent.behavior_name,
+			policy=agent.copy_policy(requires_grad=requires_grad),
+			**agent.kwargs
+		)
+	
 	def __init__(
 			self,
 			*,
@@ -243,6 +266,18 @@ class Agent:
 		
 	def hard_update(self, policy):
 		self.policy.hard_update(policy)
+	
+	def copy_policy(self, requires_grad: Optional[bool] = None) -> BaseModel:
+		"""
+		Copy the policy to a new instance.
+
+		:return: The copied policy.
+		"""
+		policy_copy = deepcopy(self.policy)
+		if requires_grad is not None:
+			for param in policy_copy.parameters():
+				param.requires_grad = requires_grad
+		return policy_copy
 
 
 

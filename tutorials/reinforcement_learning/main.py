@@ -36,9 +36,9 @@ if __name__ == '__main__':
     history = academy.train(
         env,
         n_iterations=30,
-        n_epochs=80,
-        batch_size=256,
-        buffer_size=256,
+        n_epochs=4,
+        batch_size=5,
+        buffer_size=20,
         load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
         force_overwrite=True,
         verbose=True,

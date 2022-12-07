@@ -33,6 +33,7 @@ class Experience:
 		self.reward = reward
 		self.terminal = terminal
 		self.next_obs = next_obs
+		self.rewards_horizon = []  # TODO: make list of next rewards
 		self._discounted_reward = discounted_reward
 		self._advantage = advantage
 
@@ -190,6 +191,9 @@ class Trajectory:
 				self.experiences[i].discounted_reward = (
 						self.experiences[i].reward + gamma * self.experiences[i + 1].discounted_reward
 				)
+				
+	def compute_horizon_rewards(self):
+		raise NotImplementedError()
 
 	def propagate_values(self, lmbda: Optional[float] = 0.95):
 		raise NotImplementedError("Not implemented yet.")

@@ -296,6 +296,7 @@ class RLAcademy(Trainer):
 				terminal_rewards=f"{np.mean(terminal_rewards) if terminal_rewards else 0.0:.3f}",
 			)
 			observations = next_observations
+		agents_history_maps.terminate_all()
 		self._update_agents_history_maps_meta(agents_history_maps)
 		p_bar.close()
 		return buffer, np.asarray(cumulative_rewards), np.asarray(terminal_rewards)

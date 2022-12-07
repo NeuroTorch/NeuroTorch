@@ -32,6 +32,7 @@ class PPO(LearningAlgorithm):
 		self.clip_ratio = kwargs.get("clip_ratio", 0.2)
 		self.tau = kwargs.get("tau", None)
 		self.kwargs.setdefault("default_lr", 3e-4)
+		# TODO: add critic network
 	
 	@property
 	def policy(self):
@@ -100,6 +101,13 @@ class PPO(LearningAlgorithm):
 		else:
 			policy_ratio = policy_predictions / (last_policy_predictions + 1e-8)
 		return policy_ratio
+	
+	def _compute_advantages(self, batch: BatchExperience) -> torch.Tensor:
+		"""
+		Compute the advantage function for the given batch of experiences.
+		"""
+		# TODO: use critic network and rewards_horizon to compute the advantages
+		raise NotImplementedError
 
 	def _compute_policy_loss(self, batch: BatchExperience) -> torch.Tensor:
 		policy_ratio = self._compute_policy_ratio(batch)

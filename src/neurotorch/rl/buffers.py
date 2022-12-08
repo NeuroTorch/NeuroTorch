@@ -268,6 +268,14 @@ class ReplayBuffer:
 	def capacity(self):
 		return self.__capacity
 	
+	@property
+	def full(self):
+		return len(self) >= self.capacity
+	
+	@property
+	def empty(self):
+		return len(self) == 0
+	
 	def __str__(self):
 		_repr = f"ReplayBuffer("
 		_repr += f"capacity={self.capacity}"
@@ -348,7 +356,7 @@ class ReplayBuffer:
 		"""
 		max_idx = int(batch_size * int(len(self) / batch_size))
 		indexes = np.arange(max_idx).reshape(-1, batch_size)
-		if n_batches is None:
+		if n_batches is None or n_batches > len(indexes) or n_batches < 0:
 			n_batches = indexes.shape[0]
 		else:
 			n_batches = min(n_batches, indexes.shape[0])
@@ -357,6 +365,9 @@ class ReplayBuffer:
 		for i in range(n_batches):
 			batch = [self.data[j] for j in indexes[i]]
 			yield BatchExperience(batch, device=device)
+	
+	def clear(self):
+		self.data.clear()
 
 	def save(self, filename: str):
 		buffer_copy = deepcopy(self)

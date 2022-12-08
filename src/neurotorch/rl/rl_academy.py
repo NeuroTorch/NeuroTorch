@@ -91,10 +91,13 @@ class RLAcademy(Trainer):
 		kwargs.setdefault("n_batches", None)
 		kwargs.setdefault("tau", 0.0)
 		kwargs.setdefault("batch_size", 256)
-		kwargs.setdefault("n_new_trajectories", None)
 		kwargs.setdefault("buffer_size", 4096)
+		kwargs.setdefault("clear_buffer", True)
+		kwargs.setdefault("randomize_buffer", True)
+		kwargs.setdefault("n_new_trajectories", None)
+		kwargs.setdefault("n_new_experiences", kwargs["buffer_size"])
 		kwargs.setdefault("clip_ratio", 0.2)
-		kwargs.setdefault("use_priority_buffer", True)
+		kwargs.setdefault("use_priority_buffer", False)
 		kwargs.setdefault("normalize_rewards", False)
 		kwargs.setdefault("rewards_horizon", 128)
 		kwargs.setdefault("last_k_rewards", 100)
@@ -159,9 +162,14 @@ class RLAcademy(Trainer):
 		if n_trajectories is None:
 			n_trajectories = self.kwargs["n_new_trajectories"]
 		if n_experiences is None:
-			n_experiences = self.kwargs["buffer_size"]
+			n_experiences = self.kwargs["n_new_experiences"]
 		if buffer is None:
-			buffer = ReplayBuffer(self.kwargs["buffer_size"], use_priority=self.kwargs["use_priority_buffer"])
+			buffer = self.current_training_state.objects.get(
+				"buffer", ReplayBuffer(self.kwargs["buffer_size"], use_priority=self.kwargs["use_priority_buffer"])
+			)
+			self.update_objects_state_(buffer=buffer)
+		if self.kwargs["clear_buffer"]:
+			buffer.clear()
 		if verbose is None:
 			verbose = self.verbose
 		if "env" in kwargs:
@@ -197,8 +205,6 @@ class RLAcademy(Trainer):
 			)
 			cumulative_rewards = list(agents_history_maps.cumulative_rewards.values())
 			terminal_rewards = list(agents_history_maps.terminal_rewards.values())
-			if finished_trajectories:
-				pass
 			self._update_gen_trajectories_finished_trajectories(finished_trajectories)
 			if all(dones):
 				agents_history_maps.terminate_all()
@@ -214,7 +220,11 @@ class RLAcademy(Trainer):
 			observations = next_observations
 		self._update_gen_trajectories_finished_trajectories(agents_history_maps.terminate_all())
 		self._update_agents_history_maps_meta(agents_history_maps)
-		self.update_objects_state_(observations=observations, info=info)
+		self.update_objects_state_(observations=observations, info=info, buffer=buffer)
+		self.update_itr_metrics_state_(**{
+			self.CUM_REWARDS_METRIC_KEY: np.mean(cumulative_rewards),
+			self.TERMINAL_REWARDS_METRIC_KEY: np.mean(terminal_rewards),
+		})
 		p_bar.close()
 		return buffer, np.asarray(cumulative_rewards), np.asarray(terminal_rewards)
 	
@@ -276,8 +286,8 @@ class RLAcademy(Trainer):
 		else:
 			self.update_state_(itr_metrics={})
 		env.reset()
-		buffer = self._init_train_buffer()
-		self.update_objects_state_(buffer=buffer)
+		# buffer = self._init_train_buffer()
+		# self.update_objects_state_(buffer=buffer)
 		p_bar = tqdm(
 			initial=self.current_training_state.iteration,
 			total=self.current_training_state.n_iterations,
@@ -295,9 +305,8 @@ class RLAcademy(Trainer):
 				self.kwargs["init_epsilon"], self.kwargs["min_epsilon"], self.kwargs["epsilon_decay"], i
 			)
 			env = self.current_training_state.objects["env"]
-			buffer = self.current_training_state.objects["buffer"]
 			env.reset()
-			itr_metrics = self._exec_iteration(env, buffer, epsilon=epsilon)
+			itr_metrics = self._exec_iteration(env, epsilon=epsilon)
 			self.update_itr_metrics_state_(**itr_metrics, epsilon=epsilon)
 			postfix = {f"{k}": f"{v:.5e}" for k, v in self.state.itr_metrics.items()}
 			postfix.update(self.callbacks.on_pbar_update(self))
@@ -326,9 +335,11 @@ class RLAcademy(Trainer):
 	def _exec_iteration(
 			self,
 			env: gym.Env,
-			buffer: ReplayBuffer,
+			buffer: Optional[ReplayBuffer] = None,
 			**kwargs,
 	) -> Dict[str, float]:
+		if buffer is None:
+			buffer = self.current_training_state.objects.get("buffer", None)
 		with torch.no_grad():
 			torch.cuda.empty_cache()
 		metrics = {}
@@ -340,7 +351,7 @@ class RLAcademy(Trainer):
 			n_trajectories=self.kwargs["n_new_trajectories"],
 			buffer=buffer,
 			epsilon=kwargs.get("epsilon", 0.0),
-			p_bar_position=0, verbose=False,
+			p_bar_position=1, verbose=False,
 		)
 		metrics[self.CUM_REWARDS_METRIC_KEY] = np.mean(cumulative_rewards)
 		metrics[self.TERMINAL_REWARDS_METRIC_KEY] = np.mean(terminal_rewards)
@@ -368,7 +379,7 @@ class RLAcademy(Trainer):
 		assert self.kwargs["last_k_rewards_key"] in metrics, \
 			f"last_k_rewards_key {self.kwargs['last_k_rewards_key']} not in metrics. Please select one of {metrics.keys()}"
 		last_k_rewards.append(metrics[self.kwargs["last_k_rewards_key"]])
-		metrics[f"mean_last_{self.kwargs['last_k_rewards']}_rewards"] = np.mean(last_k_rewards)
+		metrics[f"mean_last_{self.kwargs['last_k_rewards']}_rewards"] = np.nanmean(last_k_rewards)
 		with torch.no_grad():
 			torch.cuda.empty_cache()
 		return metrics
@@ -380,7 +391,8 @@ class RLAcademy(Trainer):
 		self.callbacks.on_epoch_begin(self)
 		batch_size = min(len(buffer), self.kwargs["batch_size"])
 		batches = buffer.get_batch_generator(
-			batch_size, self.kwargs["n_batches"], randomize=True, device=self.agent.policy.device
+			batch_size, self.kwargs["n_batches"],
+			randomize=self.kwargs["randomize_buffer"], device=self.agent.policy.device
 		)
 		batch_losses = []
 		for i, exp_batch in enumerate(batches):

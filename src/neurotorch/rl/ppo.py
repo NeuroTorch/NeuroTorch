@@ -2,10 +2,12 @@ import warnings
 from typing import Optional, Sequence, Union, Dict, Callable, List, Any
 
 import numpy as np
+import scipy
 import torch
 
 from .agent import Agent
 from .buffers import BatchExperience, Experience
+from .utils import discounted_cumulative_sums
 from ..transforms.base import to_numpy, to_tensor
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 
@@ -20,25 +22,27 @@ class PPO(LearningAlgorithm):
 	def __init__(
 			self,
 			agent: Optional[Agent] = None,
-			params: Optional[Sequence[torch.nn.Parameter]] = None,
+			# params: Optional[Sequence[torch.nn.Parameter]] = None,
 			optimizer: Optional[torch.optim.Optimizer] = None,
 			**kwargs
 	):
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
-		super().__init__(params=params, **kwargs)
+		super().__init__(params=None, **kwargs)
 		self._agent = agent
 		self.last_agent = None
 		self.optimizer = optimizer
+		self.critic_optimizer = None
+		self.policy_params = None
+		self.critic_params = None
 		self.continuous_criterion = torch.nn.MSELoss()
 		self.discrete_criterion = torch.nn.CrossEntropyLoss()
 		self.clip_ratio = kwargs.get("clip_ratio", 0.2)
 		self.tau = kwargs.get("tau", None)
 		self.gamma = kwargs.get("gamma", 0.99)
-		self.gae_lambda = kwargs.get("gae_lambda", 0.95)
+		self.gae_lambda = kwargs.get("gae_lambda", 0.97)
 		self.critic_weight = kwargs.get("critic_weight", 0.5)
 		self.kwargs.setdefault("default_lr", 3e-4)
-		# TODO: add critic network
 	
 	@property
 	def policy(self):
@@ -87,33 +91,42 @@ class PPO(LearningAlgorithm):
 	
 	def start(self, trainer, **kwargs):
 		super().start(trainer, **kwargs)
-		if self.params and self.optimizer is None:
-			self.optimizer = torch.optim.Adam(self.params, lr=self.kwargs["default_lr"])
-		elif not self.params and self.optimizer is not None:
-			self.params.extend([
-				param
-				for i in range(len(self.optimizer.param_groups))
-				for param in self.optimizer.param_groups[i]["params"]
-			])
-		else:
-			self.params = list(self.policy.parameters()) + list(self.critic.parameters())
-			self.optimizer = torch.optim.Adam(self.params, lr=self.kwargs["default_lr"])
+		self.policy_params = list(self.policy.parameters())
+		self.critic_params = list(set(self.critic.parameters()) - set(self.policy_params))
+		self.params = list(self.policy_params + self.critic_params)
+		param_groups = [
+			{"params": self.policy_params, "lr": self.kwargs.get("default_policy_lr", 3e-4)},
+			# {"params": self.critic_params, "lr": self.kwargs.get("default_critic_lr", 1e-3)}
+		]
+		if self.optimizer is None:
+			self.optimizer = torch.optim.Adam(param_groups, lr=self.kwargs.get("default_lr", 3e-4))
+		self.critic_optimizer = torch.optim.Adam(self.critic_params, lr=self.kwargs.get("default_critic_lr", 1e-3))
+
 		self.last_agent = trainer.copy_agent()
 		if self.tau is None:
 			self.tau = 1 / trainer.state.n_epochs
 		assert self.tau >= 0, "The parameter `tau` must be greater or equal to 0."
 	
 	def _compute_policy_ratio(self, batch: BatchExperience) -> torch.Tensor:
-		policy_predictions = self.agent.get_actions(to_tensor(batch.obs), re_format="probs", as_numpy=False)
-		# last_policy_predictions = self.last_agent.get_actions(to_tensor(batch.obs), re_format="probs", as_numpy=False)
-		last_policy_predictions = batch.actions
+		policy_predictions = self.agent.get_actions(to_tensor(batch.obs), re_format="log_probs", as_numpy=False)
+		with torch.no_grad():
+			last_policy_predictions_one_hot, last_policy_predictions_log_smax = self.last_agent.get_actions(
+				to_tensor(batch.obs), re_format="one_hot,log_smax", as_numpy=False
+			)
+		
 		if isinstance(policy_predictions, dict):
-			policy_ratio = {
-				key: policy_predictions[key] / (last_policy_predictions[key] + 1e-8)
-				for key in policy_predictions
-			}
+			policy_ratio = {}
+			for k in policy_predictions:
+				if k in self.agent.discrete_actions:
+					policy_value = torch.sum(last_policy_predictions_one_hot[k] * policy_predictions[k], dim=-1)
+					policy_ratio[k] = torch.exp(policy_value - last_policy_predictions_log_smax[k])
+				else:
+					policy_ratio[k] = policy_predictions[k] / (last_policy_predictions_log_smax[k] + 1e-8)
+		elif self.agent.discrete_actions:
+			policy_value = torch.sum(last_policy_predictions_one_hot * policy_predictions, dim=-1)
+			policy_ratio = torch.exp(policy_value - last_policy_predictions_log_smax)
 		else:
-			policy_ratio = policy_predictions / (last_policy_predictions + 1e-8)
+			policy_ratio = policy_predictions / (last_policy_predictions_log_smax + 1e-8)
 		return policy_ratio
 
 	def _compute_policy_loss(self, batch: BatchExperience) -> torch.Tensor:
@@ -124,42 +137,40 @@ class PPO(LearningAlgorithm):
 		policy_loss = to_tensor(0.0).to(self.policy.device)
 		for key, ratio in policy_ratio.items():
 			view_shape = [policy_ratio[key].shape[0], ] + (policy_ratio[key].ndim - 1) * [1]
-			policy_loss += -torch.mean(
-				torch.minimum(
-					policy_ratio[key] * advantages.view(*view_shape).to(self.policy.device),
-					torch.clamp(
-						policy_ratio[key],
-						1 - self.clip_ratio,
-						1 + self.clip_ratio
-					) * advantages.view(*view_shape).to(self.policy.device)
-				)
-			)
+			ratio_adv = policy_ratio[key] * advantages.view(*view_shape).to(self.policy.device)
+			ratio_clamped = torch.clamp(policy_ratio[key], 1 - self.clip_ratio, 1 + self.clip_ratio)
+			ratio_adv_clamped = ratio_clamped * advantages.view(*view_shape).to(self.policy.device)
+			policy_loss += -torch.mean(torch.minimum(ratio_adv, ratio_adv_clamped))
 		return policy_loss
 	
 	def _compute_critic_loss(self, batch: BatchExperience) -> torch.Tensor:
-		advantages = self.get_advantages_from_batch(batch).to(self.critic.device)
-		values = self.get_values_from_batch(batch).to(self.critic.device)
 		critic_predictions = self.critic(to_tensor(batch.obs))
 		if isinstance(critic_predictions, dict):
 			assert len(critic_predictions) == 1, "Only one critic output is supported."
 			critic_values = critic_predictions[list(critic_predictions.keys())[0]].view(-1)
 		else:
 			critic_values = critic_predictions.view(-1)
-		values_targets = advantages.view(-1) + values.view(-1)
+		values_targets = self.get_returns_from_batch(batch).view(-1)
 		critic_loss = torch.functional.F.mse_loss(critic_values, values_targets)
 		return critic_loss
 
-	def update_policy_weights(self, batch: BatchExperience) -> float:
+	def update_params(self, batch: BatchExperience) -> float:
 		"""
 		Performs a single update of the policy network using the provided optimizer and buffer
 		"""
 		policy_loss = self._compute_policy_loss(batch)
 		critic_loss = self._compute_critic_loss(batch)
-		loss = policy_loss + self.critic_weight * critic_loss.to(self.policy.device)
-		# Perform the backpropagation
+		# loss = policy_loss + self.critic_weight * critic_loss.to(self.policy.device)
+		
+		self.critic_optimizer.zero_grad()
+		critic_loss.backward()
+		self.critic_optimizer.step()
 		self.optimizer.zero_grad()
-		loss.backward()
+		# loss.backward()
+		policy_loss.backward()
 		self.optimizer.step()
+		
+		loss = policy_loss + self.critic_weight * critic_loss.to(self.policy.device)
 		return to_numpy(loss).item()
 	
 	def _batch_obs(self, batch: List[Experience]):
@@ -173,21 +184,24 @@ class PPO(LearningAlgorithm):
 		return obs_batched
 	
 	def _compute_advantages(self, trajectory, values):
-		advantages = np.zeros(len(trajectory))
-		advantages[-1] = trajectory.experiences[-1].reward - values[-1]
-		T = len(trajectory.experiences) - 1
-		for i in reversed(range(T)):
-			delta = trajectory.experiences[i].reward + self.gamma * values[i + 1] - values[i]
-			advantages[i] = delta + self.gamma * self.gae_lambda * advantages[i + 1]
-		
+		values = to_numpy(values).reshape(-1)
+		rewards = np.array([ex.reward for ex in trajectory.experiences])
+		deltas = rewards[:-1] + self.gamma * values[1:] - values[:-1]
+		deltas = np.append(deltas, rewards[-1] - values[-1])
+		advantages = discounted_cumulative_sums(deltas, self.gamma * self.gae_lambda)
 		adv_mean, adv_std = np.mean(advantages), np.std(advantages)
-		advantages = (advantages - adv_mean) / (adv_std + 1e-8)
+		advantages = (advantages - adv_mean) / (adv_std + 1e-12)
 		return advantages
 	
 	def _compute_values(self, trajectory):
 		obs_as_tensor = self._batch_obs(trajectory.experiences)
 		values = self.agent.get_values(obs_as_tensor, as_numpy=True, re_as_dict=False).reshape(-1)
 		return values
+	
+	def _compute_returns(self, trajectory):
+		rewards = np.array([ex.reward for ex in trajectory.experiences])
+		returns = discounted_cumulative_sums(rewards, self.gamma)
+		return returns
 	
 	def get_advantages_from_batch(self, batch: BatchExperience) -> torch.Tensor:
 		"""
@@ -205,10 +219,18 @@ class PPO(LearningAlgorithm):
 		values = to_tensor([x["value"] for x in batch.others]).to(self.policy.device)
 		return values
 	
+	def get_returns_from_batch(self, batch: BatchExperience) -> torch.Tensor:
+		"""
+		Computes the returns for the provided batch
+		"""
+		assert all("return" in x for x in batch.others), "All experiences in the batch must have a return."
+		returns = to_tensor([x["return"] for x in batch.others]).to(self.policy.device)
+		return returns
+	
 	def on_optimization_begin(self, trainer, **kwargs):
 		super().on_optimization_begin(trainer, **kwargs)
 		batch = trainer.current_training_state.x_batch
-		batch_loss = self.update_policy_weights(batch)
+		batch_loss = self.update_params(batch)
 		trainer.update_state_(batch_loss=batch_loss)
 	
 	def on_optimization_end(self, trainer, **kwargs):
@@ -221,9 +243,19 @@ class PPO(LearningAlgorithm):
 		self.last_policy = trainer.copy_policy()
 	
 	def on_trajectory_end(self, trainer, trajectory, **kwargs) -> List[Dict[str, Any]]:
-		# TODO: problem: if the trajectory is not finished before the optimization, the advantages are never computed
 		super().on_trajectory_end(trainer, trajectory, **kwargs)
+		if len(trajectory.experiences) == 0:
+			return []
 		values = self._compute_values(trajectory)
 		advantages = self._compute_advantages(trajectory, values)
-		return [{"advantage": advantage, "value": value} for advantage, value in zip(advantages, values)]
-		
+		returns = self._compute_returns(trajectory)
+		trajectory_metrics = [
+			{"advantage": advantage, "value": value, "return": returns_item}
+			for advantage, value, returns_item in zip(advantages, values, returns)
+		]
+		# for i, exp in enumerate(trajectory.experiences):
+		# 	exp.others.update(trajectory_metrics[i])
+		# batch_loss = self.update_params(BatchExperience(trajectory.experiences, self.policy.device))
+		# trainer.update_state_(batch_loss=batch_loss)
+		return trajectory_metrics
+	

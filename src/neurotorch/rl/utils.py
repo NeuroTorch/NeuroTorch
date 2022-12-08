@@ -5,6 +5,7 @@ from typing import Optional, Union, Sequence, Dict, Tuple, Any
 import matplotlib.pyplot as plt
 import numpy as np
 import gym
+import scipy
 import torch
 
 from .curriculum import Curriculum
@@ -235,6 +236,7 @@ class Linear(BaseNeuronsLayer):
 			"relu"    : torch.nn.ReLU(),
 			"tanh"    : torch.nn.Tanh(),
 			"sigmoid" : torch.nn.Sigmoid(),
+			"softmax" : torch.nn.Softmax(dim=-1),
 		}
 		if isinstance(activation, str):
 			activation = activation.lower()
@@ -247,11 +249,11 @@ class Linear(BaseNeuronsLayer):
 	def build(self) -> 'Linear':
 		if self.kwargs["use_bias"]:
 			self.bias_weights = torch.nn.Parameter(
-				torch.empty((int(self.output_size),), device=self._device),
+				torch.empty((int(self.output_size),), device=self.device),
 				requires_grad=self.requires_grad,
 			)
 		else:
-			self.bias_weights = torch.zeros((int(self.output_size),), dtype=torch.float32, device=self._device)
+			self.bias_weights = torch.zeros((int(self.output_size),), dtype=torch.float32, device=self.device)
 		super().build()
 		self.initialize_weights_()
 		return self
@@ -261,7 +263,8 @@ class Linear(BaseNeuronsLayer):
 		if "bias_weights" in self.kwargs:
 			self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
 		else:
-			torch.nn.init.constant_(self.bias_weights, 0.0)
+			# torch.nn.init.constant_(self.bias_weights, 0.0)
+			torch.nn.init.normal_(self.bias_weights)
 	
 	def create_empty_state(
 			self,
@@ -368,3 +371,9 @@ def sample_action_space(action_space: gym.spaces.Space, re_format: str = "raw"):
 			raise NotImplementedError(f"Action space {action_space} is not implemented.")
 	else:
 		raise NotImplementedError(f"Format {re_format} is not implemented.")
+	
+
+def discounted_cumulative_sums(x, discount, axis=-1, **kwargs):
+	# Discounted cumulative sums of vectors for computing rewards-to-go and advantage estimates
+	conv = scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=axis)[::-1]
+	return conv

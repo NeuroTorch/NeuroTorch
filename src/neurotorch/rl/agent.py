@@ -17,7 +17,6 @@ from .utils import obs_sequence_to_batch
 
 
 class Agent:
-	
 	@staticmethod
 	def copy_from_agent(agent: "Agent", requires_grad: Optional[bool] = None) -> "Agent":
 		"""
@@ -122,7 +121,7 @@ class Agent:
 				k: Linear(
 					input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
 					output_size=self.policy_kwargs.get("default_hidden_units", 256),
-					activation="ReLu"
+					activation=self.policy_kwargs.get("default_activation", "ReLu")
 				)
 				for k, v in self.observation_spec.items()
 			},
@@ -130,7 +129,7 @@ class Agent:
 				Linear(
 					input_size=self.policy_kwargs.get("default_hidden_units", 256),
 					output_size=self.policy_kwargs.get("default_hidden_units", 256),
-					activation="ReLu"
+					activation=self.policy_kwargs.get("default_activation", "ReLu")
 				)
 				for _ in range(self.policy_kwargs.get("default_hidden_layers", 1))
 			],
@@ -138,7 +137,7 @@ class Agent:
 				k: Linear(
 					input_size=self.policy_kwargs.get("default_hidden_units", 256),
 					output_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-					activation="ReLu"
+					activation=self.policy_kwargs.get("default_output_activation", "Identity")
 				)
 				for k, v in self.action_spec.items()
 			}
@@ -159,7 +158,7 @@ class Agent:
 				k: Linear(
 					input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
 					output_size=self.critic_kwargs.get("default_hidden_units", 256),
-					activation="ReLu"
+					activation=self.critic_kwargs.get("default_activation", "ReLu")
 				)
 				for k, v in self.observation_spec.items()
 			},
@@ -167,14 +166,14 @@ class Agent:
 				Linear(
 					input_size=self.critic_kwargs.get("default_hidden_units", 256),
 					output_size=self.critic_kwargs.get("default_hidden_units", 256),
-					activation="ReLu"
+					activation=self.critic_kwargs.get("default_activation", "ReLu")
 				)
 				for _ in range(self.critic_kwargs.get("default_hidden_layers", 1))
 			],
 			Linear(
 				input_size=self.critic_kwargs.get("default_hidden_units", 256),
 				output_size=self.critic_kwargs.get("default_n_values", 1),
-				activation="Identity"
+				activation=self.critic_kwargs.get("default_output_activation", "Identity")
 			)
 		],
 			**self.critic_kwargs
@@ -259,6 +258,13 @@ class Agent:
 				return {k: (torch.softmax(v, dim=-1) if k in discrete_actions else v) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
+		elif re_format.lower() == "log_probs":
+			if isinstance(actions, torch.Tensor):
+				return torch.log_softmax(actions, dim=-1) if len(discrete_actions) >= 1 else actions
+			elif isinstance(actions, dict):
+				return {k: (torch.log_softmax(v, dim=-1) if k in discrete_actions else v) for k, v in actions.items()}
+			else:
+				raise ValueError(f"Cannot format actions of type {type(actions)}.")
 		elif re_format.lower() == "index":
 			if isinstance(actions, torch.Tensor):
 				return torch.argmax(actions, dim=-1).long() if len(discrete_actions) >= 1 else actions
@@ -278,6 +284,33 @@ class Agent:
 						torch.nn.functional.one_hot(torch.argmax(v, dim=-1), num_classes=v.shape[-1])
 						if k in discrete_actions else v
 					)
+					for k, v in actions.items()
+				}
+			else:
+				raise ValueError(f"Cannot format actions of type {type(actions)}.")
+		elif re_format.lower() == "max":
+			if isinstance(actions, torch.Tensor):
+				return torch.max(actions, dim=-1).values if len(discrete_actions) >= 1 else actions
+			elif isinstance(actions, dict):
+				return {k: (torch.max(v, dim=-1).values if k in discrete_actions else v) for k, v in actions.items()}
+			else:
+				raise ValueError(f"Cannot format actions of type {type(actions)}.")
+		elif re_format.lower() == "smax":
+			if isinstance(actions, torch.Tensor):
+				return torch.softmax(actions, dim=-1).max(dim=-1).values if len(discrete_actions) >= 1 else actions
+			elif isinstance(actions, dict):
+				return {
+					k: (torch.softmax(v, dim=-1).max(dim=-1).values if k in discrete_actions else v)
+					for k, v in actions.items()
+				}
+			else:
+				raise ValueError(f"Cannot format actions of type {type(actions)}.")
+		elif re_format.lower() == "log_smax":
+			if isinstance(actions, torch.Tensor):
+				return torch.log_softmax(actions, dim=-1).max(dim=-1).values if len(discrete_actions) >= 1 else actions
+			elif isinstance(actions, dict):
+				return {
+					k: (torch.log_softmax(v, dim=-1).max(dim=-1).values if k in discrete_actions else v)
 					for k, v in actions.items()
 				}
 			else:
@@ -333,9 +366,15 @@ class Agent:
 		return values
 	
 	def __str__(self):
+		n_tab = 2
 		policy_repr = str(self.policy)
-		tab_policy_repr = "\t" + policy_repr.replace("\n", "\n\t")
-		return f"Agent<{self.behavior_name}>(\n{tab_policy_repr}\n)"
+		tab_policy_repr = "\t" + policy_repr.replace("\n", "\n"+("\t"*n_tab))
+		critic_repr = str(self.critic)
+		tab_critic_repr = "\t" + critic_repr.replace("\n", "\n"+("\t"*n_tab))
+		agent_repr = f"Agent<{self.behavior_name}>:\n\t[Policy](\n{tab_policy_repr}\t\n)\n"
+		if self.critic:
+			agent_repr += f"\t[Critic](\n{tab_critic_repr}\t\n)\n"
+		return agent_repr
 	
 	def soft_update(self, policy, tau):
 		self.policy.soft_update(policy, tau)

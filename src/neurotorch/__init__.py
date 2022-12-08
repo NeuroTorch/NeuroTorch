@@ -1,5 +1,5 @@
 """
-NeuroTorch: A PyTorch-based framework for deep learning in neuroscience.
+NeuroTorch: A Python library for machine learning and neuroscience.
 """
 
 __author__ = "Jérémie Gince"

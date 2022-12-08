@@ -1,12 +1,13 @@
 import pickle
+from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Iterable, List, NamedTuple, Optional
+from typing import Any, Iterable, List, NamedTuple, Optional, Dict
 
 import numpy as np
 import torch
 from queue import PriorityQueue
 
-from ..transforms.base import to_tensor, ToDevice
+from ..transforms.base import to_tensor, ToDevice, to_numpy
 
 
 class Experience:
@@ -27,15 +28,26 @@ class Experience:
 			next_obs: Any,
 			discounted_reward: Optional[float] = None,
 			advantage: Optional[float] = None,
+			rewards_horizon: Optional[List[float]] = None,
+			others: Optional[dict] = None
 	):
 		self.obs = obs
 		self.action = action
 		self.reward = reward
 		self.terminal = terminal
 		self.next_obs = next_obs
-		self.rewards_horizon = []  # TODO: make list of next rewards
+		self.rewards_horizon = rewards_horizon or []
 		self._discounted_reward = discounted_reward
 		self._advantage = advantage
+		self.others = others or {}
+	
+	@property
+	def metrics(self):
+		return self.others
+	
+	@metrics.setter
+	def metrics(self, metrics):
+		self.others = metrics
 
 	@property
 	def discounted_reward(self) -> float:
@@ -79,8 +91,10 @@ class BatchExperience:
 		self.terminals: torch.Tensor = self._make_terminals_batch(batch)
 		self.actions = self._make_actions_batch(batch)
 		self.next_obs: List[torch.Tensor] = self._make_next_obs_batch(batch)
-		self.discounted_rewards: torch.Tensor = self._make_discounted_rewards_batch(batch)
-		self.advantages: torch.Tensor = self._make_advantages_batch(batch)
+		# self.discounted_rewards: torch.Tensor = self._make_discounted_rewards_batch(batch)
+		# self.advantages: torch.Tensor = self._make_advantages_batch(batch)
+		# self.rewards_horizon = self._make_rewards_horizon_batch(batch)
+		self.others: List[dict] = [ex.others for ex in batch]
 
 	@property
 	def device(self):
@@ -140,6 +154,9 @@ class BatchExperience:
 				action[key] = torch.stack([to_tensor(ex.action[key]) for ex in batch])
 			return self._to(action)
 		return self._to(torch.stack([to_tensor(ex.action) for ex in batch]))
+	
+	def _make_rewards_horizon_batch(self, batch: List[Experience]):
+		return [self._to(to_tensor(ex.rewards_horizon)) for ex in batch]
 
 
 class Trajectory:
@@ -150,10 +167,13 @@ class Trajectory:
 			self,
 			experiences: Optional[List[Experience]] = None,
 			gamma: Optional[float] = None,
+			**kwargs,
 	):
 		self.experiences = experiences if experiences is not None else []
 		self._terminal_flag = experiences[-1].terminal if experiences else False
 		self.gamma = gamma
+		self.rewards_horizon = kwargs.get("rewards_horizon", 1)
+		assert self.rewards_horizon > 0, "The rewards horizon must be greater than 0."
 	
 	@property
 	def terminated(self):
@@ -175,7 +195,8 @@ class Trajectory:
 		self._terminal_flag = terminal
 		if self._terminal_flag:
 			self.propagate_rewards()
-			
+			self.make_rewards_horizon()
+	
 	def terminate(self):
 		self.set_terminal(True)
 
@@ -191,7 +212,13 @@ class Trajectory:
 				self.experiences[i].discounted_reward = (
 						self.experiences[i].reward + gamma * self.experiences[i + 1].discounted_reward
 				)
-				
+	
+	def make_rewards_horizon(self):
+		for i in range(len(self.experiences)):
+			self.experiences[i].rewards_horizon = [self.experiences[i].reward]
+			for j in range(i, min(i + self.rewards_horizon, len(self.experiences))):
+				self.experiences[i].rewards_horizon.append(self.experiences[j].reward)
+	
 	def compute_horizon_rewards(self):
 		raise NotImplementedError()
 
@@ -216,6 +243,11 @@ class Trajectory:
 	def append_and_terminate(self, experience: Experience):
 		self.append(experience)
 		self.set_terminal(True)
+		
+	def update_others(self, others_list: List[dict]):
+		assert len(others_list) == len(self.experiences), "The number of experiences must be the same."
+		for i, others in enumerate(others_list):
+			self.experiences[i].others.update(others)
 
 
 class ReplayBuffer:
@@ -352,3 +384,118 @@ class ReplayBuffer:
 				next_obs=e.next_obs,
 			)
 		return buffer
+
+
+class AgentsHistoryMaps:
+	r"""
+	Class to store the mapping between agents and their history maps
+
+	Attributes:
+		trajectories (Dict[int, Trajectory]): Mapping between agent ids and their trajectories
+		cumulative_rewards (Dict[int, float]): Mapping between agent ids and their cumulative rewards
+	"""
+	
+	def __init__(self, buffer: Optional[ReplayBuffer] = None, **kwargs):
+		self.buffer = buffer if buffer is not None else ReplayBuffer()
+		self.trajectories: Dict[int, Trajectory] = defaultdict(Trajectory)
+		self.cumulative_rewards: Dict[int, float] = defaultdict(lambda: 0.0)
+		self.terminal_rewards: Dict[int, float] = defaultdict(lambda: 0.0)
+		self._terminal_counter = 0
+		self._experience_counter = 0
+		self.min_rewards = kwargs.get("min_rewards", float('inf'))
+		self.max_rewards = kwargs.get("max_rewards", float('-inf'))
+		self.normalize_rewards = kwargs.get("normalize_rewards", False)
+	
+	@property
+	def terminals_count(self) -> int:
+		"""
+		:return: The number of terminal steps
+		"""
+		return self._terminal_counter
+	
+	@property
+	def experience_count(self) -> int:
+		"""
+		:return: The number of experiences
+		"""
+		return self._experience_counter
+	
+	@property
+	def max_abs_rewards(self) -> float:
+		"""
+		:return: The maximum absolute reward
+		"""
+		return max(abs(self.min_rewards), abs(self.max_rewards))
+	
+	def update_trajectories_(
+			self,
+			*,
+			observations,
+			actions,
+			next_observations,
+			rewards,
+			dones,
+			truncated=None,
+			infos=None
+	) -> List[Trajectory]:
+		actions = deepcopy(to_numpy(actions))
+		observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(to_numpy(next_observations))
+		rewards, dones = deepcopy(to_numpy(rewards)), deepcopy(to_numpy(dones))
+		self.min_rewards = min(self.min_rewards, np.min(rewards))
+		self.max_rewards = max(self.max_rewards, np.max(rewards))
+		if self.normalize_rewards:
+			rewards = rewards / (self.max_abs_rewards + 1e-8)
+		
+		finished_trajectories = []
+		for i in range(len(dones)):
+			if self.trajectories[i].terminated:
+				continue
+			if dones[i]:
+				self.trajectories[i].append_and_terminate(
+					Experience(
+						obs=observations[i],
+						reward=rewards[i],
+						terminal=dones[i],
+						action=actions[i],
+						next_obs=next_observations[i],
+					)
+				)
+				self.cumulative_rewards[i] = self.trajectories[i].cumulative_reward
+				self.terminal_rewards[i] = self.trajectories[i].terminal_reward
+				finished_trajectory = self.trajectories.pop(i)
+				finished_trajectories.append(finished_trajectory)
+				self.buffer.extend(finished_trajectory)
+				self._terminal_counter += 1
+				self._experience_counter += 1
+			else:
+				self.trajectories[i].append(
+					Experience(
+						obs=observations[i],
+						reward=rewards[i],
+						terminal=dones[i],
+						action=actions[i],
+						next_obs=next_observations[i],
+					)
+				)
+				self._experience_counter += 1
+		return finished_trajectories
+	
+	def terminate_all(self) -> List[Trajectory]:
+		trajectories = []
+		for i in range(len(self.trajectories)):
+			if not self.trajectories[i].terminated:
+				self.trajectories[i].terminate()
+			self.cumulative_rewards[i] = self.trajectories[i].cumulative_reward
+			trajectory = self.trajectories.pop(i)
+			trajectories.append(trajectory)
+			self.buffer.extend(trajectory)
+			self._terminal_counter += 1
+		return trajectories
+	
+	def clear(self) -> List[Trajectory]:
+		trajectories = self.terminate_all()
+		self.trajectories.clear()
+		self.cumulative_rewards.clear()
+		self._terminal_counter = 0
+		self._experience_counter = 0
+		return trajectories

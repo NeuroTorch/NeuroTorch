@@ -32,10 +32,12 @@ if __name__ == '__main__':
         agent=agent,
         callbacks=[checkpoint_manager, nt.rl.PPO(tau=0.0)],
         normalize_rewards=False,
+        init_epsilon=0.0,
+        use_priority_buffer=False,
     )
     history = academy.train(
         env,
-        n_iterations=30,
+        n_iterations=300,
         n_epochs=4,
         batch_size=5,
         buffer_size=20,

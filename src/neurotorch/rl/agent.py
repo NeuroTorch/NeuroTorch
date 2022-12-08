@@ -48,6 +48,8 @@ class Agent:
 			behavior_name: Optional[str] = None,
 			policy: Optional[BaseModel] = None,
 			policy_kwargs: Optional[Dict[str, Any]] = None,
+			critic: Optional[BaseModel] = None,
+			critic_kwargs: Optional[Dict[str, Any]] = None,
 			**kwargs
 	):
 		"""
@@ -71,6 +73,7 @@ class Agent:
 		super().__init__(**kwargs)
 		self.kwargs = kwargs
 		self.policy_kwargs = policy_kwargs if policy_kwargs is not None else {}
+		self.critic_kwargs = critic_kwargs if critic_kwargs is not None else {}
 		self.env = env
 		if env:
 			self.observation_space = get_single_observation_space(env)
@@ -87,6 +90,9 @@ class Agent:
 		self.policy = policy
 		if self.policy is None:
 			self.policy = self._create_default_policy()
+		self.critic = critic
+		if self.critic is None:
+			self.critic = self._create_default_critic()
 	
 	@property
 	def observation_spec(self) -> Dict[str, Any]:
@@ -115,22 +121,22 @@ class Agent:
 			{
 				k: Linear(
 					input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-					output_size=self.kwargs.get("default_hidden_units", 256),
+					output_size=self.policy_kwargs.get("default_hidden_units", 256),
 					activation="ReLu"
 				)
 				for k, v in self.observation_spec.items()
 			},
 			*[
 				Linear(
-					input_size=self.kwargs.get("default_hidden_units", 256),
-					output_size=self.kwargs.get("default_hidden_units", 256),
+					input_size=self.policy_kwargs.get("default_hidden_units", 256),
+					output_size=self.policy_kwargs.get("default_hidden_units", 256),
 					activation="ReLu"
 				)
-				for _ in range(self.kwargs.get("default_hidden_layers", 1))
+				for _ in range(self.policy_kwargs.get("default_hidden_layers", 1))
 			],
 			{
 				k: Linear(
-					input_size=self.kwargs.get("default_hidden_units", 256),
+					input_size=self.policy_kwargs.get("default_hidden_units", 256),
 					output_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
 					activation="ReLu"
 				)
@@ -138,6 +144,40 @@ class Agent:
 			}
 		],
 			**self.policy_kwargs
+		).build()
+		return default_policy
+	
+	def _create_default_critic(self) -> BaseModel:
+		"""
+		Create the default critic.
+
+		:return: The default critic.
+		:rtype: BaseModel
+		"""
+		default_policy = Sequential(layers=[
+			{
+				k: Linear(
+					input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
+					output_size=self.critic_kwargs.get("default_hidden_units", 256),
+					activation="ReLu"
+				)
+				for k, v in self.observation_spec.items()
+			},
+			*[
+				Linear(
+					input_size=self.critic_kwargs.get("default_hidden_units", 256),
+					output_size=self.critic_kwargs.get("default_hidden_units", 256),
+					activation="ReLu"
+				)
+				for _ in range(self.critic_kwargs.get("default_hidden_layers", 1))
+			],
+			Linear(
+				input_size=self.critic_kwargs.get("default_hidden_units", 256),
+				output_size=self.critic_kwargs.get("default_n_values", 1),
+				activation="Identity"
+			)
+		],
+			**self.critic_kwargs
 		).build()
 		return default_policy
 
@@ -272,6 +312,25 @@ class Agent:
 		if len(re_actions_list) == 1:
 			return re_actions_list[0]
 		return re_actions_list
+	
+	def get_values(self, obs: torch.Tensor, **kwargs) -> Any:
+		"""
+		Get the values for the given observations.
+		
+		:param obs: The batched observations.
+		:param kwargs: Keywords arguments.
+		:return: The values.
+		"""
+		self.env = kwargs.get("env", self.env)
+		re_as_dict = kwargs.get("re_as_dict", isinstance(obs, dict) or isinstance(obs[0], dict))
+		as_numpy = kwargs.get("as_numpy", True)
+		obs_as_tensor = to_tensor(obs)
+		values = self.critic(obs_as_tensor)
+		if as_numpy:
+			values = to_numpy(values)
+		if not re_as_dict and isinstance(values, dict):
+			values = values[list(values.keys())[0]]
+		return values
 	
 	def __str__(self):
 		policy_repr = str(self.policy)

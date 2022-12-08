@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from .agent import Agent
-from .buffers import ReplayBuffer, Trajectory, Experience, BatchExperience
+from .buffers import ReplayBuffer, Trajectory, Experience, BatchExperience, AgentsHistoryMaps
 from .ppo import PPO
 from .utils import env_batch_step
 from .. import Trainer, LoadCheckpointMode, to_numpy, TrainingHistory
@@ -22,100 +22,6 @@ from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 from ..modules import BaseModel
 from ..utils import linear_decay
-
-
-class AgentsHistoryMaps:
-	r"""
-	Class to store the mapping between agents and their history maps
-
-	Attributes:
-		trajectories (Dict[int, Trajectory]): Mapping between agent ids and their trajectories
-		cumulative_rewards (Dict[int, float]): Mapping between agent ids and their cumulative rewards
-	"""
-
-	def __init__(self, buffer: Optional[ReplayBuffer] = None, **kwargs):
-		self.buffer = buffer if buffer is not None else ReplayBuffer()
-		self.trajectories: Dict[int, Trajectory] = defaultdict(Trajectory)
-		self.cumulative_rewards: Dict[int, float] = defaultdict(lambda: 0.0)
-		self.terminal_rewards: Dict[int, float] = defaultdict(lambda: 0.0)
-		self._terminal_counter = 0
-		self._experience_counter = 0
-		self.min_rewards = kwargs.get("min_rewards", float('inf'))
-		self.max_rewards = kwargs.get("max_rewards", float('-inf'))
-		self.normalize_rewards = kwargs.get("normalize_rewards", False)
-
-	@property
-	def terminals_count(self) -> int:
-		"""
-		:return: The number of terminal steps
-		"""
-		return self._terminal_counter
-	
-	@property
-	def experience_count(self) -> int:
-		"""
-		:return: The number of experiences
-		"""
-		return self._experience_counter
-	
-	@property
-	def max_abs_rewards(self) -> float:
-		"""
-		:return: The maximum absolute reward
-		"""
-		return max(abs(self.min_rewards), abs(self.max_rewards))
-	
-	def update_trajectories_(
-			self,
-			*,
-			observations,
-			actions,
-			next_observations,
-			rewards,
-			dones,
-			truncated=None,
-			infos=None
-	):
-		actions = deepcopy(to_numpy(actions))
-		observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(to_numpy(next_observations))
-		rewards, dones = deepcopy(to_numpy(rewards)), deepcopy(to_numpy(dones))
-		self.min_rewards = min(self.min_rewards, np.min(rewards))
-		self.max_rewards = max(self.max_rewards, np.max(rewards))
-		if self.normalize_rewards:
-			rewards = rewards / (self.max_abs_rewards + 1e-8)
-		for i in range(len(dones)):
-			if self.trajectories[i].terminated:
-				continue
-			if dones[i]:
-				self.trajectories[i].append_and_terminate(Experience(
-					obs=observations[i],
-					reward=rewards[i],
-					terminal=dones[i],
-					action=actions[i],
-					next_obs=next_observations[i],
-				))
-				self.cumulative_rewards[i] = self.trajectories[i].cumulative_reward
-				self.terminal_rewards[i] = self.trajectories[i].terminal_reward
-				self.buffer.extend(self.trajectories.pop(i))
-				self._terminal_counter += 1
-				self._experience_counter += 1
-			else:
-				self.trajectories[i].append(Experience(
-					obs=observations[i],
-					reward=rewards[i],
-					terminal=dones[i],
-					action=actions[i],
-					next_obs=next_observations[i],
-				))
-				self._experience_counter += 1
-				
-	def terminate_all(self):
-		for i in range(len(self.trajectories)):
-			if not self.trajectories[i].terminated:
-				self.trajectories[i].terminate()
-			self.cumulative_rewards[i] = self.trajectories[i].cumulative_reward
-			self.buffer.extend(self.trajectories.pop(i))
-			self._terminal_counter += 1
 
 
 class RLAcademy(Trainer):
@@ -133,7 +39,7 @@ class RLAcademy(Trainer):
 			**kwargs
 	):
 		self.agent = agent
-		kwargs = self._set_default_academy_kwargs(**kwargs)
+		kwargs = self.set_default_academy_kwargs(**kwargs)
 		super().__init__(
 			model=agent.policy,
 			predict_method=predict_method,
@@ -158,7 +64,7 @@ class RLAcademy(Trainer):
 		return self.model
 
 	@staticmethod
-	def _set_default_academy_kwargs(**kwargs) -> Dict[str, Any]:
+	def set_default_academy_kwargs(**kwargs) -> Dict[str, Any]:
 		"""
 		Set default values for the kwargs of the fit method.
 		:param kwargs:
@@ -190,6 +96,9 @@ class RLAcademy(Trainer):
 		kwargs.setdefault("clip_ratio", 0.2)
 		kwargs.setdefault("use_priority_buffer", True)
 		kwargs.setdefault("normalize_rewards", False)
+		kwargs.setdefault("rewards_horizon", 128)
+		kwargs.setdefault("last_k_rewards", 100)
+		kwargs.setdefault("last_k_rewards_key", RLAcademy.CUM_REWARDS_METRIC_KEY)
 
 		assert kwargs["batch_size"] <= kwargs["buffer_size"]
 		assert kwargs["batch_size"] > 0
@@ -267,7 +176,11 @@ class RLAcademy(Trainer):
 			disable=not verbose, desc="Generating Trajectories", position=p_bar_position,
 			unit="trajectory" if n_trajectories is not None else "experience"
 		)
-		observations, info = self.env.reset()
+		
+		observations = kwargs.get("observations", self.current_training_state.objects.get("observations", None))
+		info = kwargs.get("info", self.current_training_state.objects.get("info", None))
+		if observations is None or info is None:
+			observations, info = self.env.reset()
 		while not self._update_gen_trajectories_break_flag(agents_history_maps, n_trajectories, n_experiences):
 			rn_action_flag = np.random.random() < epsilon
 			if rn_action_flag:
@@ -275,7 +188,7 @@ class RLAcademy(Trainer):
 			else:
 				actions_index, actions_probs = self.agent.get_actions(observations, env=self.env, re_format="index,probs")
 			next_observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions_index)
-			agents_history_maps.update_trajectories_(
+			finished_trajectories = agents_history_maps.update_trajectories_(
 				observations=observations,
 				actions=actions_probs,
 				next_observations=next_observations,
@@ -284,6 +197,9 @@ class RLAcademy(Trainer):
 			)
 			cumulative_rewards = list(agents_history_maps.cumulative_rewards.values())
 			terminal_rewards = list(agents_history_maps.terminal_rewards.values())
+			if finished_trajectories:
+				pass
+			self._update_gen_trajectories_finished_trajectories(finished_trajectories)
 			if all(dones):
 				agents_history_maps.terminate_all()
 				next_observations, info = self.env.reset()
@@ -296,10 +212,17 @@ class RLAcademy(Trainer):
 				terminal_rewards=f"{np.mean(terminal_rewards) if terminal_rewards else 0.0:.3f}",
 			)
 			observations = next_observations
-		agents_history_maps.terminate_all()
+		self._update_gen_trajectories_finished_trajectories(agents_history_maps.terminate_all())
 		self._update_agents_history_maps_meta(agents_history_maps)
+		self.update_objects_state_(observations=observations, info=info)
 		p_bar.close()
 		return buffer, np.asarray(cumulative_rewards), np.asarray(terminal_rewards)
+	
+	def _update_gen_trajectories_finished_trajectories(self, finished_trajectories: List[Trajectory]):
+		for finished_trajectory in finished_trajectories:
+			trajectory_others_list = self.callbacks.on_trajectory_end(self, finished_trajectory)
+			if trajectory_others_list is not None:
+				finished_trajectory.update_others(trajectory_others_list)
 	
 	def _update_gen_trajectories_break_flag(
 			self,
@@ -338,7 +261,10 @@ class RLAcademy(Trainer):
 		self.update_state_(
 			n_iterations=n_iterations,
 			n_epochs=n_epochs,
-			objects={**self.current_training_state.objects, **{"env": env}}
+			objects={
+				**self.current_training_state.objects,
+				**{"env": env, "last_k_rewards": deque(maxlen=self.kwargs["last_k_rewards"])}
+			},
 		)
 		self.sort_callbacks_()
 		self.callbacks.start(self)
@@ -361,7 +287,7 @@ class RLAcademy(Trainer):
 			unit="itr",
 			leave=p_bar_leave
 		)
-		# last_save_rewards = deque(maxlen=save_freq)
+		
 		for i in self._iterations_generator(p_bar):
 			self.update_state_(iteration=i)
 			self.callbacks.on_iteration_begin(self)
@@ -371,8 +297,8 @@ class RLAcademy(Trainer):
 			env = self.current_training_state.objects["env"]
 			buffer = self.current_training_state.objects["buffer"]
 			env.reset()
-			itr_loss = self._exec_iteration(env, buffer, epsilon=epsilon)
-			self.update_itr_metrics_state_(**itr_loss, epsilon=epsilon)
+			itr_metrics = self._exec_iteration(env, buffer, epsilon=epsilon)
+			self.update_itr_metrics_state_(**itr_metrics, epsilon=epsilon)
 			postfix = {f"{k}": f"{v:.5e}" for k, v in self.state.itr_metrics.items()}
 			postfix.update(self.callbacks.on_pbar_update(self))
 			self.callbacks.on_iteration_end(self)
@@ -405,7 +331,7 @@ class RLAcademy(Trainer):
 	) -> Dict[str, float]:
 		with torch.no_grad():
 			torch.cuda.empty_cache()
-		losses = {}
+		metrics = {}
 		
 		self.model.train()
 		self.callbacks.on_train_begin(self)
@@ -416,8 +342,8 @@ class RLAcademy(Trainer):
 			epsilon=kwargs.get("epsilon", 0.0),
 			p_bar_position=0, verbose=False,
 		)
-		losses[self.CUM_REWARDS_METRIC_KEY] = np.mean(cumulative_rewards)
-		losses[self.TERMINAL_REWARDS_METRIC_KEY] = np.mean(terminal_rewards)
+		metrics[self.CUM_REWARDS_METRIC_KEY] = np.mean(cumulative_rewards)
+		metrics[self.TERMINAL_REWARDS_METRIC_KEY] = np.mean(terminal_rewards)
 		self.update_state_(batch_is_train=True)
 		train_losses = []
 		for epoch_idx in range(self.current_training_state.n_epochs):
@@ -426,7 +352,7 @@ class RLAcademy(Trainer):
 		train_loss = np.mean(train_losses)
 		self.update_state_(train_loss=train_loss)
 		self.callbacks.on_train_end(self)
-		losses["train_loss"] = train_loss
+		metrics["train_loss"] = train_loss
 		
 		# if val_dataloader is not None:
 		# 	with torch.no_grad():
@@ -438,9 +364,14 @@ class RLAcademy(Trainer):
 		# 		self.callbacks.on_validation_end(self)
 		# 		losses["val_loss"] = val_loss
 		
+		last_k_rewards = self.state.objects.get("last_k_rewards", deque(maxlen=self.kwargs["last_k_rewards"]))
+		assert self.kwargs["last_k_rewards_key"] in metrics, \
+			f"last_k_rewards_key {self.kwargs['last_k_rewards_key']} not in metrics. Please select one of {metrics.keys()}"
+		last_k_rewards.append(metrics[self.kwargs["last_k_rewards_key"]])
+		metrics[f"mean_last_{self.kwargs['last_k_rewards']}_rewards"] = np.mean(last_k_rewards)
 		with torch.no_grad():
 			torch.cuda.empty_cache()
-		return losses
+		return metrics
 	
 	def _exec_epoch(
 			self,

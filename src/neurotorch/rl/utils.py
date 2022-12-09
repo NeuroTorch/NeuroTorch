@@ -260,11 +260,13 @@ class Linear(BaseNeuronsLayer):
 	
 	def initialize_weights_(self):
 		super().initialize_weights_()
+		torch.nn.init.kaiming_uniform_(self._forward_weights.data, a=np.sqrt(5))
 		if "bias_weights" in self.kwargs:
 			self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
 		else:
 			# torch.nn.init.constant_(self.bias_weights, 0.0)
-			torch.nn.init.normal_(self.bias_weights)
+			bound = 1 / np.sqrt(int(self.input_size))
+			torch.nn.init.uniform_(self.bias_weights, -bound, bound)
 	
 	def create_empty_state(
 			self,
@@ -282,7 +284,9 @@ class Linear(BaseNeuronsLayer):
 	):
 		# assert inputs.ndim == 2
 		# batch_size, nb_features = inputs.shape
-		return self.activation(torch.matmul(inputs, self.forward_weights) + self.bias_weights)
+		# x = torch.functional.F.linear(inputs, self.forward_weights.T, self.bias_weights)
+		x = torch.matmul(inputs, self.forward_weights) + self.bias_weights
+		return self.activation(x)
 
 
 def env_batch_step(

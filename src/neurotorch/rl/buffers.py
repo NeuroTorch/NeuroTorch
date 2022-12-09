@@ -1,7 +1,7 @@
 import pickle
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Iterable, List, NamedTuple, Optional, Dict
+from typing import Any, Iterable, List, NamedTuple, Optional, Dict, Iterator
 
 import numpy as np
 import torch
@@ -82,6 +82,7 @@ class BatchExperience:
 		:param batch: A list of Experience objects.
 		:param device: The device to use for the tensors.
 		"""
+		self._batch = batch
 		self._device = device
 		self._to = ToDevice(device=device)
 		# self._nb_obs = len(batch[0].obs)
@@ -115,6 +116,11 @@ class BatchExperience:
 
 	def __len__(self):
 		return self.rewards.shape[0]
+	
+	def __getitem__(self, item):
+		if isinstance(item, slice):
+			return BatchExperience(batch=self._batch[item], device=self.device)
+		return BatchExperience(batch=[self._batch[item]], device=self.device)
 
 	def _make_obs_batch(self, batch: List[Experience]) -> List[torch.Tensor]:
 		as_dict = isinstance(batch[0].obs, dict)
@@ -190,6 +196,9 @@ class Trajectory:
 	@property
 	def terminal_reward(self):
 		return self.experiences[-1].reward
+	
+	def is_empty(self):
+		return len(self) == 0
 
 	def set_terminal(self, terminal: bool):
 		self._terminal_flag = terminal
@@ -251,7 +260,7 @@ class Trajectory:
 
 
 class ReplayBuffer:
-	def __init__(self, capacity=np.inf, seed=None, use_priority=True):
+	def __init__(self, capacity=np.inf, seed=None, use_priority=False):
 		self.__capacity = capacity
 		self._seed = seed
 		self.random_generator = np.random.RandomState(seed)
@@ -350,18 +359,21 @@ class ReplayBuffer:
 			n_batches: int = None,
 			randomize: bool = True,
 			device='cpu',
-	) -> Iterable[BatchExperience]:
+	) -> Iterator[BatchExperience]:
 		"""
 		Returns a generator of batch_size elements from the buffer.
 		"""
+		if batch_size > len(self.data) or batch_size <= 0:
+			batch_size = len(self.data)
 		max_idx = int(batch_size * int(len(self) / batch_size))
-		indexes = np.arange(max_idx).reshape(-1, batch_size)
+		indexes = np.arange(max_idx)
+		if randomize:
+			self.random_generator.shuffle(indexes)
+		indexes = indexes.reshape(-1, batch_size)
 		if n_batches is None or n_batches > len(indexes) or n_batches < 0:
 			n_batches = indexes.shape[0]
 		else:
 			n_batches = min(n_batches, indexes.shape[0])
-		if randomize:
-			self.random_generator.shuffle(indexes)
 		for i in range(n_batches):
 			batch = [self.data[j] for j in indexes[i]]
 			yield BatchExperience(batch, device=device)
@@ -447,11 +459,14 @@ class AgentsHistoryMaps:
 			rewards,
 			dones,
 			truncated=None,
-			infos=None
+			infos=None,
+			others=None,
 	) -> List[Trajectory]:
 		actions = deepcopy(to_numpy(actions))
 		observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(to_numpy(next_observations))
 		rewards, dones = deepcopy(to_numpy(rewards)), deepcopy(to_numpy(dones))
+		if others is None:
+			others = [None] * len(observations)
 		self.min_rewards = min(self.min_rewards, np.min(rewards))
 		self.max_rewards = max(self.max_rewards, np.max(rewards))
 		if self.normalize_rewards:
@@ -469,6 +484,7 @@ class AgentsHistoryMaps:
 						terminal=dones[i],
 						action=actions[i],
 						next_obs=next_observations[i],
+						others=others[i],
 					)
 				)
 				self.cumulative_rewards[i] = self.trajectories[i].cumulative_reward
@@ -486,6 +502,7 @@ class AgentsHistoryMaps:
 						terminal=dones[i],
 						action=actions[i],
 						next_obs=next_observations[i],
+						others=others[i],
 					)
 				)
 				self._experience_counter += 1

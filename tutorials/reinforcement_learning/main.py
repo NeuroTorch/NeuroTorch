@@ -20,7 +20,7 @@ if __name__ == '__main__':
         minimise_metric=False,
         save_best_only=True,
     )
-    ppo_la = nt.rl.PPO(tau=0.0, critic_weight=1.0)
+    ppo_la = nt.rl.PPO(tau=0.0, critic_weight=0.5)
     
     agent = Agent(
         env=env,

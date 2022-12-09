@@ -184,13 +184,16 @@ class PPO(LearningAlgorithm):
 		return obs_batched
 	
 	def _compute_advantages(self, trajectory, values):
+		terminals = np.asarray([ex.terminal for ex in trajectory])
 		values = to_numpy(values).reshape(-1)
+		values = np.append(values, (1 - int(terminals[-1])) * values[-1])  # from: https://keras.io/examples/rl/ppo_cartpole/
 		rewards = np.array([ex.reward for ex in trajectory.experiences])
+		rewards = np.append(rewards, (1 - int(terminals[-1])) * values[-1])  # from: https://keras.io/examples/rl/ppo_cartpole/
 		deltas = rewards[:-1] + self.gamma * values[1:] - values[:-1]
-		deltas = np.append(deltas, rewards[-1] - values[-1])
+		# deltas = np.append(deltas, rewards[-1] - values[-1])
 		advantages = discounted_cumulative_sums(deltas, self.gamma * self.gae_lambda)
-		adv_mean, adv_std = np.mean(advantages), np.std(advantages)
-		advantages = (advantages - adv_mean) / (adv_std + 1e-12)
+		# adv_mean, adv_std = np.mean(advantages), np.std(advantages)
+		# advantages = (advantages - adv_mean) / (adv_std + 1e-12)
 		return advantages
 	
 	def _compute_values(self, trajectory):
@@ -198,9 +201,13 @@ class PPO(LearningAlgorithm):
 		values = self.agent.get_values(obs_as_tensor, as_numpy=True, re_as_dict=False).reshape(-1)
 		return values
 	
-	def _compute_returns(self, trajectory):
+	def _compute_returns(self, trajectory, values):
+		terminals = np.asarray([ex.terminal for ex in trajectory])
+		values = to_numpy(values).reshape(-1)
+		values = np.append(values, (1 - int(terminals[-1])) * values[-1])  # from: https://keras.io/examples/rl/ppo_cartpole/
 		rewards = np.array([ex.reward for ex in trajectory.experiences])
-		returns = discounted_cumulative_sums(rewards, self.gamma)
+		rewards = np.append(rewards, (1 - int(terminals[-1])) * values[-1])  # from: https://keras.io/examples/rl/ppo_cartpole/
+		returns = discounted_cumulative_sums(rewards, self.gamma)[:-1]
 		return returns
 	
 	def get_advantages_from_batch(self, batch: BatchExperience) -> torch.Tensor:
@@ -248,7 +255,7 @@ class PPO(LearningAlgorithm):
 			return []
 		values = self._compute_values(trajectory)
 		advantages = self._compute_advantages(trajectory, values)
-		returns = self._compute_returns(trajectory)
+		returns = self._compute_returns(trajectory, values)
 		trajectory_metrics = [
 			{"advantage": advantage, "value": value, "return": returns_item}
 			for advantage, value, returns_item in zip(advantages, values, returns)

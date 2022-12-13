@@ -8,6 +8,8 @@ import gym
 from ..transforms.base import to_numpy, to_tensor
 from ..modules.base import BaseModel
 from ..modules.sequential import Sequential
+from ..utils import maybe_apply_softmax
+
 try:
 	from ..modules.layers import Linear
 except ImportError:
@@ -242,6 +244,8 @@ class Agent:
 		values are the actions. In this case, all the values where their keys are in `self.discrete_actions` will be
 		formatted. If actions is a tensor, then the actions will be formatted if `self.discrete_actions` is not empty.
 		
+		TODO: fragment this method into smaller methods.
+		
 		:param actions: The actions.
 		:param re_format: The format to reformat the actions to. Can be "logits", "probs", "index", or "one_hot".
 		:param kwargs: Keywords arguments.
@@ -265,7 +269,7 @@ class Agent:
 				return {k: (torch.log_softmax(v, dim=-1) if k in discrete_actions else v) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
-		elif re_format.lower() == "index":
+		elif re_format.lower() in ["index", "indices", "argmax", "imax"]:
 			if isinstance(actions, torch.Tensor):
 				return torch.argmax(actions, dim=-1).long() if len(discrete_actions) >= 1 else actions
 			elif isinstance(actions, dict):
@@ -311,6 +315,23 @@ class Agent:
 			elif isinstance(actions, dict):
 				return {
 					k: (torch.log_softmax(v, dim=-1).max(dim=-1).values if k in discrete_actions else v)
+					for k, v in actions.items()
+				}
+			else:
+				raise ValueError(f"Cannot format actions of type {type(actions)}.")
+		elif re_format.lower() == "sample":
+			if isinstance(actions, torch.Tensor):
+				if len(discrete_actions) >= 1:
+					probs = maybe_apply_softmax(actions, dim=-1)
+					return torch.distributions.Categorical(probs=probs).sample()
+				else:
+					return actions
+			elif isinstance(actions, dict):
+				return {
+					k: (
+						torch.distributions.Categorical(probs=maybe_apply_softmax(v, dim=-1)).sample()
+						if k in discrete_actions else v
+					)
 					for k, v in actions.items()
 				}
 			else:

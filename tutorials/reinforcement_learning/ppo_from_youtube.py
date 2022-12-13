@@ -268,15 +268,44 @@ class Agent(nt_Agent):
 		if isinstance(value, dict):
 			value = value[list(value.keys())[0]]
 		
-		dist = Categorical(
-			maybe_apply_softmax(dist, dim=-1)
-		)
+		dist_smax = maybe_apply_softmax(dist, dim=-1)
+		dist = Categorical(dist_smax)
+		# action = torch.argmax(dist_smax, dim=-1)
 		action = dist.sample()
 		probs = T.squeeze(dist.log_prob(action)).item()
 		action = T.squeeze(action).item()
 		value = T.squeeze(value).item()
 		
 		return action, probs, value
+	
+	def policy_ratio(self, batch):
+		states = batch.obs
+		actions = batch.actions
+		
+		if self.use_old:
+			dist = self.actor(states)
+			critic_value = self.critic_(states)
+			old_probs = to_tensor(np.array([others['probs'] for others in batch.others])).to(self.device)
+		else:
+			dist = self.policy(states)
+			# critic_value = self.critic(states)
+			with torch.no_grad():
+				old_dist = self.ppo.last_policy(states)
+			# old_dist = self.policy(states)
+			if isinstance(old_dist, dict):
+				old_dist = old_dist[list(old_dist.keys())[0]]
+			old_dist = maybe_apply_softmax(old_dist, dim=-1)
+			# actions = torch.argmax(old_dist, dim=-1)
+			old_dist = Categorical(old_dist)
+			old_probs = old_dist.log_prob(actions)
+		if isinstance(dist, dict):
+			dist = dist[list(dist.keys())[0]]
+		dist = maybe_apply_softmax(dist, dim=-1)
+		dist = Categorical(dist)
+		new_probs = dist.log_prob(actions)
+		
+		prob_ratio = torch.exp(new_probs - old_probs)
+		return prob_ratio
 	
 	def learn(self):
 		self.finish_trajectories(self.agent_history_maps.terminate_all())
@@ -285,51 +314,12 @@ class Agent(nt_Agent):
 		self.trajectory = Trajectory()
 		for _ in range(self.n_epochs):
 			for batch in self.memory.get_batch_generator(batch_size=self.batch_size, device=self.device, randomize=True):
-				states = batch.obs
-				reward_arr = batch.rewards
-				actions = batch.actions
-				dones_arr = batch.terminals
-				# values = to_tensor(np.array([others['value'] for others in batch.others])).to(self.actor.device)
-				# advantages = to_tensor(np.array([others['advantage'] for others in batch.others])).to(self.actor.device)
-				# returns = to_tensor(np.array([others['return'] for others in batch.others])).to(self.actor.device)
-				
-				# values = self.ppo.get_values_from_batch(batch)
 				advantages = self.ppo.get_advantages_from_batch(batch)
-				# returns = self.ppo.get_returns_from_batch(batch)
-				
-				if self.use_old:
-					dist = self.actor(states)
-					critic_value = self.critic_(states)
-					old_probs = to_tensor(np.array([others['probs'] for others in batch.others])).to(self.device)
-				else:
-					dist = self.policy(states)
-					# critic_value = self.critic(states)
-					with torch.no_grad():
-						old_dist = self.ppo.last_policy(states)
-						# old_dist = self.policy(states)
-					if isinstance(old_dist, dict):
-						old_dist = old_dist[list(old_dist.keys())[0]]
-					old_dist = maybe_apply_softmax(old_dist, dim=-1)
-					old_dist = Categorical(old_dist)
-					# actions = old_dist.sample()
-					old_probs = old_dist.log_prob(batch.actions)
-					# old_probs = to_tensor(np.array([others['probs'] for others in batch.others])).to(self.device)
-				if isinstance(dist, dict):
-					dist = dist[list(dist.keys())[0]]
-				# if isinstance(critic_value, dict):
-				# 	critic_value = critic_value[list(critic_value.keys())[0]]
-				# critic_value = T.squeeze(critic_value)
-				dist = maybe_apply_softmax(dist, dim=-1)
-				dist = Categorical(dist)
-				new_probs = dist.log_prob(actions)
-				
-				prob_ratio = new_probs.exp() / old_probs.exp()
-				# prob_ratio = torch.exp(new_probs - old_probs)
-				# prob_ratio = self.ppo._compute_policy_ratio(batch)
+				# prob_ratio = self.policy_ratio(batch)
+				prob_ratio = self.ppo._compute_policy_ratio(batch)
 				weighted_probs = advantages * prob_ratio
 				weighted_clipped_probs = T.clamp(prob_ratio, 1 - self.policy_clip, 1 + self.policy_clip) * advantages
 				actor_loss = -T.mean(T.min(weighted_probs, weighted_clipped_probs))
-				# critic_loss = torch.nn.functional.mse_loss(critic_value, returns)
 				critic_loss = self.ppo._compute_critic_loss(batch)
 				total_loss = actor_loss + self.ppo.critic_weight * critic_loss
 				self.optimizer.zero_grad()
@@ -338,7 +328,7 @@ class Agent(nt_Agent):
 				# self.ppo.update_params(batch)
 
 		self.memory.clear()
-		self.ppo.last_agent = nt_Agent.copy_from_agent(self, requires_grad=False)
+		# self.ppo.last_agent = nt_Agent.copy_from_agent(self, requires_grad=False)
 		BaseModel.hard_update(self.ppo.last_policy, self.policy)
 
 

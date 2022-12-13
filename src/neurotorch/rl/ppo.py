@@ -115,6 +115,7 @@ class PPO(LearningAlgorithm):
 		# 		to_tensor(batch.obs), re_format="one_hot,log_smax", as_numpy=False
 		# 	)
 		obs_as_tensor = to_tensor(batch.obs)
+		actions = self.get_actions_from_batch(batch)
 		policy_preds = self.agent.get_actions(obs_as_tensor, re_format="raw", as_numpy=False)
 		with torch.no_grad():
 			last_policy_preds = self.last_agent.get_actions(obs_as_tensor, re_format="raw", as_numpy=False)
@@ -131,26 +132,23 @@ class PPO(LearningAlgorithm):
 					last_policy_dist = torch.distributions.Categorical(
 						probs=maybe_apply_softmax(last_policy_preds[k], dim=-1)
 					)
-					last_policy_actions = last_policy_dist.sample()
+					key_actions = actions[k] if isinstance(actions, dict) else actions
 					policy_ratio[k] = torch.exp(
-						policy_dist.log_prob(last_policy_actions) - last_policy_dist.log_prob(last_policy_actions)
+						policy_dist.log_prob(key_actions) - last_policy_dist.log_prob(key_actions)
 					)
-					policy_ratio[k] = torch.exp(policy_dist.log_prob(last_policy_actions)) / torch.exp(last_policy_dist.log_prob(last_policy_actions))
 				else:
 					# policy_ratio[k] = policy_predictions[k] / (last_policy_predictions_log_smax[k] + 1e-8)
 					policy_ratio[k] = policy_preds[k] / (last_policy_preds[k] + 1e-8)
 		elif self.agent.discrete_actions:
 			# policy_value = torch.sum(last_policy_predictions_one_hot * policy_predictions, dim=-1)
 			# policy_ratio = torch.exp(policy_value - last_policy_predictions_log_smax)
+			key_actions = actions[list(actions.keys())[0]] if isinstance(actions, dict) else actions
 			policy_dist = torch.distributions.Categorical(probs=maybe_apply_softmax(policy_preds, dim=-1))
-			last_policy_dist = torch.distributions.Categorical(probs=maybe_apply_softmax(last_policy_preds, dim=-1))
-			last_policy_actions = last_policy_dist.sample()
-			# policy_ratio = torch.exp(
-			# 	policy_dist.log_prob(last_policy_actions) - last_policy_dist.log_prob(last_policy_actions)
-			# )
-			policy_ratio = torch.exp(policy_dist.log_prob(last_policy_actions)) / torch.exp(
-				last_policy_dist.log_prob(last_policy_actions)
-				)
+			last_policy_preds_smax = maybe_apply_softmax(last_policy_preds, dim=-1)
+			last_policy_dist = torch.distributions.Categorical(probs=last_policy_preds_smax)
+			policy_ratio = torch.exp(
+				policy_dist.log_prob(key_actions) - last_policy_dist.log_prob(key_actions)
+			)
 		else:
 			# policy_ratio = policy_predictions / (last_policy_predictions_log_smax + 1e-8)
 			policy_ratio = policy_preds / (last_policy_preds + 1e-8)
@@ -262,6 +260,23 @@ class PPO(LearningAlgorithm):
 		assert all("return" in x for x in batch.others), "All experiences in the batch must have a return."
 		returns = to_tensor([x["return"] for x in batch.others]).to(self.policy.device)
 		return returns
+	
+	def get_actions_from_batch(self, batch: BatchExperience) -> torch.Tensor:
+		"""
+		Get the actions for the provided batch
+		"""
+		actions = batch.actions
+		if isinstance(actions, dict):
+			for key in actions:
+				actions[key] = actions[key].to(self.policy.device)
+				if actions[key].dim() > 1 and actions[key].shape[-1] > 1:
+					actions[key] = torch.argmax(actions[key], dim=-1)
+				actions[key] = actions[key].long()
+		else:
+			if actions.dim() > 1 and actions.shape[-1] > 1:
+				actions = torch.argmax(actions, dim=-1)
+			actions = actions.long()
+		return actions
 	
 	def on_optimization_begin(self, trainer, **kwargs):
 		super().on_optimization_begin(trainer, **kwargs)

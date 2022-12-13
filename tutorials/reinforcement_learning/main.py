@@ -28,13 +28,13 @@ if __name__ == '__main__':
         policy=None,
         policy_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
-            default_hidden_units=64,
-            default_activation="tanh",
+            default_hidden_units=256,
+            default_activation="relu",
         ),
         critic_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
-            default_hidden_units=64,
-            default_activation="tanh",
+            default_hidden_units=256,
+            default_activation="relu",
         ),
     )
     print(agent)
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     )
     history = academy.train(
         env,
-        n_iterations=10,
+        n_iterations=30,
         n_epochs=80,
         n_batches=-1,
         # n_new_trajectories=1,
@@ -56,7 +56,7 @@ if __name__ == '__main__':
         batch_size=4096,
         buffer_size=4096,
         clear_buffer=True,
-        randomize_buffer=False,
+        randomize_buffer=True,
         load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
         force_overwrite=True,
         verbose=True,

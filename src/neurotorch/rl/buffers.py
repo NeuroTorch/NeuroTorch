@@ -457,14 +457,14 @@ class AgentsHistoryMaps:
 			actions,
 			next_observations,
 			rewards,
-			dones,
+			terminals,
 			truncated=None,
 			infos=None,
 			others=None,
 	) -> List[Trajectory]:
 		actions = deepcopy(to_numpy(actions))
 		observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(to_numpy(next_observations))
-		rewards, dones = deepcopy(to_numpy(rewards)), deepcopy(to_numpy(dones))
+		rewards, terminals = deepcopy(to_numpy(rewards)), deepcopy(to_numpy(terminals))
 		if others is None:
 			others = [None] * len(observations)
 		self.min_rewards = min(self.min_rewards, np.min(rewards))
@@ -473,15 +473,15 @@ class AgentsHistoryMaps:
 			rewards = rewards / (self.max_abs_rewards + 1e-8)
 		
 		finished_trajectories = []
-		for i in range(len(dones)):
+		for i in range(len(terminals)):
 			if self.trajectories[i].terminated:
 				continue
-			if dones[i]:
+			if terminals[i]:
 				self.trajectories[i].append_and_terminate(
 					Experience(
 						obs=observations[i],
 						reward=rewards[i],
-						terminal=dones[i],
+						terminal=terminals[i],
 						action=actions[i],
 						next_obs=next_observations[i],
 						others=others[i],
@@ -499,7 +499,7 @@ class AgentsHistoryMaps:
 					Experience(
 						obs=observations[i],
 						reward=rewards[i],
-						terminal=dones[i],
+						terminal=terminals[i],
 						action=actions[i],
 						next_obs=next_observations[i],
 						others=others[i],

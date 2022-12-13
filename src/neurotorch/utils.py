@@ -324,3 +324,22 @@ def vmap(f):
 	def wrapper(batch_tensor):
 		return torch.stack([f(batch_tensor[i]) for i in range(batch_tensor.shape[0])])
 	return wrapper
+
+
+def maybe_apply_softmax(x, dim: int = -1):
+	"""
+	Apply softmax to x if x is not l1 normalized.
+	
+	:Note: The input will be cast to tensor bye the transform `to_tensor`.
+	
+	:param x: The tensor to apply softmax to.
+	:param dim: The dimension to apply softmax to.
+	:return: The softmax applied tensor.
+	"""
+	from .transforms.base import to_tensor
+	out = to_tensor(x)
+	if torch.allclose(out, out / out.sum(dim=dim, keepdim=True), atol=1e-6):
+		return out
+	else:
+		return torch.nn.functional.softmax(out, dim=dim)
+	

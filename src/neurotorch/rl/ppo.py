@@ -10,6 +10,7 @@ from .buffers import BatchExperience, Experience
 from .utils import discounted_cumulative_sums
 from ..transforms.base import to_numpy, to_tensor
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
+from ..utils import maybe_apply_softmax
 
 
 class PPO(LearningAlgorithm):
@@ -96,11 +97,11 @@ class PPO(LearningAlgorithm):
 		self.params = list(self.policy_params + self.critic_params)
 		param_groups = [
 			{"params": self.policy_params, "lr": self.kwargs.get("default_policy_lr", 3e-4)},
-			# {"params": self.critic_params, "lr": self.kwargs.get("default_critic_lr", 1e-3)}
+			{"params": self.critic_params, "lr": self.kwargs.get("default_critic_lr", 1e-3)}
 		]
 		if self.optimizer is None:
-			self.optimizer = torch.optim.Adam(param_groups, lr=self.kwargs.get("default_lr", 3e-4))
-		self.critic_optimizer = torch.optim.Adam(self.critic_params, lr=self.kwargs.get("default_critic_lr", 1e-3))
+			self.optimizer = torch.optim.Adam(param_groups)
+		# self.critic_optimizer = torch.optim.Adam(self.critic_params, lr=self.kwargs.get("default_critic_lr", 1e-3))
 
 		self.last_agent = trainer.copy_agent()
 		if self.tau is None:
@@ -108,25 +109,51 @@ class PPO(LearningAlgorithm):
 		assert self.tau >= 0, "The parameter `tau` must be greater or equal to 0."
 	
 	def _compute_policy_ratio(self, batch: BatchExperience) -> torch.Tensor:
-		policy_predictions = self.agent.get_actions(to_tensor(batch.obs), re_format="log_probs", as_numpy=False)
+		# policy_predictions = self.agent.get_actions(to_tensor(batch.obs), re_format="log_probs", as_numpy=False)
+		# with torch.no_grad():
+		# 	last_policy_predictions_one_hot, last_policy_predictions_log_smax = self.last_agent.get_actions(
+		# 		to_tensor(batch.obs), re_format="one_hot,log_smax", as_numpy=False
+		# 	)
+		obs_as_tensor = to_tensor(batch.obs)
+		policy_preds = self.agent.get_actions(obs_as_tensor, re_format="raw", as_numpy=False)
 		with torch.no_grad():
-			last_policy_predictions_one_hot, last_policy_predictions_log_smax = self.last_agent.get_actions(
-				to_tensor(batch.obs), re_format="one_hot,log_smax", as_numpy=False
-			)
+			last_policy_preds = self.last_agent.get_actions(obs_as_tensor, re_format="raw", as_numpy=False)
 		
-		if isinstance(policy_predictions, dict):
+		if isinstance(policy_preds, dict):
 			policy_ratio = {}
-			for k in policy_predictions:
+			for k in policy_preds:
 				if k in self.agent.discrete_actions:
-					policy_value = torch.sum(last_policy_predictions_one_hot[k] * policy_predictions[k], dim=-1)
-					policy_ratio[k] = torch.exp(policy_value - last_policy_predictions_log_smax[k])
+					# policy_value = torch.sum(last_policy_predictions_one_hot[k] * policy_predictions[k], dim=-1)
+					# policy_ratio[k] = torch.exp(policy_value - last_policy_predictions_log_smax[k])
+					policy_dist = torch.distributions.Categorical(
+						probs=maybe_apply_softmax(policy_preds[k], dim=-1)
+					)
+					last_policy_dist = torch.distributions.Categorical(
+						probs=maybe_apply_softmax(last_policy_preds[k], dim=-1)
+					)
+					last_policy_actions = last_policy_dist.sample()
+					policy_ratio[k] = torch.exp(
+						policy_dist.log_prob(last_policy_actions) - last_policy_dist.log_prob(last_policy_actions)
+					)
+					policy_ratio[k] = torch.exp(policy_dist.log_prob(last_policy_actions)) / torch.exp(last_policy_dist.log_prob(last_policy_actions))
 				else:
-					policy_ratio[k] = policy_predictions[k] / (last_policy_predictions_log_smax[k] + 1e-8)
+					# policy_ratio[k] = policy_predictions[k] / (last_policy_predictions_log_smax[k] + 1e-8)
+					policy_ratio[k] = policy_preds[k] / (last_policy_preds[k] + 1e-8)
 		elif self.agent.discrete_actions:
-			policy_value = torch.sum(last_policy_predictions_one_hot * policy_predictions, dim=-1)
-			policy_ratio = torch.exp(policy_value - last_policy_predictions_log_smax)
+			# policy_value = torch.sum(last_policy_predictions_one_hot * policy_predictions, dim=-1)
+			# policy_ratio = torch.exp(policy_value - last_policy_predictions_log_smax)
+			policy_dist = torch.distributions.Categorical(probs=maybe_apply_softmax(policy_preds, dim=-1))
+			last_policy_dist = torch.distributions.Categorical(probs=maybe_apply_softmax(last_policy_preds, dim=-1))
+			last_policy_actions = last_policy_dist.sample()
+			# policy_ratio = torch.exp(
+			# 	policy_dist.log_prob(last_policy_actions) - last_policy_dist.log_prob(last_policy_actions)
+			# )
+			policy_ratio = torch.exp(policy_dist.log_prob(last_policy_actions)) / torch.exp(
+				last_policy_dist.log_prob(last_policy_actions)
+				)
 		else:
-			policy_ratio = policy_predictions / (last_policy_predictions_log_smax + 1e-8)
+			# policy_ratio = policy_predictions / (last_policy_predictions_log_smax + 1e-8)
+			policy_ratio = policy_preds / (last_policy_preds + 1e-8)
 		return policy_ratio
 
 	def _compute_policy_loss(self, batch: BatchExperience) -> torch.Tensor:
@@ -140,7 +167,7 @@ class PPO(LearningAlgorithm):
 			ratio_adv = policy_ratio[key] * advantages.view(*view_shape).to(self.policy.device)
 			ratio_clamped = torch.clamp(policy_ratio[key], 1 - self.clip_ratio, 1 + self.clip_ratio)
 			ratio_adv_clamped = ratio_clamped * advantages.view(*view_shape).to(self.policy.device)
-			policy_loss += -torch.mean(torch.minimum(ratio_adv, ratio_adv_clamped))
+			policy_loss += -torch.mean(torch.min(ratio_adv, ratio_adv_clamped))
 		return policy_loss
 	
 	def _compute_critic_loss(self, batch: BatchExperience) -> torch.Tensor:
@@ -151,7 +178,7 @@ class PPO(LearningAlgorithm):
 		else:
 			critic_values = critic_predictions.view(-1)
 		values_targets = self.get_returns_from_batch(batch).view(-1)
-		critic_loss = torch.functional.F.mse_loss(critic_values, values_targets)
+		critic_loss = torch.nn.functional.mse_loss(critic_values, values_targets)
 		return critic_loss
 
 	def update_params(self, batch: BatchExperience) -> float:
@@ -160,17 +187,17 @@ class PPO(LearningAlgorithm):
 		"""
 		policy_loss = self._compute_policy_loss(batch)
 		critic_loss = self._compute_critic_loss(batch)
-		# loss = policy_loss + self.critic_weight * critic_loss.to(self.policy.device)
+		loss = policy_loss + self.critic_weight * critic_loss.to(self.policy.device)
 		
-		self.critic_optimizer.zero_grad()
-		critic_loss.backward()
-		self.critic_optimizer.step()
+		# self.critic_optimizer.zero_grad()
+		# critic_loss.backward()
+		# self.critic_optimizer.step()
 		self.optimizer.zero_grad()
-		# loss.backward()
-		policy_loss.backward()
+		loss.backward()
+		# policy_loss.backward()
 		self.optimizer.step()
 		
-		loss = policy_loss + self.critic_weight * critic_loss.to(self.policy.device)
+		# loss = policy_loss + self.critic_weight * critic_loss.to(self.policy.device)
 		return to_numpy(loss).item()
 	
 	def _batch_obs(self, batch: List[Experience]):
@@ -192,8 +219,8 @@ class PPO(LearningAlgorithm):
 		deltas = rewards[:-1] + self.gamma * values[1:] - values[:-1]
 		# deltas = np.append(deltas, rewards[-1] - values[-1])
 		advantages = discounted_cumulative_sums(deltas, self.gamma * self.gae_lambda)
-		# adv_mean, adv_std = np.mean(advantages), np.std(advantages)
-		# advantages = (advantages - adv_mean) / (adv_std + 1e-12)
+		adv_mean, adv_std = np.mean(advantages), np.std(advantages)
+		advantages = (advantages - adv_mean) / (adv_std + 1e-8)
 		return advantages
 	
 	def _compute_values(self, trajectory):
@@ -208,6 +235,8 @@ class PPO(LearningAlgorithm):
 		rewards = np.array([ex.reward for ex in trajectory.experiences])
 		rewards = np.append(rewards, (1 - int(terminals[-1])) * values[-1])  # from: https://keras.io/examples/rl/ppo_cartpole/
 		returns = discounted_cumulative_sums(rewards, self.gamma)[:-1]
+		returns_mean, returns_std = returns.mean(), returns.std()
+		returns = (returns - returns_mean) / (returns_std + 1e-8)
 		return returns
 	
 	def get_advantages_from_batch(self, batch: BatchExperience) -> torch.Tensor:
@@ -260,6 +289,7 @@ class PPO(LearningAlgorithm):
 			{"advantage": advantage, "value": value, "return": returns_item}
 			for advantage, value, returns_item in zip(advantages, values, returns)
 		]
+		trajectory.update_others(trajectory_metrics)
 		# for i, exp in enumerate(trajectory.experiences):
 		# 	exp.others.update(trajectory_metrics[i])
 		# batch_loss = self.update_params(BatchExperience(trajectory.experiences, self.policy.device))

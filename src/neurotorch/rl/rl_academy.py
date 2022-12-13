@@ -196,23 +196,24 @@ class RLAcademy(Trainer):
 			else:
 				actions_index, actions_probs = self.agent.get_actions(observations, env=self.env, re_format="index,probs")
 			next_observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions_index)
+			terminals = np.logical_or(dones, truncated)
 			finished_trajectories = agents_history_maps.update_trajectories_(
 				observations=observations,
 				actions=actions_probs,
 				next_observations=next_observations,
 				rewards=rewards,
-				dones=dones,
+				terminals=terminals,
 			)
 			cumulative_rewards = list(agents_history_maps.cumulative_rewards.values())
 			terminal_rewards = list(agents_history_maps.terminal_rewards.values())
 			self._update_gen_trajectories_finished_trajectories(finished_trajectories)
-			if all(dones):
+			if all(terminals):
 				agents_history_maps.terminate_all()
 				next_observations, info = self.env.reset()
 			if n_trajectories is None:
-				p_bar.update(min(len(dones), max(0, n_experiences - len(dones))))
+				p_bar.update(min(len(terminals), max(0, n_experiences - len(terminals))))
 			else:
-				p_bar.update(min(sum(dones), max(0, n_trajectories - sum(dones))))
+				p_bar.update(min(sum(terminals), max(0, n_trajectories - sum(terminals))))
 			p_bar.set_postfix(
 				cumulative_reward=f"{np.mean(cumulative_rewards) if cumulative_rewards else 0.0:.3f}",
 				terminal_rewards=f"{np.mean(terminal_rewards) if terminal_rewards else 0.0:.3f}",

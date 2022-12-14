@@ -175,7 +175,7 @@ class Agent(nt_Agent):
 		self.optimizer = torch.optim.Adam(param_groups)
 		# self.memory = PPOMemory(batch_size)
 		self.memory = ReplayBuffer()
-		self.trajectory = Trajectory()
+		# self.trajectory = Trajectory()
 		self.agent_history_maps = AgentsHistoryMaps(self.memory)
 		self.ppo = PPO(self, optimizer=self.optimizer, tau=0.0)
 		self.ppo.last_agent = nt_Agent.copy_from_agent(self, requires_grad=False)
@@ -191,31 +191,31 @@ class Agent(nt_Agent):
 			others=[{'probs': probs, 'value': vals}]
 		)
 		self.finish_trajectories(finished_trajectories)
-		if done:
-			self.trajectory.append_and_terminate(
-				Experience(
-					obs=state,
-					reward=reward,
-					terminal=done,
-					action=action,
-					next_obs=state,
-					others={'probs': probs, 'value': vals},
-				)
-			)
-			self.finish_trajectories([self.trajectory])
-			self.memory.extend(self.trajectory)
-			self.trajectory = Trajectory()
-		else:
-			self.trajectory.append(
-				Experience(
-					obs=state,
-					reward=reward,
-					terminal=done,
-					action=action,
-					next_obs=state,
-					others={'probs': probs, 'value': vals},
-				)
-			)
+		# if done:
+		# 	self.trajectory.append_and_terminate(
+		# 		Experience(
+		# 			obs=state,
+		# 			reward=reward,
+		# 			terminal=done,
+		# 			action=action,
+		# 			next_obs=state,
+		# 			others={'probs': probs, 'value': vals},
+		# 		)
+		# 	)
+		# 	self.finish_trajectories([self.trajectory])
+		# 	self.memory.extend(self.trajectory)
+		# 	self.trajectory = Trajectory()
+		# else:
+		# 	self.trajectory.append(
+		# 		Experience(
+		# 			obs=state,
+		# 			reward=reward,
+		# 			terminal=done,
+		# 			action=action,
+		# 			next_obs=state,
+		# 			others={'probs': probs, 'value': vals},
+		# 		)
+		# 	)
 		return
 	
 	def finish_trajectories(self, finished_trajectories):
@@ -310,9 +310,9 @@ class Agent(nt_Agent):
 	def learn(self):
 		BaseModel.hard_update(self.ppo.last_policy, self.policy)
 		self.finish_trajectories(self.agent_history_maps.terminate_all())
-		self.finish_trajectories([self.trajectory])
+		# self.finish_trajectories([self.trajectory])
 		# self.memory.extend(self.trajectory.experiences)
-		self.trajectory = Trajectory()
+		# self.trajectory = Trajectory()
 		for _ in range(self.n_epochs):
 			for batch in self.memory.get_batch_generator(batch_size=self.batch_size, device=self.device, randomize=True):
 				# advantages = self.ppo.get_advantages_from_batch(batch)
@@ -348,7 +348,7 @@ def main():
 	
 	env = gym.make('CartPole-v1')
 	N = 4096
-	batch_size = 512
+	batch_size = 4096
 	n_epochs = 80
 	alpha = 0.0003
 	agent = Agent(
@@ -368,7 +368,7 @@ def main():
 	learn_iters = 0
 	avg_score = 0
 	n_steps = 0
-	
+	agent.train()
 	for i in range(n_games):
 		observation, info = env.reset()
 		terminal = False
@@ -402,8 +402,4 @@ def main():
 
 
 if __name__ == '__main__':
-	test_softmax_tensor = torch.tensor([1, 2, 3, 4, 5], dtype=torch.float)
-	test_softmax_tensor_1 = torch.nn.functional.softmax(test_softmax_tensor, dim=-1)
-	test_softmax_tensor_2 = torch.nn.functional.softmax(test_softmax_tensor_1, dim=-1)
-	print(f"{test_softmax_tensor = }, {test_softmax_tensor_1 = }, {test_softmax_tensor_2 = }")
 	main()

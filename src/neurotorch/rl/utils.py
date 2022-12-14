@@ -130,7 +130,7 @@ class TrainingHistoriesMap:
 		plt.close(fig)
 		
 
-def space_to_spec(space: gym.spaces.Space):
+def space_to_spec(space: gym.spaces.Space) -> Dict[str, gym.spaces.Space]:
 	spec = {}
 	if hasattr(space, 'spaces'):
 		for k, v in space.spaces.items():
@@ -309,13 +309,32 @@ def env_batch_step(
 	if isinstance(env, gym.vector.VectorEnv):
 		observations, rewards, dones, truncateds, infos = env.step(actions_as_numpy)
 	else:
-		observation, reward, done, truncated, info = env.step(actions_as_numpy)
+		observation, reward, done, truncated, info = env.step(actions_as_numpy.item())
 		observations = np.array([observation])
 		rewards = np.array([reward])
 		dones = np.array([done])
 		truncateds = np.array([truncated])
 		infos = np.array([info])
 	return observations, rewards, dones, truncateds, infos
+
+
+def env_batch_reset(env: gym.Env) -> Tuple[np.ndarray, np.ndarray]:
+	"""
+	Reset the environment in batch mode.
+
+	:param env: The environment.
+	:type env: gym.Env
+
+	:return: The batch of observations.
+	:rtype: np.ndarray
+	"""
+	if isinstance(env, gym.vector.VectorEnv):
+		observations, infos = env.reset()
+	else:
+		observation, info = env.reset()
+		observations = np.array([observation])
+		infos = np.array([info])
+	return observations, infos
 
 
 def get_single_observation_space(env: gym.Env) -> gym.spaces.Space:
@@ -383,3 +402,39 @@ def discounted_cumulative_sums(x, discount, axis=-1, **kwargs):
 	# Discounted cumulative sums of vectors for computing rewards-to-go and advantage estimates
 	conv = scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=axis)[::-1]
 	return conv
+
+
+def batch_numpy_actions(actions, env: Optional[gym.Env] = None):
+	actions_as_numpy = to_numpy(actions)
+	if isinstance(actions_as_numpy, np.ndarray):
+		dim = len(actions_as_numpy.shape)
+		if dim == 0:
+			return np.expand_dims(actions_as_numpy, axis=0)
+	elif isinstance(actions_as_numpy, dict):
+		return {k: batch_numpy_actions(v) for k, v in actions_as_numpy.items()}
+	else:
+		raise NotImplementedError(f"Type {type(actions_as_numpy)} is not implemented.")
+	if env is not None:
+		actions_as_numpy = format_numpy_actions(actions_as_numpy, env)
+	return actions_as_numpy
+
+
+def format_numpy_actions(actions, env: gym.Env):
+	actions_as_numpy = to_numpy(actions)
+	entry_is_dict = isinstance(actions_as_numpy, dict)
+	spec = space_to_spec(env.action_space)
+	if not entry_is_dict:
+		assert len(spec) == 1, f"Expected only one action space, but got {len(spec)}."
+		actions_as_numpy = {k: actions_as_numpy for k in spec}
+	for k, space in spec.items():
+		if isinstance(space, (gym.spaces.Discrete, gym.spaces.MultiDiscrete)):
+			actions_as_numpy[k] = actions_as_numpy[k].astype(np.int64)
+		elif isinstance(space, gym.spaces.Box):
+			actions_as_numpy[k] = actions_as_numpy[k].astype(np.float32)
+		else:
+			pass
+	if not entry_is_dict:
+		actions_as_numpy = actions_as_numpy[list(actions_as_numpy.keys())[0]]
+	return actions_as_numpy
+	
+	

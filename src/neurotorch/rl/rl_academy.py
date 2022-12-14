@@ -16,7 +16,7 @@ from tqdm.auto import tqdm
 from .agent import Agent
 from .buffers import ReplayBuffer, Trajectory, Experience, BatchExperience, AgentsHistoryMaps
 from .ppo import PPO
-from .utils import env_batch_step
+from .utils import env_batch_step, env_batch_reset, batch_numpy_actions
 from .. import Trainer, LoadCheckpointMode, to_numpy, TrainingHistory
 from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
@@ -204,6 +204,7 @@ class RLAcademy(Trainer):
 			verbose = self.verbose
 		if "env" in kwargs:
 			self.update_objects_state_(env=kwargs["env"])
+		render = kwargs.get("render", self.kwargs.get("render", False))
 		agents_history_maps = AgentsHistoryMaps(
 			buffer, normalize_rewards=self.kwargs["normalize_rewards"], **self._agents_history_maps_meta
 		)
@@ -218,14 +219,17 @@ class RLAcademy(Trainer):
 		observations = kwargs.get("observations", self.current_training_state.objects.get("observations", None))
 		info = kwargs.get("info", self.current_training_state.objects.get("info", None))
 		if observations is None or info is None:
-			observations, info = self.env.reset()
+			observations, info = env_batch_reset(self.env)
 		while not self._update_gen_trajectories_break_flag(agents_history_maps, n_trajectories, n_experiences):
+			if render:
+				self.env.render()
 			if not self.agent.training:
-				actions = self.agent.get_actions(observations, env=self.env, re_format="argmax")
+				actions = self.agent.get_actions(observations, env=self.env, re_format="argmax", as_numpy=True)
 			elif np.random.random() < epsilon:
-				actions = self.agent.get_random_actions(env=self.env, re_format="argmax")
+				actions = self.agent.get_random_actions(env=self.env, re_format="argmax", as_numpy=True)
 			else:
-				actions = self.agent.get_actions(observations, env=self.env, re_format="sample")
+				actions = self.agent.get_actions(observations, env=self.env, re_format="sample", as_numpy=True)
+			actions = batch_numpy_actions(actions, self.env)
 			next_observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions)
 			terminals = np.logical_or(dones, truncated)
 			finished_trajectories = agents_history_maps.update_trajectories_(
@@ -237,10 +241,10 @@ class RLAcademy(Trainer):
 			)
 			cumulative_rewards = list(agents_history_maps.cumulative_rewards.values())
 			terminal_rewards = list(agents_history_maps.terminal_rewards.values())
-			self._update_gen_trajectories_finished_trajectories(finished_trajectories)
 			if all(terminals):
-				agents_history_maps.terminate_all()
-				next_observations, info = self.env.reset()
+				finished_trajectories.extend(agents_history_maps.terminate_all())
+				next_observations, info = env_batch_reset(self.env)
+			self._update_gen_trajectories_finished_trajectories(finished_trajectories)
 			if n_trajectories is None:
 				p_bar.update(min(len(terminals), max(0, n_experiences - len(terminals))))
 			else:
@@ -349,16 +353,6 @@ class RLAcademy(Trainer):
 			if self.current_training_state.stop_training_flag:
 				p_bar.set_postfix(OrderedDict(**{"stop_flag": "True"}, **postfix))
 				break
-			# teacher_loss = self.fit_curriculum_buffer()
-			# itr_metrics = self._exec_fit_itr_(epsilon, buffer)
-			# best_rewards = max(best_rewards, itr_metrics["Rewards"])
-			# last_save_rewards.append(itr_metrics["Rewards"])
-			# p_bar_postfix = {
-			# 	"loss": f"{itr_metrics['Loss']:.3f}",
-			# 	"itr_rewards": f"{itr_metrics['Rewards']:.3f}",
-			# 	f"last_{save_freq}_rewards": f"{np.mean(last_save_rewards):.3f}",
-			# 	"best_rewards": f"{best_rewards:.3f}",
-			# }
 		
 		self.callbacks.close(self)
 		p_bar.close()
@@ -426,7 +420,8 @@ class RLAcademy(Trainer):
 		batch_size = min(len(buffer), self.kwargs["batch_size"])
 		batches = buffer.get_batch_generator(
 			batch_size, self.kwargs["n_batches"],
-			randomize=self.kwargs["randomize_buffer"], device=self.agent.policy.device
+			randomize=self.kwargs["randomize_buffer"],
+			device=self.agent.policy.device,
 		)
 		batch_losses = []
 		for i, exp_batch in enumerate(batches):

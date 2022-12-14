@@ -258,21 +258,21 @@ class Agent(nt_Agent):
 		state = T.tensor([observation], dtype=T.float).to(self.device)
 		if self.use_old:
 			dist = self.actor(state)
+			dist_smax = maybe_apply_softmax(dist, dim=-1)
+			dist = Categorical(dist_smax)
+			action = dist.sample()
+			probs = T.squeeze(dist.log_prob(action)).item()
 			value = self.critic_(state)
 		else:
-			dist = self.policy(state)
+			action, probs = self.get_actions(state, env=self.env, re_format="sample,probs", as_numpy=False)
+			# dist = self.policy(state)
 			value = self.critic(state)
 		
-		if isinstance(dist, dict):
-			dist = dist[list(dist.keys())[0]]
+		# if isinstance(dist, dict):
+		# 	dist = dist[list(dist.keys())[0]]
 		if isinstance(value, dict):
 			value = value[list(value.keys())[0]]
 		
-		dist_smax = maybe_apply_softmax(dist, dim=-1)
-		dist = Categorical(dist_smax)
-		# action = torch.argmax(dist_smax, dim=-1)
-		action = dist.sample()
-		probs = T.squeeze(dist.log_prob(action)).item()
 		action = T.squeeze(action).item()
 		value = T.squeeze(value).item()
 		
@@ -308,28 +308,29 @@ class Agent(nt_Agent):
 		return prob_ratio
 	
 	def learn(self):
+		BaseModel.hard_update(self.ppo.last_policy, self.policy)
 		self.finish_trajectories(self.agent_history_maps.terminate_all())
 		self.finish_trajectories([self.trajectory])
 		# self.memory.extend(self.trajectory.experiences)
 		self.trajectory = Trajectory()
 		for _ in range(self.n_epochs):
 			for batch in self.memory.get_batch_generator(batch_size=self.batch_size, device=self.device, randomize=True):
-				advantages = self.ppo.get_advantages_from_batch(batch)
-				# prob_ratio = self.policy_ratio(batch)
-				prob_ratio = self.ppo._compute_policy_ratio(batch)
-				weighted_probs = advantages * prob_ratio
-				weighted_clipped_probs = T.clamp(prob_ratio, 1 - self.policy_clip, 1 + self.policy_clip) * advantages
-				actor_loss = -T.mean(T.min(weighted_probs, weighted_clipped_probs))
-				critic_loss = self.ppo._compute_critic_loss(batch)
-				total_loss = actor_loss + self.ppo.critic_weight * critic_loss
-				self.optimizer.zero_grad()
-				total_loss.backward()
-				self.optimizer.step()
-				# self.ppo.update_params(batch)
+				# advantages = self.ppo.get_advantages_from_batch(batch)
+				# # prob_ratio = self.policy_ratio(batch)
+				# prob_ratio = self.ppo._compute_policy_ratio(batch)
+				# weighted_probs = advantages * prob_ratio
+				# weighted_clipped_probs = T.clamp(prob_ratio, 1 - self.policy_clip, 1 + self.policy_clip) * advantages
+				# actor_loss = -T.mean(T.min(weighted_probs, weighted_clipped_probs))
+				# critic_loss = self.ppo._compute_critic_loss(batch)
+				# total_loss = actor_loss + self.ppo.critic_weight * critic_loss
+				# self.optimizer.zero_grad()
+				# total_loss.backward()
+				# self.optimizer.step()
+				self.ppo.update_params(batch)
 
 		self.memory.clear()
 		# self.ppo.last_agent = nt_Agent.copy_from_agent(self, requires_grad=False)
-		BaseModel.hard_update(self.ppo.last_policy, self.policy)
+		# BaseModel.hard_update(self.ppo.last_policy, self.policy)
 
 
 def plot_learning_curve(x, scores, figure_file):
@@ -347,7 +348,7 @@ def main():
 	
 	env = gym.make('CartPole-v1')
 	N = 4096
-	batch_size = 4096
+	batch_size = 512
 	n_epochs = 80
 	alpha = 0.0003
 	agent = Agent(

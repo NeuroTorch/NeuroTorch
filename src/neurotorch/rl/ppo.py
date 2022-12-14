@@ -109,11 +109,6 @@ class PPO(LearningAlgorithm):
 		assert self.tau >= 0, "The parameter `tau` must be greater or equal to 0."
 	
 	def _compute_policy_ratio(self, batch: BatchExperience) -> torch.Tensor:
-		# policy_predictions = self.agent.get_actions(to_tensor(batch.obs), re_format="log_probs", as_numpy=False)
-		# with torch.no_grad():
-		# 	last_policy_predictions_one_hot, last_policy_predictions_log_smax = self.last_agent.get_actions(
-		# 		to_tensor(batch.obs), re_format="one_hot,log_smax", as_numpy=False
-		# 	)
 		obs_as_tensor = to_tensor(batch.obs)
 		actions = self.get_actions_from_batch(batch)
 		policy_preds = self.agent.get_actions(obs_as_tensor, re_format="raw", as_numpy=False)
@@ -124,8 +119,6 @@ class PPO(LearningAlgorithm):
 			policy_ratio = {}
 			for k in policy_preds:
 				if k in self.agent.discrete_actions:
-					# policy_value = torch.sum(last_policy_predictions_one_hot[k] * policy_predictions[k], dim=-1)
-					# policy_ratio[k] = torch.exp(policy_value - last_policy_predictions_log_smax[k])
 					policy_dist = torch.distributions.Categorical(
 						probs=maybe_apply_softmax(policy_preds[k], dim=-1)
 					)
@@ -137,11 +130,8 @@ class PPO(LearningAlgorithm):
 						policy_dist.log_prob(key_actions) - last_policy_dist.log_prob(key_actions)
 					)
 				else:
-					# policy_ratio[k] = policy_predictions[k] / (last_policy_predictions_log_smax[k] + 1e-8)
 					policy_ratio[k] = policy_preds[k] / (last_policy_preds[k] + 1e-8)
 		elif self.agent.discrete_actions:
-			# policy_value = torch.sum(last_policy_predictions_one_hot * policy_predictions, dim=-1)
-			# policy_ratio = torch.exp(policy_value - last_policy_predictions_log_smax)
 			key_actions = actions[list(actions.keys())[0]] if isinstance(actions, dict) else actions
 			policy_dist = torch.distributions.Categorical(probs=maybe_apply_softmax(policy_preds, dim=-1))
 			last_policy_preds_smax = maybe_apply_softmax(last_policy_preds, dim=-1)
@@ -150,7 +140,6 @@ class PPO(LearningAlgorithm):
 				policy_dist.log_prob(key_actions) - last_policy_dist.log_prob(key_actions)
 			)
 		else:
-			# policy_ratio = policy_predictions / (last_policy_predictions_log_smax + 1e-8)
 			policy_ratio = policy_preds / (last_policy_preds + 1e-8)
 		return policy_ratio
 
@@ -187,15 +176,10 @@ class PPO(LearningAlgorithm):
 		critic_loss = self._compute_critic_loss(batch)
 		loss = policy_loss + self.critic_weight * critic_loss.to(self.policy.device)
 		
-		# self.critic_optimizer.zero_grad()
-		# critic_loss.backward()
-		# self.critic_optimizer.step()
 		self.optimizer.zero_grad()
 		loss.backward()
-		# policy_loss.backward()
 		self.optimizer.step()
 		
-		# loss = policy_loss + self.critic_weight * critic_loss.to(self.policy.device)
 		return to_numpy(loss).item()
 	
 	def _batch_obs(self, batch: List[Experience]):
@@ -291,7 +275,7 @@ class PPO(LearningAlgorithm):
 
 	def on_iteration_begin(self, trainer, **kwargs):
 		super().on_iteration_begin(trainer, **kwargs)
-		self.last_policy = trainer.copy_policy()
+		self.last_policy.hard_update(self.policy)
 	
 	def on_trajectory_end(self, trainer, trajectory, **kwargs) -> List[Dict[str, Any]]:
 		super().on_trajectory_end(trainer, trajectory, **kwargs)

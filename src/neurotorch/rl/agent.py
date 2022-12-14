@@ -110,6 +110,10 @@ class Agent:
 	@property
 	def continuous_actions(self) -> List[str]:
 		return [k for k, v in self.action_spec.items() if not isinstance(v, gym.spaces.Discrete)]
+	
+	@property
+	def training(self) -> bool:
+		return self.policy.training
 		
 	def _create_default_policy(self) -> BaseModel:
 		"""
@@ -181,6 +185,9 @@ class Agent:
 			**self.critic_kwargs
 		).build()
 		return default_policy
+	
+	def train(self, *args, **kwargs):
+		return self.policy.train(*args, **kwargs)
 
 	def __call__(self, *args, **kwargs):
 		"""
@@ -269,7 +276,7 @@ class Agent:
 				return {k: (torch.log_softmax(v, dim=-1) if k in discrete_actions else v) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
-		elif re_format.lower() in ["index", "indices", "argmax", "imax"]:
+		elif re_format.lower() in ["index", "indices", "argmax", "imax", "amax"]:
 			if isinstance(actions, torch.Tensor):
 				return torch.argmax(actions, dim=-1).long() if len(discrete_actions) >= 1 else actions
 			elif isinstance(actions, dict):

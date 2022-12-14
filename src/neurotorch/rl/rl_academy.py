@@ -159,6 +159,36 @@ class RLAcademy(Trainer):
 			verbose: Optional[bool] = None,
 			**kwargs
 	) -> Tuple[ReplayBuffer, np.ndarray, np.ndarray]:
+		"""
+		Generate trajectories using the current policy. If the policy of the agent is in evaluation mode, the
+		actions will be chosen with the argmax method. If the policy is in training mode and a random number is
+		generated that is less than epsilon, a random action will be chosen. Otherwise, the action will be chosen
+		by a sample considering the policy output.
+		
+		:param n_trajectories: Number of trajectories to generate. If not specified, the number of trajectories
+			will be calculated based on the number of experiences.
+		:type n_trajectories: int
+		:param n_experiences: Number of experiences to generate. If not specified, the number of experiences
+			will be calculated based on the number of trajectories.
+		:type n_experiences: int
+		:param buffer: The buffer to store the experiences.
+		:type buffer: ReplayBuffer
+		:param epsilon: The probability of choosing a random action.
+		:type epsilon: float
+		:param p_bar_position: The position of the progress bar.
+		:type p_bar_position: int
+		:param verbose: Whether to show the progress bar.
+		:type verbose: bool
+		:param kwargs: Additional arguments.
+		
+		:keyword gym.Env env: The environment to generate the trajectories. Will update the "env" of the current_state.
+		:keyword observation: The initial observation. If not specified, the observation will be get from the
+			the objects of the current_state attribute and if not available, the environment will be reset.
+		:keyword info: The initial info. If not specified, the info will be get from the objects of the
+			current_state attribute and if not available, the environment will be reset.
+		
+		:return: The buffer with the generated experiences, the cumulative rewards and the mean of terminal rewards.
+		"""
 		if n_trajectories is None:
 			n_trajectories = self.kwargs["n_new_trajectories"]
 		if n_experiences is None:
@@ -190,16 +220,17 @@ class RLAcademy(Trainer):
 		if observations is None or info is None:
 			observations, info = self.env.reset()
 		while not self._update_gen_trajectories_break_flag(agents_history_maps, n_trajectories, n_experiences):
-			rn_action_flag = np.random.random() < epsilon
-			if rn_action_flag:
-				actions_index, actions_probs = self.agent.get_random_actions(env=self.env, re_format="index,one_hot")
+			if not self.agent.training:
+				actions = self.agent.get_actions(observations, env=self.env, re_format="argmax")
+			elif np.random.random() < epsilon:
+				actions = self.agent.get_random_actions(env=self.env, re_format="argmax")
 			else:
-				actions_index, actions_probs = self.agent.get_actions(observations, env=self.env, re_format="index,probs")
-			next_observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions_index)
+				actions = self.agent.get_actions(observations, env=self.env, re_format="sample")
+			next_observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions)
 			terminals = np.logical_or(dones, truncated)
 			finished_trajectories = agents_history_maps.update_trajectories_(
 				observations=observations,
-				actions=actions_probs,
+				actions=actions,
 				next_observations=next_observations,
 				rewards=rewards,
 				terminals=terminals,
@@ -231,6 +262,8 @@ class RLAcademy(Trainer):
 	
 	def _update_gen_trajectories_finished_trajectories(self, finished_trajectories: List[Trajectory]):
 		for finished_trajectory in finished_trajectories:
+			if finished_trajectory.is_empty():
+				continue
 			trajectory_others_list = self.callbacks.on_trajectory_end(self, finished_trajectory)
 			if trajectory_others_list is not None:
 				finished_trajectory.update_others(trajectory_others_list)

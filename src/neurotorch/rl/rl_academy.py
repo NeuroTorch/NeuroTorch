@@ -265,12 +265,11 @@ class RLAcademy(Trainer):
 		return buffer, np.asarray(cumulative_rewards), np.asarray(terminal_rewards)
 	
 	def _update_gen_trajectories_finished_trajectories(self, finished_trajectories: List[Trajectory]):
-		for finished_trajectory in finished_trajectories:
-			if finished_trajectory.is_empty():
-				continue
-			trajectory_others_list = self.callbacks.on_trajectory_end(self, finished_trajectory)
-			if trajectory_others_list is not None:
-				finished_trajectory.update_others(trajectory_others_list)
+		for trajectory in finished_trajectories:
+			if not trajectory.is_empty():
+				trajectory_others_list = self.callbacks.on_trajectory_end(self, trajectory)
+				if trajectory_others_list is not None:
+					trajectory.update_others(trajectory_others_list)
 	
 	def _update_gen_trajectories_break_flag(
 			self,

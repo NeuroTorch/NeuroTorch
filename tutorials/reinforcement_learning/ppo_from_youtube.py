@@ -12,7 +12,7 @@ import neurotorch as nt
 
 from neurotorch import Sequential, to_tensor, to_numpy
 from neurotorch.modules import BaseModel
-from neurotorch.rl import ReplayBuffer, PPO
+from neurotorch.rl import ReplayBuffer, PPO, RLAcademy
 from neurotorch.rl.agent import Agent as nt_Agent
 from neurotorch.rl.buffers import AgentsHistoryMaps, Trajectory, Experience
 from neurotorch.rl.utils import Linear, discounted_cumulative_sums
@@ -343,10 +343,12 @@ def plot_learning_curve(x, scores, figure_file):
 	plt.show()
 
 
-def finish_trajectories(agent, ppo, finished_trajectories):
+def finish_trajectories(trainer: RLAcademy, finished_trajectories):
 	for trajectory in finished_trajectories:
 		if not trajectory.is_empty():
-			ppo.on_trajectory_end(agent, trajectory)
+			trajectory_others_list = trainer.callbacks.on_trajectory_end(trainer, trajectory)
+			# if trajectory_others_list is not None:
+			# 	trajectory.update_others(trajectory_others_list)
 
 
 def main():
@@ -372,18 +374,21 @@ def main():
 	score_history = []
 	
 	learn_iters = 0
+	game_iters = 0
 	avg_score = 0
 	n_steps = 0
 	agent.train()
 	buffer = ReplayBuffer()
 	agent_history_maps = AgentsHistoryMaps(buffer)
 	ppo = PPO(agent, optimizer=agent.optimizer, tau=0.0)
+	trainer = RLAcademy(agent, callbacks=[ppo])
 	ppo.last_agent = nt_Agent.copy_from_agent(agent, requires_grad=False)
-	for i in range(n_games):
-		observation, info = env.reset()
-		terminal = False
-		score = 0
-		while not terminal:
+	observation, info = env.reset()
+	terminal = False
+	score = 0
+	for iteration in range(n_itr):
+		buffer.clear()
+		while len(buffer) < N:
 			action, prob, val = agent.choose_action(observation)
 			observation_, reward, done, truncated, info = env.step(action)
 			terminal = done or truncated
@@ -397,32 +402,32 @@ def main():
 				terminals=[terminal],
 				next_observations=[observation],
 			)
-			finish_trajectories(agent, ppo, finished_trajectories)
-			if n_steps % N == 0:
-				# agent.learn()
-				BaseModel.hard_update(ppo.last_policy, agent.policy)
-				finish_trajectories(agent, ppo, agent_history_maps.terminate_all())
-				for _ in range(n_epochs):
-					for batch in buffer.get_batch_generator(
-						batch_size=batch_size, device=agent.device, randomize=True
-						):
-						ppo.update_params(batch)
-				buffer.clear()
-				learn_iters += 1
+			finish_trajectories(trainer, finished_trajectories)
 			observation = observation_
-		score_history.append(score)
-		avg_score = np.mean(score_history[-100:])
+			if terminal:
+				game_iters += 1
+				score_history.append(score)
+				avg_score = np.mean(score_history[-100:])
+				
+				if avg_score > best_score:
+					best_score = avg_score
+				# agent.save_models()
+				
+				print(
+					'episode', game_iters, 'score %.1f' % score, 'avg score %.1f' % avg_score,
+					'time_steps', n_steps, 'learning_steps', learn_iters
+				)
+				observation, info = env.reset()
+				score = 0
 		
-		if avg_score > best_score:
-			best_score = avg_score
-		# agent.save_models()
-		
-		print(
-			'episode', i, 'score %.1f' % score, 'avg score %.1f' % avg_score,
-			'time_steps', n_steps, 'learning_steps', learn_iters
-		)
-		if n_itr <= learn_iters:
-			break
+		# agent.learn()
+		BaseModel.hard_update(ppo.last_policy, agent.policy)
+		finish_trajectories(trainer, agent_history_maps.terminate_all())
+		for _ in range(n_epochs):
+			for batch in buffer.get_batch_generator(batch_size=batch_size, device=agent.device, randomize=True):
+				ppo.update_params(batch)
+		learn_iters += 1
+	
 	x = [i + 1 for i in range(len(score_history))]
 	plot_learning_curve(x, score_history, figure_file)
 

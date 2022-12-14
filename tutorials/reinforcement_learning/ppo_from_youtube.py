@@ -343,6 +343,12 @@ def plot_learning_curve(x, scores, figure_file):
 	plt.show()
 
 
+def finish_trajectories(agent, ppo, finished_trajectories):
+	for trajectory in finished_trajectories:
+		if not trajectory.is_empty():
+			ppo.on_trajectory_end(agent, trajectory)
+
+
 def main():
 	import gym
 	
@@ -369,6 +375,10 @@ def main():
 	avg_score = 0
 	n_steps = 0
 	agent.train()
+	buffer = ReplayBuffer()
+	agent_history_maps = AgentsHistoryMaps(buffer)
+	ppo = PPO(agent, optimizer=agent.optimizer, tau=0.0)
+	ppo.last_agent = nt_Agent.copy_from_agent(agent, requires_grad=False)
 	for i in range(n_games):
 		observation, info = env.reset()
 		terminal = False
@@ -379,9 +389,25 @@ def main():
 			terminal = done or truncated
 			n_steps += 1
 			score += reward
-			agent.remember(observation, action, prob, val, reward, terminal)
+			# agent.remember(observation, action, prob, val, reward, terminal)
+			finished_trajectories = agent_history_maps.update_trajectories_(
+				observations=[observation],
+				actions=[action],
+				rewards=[reward],
+				terminals=[terminal],
+				next_observations=[observation],
+			)
+			finish_trajectories(agent, ppo, finished_trajectories)
 			if n_steps % N == 0:
-				agent.learn()
+				# agent.learn()
+				BaseModel.hard_update(ppo.last_policy, agent.policy)
+				finish_trajectories(agent, ppo, agent_history_maps.terminate_all())
+				for _ in range(n_epochs):
+					for batch in buffer.get_batch_generator(
+						batch_size=batch_size, device=agent.device, randomize=True
+						):
+						ppo.update_params(batch)
+				buffer.clear()
 				learn_iters += 1
 			observation = observation_
 		score_history.append(score)

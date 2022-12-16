@@ -18,7 +18,7 @@ except ImportError:
 from .utils import obs_sequence_to_batch
 
 
-class Agent:
+class Agent(torch.nn.Module):
 	@staticmethod
 	def copy_from_agent(agent: "Agent", requires_grad: Optional[bool] = None) -> "Agent":
 		"""
@@ -71,7 +71,7 @@ class Agent:
 		:param policy_kwargs: The keyword arguments to pass to the policy if it is created by default.
 		:type policy_kwargs: Optional[Dict[str, Any]]
 		"""
-		super().__init__(**kwargs)
+		super().__init__()
 		self.kwargs = kwargs
 		self.policy_kwargs = policy_kwargs if policy_kwargs is not None else {}
 		self.critic_kwargs = critic_kwargs if critic_kwargs is not None else {}
@@ -112,8 +112,30 @@ class Agent:
 		return [k for k, v in self.action_spec.items() if not isinstance(v, gym.spaces.Discrete)]
 	
 	@property
-	def training(self) -> bool:
-		return self.policy.training
+	def device(self) -> torch.device:
+		"""
+		The device of the agent.
+
+		:return: The device of the agent.
+		:rtype: torch.device
+		"""
+		return next(self.parameters()).device
+	
+	@device.setter
+	def device(self, device: torch.device):
+		"""
+		Set the device of the agent.
+
+		:param device: The device to set.
+		:type device: torch.device
+		"""
+		self.policy.to(device)
+		if self.critic is not None:
+			self.critic.to(device)
+	
+	# @property
+	# def training(self) -> bool:
+	# 	return self.policy.training
 		
 	def _create_default_policy(self) -> BaseModel:
 		"""
@@ -186,10 +208,10 @@ class Agent:
 		).build()
 		return default_policy
 	
-	def train(self, *args, **kwargs):
-		return self.policy.train(*args, **kwargs)
+	# def train(self, *args, **kwargs):
+	# 	return self.policy.train(*args, **kwargs)
 
-	def __call__(self, *args, **kwargs):
+	def forward(self, *args, **kwargs):
 		"""
 		Call the agent.
 

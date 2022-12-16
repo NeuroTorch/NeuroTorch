@@ -41,7 +41,7 @@ class RLAcademy(Trainer):
 		self.agent = agent
 		kwargs = self.set_default_academy_kwargs(**kwargs)
 		super().__init__(
-			model=agent.policy,
+			model=agent,
 			predict_method=predict_method,
 			learning_algorithm=learning_algorithm,
 			callbacks=callbacks,
@@ -146,7 +146,12 @@ class RLAcademy(Trainer):
 		self._agents_history_maps_meta = {
 			"min_rewards": agents_history_maps.min_rewards,
 			"max_rewards": agents_history_maps.max_rewards,
+			"trajectories": agents_history_maps.trajectories,
 		}
+		
+	def reset_agents_history_maps_meta(self):
+		self._agents_history_maps_meta = {}
+		self.update_objects_state_(observations=None, info=None)
 
 	def generate_trajectories(
 			self,
@@ -158,7 +163,11 @@ class RLAcademy(Trainer):
 			p_bar_position: int = 0,
 			verbose: Optional[bool] = None,
 			**kwargs
-	) -> Tuple[ReplayBuffer, np.ndarray, np.ndarray]:
+	) -> Tuple[
+		ReplayBuffer,
+		np.ndarray,
+		# np.ndarray
+	]:
 		"""
 		Generate trajectories using the current policy. If the policy of the agent is in evaluation mode, the
 		actions will be chosen with the argmax method. If the policy is in training mode and a random number is
@@ -203,19 +212,19 @@ class RLAcademy(Trainer):
 		if verbose is None:
 			verbose = self.verbose
 		if "env" in kwargs:
+			if self.env != kwargs["env"]:
+				self.reset_agents_history_maps_meta()
 			self.update_objects_state_(env=kwargs["env"])
 		render = kwargs.get("render", self.kwargs.get("render", False))
 		agents_history_maps = AgentsHistoryMaps(
 			buffer, normalize_rewards=self.kwargs["normalize_rewards"], **self._agents_history_maps_meta
 		)
-		cumulative_rewards: List[float] = []
-		terminal_rewards: List[float] = []
+		# terminal_rewards: List[float] = []
 		p_bar = tqdm(
 			total=n_experiences if n_trajectories is None else n_trajectories,
 			disable=not verbose, desc="Generating Trajectories", position=p_bar_position,
-			unit="trajectory" if n_trajectories is not None else "experience"
+			unit="trajectory" if n_trajectories is not None else "experience",
 		)
-		
 		observations = kwargs.get("observations", self.current_training_state.objects.get("observations", None))
 		info = kwargs.get("info", self.current_training_state.objects.get("info", None))
 		if observations is None or info is None:
@@ -239,10 +248,9 @@ class RLAcademy(Trainer):
 				rewards=rewards,
 				terminals=terminals,
 			)
-			cumulative_rewards = list(agents_history_maps.cumulative_rewards.values())
-			terminal_rewards = list(agents_history_maps.terminal_rewards.values())
+			# terminal_rewards = list(agents_history_maps.terminal_rewards.values())
 			if all(terminals):
-				finished_trajectories.extend(agents_history_maps.terminate_all())
+				finished_trajectories.extend(agents_history_maps.propagate_all())
 				next_observations, info = env_batch_reset(self.env)
 			self._update_gen_trajectories_finished_trajectories(finished_trajectories)
 			if n_trajectories is None:
@@ -250,19 +258,19 @@ class RLAcademy(Trainer):
 			else:
 				p_bar.update(min(sum(terminals), max(0, n_trajectories - sum(terminals))))
 			p_bar.set_postfix(
-				cumulative_reward=f"{np.mean(cumulative_rewards) if cumulative_rewards else 0.0:.3f}",
-				terminal_rewards=f"{np.mean(terminal_rewards) if terminal_rewards else 0.0:.3f}",
+				cumulative_reward=f"{agents_history_maps.mean_cumulative_rewards:.3f}",
+				# terminal_rewards=f"{np.nanmean(terminal_rewards) if terminal_rewards else 0.0:.3f}",
 			)
 			observations = next_observations
-		self._update_gen_trajectories_finished_trajectories(agents_history_maps.terminate_all())
+		self._update_gen_trajectories_finished_trajectories(agents_history_maps.propagate_and_get_all())
 		self._update_agents_history_maps_meta(agents_history_maps)
 		self.update_objects_state_(observations=observations, info=info, buffer=buffer)
 		self.update_itr_metrics_state_(**{
-			self.CUM_REWARDS_METRIC_KEY: np.mean(cumulative_rewards),
-			self.TERMINAL_REWARDS_METRIC_KEY: np.mean(terminal_rewards),
+			self.CUM_REWARDS_METRIC_KEY: agents_history_maps.mean_cumulative_rewards,
+			# self.TERMINAL_REWARDS_METRIC_KEY: np.mean(terminal_rewards),
 		})
 		p_bar.close()
-		return buffer, np.asarray(cumulative_rewards), np.asarray(terminal_rewards)
+		return buffer, agents_history_maps.cumulative_rewards_as_array
 	
 	def _update_gen_trajectories_finished_trajectories(self, finished_trajectories: List[Trajectory]):
 		for trajectory in finished_trajectories:
@@ -374,14 +382,14 @@ class RLAcademy(Trainer):
 		self.model.train()
 		self.callbacks.on_train_begin(self)
 		
-		buffer, cumulative_rewards, terminal_rewards = self.generate_trajectories(
+		buffer, cumulative_rewards = self.generate_trajectories(
 			n_trajectories=self.kwargs["n_new_trajectories"],
 			buffer=buffer,
 			epsilon=kwargs.get("epsilon", 0.0),
 			p_bar_position=1, verbose=False,
 		)
 		metrics[self.CUM_REWARDS_METRIC_KEY] = np.mean(cumulative_rewards)
-		metrics[self.TERMINAL_REWARDS_METRIC_KEY] = np.mean(terminal_rewards)
+		# metrics[self.TERMINAL_REWARDS_METRIC_KEY] = np.mean(terminal_rewards)
 		self.update_state_(batch_is_train=True)
 		train_losses = []
 		for epoch_idx in range(self.current_training_state.n_epochs):
@@ -404,7 +412,8 @@ class RLAcademy(Trainer):
 		
 		last_k_rewards = self.state.objects.get("last_k_rewards", deque(maxlen=self.kwargs["last_k_rewards"]))
 		assert self.kwargs["last_k_rewards_key"] in metrics, \
-			f"last_k_rewards_key {self.kwargs['last_k_rewards_key']} not in metrics. Please select one of {metrics.keys()}"
+			f"last_k_rewards_key {self.kwargs['last_k_rewards_key']} not in metrics. " \
+			f"Please select one of {metrics.keys()}"
 		last_k_rewards.append(metrics[self.kwargs["last_k_rewards_key"]])
 		metrics[f"mean_last_{self.kwargs['last_k_rewards']}_rewards"] = np.nanmean(last_k_rewards)
 		with torch.no_grad():

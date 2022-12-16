@@ -1,6 +1,4 @@
 import os
-from copy import deepcopy
-from typing import Union, Dict
 
 import numpy as np
 import torch
@@ -8,14 +6,13 @@ import torch as T
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
-import neurotorch as nt
 
-from neurotorch import Sequential, to_tensor, to_numpy
+from neurotorch import to_tensor
 from neurotorch.modules import BaseModel
 from neurotorch.rl import ReplayBuffer, PPO, RLAcademy
 from neurotorch.rl.agent import Agent as nt_Agent
-from neurotorch.rl.buffers import AgentsHistoryMaps, Trajectory, Experience
-from neurotorch.rl.utils import Linear, discounted_cumulative_sums
+from neurotorch.rl.buffers import AgentsHistoryMaps
+from neurotorch.rl.utils import discounted_cumulative_sums, batch_numpy_actions, env_batch_step, env_batch_reset
 from neurotorch.transforms.base import MaybeSoftmax
 from neurotorch.utils import maybe_apply_softmax
 
@@ -235,7 +232,7 @@ class Agent(nt_Agent):
 				advantages = (advantages - adv_mean) / (adv_std + 1e-8)
 				for t in range(len(trajectory)):
 					trajectory.experiences[t].others['advantage'] = advantages[t]
-	
+				
 				returns = discounted_cumulative_sums(rewards, self.gamma)[:-1]
 				returns_mean, returns_std = returns.mean(), returns.std()
 				returns = (returns - returns_mean) / (returns_std + 1e-8)
@@ -314,7 +311,9 @@ class Agent(nt_Agent):
 		# self.memory.extend(self.trajectory.experiences)
 		# self.trajectory = Trajectory()
 		for _ in range(self.n_epochs):
-			for batch in self.memory.get_batch_generator(batch_size=self.batch_size, device=self.device, randomize=True):
+			for batch in self.memory.get_batch_generator(
+					batch_size=self.batch_size, device=self.device, randomize=True
+					):
 				# advantages = self.ppo.get_advantages_from_batch(batch)
 				# # prob_ratio = self.policy_ratio(batch)
 				# prob_ratio = self.ppo._compute_policy_ratio(batch)
@@ -327,10 +326,10 @@ class Agent(nt_Agent):
 				# total_loss.backward()
 				# self.optimizer.step()
 				self.ppo.update_params(batch)
-
+		
 		self.memory.clear()
-		# self.ppo.last_agent = nt_Agent.copy_from_agent(self, requires_grad=False)
-		# BaseModel.hard_update(self.ppo.last_policy, self.policy)
+	# self.ppo.last_agent = nt_Agent.copy_from_agent(self, requires_grad=False)
+	# BaseModel.hard_update(self.ppo.last_policy, self.policy)
 
 
 def plot_learning_curve(x, scores, figure_file):
@@ -347,8 +346,8 @@ def finish_trajectories(trainer: RLAcademy, finished_trajectories):
 	for trajectory in finished_trajectories:
 		if not trajectory.is_empty():
 			trajectory_others_list = trainer.callbacks.on_trajectory_end(trainer, trajectory)
-			# if trajectory_others_list is not None:
-			# 	trajectory.update_others(trajectory_others_list)
+		# if trajectory_others_list is not None:
+		# 	trajectory.update_others(trajectory_others_list)
 
 
 def main():
@@ -378,54 +377,76 @@ def main():
 	avg_score = 0
 	n_steps = 0
 	agent.train()
-	buffer = ReplayBuffer()
+	buffer = ReplayBuffer(N)
 	agent_history_maps = AgentsHistoryMaps(buffer)
 	ppo = PPO(agent, optimizer=agent.optimizer, tau=0.0)
-	trainer = RLAcademy(agent, callbacks=[ppo])
+	trainer = RLAcademy(
+		agent,
+		callbacks=[ppo],
+		normalize_rewards=False,
+		init_epsilon=0.0,
+		use_priority_buffer=False,
+		buffer_size=N,
+	)
 	ppo.last_agent = nt_Agent.copy_from_agent(agent, requires_grad=False)
-	observation, info = env.reset()
+	observations, info = env_batch_reset(env)
 	terminal = False
 	score = 0
 	for iteration in range(n_itr):
+		# buffer, cumulative_rewards, terminal_rewards = trainer.generate_trajectories(
+		# 	n_trajectories=None,
+		# 	n_experiences=N,
+		# 	buffer=buffer,
+		# 	epsilon=0.0,
+		# 	p_bar_position=1, verbose=False,
+		# 	env=env,
+		# )
+		
+		cumulative_rewards = []
 		buffer.clear()
 		while len(buffer) < N:
-			action, prob, val = agent.choose_action(observation)
-			observation_, reward, done, truncated, info = env.step(action)
-			terminal = done or truncated
+			actions = agent.get_actions(observations, env=env, re_format="sample", as_numpy=True)
+			actions = batch_numpy_actions(actions, env)
+			next_observations, rewards, dones, truncated, infos = env_batch_step(env, actions)
+			# observation_, reward, done, truncated, info = env.step(actions)
+			# terminal = done or truncated
+			terminals = np.logical_or(dones, truncated)
 			n_steps += 1
-			score += reward
-			# agent.remember(observation, action, prob, val, reward, terminal)
+			# score += reward
+			score += np.sum(rewards)
 			finished_trajectories = agent_history_maps.update_trajectories_(
-				observations=[observation],
-				actions=[action],
-				rewards=[reward],
-				terminals=[terminal],
-				next_observations=[observation],
+				observations=observations,
+				actions=actions,
+				rewards=rewards,
+				terminals=terminals,
+				next_observations=next_observations,
 			)
-			finish_trajectories(trainer, finished_trajectories)
-			observation = observation_
-			if terminal:
+			# finish_trajectories(trainer, finished_trajectories)
+			trainer._update_gen_trajectories_finished_trajectories(finished_trajectories)
+			observations = next_observations
+			if all(terminals):
 				game_iters += 1
-				score_history.append(score)
-				avg_score = np.mean(score_history[-100:])
-				
+				cumulative_rewards.append(score)
 				if avg_score > best_score:
 					best_score = avg_score
-				# agent.save_models()
-				
-				print(
-					'episode', game_iters, 'score %.1f' % score, 'avg score %.1f' % avg_score,
-					'time_steps', n_steps, 'learning_steps', learn_iters
-				)
-				observation, info = env.reset()
+				observations, info = env_batch_reset(env)
 				score = 0
+		# finish_trajectories(trainer, agent_history_maps.propagate_all())
+		trainer._update_gen_trajectories_finished_trajectories(agent_history_maps.propagate_all())
 		
-		# agent.learn()
+		score_history.extend(cumulative_rewards)
+		avg_score = np.mean(cumulative_rewards)
+		std_score = np.std(cumulative_rewards)
+		print(
+			f"iteration: {iteration}, "
+			f"avg_score: {avg_score:.1f}, "
+			f"std_score: {std_score:.1f}, "
+			f"best_curr_score: {np.max(cumulative_rewards):.1f}"
+		)
 		BaseModel.hard_update(ppo.last_policy, agent.policy)
-		finish_trajectories(trainer, agent_history_maps.terminate_all())
 		for _ in range(n_epochs):
 			for batch in buffer.get_batch_generator(batch_size=batch_size, device=agent.device, randomize=True):
-				ppo.update_params(batch)
+				trainer._exec_batch(batch)
 		learn_iters += 1
 	
 	x = [i + 1 for i in range(len(score_history))]

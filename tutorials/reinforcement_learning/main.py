@@ -3,17 +3,19 @@ This tutorial is a work in progress. It will be completed in the version 0.0.1 o
 """
 
 import gym
+import numpy as np
+
 import neurotorch as nt
 from neurotorch.rl.agent import Agent
 from neurotorch.rl.rl_academy import RLAcademy
 
 if __name__ == '__main__':
-    # env_id = "LunarLander-v2"
-    env_id = "CartPole-v1"
+    env_id = "LunarLander-v2"
+    # env_id = "CartPole-v1"
     # env = gym.vector.make(env_id, num_envs=1, render_mode="human")
-    # env = gym.vector.make(env_id, num_envs=1, render_mode=None)
+    env = gym.vector.make(env_id, num_envs=12, render_mode=None)
     # env = gym.make(env_id, render_mode="human")
-    env = gym.make(env_id, render_mode=None)
+    # env = gym.make(env_id, render_mode="rgb_array")
     checkpoint_manager = nt.CheckpointManager(
         checkpoint_folder=f"data/tr_data/checkpoints_{env_id}_default-policy",
         save_freq=10,
@@ -49,28 +51,29 @@ if __name__ == '__main__':
     )
     history = academy.train(
         env,
-        n_iterations=30,
+        n_iterations=100,
         n_epochs=80,
         n_batches=-1,
-        # n_new_trajectories=1,
-        n_new_experiences=4096,
+        n_new_trajectories=2*env.num_envs,
+        # n_new_experiences=10_000,
         batch_size=4096,
-        buffer_size=4096,
+        buffer_size=np.inf,
         clear_buffer=True,
         randomize_buffer=True,
         load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
-        force_overwrite=True,
+        force_overwrite=False,
         verbose=True,
         render=False,
     )
     history.plot(show=True)
-    # if not env.closed:
-    #     env.close()
-    # env = gym.vector.make(env_id, num_envs=1, render_mode="human")
-    # buffer, cumulative_rewards, terminal_rewards = academy.generate_trajectories(
-    #     n_trajectories=10, epsilon=0.0, verbose=True, env=env
-    # )
-    # print(f"Buffer: {buffer}")
-    # n_terminated = sum([int(e.terminal) for e in buffer])
-    # print(f"{n_terminated = }")
+    if not env.closed:
+        env.close()
+    env = gym.make(env_id, render_mode="human")
+    buffer, cumulative_rewards = academy.generate_trajectories(
+        n_trajectories=10, epsilon=0.0, verbose=True, env=env, render=True,
+    )
+    print(f"Buffer: {buffer}")
+    print(f"Cumulative rewards: {np.nanmean(cumulative_rewards):.3f} +/- {np.nanstd(cumulative_rewards):.3f}")
+    n_terminated = sum([int(e.terminal) for e in buffer])
+    print(f"{n_terminated = }")
     env.close()

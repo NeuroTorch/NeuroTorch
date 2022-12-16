@@ -92,8 +92,8 @@ class PPO(LearningAlgorithm):
 	
 	def start(self, trainer, **kwargs):
 		super().start(trainer, **kwargs)
-		self.policy_params = list(self.policy.parameters())
-		self.critic_params = list(set(self.critic.parameters()) - set(self.policy_params))
+		self.policy_params = list(filter(lambda p: p.requires_grad, self.policy.parameters()))
+		self.critic_params = list(filter(lambda p: p.requires_grad, self.critic.parameters()))
 		self.params = list(self.policy_params + self.critic_params)
 		param_groups = [
 			{"params": self.policy_params, "lr": self.kwargs.get("default_policy_lr", 3e-4)},
@@ -101,7 +101,6 @@ class PPO(LearningAlgorithm):
 		]
 		if self.optimizer is None:
 			self.optimizer = torch.optim.Adam(param_groups)
-		# self.critic_optimizer = torch.optim.Adam(self.critic_params, lr=self.kwargs.get("default_critic_lr", 1e-3))
 
 		self.last_agent = trainer.copy_agent()
 		if self.tau is None:

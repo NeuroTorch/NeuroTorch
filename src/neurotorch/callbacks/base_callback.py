@@ -732,7 +732,8 @@ class CallbacksList:
 
 		:return: A list of dictionaries containing the trajectory metrics.
 		"""
-		re_list = [{}] * len(trajectory)
+		# re_list = [{}] * len(trajectory)
+		re_list = [{} for _ in range(len(trajectory))]
 		for callback in self.callbacks:
 			callback_return = callback.on_trajectory_end(trainer, trajectory, **kwargs)
 			if callback_return is not None:

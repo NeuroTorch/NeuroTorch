@@ -176,14 +176,18 @@ class Trajectory:
 			**kwargs,
 	):
 		self.experiences = experiences if experiences is not None else []
-		self._terminal_flag = experiences[-1].terminal if experiences else False
+		self._propagated_flag = False
 		self.gamma = gamma
 		self.rewards_horizon = kwargs.get("rewards_horizon", 1)
 		assert self.rewards_horizon > 0, "The rewards horizon must be greater than 0."
 	
 	@property
 	def terminated(self):
-		return self._terminal_flag
+		return self.experiences[-1].terminal if self.experiences else False
+	
+	@property
+	def terminal(self):
+		return self.terminated
 
 	@property
 	def _default_gamma(self):
@@ -197,17 +201,17 @@ class Trajectory:
 	def terminal_reward(self):
 		return self.experiences[-1].reward
 	
+	@property
+	def propagated(self):
+		return self._propagated_flag
+	
 	def is_empty(self):
 		return len(self) == 0
-
-	def set_terminal(self, terminal: bool):
-		self._terminal_flag = terminal
-		if self._terminal_flag:
-			self.propagate_rewards()
-			self.make_rewards_horizon()
 	
-	def terminate(self):
-		self.set_terminal(True)
+	def propagate(self):
+		self.propagate_rewards()
+		self.make_rewards_horizon()
+		self._propagated_flag = True
 
 	def propagate_rewards(self, gamma: Optional[float] = 0.99):
 		"""
@@ -244,15 +248,15 @@ class Trajectory:
 		return self.experiences[index]
 
 	def append(self, experience: Experience):
-		if self._terminal_flag:
-			raise ValueError("Cannot append experience to a terminal trajectory.")
 		self.experiences.append(experience)
-		self.set_terminal(experience.terminal)
+		self._propagated_flag = False
+		if experience.terminal:
+			self.propagate()
 
-	def append_and_terminate(self, experience: Experience):
+	def append_and_propagate(self, experience: Experience):
 		self.append(experience)
-		self.set_terminal(True)
-		
+		self.propagate()
+	
 	def update_others(self, others_list: List[dict]):
 		assert len(others_list) == len(self.experiences), "The number of experiences must be the same."
 		for i, others in enumerate(others_list):
@@ -421,7 +425,8 @@ class AgentsHistoryMaps:
 	def __init__(self, buffer: Optional[ReplayBuffer] = None, **kwargs):
 		self.buffer = buffer if buffer is not None else ReplayBuffer()
 		self.trajectories: Dict[int, Trajectory] = defaultdict(Trajectory)
-		self.cumulative_rewards: Dict[int, float] = defaultdict(lambda: 0.0)
+		self.trajectories.update(kwargs.get('trajectories', {}))
+		self.cumulative_rewards: Dict[int, list] = defaultdict(list)
 		self.terminal_rewards: Dict[int, float] = defaultdict(lambda: 0.0)
 		self._terminal_counter = 0
 		self._experience_counter = 0
@@ -450,6 +455,27 @@ class AgentsHistoryMaps:
 		"""
 		return max(abs(self.min_rewards), abs(self.max_rewards))
 	
+	@property
+	def cumulative_rewards_as_array(self) -> np.ndarray:
+		"""
+		:return: The cumulative rewards as an array
+		"""
+		cum_rewards_list = sum(self.cumulative_rewards.values(), [])
+		# cum_rewards_list = []
+		# for agent_id, rewards in self.cumulative_rewards.items():
+		# 	cum_rewards_list.extend(rewards)
+		return np.asarray(cum_rewards_list)
+	
+	@property
+	def mean_cumulative_rewards(self) -> float:
+		"""
+		:return: The mean cumulative rewards
+		"""
+		cumulative_rewards = self.cumulative_rewards_as_array
+		if cumulative_rewards.size == 0:
+			return 0.0
+		return np.nanmean(cumulative_rewards).item()
+	
 	def update_trajectories_(
 			self,
 			*,
@@ -462,6 +488,20 @@ class AgentsHistoryMaps:
 			infos=None,
 			others=None,
 	) -> List[Trajectory]:
+		"""
+		Updates the trajectories of the agents and returns the trajectories of the agents that have been terminated.
+		
+		:param observations: The observations
+		:param actions: The actions
+		:param next_observations: The next observations
+		:param rewards: The rewards
+		:param terminals: The terminals
+		:param truncated: The truncated
+		:param infos: The infos
+		:param others: The others
+		
+		:return: The terminated trajectories.
+		"""
 		actions = deepcopy(to_numpy(actions))
 		observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(to_numpy(next_observations))
 		rewards, terminals = deepcopy(to_numpy(rewards)), deepcopy(to_numpy(terminals))
@@ -477,7 +517,7 @@ class AgentsHistoryMaps:
 			if self.trajectories[i].terminated:
 				continue
 			if terminals[i]:
-				self.trajectories[i].append_and_terminate(
+				self.trajectories[i].append_and_propagate(
 					Experience(
 						obs=observations[i],
 						reward=rewards[i],
@@ -487,7 +527,7 @@ class AgentsHistoryMaps:
 						others=others[i],
 					)
 				)
-				self.cumulative_rewards[i] = self.trajectories[i].cumulative_reward
+				self.cumulative_rewards[i].append(self.trajectories[i].cumulative_reward)
 				self.terminal_rewards[i] = self.trajectories[i].terminal_reward
 				finished_trajectory = self.trajectories.pop(i)
 				finished_trajectories.append(finished_trajectory)
@@ -508,16 +548,46 @@ class AgentsHistoryMaps:
 				self._experience_counter += 1
 		return finished_trajectories
 	
-	def terminate_all(self) -> List[Trajectory]:
+	def propagate_all(self) -> List[Trajectory]:
+		"""
+		Propagate all the trajectories and return the finished ones.
+		
+		:return: The finished trajectories
+		:rtype: List[Trajectory]
+		"""
 		trajectories = []
 		for i in range(len(self.trajectories)):
-			if not self.trajectories[i].terminated:
-				self.trajectories[i].terminate()
-			self.cumulative_rewards[i] = self.trajectories[i].cumulative_reward
-			trajectory = self.trajectories.pop(i)
+			if not self.trajectories[i].propagated:
+				self.trajectories[i].propagate()
+			if self.trajectories[i].terminated:
+				self.cumulative_rewards[i].append(self.trajectories[i].cumulative_reward)
+				trajectory = self.trajectories.pop(i)
+				trajectories.append(trajectory)
+				self._terminal_counter += 1
+			else:
+				trajectory = self.trajectories[i]
+			self.buffer.extend(trajectory)
+		return trajectories
+	
+	def propagate_and_get_all(self) -> List[Trajectory]:
+		"""
+		Propagate all the trajectories and return all the trajectories.
+		
+		:return: All the trajectories
+		:rtype: List[Trajectory]
+		"""
+		trajectories = []
+		for i in range(len(self.trajectories)):
+			if not self.trajectories[i].propagated:
+				self.trajectories[i].propagate()
+			if self.trajectories[i].terminated:
+				self.cumulative_rewards[i].append(self.trajectories[i].cumulative_reward)
+				trajectory = self.trajectories.pop(i)
+				self._terminal_counter += 1
+			else:
+				trajectory = self.trajectories[i]
 			trajectories.append(trajectory)
 			self.buffer.extend(trajectory)
-			self._terminal_counter += 1
 		return trajectories
 	
 	def clear(self) -> List[Trajectory]:

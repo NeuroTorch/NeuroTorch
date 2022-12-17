@@ -42,6 +42,10 @@ class Experience:
 		self.others = others or {}
 	
 	@property
+	def observation(self):
+		return self.obs
+	
+	@property
 	def metrics(self):
 		return self.others
 	

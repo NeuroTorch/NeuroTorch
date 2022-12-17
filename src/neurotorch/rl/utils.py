@@ -1,13 +1,16 @@
 import os
+import warnings
 from collections import defaultdict
-from typing import Optional, Union, Sequence, Dict, Tuple, Any
+from typing import Optional, Union, Sequence, Dict, Tuple, Any, List
 
+import imageio
 import matplotlib.pyplot as plt
 import numpy as np
 import gym
 import scipy
 import torch
 
+from .buffers import Trajectory
 from .curriculum import Curriculum
 from ..dimension import SizeTypes
 from ..modules.layers import BaseNeuronsLayer
@@ -307,7 +310,8 @@ def env_batch_step(
 	# actions_as_numpy = to_numpy(actions).reshape(-1).tolist()  # TODO: to numpy without changing the dtype
 	actions_as_numpy = actions
 	if isinstance(env, gym.vector.VectorEnv):
-		observations, rewards, dones, truncateds, infos = env.step(actions_as_numpy)
+		observations, rewards, dones, truncateds, info = env.step(actions_as_numpy)
+		infos = [info for _ in range(env.num_envs)]
 	else:
 		observation, reward, done, truncated, info = env.step(actions_as_numpy.item())
 		observations = np.array([observation])
@@ -335,6 +339,23 @@ def env_batch_reset(env: gym.Env) -> Tuple[np.ndarray, np.ndarray]:
 		observations = np.array([observation])
 		infos = np.array([info])
 	return observations, infos
+
+
+def env_batch_render(env: gym.Env, **kwargs) -> List[Any]:
+	"""
+	Render the environment in batch mode.
+
+	:param env: The environment.
+	:type env: gym.Env
+	"""
+	if isinstance(env, gym.vector.VectorEnv):
+		rendering = env.render()
+		if rendering is None:
+			rendering = [None for _ in range(env.num_envs)]
+	else:
+		rendering = env.render()
+		rendering = [rendering]
+	return rendering
 
 
 def get_single_observation_space(env: gym.Env) -> gym.spaces.Space:
@@ -438,3 +459,88 @@ def format_numpy_actions(actions, env: gym.Env):
 	return actions_as_numpy
 	
 	
+class TrajectoryRenderer:
+	def __init__(
+			self,
+			trajectory: Trajectory,
+			env: Optional[gym.Env] = None,
+			**kwargs
+	):
+		self.trajectory = trajectory
+		self.env = env
+		if self.check_simulate_is_needed():
+			if self.env is None:
+				raise ValueError(
+					"If the experiences in the trajectory do not have others['render'], an environment must be provided."
+				)
+			self.simulate()
+	
+	def check_simulate_is_needed(self):
+		is_needed = not all("render" in x.others for x in self.trajectory)
+		return is_needed
+	
+	def simulate(self):
+		warnings.warn(
+			"This method is deprecated. Its highly recommended to set the the attribute others['render'] "
+			"when generating trajectories. If you are using RLAcademy.generate_trajectories, you can set "
+			"the argument render=True to do so easily."
+		)
+		for x in self.trajectory:
+			self.env.unwrapped.state = x.obs
+			x.others["render"] = self.env.render()
+	
+	def render(self, **kwargs):
+		import matplotlib.pyplot as plt
+		import matplotlib.animation as animation
+		
+		filename = kwargs.get("filename", None)
+		file_extension = kwargs.get("file_extension", "mp4")
+		fps = kwargs.get("fps", 30)
+		time_interval = 1 / fps
+		
+		fig, ax = plt.subplots()
+		env_name = self.env.unwrapped.spec.id
+		title = f"Trajectory on {env_name}.\nCumulative reward: {self.trajectory.cumulative_reward:.2f}."
+		title = kwargs.get("title", title)
+		ax.set_title(title)
+		
+		def _animation(i):
+			ax.clear()
+			ax.set_title(title)
+			ax.imshow(self.trajectory[i].others["render"])
+			return ax,
+		
+		anim = animation.FuncAnimation(fig, _animation, frames=len(self.trajectory), interval=time_interval, blit=True)
+		if filename is not None:
+			os.makedirs(os.path.dirname(filename), exist_ok=True)
+			if file_extension is None:
+				if '.' in filename:
+					file_extension = filename.split('.')[-1]
+				else:
+					file_extension = 'gif'
+			assert file_extension in ["mp4", "gif"], "The extension of the file must be mp4 or gif."
+			if filename.endswith(file_extension):
+				filename = ''.join(filename.split('.')[:-1])
+			anim.save(f"{filename}.{file_extension}", writer="imagemagick", fps=fps)
+		if kwargs.get("show", True):
+			plt.show()
+	
+	def to_file(self, file_path: str, fps: int = 30, **kwargs):
+		if "." in file_path:
+			ext = os.path.splitext(file_path)[-1]
+		else:
+			ext = kwargs.get("ext", ".mp4")
+		if not file_path.endswith(ext):
+			file_path += ext
+		if not os.path.exists(os.path.dirname(file_path)):
+			os.makedirs(os.path.dirname(file_path), exist_ok=True)
+		with imageio.get_writer(file_path, fps=fps) as writer:
+			for x in self.trajectory:
+				writer.append_data(x.others["render"])
+		return file_path
+	
+	def to_mp4(self, file_path: str, fps: int = 30, **kwargs):
+		return self.to_file(file_path, fps=fps, ext="mp4", **kwargs)
+	
+	def to_gif(self, file_path: str, fps: int = 30, **kwargs):
+		return self.to_file(file_path, fps=fps, ext="gif", **kwargs)

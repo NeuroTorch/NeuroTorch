@@ -4,7 +4,7 @@ import time
 import warnings
 from collections import defaultdict, deque, OrderedDict
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, NamedTuple
 
 import gym
 import numpy as np
@@ -16,12 +16,19 @@ from tqdm.auto import tqdm
 from .agent import Agent
 from .buffers import ReplayBuffer, Trajectory, Experience, BatchExperience, AgentsHistoryMaps
 from .ppo import PPO
-from .utils import env_batch_step, env_batch_reset, batch_numpy_actions
+from .utils import env_batch_step, env_batch_reset, batch_numpy_actions, env_batch_render
 from .. import Trainer, LoadCheckpointMode, to_numpy, TrainingHistory
 from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 from ..modules import BaseModel
 from ..utils import linear_decay
+
+
+class GenTrajectoriesOutput(NamedTuple):
+	buffer: ReplayBuffer
+	cumulative_rewards: np.ndarray
+	agents_history_maps: AgentsHistoryMaps
+	trajectories: Optional[List[Trajectory]] = None
 
 
 class RLAcademy(Trainer):
@@ -163,11 +170,7 @@ class RLAcademy(Trainer):
 			p_bar_position: int = 0,
 			verbose: Optional[bool] = None,
 			**kwargs
-	) -> Tuple[
-		ReplayBuffer,
-		np.ndarray,
-		# np.ndarray
-	]:
+	) -> GenTrajectoriesOutput:
 		"""
 		Generate trajectories using the current policy. If the policy of the agent is in evaluation mode, the
 		actions will be chosen with the argmax method. If the policy is in training mode and a random number is
@@ -216,6 +219,9 @@ class RLAcademy(Trainer):
 				self.reset_agents_history_maps_meta()
 			self.update_objects_state_(env=kwargs["env"])
 		render = kwargs.get("render", self.kwargs.get("render", False))
+		rendering = [None for _ in range((self.env.num_envs if hasattr(self.env, "num_envs") else 1))]
+		re_trajectories = kwargs.get("re_trajectories", False)
+		re_trajectories_list = []
 		agents_history_maps = AgentsHistoryMaps(
 			buffer, normalize_rewards=self.kwargs["normalize_rewards"], **self._agents_history_maps_meta
 		)
@@ -231,7 +237,7 @@ class RLAcademy(Trainer):
 			observations, info = env_batch_reset(self.env)
 		while not self._update_gen_trajectories_break_flag(agents_history_maps, n_trajectories, n_experiences):
 			if render:
-				self.env.render()
+				rendering = env_batch_render(self.env)
 			if not self.agent.training:
 				actions = self.agent.get_actions(observations, env=self.env, re_format="argmax", as_numpy=True)
 			elif np.random.random() < epsilon:
@@ -239,7 +245,7 @@ class RLAcademy(Trainer):
 			else:
 				actions = self.agent.get_actions(observations, env=self.env, re_format="sample", as_numpy=True)
 			actions = batch_numpy_actions(actions, self.env)
-			next_observations, rewards, dones, truncated, infos = env_batch_step(self.env, actions)
+			next_observations, rewards, dones, truncated, info = env_batch_step(self.env, actions)
 			terminals = np.logical_or(dones, truncated)
 			finished_trajectories = agents_history_maps.update_trajectories_(
 				observations=observations,
@@ -247,12 +253,18 @@ class RLAcademy(Trainer):
 				next_observations=next_observations,
 				rewards=rewards,
 				terminals=terminals,
+				others=[
+					{"render": rendering_item, "info": info_item, "truncated": truncated_item}
+					for rendering_item, info_item, truncated_item in zip(rendering, info, truncated)
+				],
 			)
 			# terminal_rewards = list(agents_history_maps.terminal_rewards.values())
 			if all(terminals):
 				finished_trajectories.extend(agents_history_maps.propagate_all())
 				next_observations, info = env_batch_reset(self.env)
 			self._update_gen_trajectories_finished_trajectories(finished_trajectories)
+			if re_trajectories:
+				re_trajectories_list.extend(finished_trajectories)
 			if n_trajectories is None:
 				p_bar.update(min(len(terminals), max(0, n_experiences - len(terminals))))
 			else:
@@ -270,7 +282,12 @@ class RLAcademy(Trainer):
 			# self.TERMINAL_REWARDS_METRIC_KEY: np.mean(terminal_rewards),
 		})
 		p_bar.close()
-		return buffer, agents_history_maps.cumulative_rewards_as_array
+		return GenTrajectoriesOutput(
+			buffer=buffer,
+			cumulative_rewards=agents_history_maps.cumulative_rewards_as_array,
+			agents_history_maps=agents_history_maps,
+			trajectories=re_trajectories_list,
+		)
 	
 	def _update_gen_trajectories_finished_trajectories(self, finished_trajectories: List[Trajectory]):
 		for trajectory in finished_trajectories:
@@ -382,19 +399,19 @@ class RLAcademy(Trainer):
 		self.model.train()
 		self.callbacks.on_train_begin(self)
 		
-		buffer, cumulative_rewards = self.generate_trajectories(
+		gen_trajectories_out = self.generate_trajectories(
 			n_trajectories=self.kwargs["n_new_trajectories"],
 			buffer=buffer,
 			epsilon=kwargs.get("epsilon", 0.0),
 			p_bar_position=1, verbose=False,
 		)
-		metrics[self.CUM_REWARDS_METRIC_KEY] = np.mean(cumulative_rewards)
+		metrics[self.CUM_REWARDS_METRIC_KEY] = np.mean(gen_trajectories_out.cumulative_rewards)
 		# metrics[self.TERMINAL_REWARDS_METRIC_KEY] = np.mean(terminal_rewards)
 		self.update_state_(batch_is_train=True)
 		train_losses = []
 		for epoch_idx in range(self.current_training_state.n_epochs):
 			self.update_state_(epoch=epoch_idx)
-			train_losses.append(self._exec_epoch(buffer))
+			train_losses.append(self._exec_epoch(gen_trajectories_out.buffer))
 		train_loss = np.mean(train_losses)
 		self.update_state_(train_loss=train_loss)
 		self.callbacks.on_train_end(self)

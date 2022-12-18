@@ -14,7 +14,7 @@ if __name__ == '__main__':
     env_id = "LunarLander-v2"
     # env_id = "CartPole-v1"
     # env = gym.vector.make(env_id, num_envs=1, render_mode="human")
-    env = gym.vector.make(env_id, num_envs=12, render_mode=None)
+    env = gym.vector.make(env_id, num_envs=12, render_mode="rgb_array")
     # env = gym.make(env_id, render_mode="human")
     # env = gym.make(env_id, render_mode="rgb_array")
     checkpoint_manager = nt.CheckpointManager(
@@ -24,7 +24,7 @@ if __name__ == '__main__':
         minimise_metric=False,
         save_best_only=True,
     )
-    ppo_la = nt.rl.PPO(tau=0.0, critic_weight=0.5)
+    ppo_la = nt.rl.PPO(tau=0.0, critic_weight=0.5, gae_lambda=1.0)
     
     agent = Agent(
         env=env,
@@ -32,12 +32,12 @@ if __name__ == '__main__':
         policy=None,
         policy_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
-            default_hidden_units=512,
+            default_hidden_units=[128],
             default_activation="relu",
         ),
         critic_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
-            default_hidden_units=512,
+            default_hidden_units=[128],
             default_activation="relu",
         ),
     )
@@ -47,24 +47,25 @@ if __name__ == '__main__':
         agent=agent,
         callbacks=[checkpoint_manager, ppo_la],
         normalize_rewards=False,
-        init_epsilon=0.05,
+        init_epsilon=0.01,
         use_priority_buffer=False,
     )
     history = academy.train(
         env,
         n_iterations=1_000,
-        n_epochs=4,
-        n_batches=3,
+        n_epochs=5,
+        n_batches=-1,
         n_new_trajectories=env.num_envs,
         # n_new_experiences=10_000,
         batch_size=4096,
-        buffer_size=16_000,
-        clear_buffer=False,
+        buffer_size=np.inf,
+        clear_buffer=True,
         randomize_buffer=True,
         load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
         force_overwrite=True,
         verbose=True,
         render=False,
+        last_k_rewards=25,
     )
     history.plot(show=True)
     if not env.closed:

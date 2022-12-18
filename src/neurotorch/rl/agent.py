@@ -69,12 +69,30 @@ class Agent(torch.nn.Module):
 		:param policy: The model to use.
 		:type policy: BaseModel
 		:param policy_kwargs: The keyword arguments to pass to the policy if it is created by default.
+			The keywords are:
+				- `default_hidden_units` (List[int]): The default number of hidden units. Defaults to [256].
+				- `default_activation` (str): The default activation function. Defaults to "ReLu".
+				- `default_output_activation` (str): The default output activation function. Defaults to "Identity".
+				- all other keywords are passed to the `Sequential` constructor.
 		:type policy_kwargs: Optional[Dict[str, Any]]
+		:param critic: The value model to use.
+		:type critic: BaseModel
+		:param critic_kwargs: The keyword arguments to pass to the critic if it is created by default.
+			The keywords are:
+				- `default_hidden_units` (List[int]): The default number of hidden units. Defaults to [256].
+				- `default_activation` (str): The default activation function. Defaults to "ReLu".
+				- `default_output_activation` (str): The default output activation function. Defaults to "Identity".
+				- `default_n_values` (int): The default number of values to output. Defaults to 1.
+				- all other keywords are passed to the `Sequential` constructor.
+		:type critic_kwargs: Optional[Dict[str, Any]]
+		:param kwargs: Other keyword arguments.
 		"""
 		super().__init__()
 		self.kwargs = kwargs
 		self.policy_kwargs = policy_kwargs if policy_kwargs is not None else {}
+		self.set_default_policy_kwargs()
 		self.critic_kwargs = critic_kwargs if critic_kwargs is not None else {}
+		self.set_default_critic_kwargs()
 		self.env = env
 		if env:
 			self.observation_space = get_single_observation_space(env)
@@ -132,11 +150,24 @@ class Agent(torch.nn.Module):
 		self.policy.to(device)
 		if self.critic is not None:
 			self.critic.to(device)
+			
+	def set_default_policy_kwargs(self):
+		self.policy_kwargs.setdefault("default_hidden_units", [256])
+		if isinstance(self.policy_kwargs["default_hidden_units"], int):
+			self.policy_kwargs["default_hidden_units"] = [self.policy_kwargs["default_hidden_units"]]
+		assert len(self.policy_kwargs["default_hidden_units"]) > 0, "Must have at least one hidden unit."
+		self.policy_kwargs.setdefault("default_activation", "ReLu")
+		self.policy_kwargs.setdefault("default_output_activation", "Identity")
 	
-	# @property
-	# def training(self) -> bool:
-	# 	return self.policy.training
-		
+	def set_default_critic_kwargs(self):
+		self.critic_kwargs.setdefault("default_hidden_units", [256])
+		if isinstance(self.critic_kwargs["default_hidden_units"], int):
+			self.critic_kwargs["default_hidden_units"] = [self.critic_kwargs["default_hidden_units"]]
+		assert len(self.critic_kwargs["default_hidden_units"]) > 0, "Must have at least one hidden unit."
+		self.critic_kwargs.setdefault("default_activation", "ReLu")
+		self.critic_kwargs.setdefault("default_output_activation", "Identity")
+		self.critic_kwargs.setdefault("default_n_values", 1)
+	
 	def _create_default_policy(self) -> BaseModel:
 		"""
 		Create the default policy.
@@ -148,24 +179,24 @@ class Agent(torch.nn.Module):
 			{
 				k: Linear(
 					input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-					output_size=self.policy_kwargs.get("default_hidden_units", 256),
-					activation=self.policy_kwargs.get("default_activation", "ReLu")
+					output_size=self.policy_kwargs["default_hidden_units"][0],
+					activation=self.policy_kwargs["default_activation"]
 				)
 				for k, v in self.observation_spec.items()
 			},
 			*[
 				Linear(
-					input_size=self.policy_kwargs.get("default_hidden_units", 256),
-					output_size=self.policy_kwargs.get("default_hidden_units", 256),
-					activation=self.policy_kwargs.get("default_activation", "ReLu")
+					input_size=self.policy_kwargs["default_hidden_units"][i],
+					output_size=self.policy_kwargs["default_hidden_units"][i + 1],
+					activation=self.policy_kwargs["default_activation"]
 				)
-				for _ in range(self.policy_kwargs.get("default_hidden_layers", 1))
+				for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1)
 			],
 			{
 				k: Linear(
-					input_size=self.policy_kwargs.get("default_hidden_units", 256),
+					input_size=self.policy_kwargs["default_hidden_units"][-1],
 					output_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-					activation=self.policy_kwargs.get("default_output_activation", "Identity")
+					activation=self.policy_kwargs["default_output_activation"]
 				)
 				for k, v in self.action_spec.items()
 			}
@@ -185,31 +216,28 @@ class Agent(torch.nn.Module):
 			{
 				k: Linear(
 					input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-					output_size=self.critic_kwargs.get("default_hidden_units", 256),
-					activation=self.critic_kwargs.get("default_activation", "ReLu")
+					output_size=self.critic_kwargs["default_hidden_units"][0],
+					activation=self.critic_kwargs["default_activation"]
 				)
 				for k, v in self.observation_spec.items()
 			},
 			*[
 				Linear(
-					input_size=self.critic_kwargs.get("default_hidden_units", 256),
-					output_size=self.critic_kwargs.get("default_hidden_units", 256),
-					activation=self.critic_kwargs.get("default_activation", "ReLu")
+					input_size=self.critic_kwargs["default_hidden_units"][i],
+					output_size=self.critic_kwargs["default_hidden_units"][i + 1],
+					activation=self.critic_kwargs["default_activation"]
 				)
-				for _ in range(self.critic_kwargs.get("default_hidden_layers", 1))
+				for i in range(len(self.critic_kwargs["default_hidden_units"]) - 1)
 			],
 			Linear(
-				input_size=self.critic_kwargs.get("default_hidden_units", 256),
-				output_size=self.critic_kwargs.get("default_n_values", 1),
-				activation=self.critic_kwargs.get("default_output_activation", "Identity")
+				input_size=self.critic_kwargs["default_hidden_units"][-1],
+				output_size=self.critic_kwargs["default_n_values"],
+				activation=self.critic_kwargs["default_output_activation"]
 			)
 		],
 			**self.critic_kwargs
 		).build()
 		return default_policy
-	
-	# def train(self, *args, **kwargs):
-	# 	return self.policy.train(*args, **kwargs)
 
 	def forward(self, *args, **kwargs):
 		"""

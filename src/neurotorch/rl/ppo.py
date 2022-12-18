@@ -41,9 +41,9 @@ class PPO(LearningAlgorithm):
 		self.clip_ratio = kwargs.get("clip_ratio", 0.2)
 		self.tau = kwargs.get("tau", None)
 		self.gamma = kwargs.get("gamma", 0.99)
-		self.gae_lambda = kwargs.get("gae_lambda", 0.97)
+		self.gae_lambda = kwargs.get("gae_lambda", 0.99)
 		self.critic_weight = kwargs.get("critic_weight", 0.5)
-		self.kwargs.setdefault("default_lr", 3e-4)
+		self.kwargs.setdefault("default_lr", 2e-4)
 	
 	@property
 	def policy(self):
@@ -96,7 +96,7 @@ class PPO(LearningAlgorithm):
 		self.critic_params = list(filter(lambda p: p.requires_grad, self.critic.parameters()))
 		self.params = list(self.policy_params + self.critic_params)
 		param_groups = [
-			{"params": self.policy_params, "lr": self.kwargs.get("default_policy_lr", 3e-4)},
+			{"params": self.policy_params, "lr": self.kwargs.get("default_policy_lr", 2e-4)},
 			{"params": self.critic_params, "lr": self.kwargs.get("default_critic_lr", 1e-3)}
 		]
 		if self.optimizer is None:

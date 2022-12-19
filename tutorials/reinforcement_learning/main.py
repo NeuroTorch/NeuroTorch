@@ -9,7 +9,7 @@ import torch.nn
 import neurotorch as nt
 from neurotorch.rl.agent import Agent
 from neurotorch.rl.rl_academy import RLAcademy
-from neurotorch.rl.utils import TrajectoryRenderer
+from neurotorch.rl.utils import TrajectoryRenderer, space_to_continuous_shape
 
 if __name__ == '__main__':
     env_id = "LunarLander-v2"
@@ -30,7 +30,13 @@ if __name__ == '__main__':
     agent = Agent(
         env=env,
         behavior_name=env_id,
-        policy=None,
+        policy=nt.SequentialRNN(
+            layers=[
+                nt.SpyLIFLayer(space_to_continuous_shape(env.single_observation_space)[0], 256),
+                nt.SpyLIFLayer(256, 256),
+                nt.SpyLILayer(256, space_to_continuous_shape(env.single_action_space)[0]),
+            ],
+        ),
         policy_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
             default_hidden_units=[256],
@@ -48,7 +54,7 @@ if __name__ == '__main__':
         agent=agent,
         callbacks=[checkpoint_manager, ppo_la],
         normalize_rewards=False,
-        init_epsilon=0.01,
+        init_epsilon=0.00,
         use_priority_buffer=False,
     )
     history = academy.train(

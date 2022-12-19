@@ -12,105 +12,65 @@
 ![Publish Workflow](https://github.com/NeuroTorch/NeuroTorch/actions/workflows/publish.yml/badge.svg)
 
 
-# Description
+# 1. Description
 
-It's time to bring deep learning and neuroscience together. In this library, we offer machine learning 
+It's time to bring deep learning and neuroscience together. With this library, we offer machine learning 
 tools to neuroscientists and we offer neuroscience tools to computer scientists. These two domains were created 
-to be one.
+to be one!
 
 
-NeuroTorch is developed to be easy to use, so that you can do simple things in a few lines of code. 
-Moreover NeuroTorch is modular so you can adapt it to your needs relatively quickly. Thanks and stay tuned, 
+NeuroTorch was developed to be easy to use and you can do simple things with few lines of code. 
+Moreover, NeuroTorch is modular so you can adapt it to your needs relatively quickly. Thanks and stay tuned, 
 because more is coming!
 
 
-### Current Version (v0.0.1-alpha)
+### Current Version (v0.0.1-beta0)
 
-What can we do with NeuroTorch in the current version? 
+What can be done with NeuroTorch in the current version? 
 - Image classification with spiking networks.
 - Classification of spiking time series with spiking networks.
 - Time series classification with spiking or Wilson-Cowan.
 - Reconstruction/Prediction of time series with Wilson-Cowan;
 - Reconstruction/Prediction of continuous time series with spiking networks.  
-- Backpropagation Through Time.
+- Backpropagation Through Time (BPTT).
+- Truncated-Backpropagation-Through-Time (TBPTT).
 - Anything you are able to do using the modules already created.
 
 
 ### Next Version (v0.0.1-beta)
-
-- Learning Algorithm: TBPTT (Truncated-Backpropagation-Through-Time).
 - Learning Algorithm: RLS (Recursive Least Squares).
 - Learning Algorithm: [Eligibility-Propagation](https://doi.org/10.1038/s41467-020-17236-y).
 
-### Upcoming Version (v0.0.1)
+### Upcoming Versions (v0.0.1+)
 - Reinforcement Learning.
 
 
-# About
+# 2. Installation
 
-This package is part of a postgraduate research project realized by [Jérémie Gince](https://github.com/JeremieGince) 
-and supervised by [Simon Hardy]() and [Patrick Desrosiers](https://github.com/pdesrosiers). 
-Our work was supported by: (1) [UNIQUE](https://www.unique.quebec/home), a FRQNT-funded research center, (2) 
-the [Sentinelle Nord](https://sentinellenord.ulaval.ca/en) program of Université Laval, funded by the Canada 
-First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
+| Method     | Commands                                                                                                                                                                       |
+|------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **PyPi**   | `pip install neurotorch`                                                                                                                                                       |
+| **source** | `pip install git+https://github.com/NeuroTorch/NeuroTorch`                                                                                                                     |
+| **wheel**  | 1.Download the .whl file [here](https://github.com/NeuroTorch/NeuroTorch/tree/main/dist);<br> 2. Copy the path of this file on your computer; <br> 3. `pip install [path].whl` |
 
-
-
-
-# Important Links
-
-  - Documentation at [https://NeuroTorch.github.io/NeuroTorch/](https://NeuroTorch.github.io/NeuroTorch/).
-  - Github at [https://github.com/NeuroTorch/NeuroTorch/](https://github.com/NeuroTorch/NeuroTorch/).
+### 2.1 Last unstable version
+To install the last unstable version, you can install it by downloading the last version of the .whl file
+and following the instructions above.
 
 
-# Installation
-
-### Using pip
-
-```bash
-pip install neurotorch
-```
-
-
-### With wheel:
-
-   1. Download the .whl file [here](https://github.com/NeuroTorch/NeuroTorch/tree/main/dist);
-   2. Copy the path of this file on your computer;
-   3. pip install it with ``` pip install [path].whl ```
-
-### With pip+git:
-
-```bash
-pip install git+https://github.com/NeuroTorch/NeuroTorch
-```
-
-# Tutorials / Applications
+# 3. Tutorials / Applications
 
 See the readme of the tutorials folder [here](tutorials/README.md).
 
-### Image classification with spiking networks (Mnist/Fashion-Mnist)
-
-- Tutorial: [Jupyter Notebook](tutorials/mnist/tutorial.ipynb).
-- Project: [Repository](https://github.com/NeuroTorch/MnistClassification_NeuroTorch).
-
-### Time series classification with spiking networks (Heidelberg)
-
-- Tutorial: [Jupyter Notebook](tutorials/heidelberg/tutorial.ipynb).
-- Project: [Repository](https://github.com/NeuroTorch/HeidelbergClassification_NeuroTorch).
-
-### Time series forecasting with spiking networks (Neuronal activity)
-
-**Sorry, it's a work in progress, so it's not publish yet.**
-
-- Tutorial: [Jupyter Notebook](tutorials/time_series_forecasting_spiking/tutorial.ipynb).
-- Project: [Repository](https://github.com/NeuroTorch/SNN_TS_Forecasting_NeuroTorch).
-
-### Time series forecasting with Wilson-Cowan (Neuronal activity)
-
-- Tutorial: [Jupyter Notebook](tutorials/time_series_forecasting_wilson_cowan/tutorial.ipynb).
+| Tutorial                                                                          | Project                                                                         | Description                                                                                                                         |
+|-----------------------------------------------------------------------------------|---------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| [Jupyter Notebook](tutorials/mnist/tutorial.ipynb)                                | [Repository](https://github.com/NeuroTorch/MnistClassification_NeuroTorch)      | Image classification with spiking networks (Mnist/Fashion-Mnist).                                                                   |
+| [Jupyter Notebook](tutorials/heidelberg/tutorial.ipynb)                           | [Repository](https://github.com/NeuroTorch/HeidelbergClassification_NeuroTorch) | Time series classification with spiking networks (Heidelberg).                                                                      |
+| [Jupyter Notebook](tutorials/time_series_forecasting_spiking/tutorial.ipynb)      | [Repository](https://github.com/NeuroTorch/SNN_TS_Forecasting_NeuroTorch)       | Time series forecasting with spiking networks (Neuronal activity) <br> **Sorry, it's a work in progress, so it's not publish yet.** | 
+| [Jupyter Notebook](tutorials/time_series_forecasting_wilson_cowan/tutorial.ipynb) | Null                                                                            | Time series forecasting with Wilson-Cowan (Neuronal activity).                                                                      |
 
 
-# Quick usage preview
+# 4. Quick usage preview
 
 ```python
 import neurotorch as nt
@@ -143,12 +103,10 @@ network = nt.SequentialRNN(
 	checkpoint_folder=checkpoint_folder,
 ).build()
 
+learning_algorithm = nt.BPTT(optimizer=torch.optim.Adam(network.parameters(), lr=1e-3))
 trainer = nt.ClassificationTrainer(
 	model=network,
-	optimizer=torch.optim.Adam(network.parameters(), lr=1e-3),
-	callbacks=[
-		checkpoint_manager,
-	],
+	callbacks=[checkpoint_manager, learning_algorithm],
 	verbose=True,
 )
 training_history = trainer.train(
@@ -173,23 +131,60 @@ accuracies = {
 pprint.pprint(accuracies)
 ```
 
+# 5. Why NeuroTorch?
+On the one hand, neuroscientists are increasingly using machine learning (ML) without necessarily having the 
+expertise to create training pipelines. On the other hand, most ML experts lack the neuroscience background to 
+implement biologically inspired models. There is thus a need for a tool providing a complete ML pipeline with 
+features originating from neuroscience while using a simple and intuitive interface. 
 
-# Found a bug or have a feature request?
+The goal of this work is to provide a Python package, NeuroTorch, offering a flexible and intuitive training pipeline 
+together with biologically-constrained neuronal dynamics. This tool will include several learning strategies highly 
+used in both ML and neuroscience to ensure that both fields can benefit from the package.
+
+
+# 6. Similar work
+
+* [Norse](https://github.com/norse/norse) is a highly optimized spiking neural network library for PyTorch. In fact, 
+this library seems to be very similar to NeuroTorch at first glance. However, the main difference is that NeuroTorch
+is focused on the development of learning algorithms for spiking neural networks and other bio-inspired dynamics like 
+Wilson-Cowan, while Norse is focused on the development of spiking neural networks layers itself. In addition,  
+NeuroTorch will soon allow to easily use modules from Norse.
+* [SpyTorch](https://github.com/fzenke/spytorch) presents a set of tutorials for training SNNs with the surrogate 
+gradient approach SuperSpike by [F. Zenke, and S. Ganguli (2017)](https://arxiv.org/abs/1705.11146). In fact,
+the prefix 'Spy' of certain layers in NeuroTorch is a reference to SpyTorch.
+* [PySNN](https://github.com/BasBuller/PySNN/) is a PyTorch extension similar to [Norse](https://github.com/norse/norse).
+
+
+# 7. About
+
+This package is part of a postgraduate research project realized by [Jérémie Gince](https://github.com/JeremieGince) 
+and supervised by [Simon V Hardy]() and [Patrick Desrosiers](https://github.com/pdesrosiers). 
+Our work was supported by: (1) [UNIQUE](https://www.unique.quebec/home), a FRQNT-funded research center, (2) 
+the [Sentinelle Nord](https://sentinellenord.ulaval.ca/en) program of Université Laval, funded by the Canada 
+First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
+
+
+# 8. Important Links
+  - Documentation at [https://NeuroTorch.github.io/NeuroTorch/](https://NeuroTorch.github.io/NeuroTorch/).
+  - Github at [https://github.com/NeuroTorch/NeuroTorch/](https://github.com/NeuroTorch/NeuroTorch/).
+
+
+# 9. Found a bug or have a feature request?
 - [Click here to create a new issue.](https://github.com/NeuroTorch/NeuroTorch/issues/new)
 
 
-# Thanks
+# 10. Thanks
 - [Anthony Drouin](https://github.com/AnthoDrouin) who helped develop the Wilson-Cowan application during his 2022 summer internship.
 - [Antoine Légaré](https://github.com/AntoineLegare) who made the awesome [logo](images/neurotorch.svg) of NeuroTorch.
 - To my dog Chewy who has been a great help during the whole development.
 
-# License
+# 11. License
 [Apache License 2.0](LICENSE)
 
-# Citation
+# 12. Citation
 ```
 @misc{Gince2022,
-  title={NeuroTorch: Deep Learning Python Library for Machine Learning and Neuroscience.},
+  title={NeuroTorch: A Python library for machine learning and neuroscience.},
   author={Jérémie Gince},
   year={2022},
   publisher={Université Laval},

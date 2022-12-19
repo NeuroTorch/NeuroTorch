@@ -10,6 +10,7 @@ from .spike_funcs import (
 from .layers import (
 	LayerType,
 	BaseLayer,
+	Linear,
 	LIFLayer,
 	ALIFLayer,
 	IzhikevichLayer,

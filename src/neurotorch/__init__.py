@@ -1,5 +1,5 @@
 """
-NeuroTorch: A PyTorch-based framework for deep learning in neuroscience.
+NeuroTorch: A Python library for machine learning and neuroscience.
 """
 
 __author__ = "Jérémie Gince"
@@ -7,7 +7,7 @@ __email__ = "gincejeremie@gmail.com"
 __copyright__ = "Copyright 2022, Jérémie Gince"
 __license__ = "Apache 2.0"
 __url__ = "https://github.com/NeuroTorch/NeuroTorch"
-__version__ = "v0.0.1-beta"
+__version__ = "v0.0.1-beta0"
 
 
 from .dimension import (
@@ -28,6 +28,7 @@ from .modules.sequential_rnn import (
 
 from .modules.layers import (
 	LayerType,
+	Linear,
 	LILayer,
 	LIFLayer,
 	SpyLILayer,

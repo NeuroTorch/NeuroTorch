@@ -1,7 +1,7 @@
 import json
 import logging
 from copy import deepcopy
-from typing import Any, Callable, Dict, List, Optional, Union, Tuple
+from typing import Any, Callable, Dict, List, Optional, Union, Tuple, Iterable
 
 import torch
 from torch import nn
@@ -9,7 +9,7 @@ from torchvision.transforms import Compose, Lambda
 import torch.nn.functional as F
 
 from ..callbacks import CheckpointManager, LoadCheckpointMode
-from ..dimension import DimensionLike, SizeTypes
+from ..dimension import DimensionLike, SizeTypes, Dimension, DimensionProperty
 from ..transforms import to_tensor
 from ..transforms.wrappers import CallableToModuleWrapper
 from ..transforms.base import IdentityTransform, ToDevice, ToTensor
@@ -56,6 +56,59 @@ class NamedModule(torch.nn.Module):
 			assert isinstance(name, str), "name must be a string."
 			self._name_is_set = True
 
+
+class SizedModule(NamedModule):
+	
+	def __init__(
+			self,
+			input_size: Optional[SizeTypes] = None,
+			output_size: Optional[SizeTypes] = None,
+			name: Optional[str] = None,
+	):
+		super().__init__(name)
+		self.input_size = input_size
+		self.output_size = output_size
+	
+	@property
+	def input_size(self) -> Optional[Dimension]:
+		if not hasattr(self, "_input_size"):
+			return None
+		return self._input_size
+	
+	@input_size.setter
+	def input_size(self, size: Optional[SizeTypes]):
+		self._input_size = self._format_size(size)
+	
+	@property
+	def output_size(self) -> Optional[Dimension]:
+		if not hasattr(self, "_output_size"):
+			return None
+		return self._output_size
+	
+	@output_size.setter
+	def output_size(self, size: Optional[SizeTypes]):
+		self._output_size = self._format_size(size)
+	
+	def _format_size(self, size: Optional[SizeTypes], **kwargs) -> Optional[Dimension]:
+		filter_time = kwargs.get("filter_time", getattr(self, "size_filter_time", False))
+		# TODO: must accept multiple time dimensions
+		if size is not None:
+			if isinstance(size, Iterable):
+				size = [Dimension.from_int_or_dimension(s) for s in size]
+				if filter_time:
+					time_dim_count = len(list(filter(lambda d: d.dtype == DimensionProperty.TIME, size)))
+					assert time_dim_count <= 1, "Size must not contain more than one Time dimension."
+					size = list(filter(lambda d: d.dtype != DimensionProperty.TIME, size))
+				if len(size) == 1:
+					size = size[0]
+				else:
+					raise ValueError(
+						"Size must be a single dimension or a list of 2 dimensions with a Time one "
+						"if `filter_time` is True."
+					)
+			assert isinstance(size, (int, Dimension)), "Size must be an int or Dimension."
+			size = Dimension.from_int_or_dimension(size)
+		return size
 
 
 class BaseModel(NamedModule):

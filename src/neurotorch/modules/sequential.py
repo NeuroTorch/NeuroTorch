@@ -369,7 +369,7 @@ class Sequential(BaseModel):
 		:return: None
 		"""
 		for layer in self.get_all_layers():
-			if getattr(layer, "initialize_weights_") and callable(layer.initialize_weights_):
+			if hasattr(layer, "initialize_weights_") and callable(layer.initialize_weights_):
 				layer.initialize_weights_()
 
 	def _format_single_inputs(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
@@ -423,9 +423,10 @@ class Sequential(BaseModel):
 		:return: None
 		"""
 		for layer in self.get_all_layers():
-			if getattr(layer, "build") and callable(layer.build):
-				if not getattr(layer, "is_built", False):
-					layer.build()
+			if hasattr(layer, "build"):
+				if callable(layer.build):
+					if not getattr(layer, "is_built", False):
+						layer.build()
 
 	def build(self) -> 'Sequential':
 		"""
@@ -448,27 +449,34 @@ class Sequential(BaseModel):
 		:return: None
 		"""
 		inputs_layers_out_sum = 0
+		inputs_sum_valid = True
 		for layer_name, layer in self.input_layers.items():
-			if layer.input_size is None:
+			if hasattr(layer, "input_size") and layer.input_size is None:
 				layer.input_size = self.input_sizes[layer_name]
-			if layer.output_size is None:
-				layer.output_size = self._default_n_hidden_neurons
-			inputs_layers_out_sum += int(layer.output_size)
+			if hasattr(layer, "output_size"):
+				if layer.output_size is None:
+					layer.output_size = self._default_n_hidden_neurons
+				inputs_layers_out_sum += int(layer.output_size)
+			else:
+				inputs_sum_valid = False
 
 		last_hidden_out_size = inputs_layers_out_sum
 		for layer_idx, layer in enumerate(self.hidden_layers):
 			if layer_idx == 0:
-				layer.input_size = inputs_layers_out_sum
-			else:
+				if hasattr(layer, "input_size") and layer.input_size is None and inputs_sum_valid:
+					layer.input_size = last_hidden_out_size
+				# layer.input_size = inputs_layers_out_sum
+			elif hasattr(self.hidden_layers[layer_idx - 1], "output_size") and layer.input_size is None:
 				layer.input_size = self.hidden_layers[layer_idx - 1].output_size
-			if layer.output_size is None:
+			if hasattr(layer, "output_size") and layer.output_size is None:
 				layer.output_size = self._default_n_hidden_neurons
-			last_hidden_out_size = int(layer.output_size)
+			if hasattr(layer, "output_size"):
+				last_hidden_out_size = int(layer.output_size)
 
 		for layer_name, layer in self.output_layers.items():
-			if layer.input_size is None:
+			if hasattr(layer, "input_size") and layer.input_size is None:
 				layer.input_size = last_hidden_out_size
-			if layer.output_size is None:
+			if hasattr(layer, "output_size") and layer.output_size is None:
 				if self.output_sizes is None or self.output_sizes[layer_name] is None:
 					warnings.warn(
 						f"output_size is not set for layer {layer_name}. It will be set to {last_hidden_out_size}"
@@ -477,8 +485,8 @@ class Sequential(BaseModel):
 				else:
 					layer.output_size = self.output_sizes[layer_name]
 			if self.output_sizes is None:
-				self.output_sizes = {layer_name: layer.output_size}
-			else:
+				self.output_sizes = {layer_name: layer.output_size} if hasattr(layer, "output_size") else {}
+			elif hasattr(layer, "output_size"):
 				self.output_sizes[layer_name] = layer.output_size
 
 	def forward(

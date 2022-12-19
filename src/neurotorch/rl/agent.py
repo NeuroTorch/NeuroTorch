@@ -13,9 +13,16 @@ from ..utils import maybe_apply_softmax
 try:
 	from ..modules.layers import Linear
 except ImportError:
-	from .utils import Linear, space_to_spec, obs_batch_to_sequence, space_to_continuous_shape, \
-	get_single_observation_space, get_single_action_space, sample_action_space
-from .utils import obs_sequence_to_batch
+	from .utils import Linear
+from .utils import (
+	obs_sequence_to_batch,
+	space_to_spec,
+	obs_batch_to_sequence,
+	space_to_continuous_shape,
+	get_single_observation_space,
+	get_single_action_space,
+	sample_action_space,
+)
 
 
 class Agent(torch.nn.Module):
@@ -175,7 +182,7 @@ class Agent(torch.nn.Module):
 		:return: The default policy.
 		:rtype: BaseModel
 		"""
-		hidden_block = []
+		hidden_block = [torch.nn.Dropout(p=self.kwargs.get("dropout", 0.1))]
 		for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1):
 			hidden_block.append(
 				Linear(

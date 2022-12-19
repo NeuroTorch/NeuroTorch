@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from .base import NamedModule
+from .base import NamedModule, SizedModule
 from . import HeavisideSigmoidApprox, SpikeFunction, HeavisidePhiApprox
 from ..dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 from ..transforms import to_tensor, ToDevice
@@ -47,7 +47,7 @@ class LayerType(enum.Enum):
 		return cls[name]
 
 
-class BaseLayer(NamedModule):
+class BaseLayer(SizedModule):
 	"""
 	Base class for all layers.
 	
@@ -85,7 +85,7 @@ class BaseLayer(NamedModule):
 			will be called after each forward pass. Defaults to False.
 		:keyword bool freeze_weights: Whether to freeze the weights of the layer. Defaults to False.
 		"""
-		super(BaseLayer, self).__init__(name=name)
+		super(BaseLayer, self).__init__(input_size=input_size, output_size=output_size, name=name)
 		self._is_built = False
 		self._freeze_weights = kwargs.get("freeze_weights", False)
 		self._device = device
@@ -100,26 +100,6 @@ class BaseLayer(NamedModule):
 		self.output_size = output_size
 
 		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-
-	@property
-	def input_size(self) -> Optional[Dimension]:
-		if not hasattr(self, "_input_size"):
-			return None
-		return self._input_size
-
-	@input_size.setter
-	def input_size(self, size: Optional[SizeTypes]):
-		self._input_size = self._format_size(size)
-
-	@property
-	def output_size(self) -> Optional[Dimension]:
-		if not hasattr(self, "_output_size"):
-			return None
-		return self._output_size
-
-	@output_size.setter
-	def output_size(self, size: Optional[SizeTypes]):
-		self._output_size = self._format_size(size)
 		
 	@property
 	def freeze_weights(self) -> bool:
@@ -174,22 +154,10 @@ class BaseLayer(NamedModule):
 		_repr += f"[{self.learning_type}]"
 		_repr += f"@{self.device}"
 		return _repr
-
-	def _format_size(self, size: Optional[SizeTypes]) -> Optional[Dimension]:
-		# TODO: must accept multiple time dimensions
-		if size is not None:
-			if isinstance(size, Iterable):
-				size = [Dimension.from_int_or_dimension(s) for s in size]
-				time_dim_count = len(list(filter(lambda d: d.dtype == DimensionProperty.TIME, size)))
-				assert time_dim_count <= 1, "Size must not contain more than one Time dimension."
-				size = list(filter(lambda d: d.dtype != DimensionProperty.TIME, size))
-				if len(size) == 1:
-					size = size[0]
-				else:
-					raise ValueError("Size must be a single dimension or a list of 2 dimensions with a Time one.")
-			assert isinstance(size, (int, Dimension)), "Size must be an int or Dimension."
-			size = Dimension.from_int_or_dimension(size)
-		return size
+	
+	def _format_size(self, size: Optional[SizeTypes], **kwargs) -> Optional[Dimension]:
+		kwargs["filter_time"] = True
+		return super(BaseLayer, self)._format_size(size, **kwargs)
 
 	def _set_default_kwargs(self):
 		pass
@@ -749,8 +717,10 @@ class Linear(BaseNeuronsLayer):
 			"relu"    : torch.nn.ReLU(),
 			"tanh"    : torch.nn.Tanh(),
 			"sigmoid" : torch.nn.Sigmoid(),
+			"softmax": torch.nn.Softmax(dim=-1),
 		}
 		if isinstance(activation, str):
+			activation = activation.lower()
 			assert activation in str_to_activation.keys(), f"Activation {activation} is not implemented."
 			self.activation = str_to_activation[activation]
 		else:

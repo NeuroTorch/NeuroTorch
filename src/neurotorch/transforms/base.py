@@ -4,8 +4,6 @@ from typing import Any, Optional
 import numpy as np
 import torch
 
-from ..utils import maybe_apply_softmax
-
 
 def to_tensor(x: Any, dtype=torch.float32):
 	if isinstance(x, np.ndarray):
@@ -151,4 +149,5 @@ class MaybeSoftmax(torch.nn.Module):
 		self.dim = dim
 	
 	def forward(self, x):
+		from ..utils import maybe_apply_softmax
 		return maybe_apply_softmax(x, self.dim)

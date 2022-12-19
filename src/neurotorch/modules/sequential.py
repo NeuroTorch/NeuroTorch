@@ -18,6 +18,8 @@ from . import (
 	SpikeFuncType2Func,
 	SpikeFunction
 )
+from .base import NamedModule
+from .wrappers import NamedModuleWrapper
 from ..dimension import Dimension
 from ..transforms.base import ToDevice
 from ..utils import sequence_get
@@ -46,61 +48,63 @@ class Sequential(BaseModel):
 
 	@staticmethod
 	def _format_input_output_layers(
-			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
+			layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]],
 			default_prefix_layer_name: str = "layer",
-	) -> OrderedDict[str, BaseLayer]:
+	) -> OrderedDict[str, NamedModule]:
 		"""
 		Format the input or output layers. The format is an ordered dictionary of the form {layer_name: layer}.
 		
 		:param layers: The input or output layers.
-		:type layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
+		:type layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]]
 		:param default_prefix_layer_name: The default prefix of the layer name. The prefix is used when the name of
 		the layer is not specified.
 		:type default_prefix_layer_name: str
 		
 		:return: The formatted input or output layers.
-		:rtype: OrderedDict[str, BaseLayer]
+		:rtype: OrderedDict[str, NamedModule]
 		"""
-		layers: Iterable[BaseLayer] = [layers] if not isinstance(layers, Iterable) else layers
+		layers: Iterable[torch.nn.Module] = [layers] if not isinstance(layers, (Iterable, Mapping)) else layers
 		if isinstance(layers, Mapping):
-			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for _, layer in layers.items())
-
+			layers: OrderedDict[str, NamedModule] = OrderedDict(
+				(k, (v if isinstance(v, NamedModule) else NamedModuleWrapper(v))) for k, v in layers.items()
+			)
 			for layer_key, layer in layers.items():
 				if not layer.name_is_set:
 					layer.name = layer_key
 			assert all(layer_key == layer.name for layer_key, layer in layers.items()), \
 				"The layer names must be the same as the keys."
 		else:
-			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for layer in layers)
-		assert all_base_layer, "All layers must be of type BaseLayer"
-		if not isinstance(layers, dict):
+			layers: Iterable[NamedModule] = [
+				(layer if isinstance(layer, NamedModule) else NamedModuleWrapper(layer)) for layer in layers
+			]
 			for layer_idx, layer in enumerate(layers):
 				if not layer.name_is_set:
 					layer.name = f"{default_prefix_layer_name}_{layer_idx}"
 			assert len([layer.name for layer in layers]) == len(set([layer.name for layer in layers])), \
-				"There are layers with the same name."
-			layers = OrderedDict((layer.name, layer) for layer in layers)
+				"There are layers with the same name. Please specify the names of the layers without duplicates."
+			layers: OrderedDict[str, NamedModule] = OrderedDict((layer.name, layer) for layer in layers)
 		return layers
 
 	@staticmethod
 	def _format_hidden_layers(
-			layers: Iterable[BaseLayer],
+			layers: Iterable[torch.nn.Module],
 			default_prefix_layer_name: str = "hidden",
-	) -> List[BaseLayer]:
+	) -> List[NamedModule]:
 		"""
 		Format the hidden layers. The format is a list of the form [layer, ...].
 		
 		:param layers: The hidden layers.
-		:type layers: Iterable[BaseLayer]
+		:type layers: Iterable[torch.nn.Module]
 		:param default_prefix_layer_name: The default prefix of the layer name. The prefix is used when the name of
 		the layer is not specified.
 		:type default_prefix_layer_name: str
 		
 		:return: The formatted hidden layers.
-		:rtype: List[BaseLayer]
+		:rtype: List[NamedModule]
 		"""
-		assert all([isinstance(layer, BaseLayer) for layer in layers]), \
-			"All hidden layers must be of type BaseLayer"
+		layers: Iterable[NamedModule] = [
+			(layer if isinstance(layer, NamedModule) else NamedModuleWrapper(layer)) for layer in layers
+		]
 		for i, layer in enumerate(layers):
 			if not layer.name_is_set:
 				layer.name = f"{default_prefix_layer_name}_{i}"
@@ -108,7 +112,7 @@ class Sequential(BaseModel):
 
 	@staticmethod
 	def _format_layers(
-			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
+			layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]]
 	) -> Tuple[OrderedDict, List, OrderedDict]:
 		"""
 		Format the given layers. The format is a tuple of the form:
@@ -195,7 +199,7 @@ class Sequential(BaseModel):
 
 	def __init__(
 			self,
-			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
+			layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]],
 			name: str = "Sequential",
 			checkpoint_folder: str = "checkpoints",
 			device: Optional[torch.device] = None,
@@ -221,7 +225,7 @@ class Sequential(BaseModel):
 				output_layer
 			]
 		
-		:type layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
+		:type layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]]
 		:param name: The name of the model.
 		:type name: str
 		:param checkpoint_folder: The folder where the checkpoints are saved.

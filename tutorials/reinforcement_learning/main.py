@@ -4,6 +4,7 @@ This tutorial is a work in progress. It will be completed in the version 0.0.1 o
 
 import gym
 import numpy as np
+import torch.nn
 
 import neurotorch as nt
 from neurotorch.rl.agent import Agent
@@ -32,13 +33,13 @@ if __name__ == '__main__':
         policy=None,
         policy_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
-            default_hidden_units=[128],
-            default_activation="relu",
+            default_hidden_units=[256],
+            default_activation=torch.nn.PReLU(),
         ),
         critic_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
-            default_hidden_units=[128],
-            default_activation="relu",
+            default_hidden_units=[256],
+            default_activation=torch.nn.PReLU(),
         ),
     )
     print(agent)

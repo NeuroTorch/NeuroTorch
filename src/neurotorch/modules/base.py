@@ -16,7 +16,49 @@ from ..transforms.base import IdentityTransform, ToDevice, ToTensor
 from ..utils import ravel_compose_transforms, list_of_callable_to_sequential
 
 
-class BaseModel(torch.nn.Module):
+class NamedModule(torch.nn.Module):
+	def __init__(self, name: Optional[str] = None):
+		super().__init__()
+		self._name_is_set = False
+		self.name = name
+		self._name_is_default = name is None
+	
+	@property
+	def name(self) -> str:
+		"""
+		Returns the name of the module. If the name is not set, it will be set to the class name.
+		
+		:return: The name of the module.
+		"""
+		if self._name is None:
+			return self.__class__.__name__
+		return self._name
+	
+	@property
+	def name_is_set(self) -> bool:
+		"""
+		Returns whether the name of the module has been set.
+		
+		:return: Whether the name of the module has been set.
+		"""
+		return self._name_is_set
+	
+	@name.setter
+	def name(self, name: str):
+		"""
+		Sets the name of the module.
+		
+		:param name: The name of the module.
+		:return: None
+		"""
+		self._name = name
+		if name is not None:
+			assert isinstance(name, str), "name must be a string."
+			self._name_is_set = True
+
+
+
+class BaseModel(NamedModule):
 	"""
 	This class is the base class of all models.
 	
@@ -75,7 +117,7 @@ class BaseModel(torch.nn.Module):
 		
 		:keyword kwargs: Additional arguments.
 		"""
-		super(BaseModel, self).__init__()
+		super(BaseModel, self).__init__(name=name)
 		self._is_built = False
 		self._given_input_transform = input_transform
 		self._given_output_transform = output_transform

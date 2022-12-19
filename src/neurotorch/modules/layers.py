@@ -9,6 +9,7 @@ import torch
 from torch import nn
 
 from . import HeavisideSigmoidApprox, SpikeFunction
+from .base import NamedModule
 from ..dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 from ..transforms import to_tensor, ToDevice
 from pythonbasictools.docstring import inherit_docstring, inherit_fields_docstring
@@ -45,7 +46,7 @@ class LayerType(enum.Enum):
 		return cls[name]
 
 
-class BaseLayer(torch.nn.Module):
+class BaseLayer(NamedModule):
 	"""
 	Base class for all layers.
 	
@@ -83,12 +84,8 @@ class BaseLayer(torch.nn.Module):
 			will be called after each forward pass. Defaults to False.
 		:keyword bool freeze_weights: Whether to freeze the weights of the layer. Defaults to False.
 		"""
-		super(BaseLayer, self).__init__()
+		super(BaseLayer, self).__init__(name=name)
 		self._is_built = False
-		self._name_is_set = False
-		self.name = name
-		self._name_is_default = name is None
-
 		self._freeze_weights = kwargs.get("freeze_weights", False)
 		self._device = device
 		if self._device is None:
@@ -135,23 +132,6 @@ class BaseLayer(torch.nn.Module):
 	@property
 	def requires_grad(self):
 		return not self.freeze_weights
-
-	@property
-	def name(self) -> str:
-		if self._name is None:
-			return self.__class__.__name__
-		return self._name
-
-	@property
-	def name_is_set(self) -> bool:
-		return self._name_is_set
-
-	@name.setter
-	def name(self, name: str):
-		self._name = name
-		if name is not None:
-			assert isinstance(name, str), "name must be a string."
-			self._name_is_set = True
 
 	@property
 	def is_ready_to_build(self) -> bool:

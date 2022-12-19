@@ -175,6 +175,16 @@ class Agent(torch.nn.Module):
 		:return: The default policy.
 		:rtype: BaseModel
 		"""
+		hidden_block = []
+		for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1):
+			hidden_block.append(
+				Linear(
+					input_size=self.policy_kwargs["default_hidden_units"][i],
+					output_size=self.policy_kwargs["default_hidden_units"][i + 1],
+					activation=self.policy_kwargs["default_activation"]
+				)
+			)
+			hidden_block.append(torch.nn.Dropout(p=self.kwargs.get("dropout", 0.1)))
 		default_policy = Sequential(layers=[
 			{
 				k: Linear(
@@ -184,14 +194,15 @@ class Agent(torch.nn.Module):
 				)
 				for k, v in self.observation_spec.items()
 			},
-			*[
-				Linear(
-					input_size=self.policy_kwargs["default_hidden_units"][i],
-					output_size=self.policy_kwargs["default_hidden_units"][i + 1],
-					activation=self.policy_kwargs["default_activation"]
-				)
-				for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1)
-			],
+			# *[
+			# 	Linear(
+			# 		input_size=self.policy_kwargs["default_hidden_units"][i],
+			# 		output_size=self.policy_kwargs["default_hidden_units"][i + 1],
+			# 		activation=self.policy_kwargs["default_activation"]
+			# 	)
+			# 	for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1)
+			# ],
+			*hidden_block,
 			{
 				k: Linear(
 					input_size=self.policy_kwargs["default_hidden_units"][-1],

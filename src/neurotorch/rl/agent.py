@@ -200,22 +200,31 @@ class Agent(torch.nn.Module):
 		:return: The default policy.
 		:rtype: BaseModel
 		"""
-		hidden_block = [torch.nn.Dropout(p=self.policy_kwargs["default_dropout"])]
+		hidden_block = [torch.nn.PReLU(), torch.nn.Dropout(p=self.policy_kwargs["default_dropout"])]
 		for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1):
-			hidden_block.append(
-				Linear(
-					input_size=self.policy_kwargs["default_hidden_units"][i],
-					output_size=self.policy_kwargs["default_hidden_units"][i + 1],
-					activation=self.policy_kwargs["default_activation"]
-				)
-			)
-			hidden_block.append(torch.nn.Dropout(p=self.policy_kwargs["default_dropout"]))
+			hidden_block.extend([
+				# Linear(
+				# 	input_size=self.policy_kwargs["default_hidden_units"][i],
+				# 	output_size=self.policy_kwargs["default_hidden_units"][i + 1],
+				# 	# activation=self.policy_kwargs["default_activation"]
+				# ),
+				torch.nn.Linear(
+					in_features=self.policy_kwargs["default_hidden_units"][i],
+					out_features=self.policy_kwargs["default_hidden_units"][i + 1]
+				),
+				torch.nn.PReLU(),  # TODO: for Debugging
+				torch.nn.Dropout(p=self.policy_kwargs["default_dropout"]),
+			])
 		default_policy = Sequential(layers=[
 			{
-				k: Linear(
-					input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-					output_size=self.policy_kwargs["default_hidden_units"][0],
-					activation=self.policy_kwargs["default_activation"]
+				# k: Linear(
+				# 	input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
+				# 	output_size=self.policy_kwargs["default_hidden_units"][0],
+				# 	activation=self.policy_kwargs["default_activation"]
+				# )
+				k: torch.nn.Linear(
+					in_features=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
+					out_features=self.policy_kwargs["default_hidden_units"][0]
 				)
 				for k, v in self.observation_spec.items()
 			},
@@ -242,14 +251,14 @@ class Agent(torch.nn.Module):
 		"""
 		hidden_block = [torch.nn.Dropout(p=self.critic_kwargs["default_dropout"])]
 		for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1):
-			hidden_block.append(
+			hidden_block.extend([
 				Linear(
 					input_size=self.critic_kwargs["default_hidden_units"][i],
 					output_size=self.critic_kwargs["default_hidden_units"][i + 1],
 					activation=self.critic_kwargs["default_activation"]
-				)
-			)
-			hidden_block.append(torch.nn.Dropout(p=self.critic_kwargs["default_dropout"]))
+				),
+				torch.nn.Dropout(p=self.critic_kwargs["default_dropout"]),
+			])
 		default_policy = Sequential(layers=[
 			{
 				k: Linear(

@@ -26,7 +26,14 @@ if __name__ == '__main__':
         minimise_metric=False,
         save_best_only=True,
     )
-    ppo_la = nt.rl.PPO(tau=0.0, critic_weight=0.5, gae_lambda=1.0, default_critic_lr=5e-4, default_policy_lr=5e-4)
+    ppo_la = nt.rl.PPO(
+        tau=0.0,
+        critic_weight=0.5,
+        gae_lambda=1.0,
+        default_critic_lr=5e-4,
+        default_policy_lr=5e-4,
+        critic_criterion=torch.nn.SmoothL1Loss(),
+    )
     
     agent = Agent(
         env=env,
@@ -47,10 +54,32 @@ if __name__ == '__main__':
         #     ],
         #     output_transform=[nt.transforms.ReduceMax(dim=1)],
         # ).build(),
+        policy=nt.Sequential(
+            layers=[
+                torch.nn.Linear(space_to_continuous_shape(env.single_observation_space)[0], 128),
+                torch.nn.Dropout(0.1),
+                torch.nn.PReLU(),
+                torch.nn.Linear(128, 128),
+                torch.nn.Dropout(0.1),
+                torch.nn.PReLU(),
+                torch.nn.Linear(128, space_to_continuous_shape(env.single_action_space)[0]),
+            ]
+        ),
         policy_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
             default_hidden_units=[128, 128],
             default_activation=torch.nn.PReLU(),
+        ),
+        critic=nt.Sequential(
+            layers=[
+                torch.nn.Linear(space_to_continuous_shape(env.single_observation_space)[0], 128),
+                torch.nn.Dropout(0.1),
+                torch.nn.PReLU(),
+                torch.nn.Linear(128, 128),
+                torch.nn.Dropout(0.1),
+                torch.nn.PReLU(),
+                torch.nn.Linear(128, 1),
+            ]
         ),
         critic_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,

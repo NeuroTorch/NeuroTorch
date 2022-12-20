@@ -43,6 +43,7 @@ class PPO(LearningAlgorithm):
 		self.gamma = kwargs.get("gamma", 0.99)
 		self.gae_lambda = kwargs.get("gae_lambda", 0.99)
 		self.critic_weight = kwargs.get("critic_weight", 0.5)
+		self.critic_criterion = kwargs.get("critic_criterion", torch.nn.MSELoss())
 	
 	@property
 	def policy(self):

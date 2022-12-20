@@ -242,8 +242,8 @@ class Sequential(BaseModel):
 		self._ordered_inputs_names = [layer.name for _, layer in input_layers.items()]
 		self._ordered_outputs_names = [layer.name for _, layer in output_layers.items()]
 		super(Sequential, self).__init__(
-			input_sizes={layer.name: layer.input_size for _, layer in input_layers.items()},
-			output_size={layer.name: layer.output_size for _, layer in output_layers.items()},
+			input_sizes={layer.name: getattr(layer, "input_size", None) for _, layer in input_layers.items()},
+			output_size={layer.name: getattr(layer, "output_size", None) for _, layer in output_layers.items()},
 			name=name,
 			checkpoint_folder=checkpoint_folder,
 			device=device,

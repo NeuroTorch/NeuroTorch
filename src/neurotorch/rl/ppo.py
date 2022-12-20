@@ -96,7 +96,7 @@ class PPO(LearningAlgorithm):
 		self.params = list(self.policy_params + self.critic_params)
 		param_groups = [
 			{"params": self.policy_params, "lr": self.kwargs.get("default_policy_lr", 2e-4)},
-			{"params": self.critic_params, "lr": self.kwargs.get("default_critic_lr", 1e-3)}
+			{"params": self.critic_params, "lr": self.kwargs.get("default_critic_lr", 1e-3)},
 		]
 		if self.optimizer is None:
 			self.optimizer = torch.optim.Adam(param_groups)

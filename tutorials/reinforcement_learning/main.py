@@ -10,12 +10,13 @@ import neurotorch as nt
 from neurotorch.rl.agent import Agent
 from neurotorch.rl.rl_academy import RLAcademy
 from neurotorch.rl.utils import TrajectoryRenderer, space_to_continuous_shape
+from neurotorch.transforms.spikes_encoders import SpikesEncoder
 
 if __name__ == '__main__':
     env_id = "LunarLander-v2"
     # env_id = "CartPole-v1"
     # env = gym.vector.make(env_id, num_envs=1, render_mode="human")
-    env = gym.vector.make(env_id, num_envs=12, render_mode="rgb_array")
+    env = gym.vector.make(env_id, num_envs=1, render_mode="rgb_array")
     # env = gym.make(env_id, render_mode="human")
     # env = gym.make(env_id, render_mode="rgb_array")
     checkpoint_manager = nt.CheckpointManager(
@@ -25,26 +26,35 @@ if __name__ == '__main__':
         minimise_metric=False,
         save_best_only=True,
     )
-    ppo_la = nt.rl.PPO(tau=0.0, critic_weight=0.5, gae_lambda=1.0)
+    ppo_la = nt.rl.PPO(tau=0.0, critic_weight=0.5, gae_lambda=1.0, default_critic_lr=5e-4, default_policy_lr=5e-4)
     
     agent = Agent(
         env=env,
         behavior_name=env_id,
-        policy=nt.SequentialRNN(
-            layers=[
-                nt.SpyLIFLayer(space_to_continuous_shape(env.single_observation_space)[0], 256),
-                nt.SpyLIFLayer(256, 256),
-                nt.SpyLILayer(256, space_to_continuous_shape(env.single_action_space)[0]),
-            ],
-        ),
+        # policy=nt.SequentialRNN(
+        #     input_transform=[
+        #         SpikesEncoder(
+        #             n_steps=32,
+        #             n_units=space_to_continuous_shape(env.single_observation_space)[0],
+        #             spikes_layer_type=nt.SpyLIFLayer,
+        #         )
+        #     ],
+        #     layers=[
+        #         nt.SpyLIFLayer(
+        #             space_to_continuous_shape(env.single_observation_space)[0], 128, use_recurrent_connection=False
+        #         ),
+        #         nt.SpyLILayer(128, space_to_continuous_shape(env.single_action_space)[0]),
+        #     ],
+        #     output_transform=[nt.transforms.ReduceMax(dim=1)],
+        # ).build(),
         policy_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
-            default_hidden_units=[256],
+            default_hidden_units=[128, 128],
             default_activation=torch.nn.PReLU(),
         ),
         critic_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
-            default_hidden_units=[256],
+            default_hidden_units=[128, 128],
             default_activation=torch.nn.PReLU(),
         ),
     )

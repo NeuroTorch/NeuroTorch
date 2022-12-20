@@ -308,6 +308,8 @@ def env_batch_step(
 	:rtype: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 	"""
 	# actions_as_numpy = to_numpy(actions).reshape(-1).tolist()  # TODO: to numpy without changing the dtype
+	if isinstance(actions, dict) and len(actions) == 1:
+		actions = list(actions.values())[0]
 	actions_as_numpy = actions
 	if isinstance(env, gym.vector.VectorEnv):
 		observations, rewards, dones, truncateds, info = env.step(actions_as_numpy)

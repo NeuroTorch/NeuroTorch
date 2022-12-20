@@ -151,3 +151,72 @@ class MaybeSoftmax(torch.nn.Module):
 	def forward(self, x):
 		from ..utils import maybe_apply_softmax
 		return maybe_apply_softmax(x, self.dim)
+	
+
+class ReduceMax(torch.nn.Module):
+	def __init__(self, dim: int = 1):
+		super().__init__()
+		self.dim = dim
+	
+	def forward(self, x):
+		from ..utils import unpack_out_hh
+		out, hh = unpack_out_hh(x)
+		if isinstance(out, torch.Tensor):
+			out_max, _ = torch.max(out, dim=self.dim)
+		elif isinstance(out, dict):
+			out_max = {
+				k: torch.max(v, dim=self.dim)[0]
+				for k, v in out.items()
+			}
+		else:
+			raise ValueError("Inputs must be a torch.Tensor or a dictionary.")
+		return out_max
+	
+	def extra_repr(self) -> str:
+		return f"dim={self.dim}"
+
+
+class ReduceMean(torch.nn.Module):
+	def __init__(self, dim: int = 1):
+		super().__init__()
+		self.dim = dim
+	
+	def forward(self, x):
+		from ..utils import unpack_out_hh
+		out, hh = unpack_out_hh(x)
+		if isinstance(out, torch.Tensor):
+			out_mean = torch.mean(out, dim=self.dim)
+		elif isinstance(out, dict):
+			out_mean = {
+				k: torch.mean(v, dim=self.dim)
+				for k, v in out.items()
+			}
+		else:
+			raise ValueError("Inputs must be a torch.Tensor or a dictionary.")
+		return out_mean
+	
+	def extra_repr(self) -> str:
+		return f"dim={self.dim}"
+
+
+class ReduceSum(torch.nn.Module):
+	def __init__(self, dim: int = 1):
+		super().__init__()
+		self.dim = dim
+	
+	def forward(self, x):
+		from ..utils import unpack_out_hh
+		out, hh = unpack_out_hh(x)
+		if isinstance(out, torch.Tensor):
+			out_sum = torch.sum(out, dim=self.dim)
+		elif isinstance(out, dict):
+			out_sum = {
+				k: torch.sum(v, dim=self.dim)
+				for k, v in out.items()
+			}
+		else:
+			raise ValueError("Inputs must be a torch.Tensor or a dictionary.")
+		return out_sum
+	
+	def extra_repr(self) -> str:
+		return f"dim={self.dim}"

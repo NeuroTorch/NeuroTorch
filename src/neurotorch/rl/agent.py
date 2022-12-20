@@ -8,7 +8,7 @@ import gym
 from ..transforms.base import to_numpy, to_tensor
 from ..modules.base import BaseModel
 from ..modules.sequential import Sequential
-from ..utils import maybe_apply_softmax
+from ..utils import maybe_apply_softmax, unpack_out_hh
 
 try:
 	from ..modules.layers import Linear
@@ -55,8 +55,10 @@ class Agent(torch.nn.Module):
 			action_space: Optional[gym.spaces.Space] = None,
 			behavior_name: Optional[str] = None,
 			policy: Optional[BaseModel] = None,
+			policy_predict_method: str = "__call__",
 			policy_kwargs: Optional[Dict[str, Any]] = None,
 			critic: Optional[BaseModel] = None,
+			critic_predict_method: str = "__call__",
 			critic_kwargs: Optional[Dict[str, Any]] = None,
 			**kwargs
 	):
@@ -80,6 +82,7 @@ class Agent(torch.nn.Module):
 				- `default_hidden_units` (List[int]): The default number of hidden units. Defaults to [256].
 				- `default_activation` (str): The default activation function. Defaults to "ReLu".
 				- `default_output_activation` (str): The default output activation function. Defaults to "Identity".
+				- `default_dropout` (float): The default dropout rate. Defaults to 0.1.
 				- all other keywords are passed to the `Sequential` constructor.
 		:type policy_kwargs: Optional[Dict[str, Any]]
 		:param critic: The value model to use.
@@ -90,6 +93,7 @@ class Agent(torch.nn.Module):
 				- `default_activation` (str): The default activation function. Defaults to "ReLu".
 				- `default_output_activation` (str): The default output activation function. Defaults to "Identity".
 				- `default_n_values` (int): The default number of values to output. Defaults to 1.
+				- `default_dropout` (float): The default dropout rate. Defaults to 0.1.
 				- all other keywords are passed to the `Sequential` constructor.
 		:type critic_kwargs: Optional[Dict[str, Any]]
 		:param kwargs: Other keyword arguments.
@@ -116,9 +120,21 @@ class Agent(torch.nn.Module):
 		self.policy = policy
 		if self.policy is None:
 			self.policy = self._create_default_policy()
+		self.policy_predict_method_name = policy_predict_method
+		assert hasattr(self.policy, self.policy_predict_method_name), \
+			f"Policy does not have method '{self.policy_predict_method_name}'"
+		self.policy_predict_method = getattr(self.policy, self.policy_predict_method_name)
+		assert callable(self.policy_predict_method), \
+			f"Policy method '{self.policy_predict_method_name}' is not callable"
 		self.critic = critic
 		if self.critic is None:
 			self.critic = self._create_default_critic()
+		self.critic_predict_method_name = critic_predict_method
+		assert hasattr(self.critic, self.critic_predict_method_name), \
+			f"Critic does not have method '{self.critic_predict_method_name}'"
+		self.critic_predict_method = getattr(self.critic, self.critic_predict_method_name)
+		assert callable(self.policy_predict_method), \
+			f"Critic method '{self.critic_predict_method_name}' is not callable"
 	
 	@property
 	def observation_spec(self) -> Dict[str, Any]:
@@ -165,6 +181,7 @@ class Agent(torch.nn.Module):
 		assert len(self.policy_kwargs["default_hidden_units"]) > 0, "Must have at least one hidden unit."
 		self.policy_kwargs.setdefault("default_activation", "ReLu")
 		self.policy_kwargs.setdefault("default_output_activation", "Identity")
+		self.policy_kwargs.setdefault("default_dropout", 0.1)
 	
 	def set_default_critic_kwargs(self):
 		self.critic_kwargs.setdefault("default_hidden_units", [256])
@@ -174,6 +191,7 @@ class Agent(torch.nn.Module):
 		self.critic_kwargs.setdefault("default_activation", "ReLu")
 		self.critic_kwargs.setdefault("default_output_activation", "Identity")
 		self.critic_kwargs.setdefault("default_n_values", 1)
+		self.critic_kwargs.setdefault("default_dropout", 0.1)
 	
 	def _create_default_policy(self) -> BaseModel:
 		"""
@@ -182,7 +200,7 @@ class Agent(torch.nn.Module):
 		:return: The default policy.
 		:rtype: BaseModel
 		"""
-		hidden_block = [torch.nn.Dropout(p=self.kwargs.get("dropout", 0.1))]
+		hidden_block = [torch.nn.Dropout(p=self.policy_kwargs["default_dropout"])]
 		for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1):
 			hidden_block.append(
 				Linear(
@@ -191,7 +209,7 @@ class Agent(torch.nn.Module):
 					activation=self.policy_kwargs["default_activation"]
 				)
 			)
-			hidden_block.append(torch.nn.Dropout(p=self.kwargs.get("dropout", 0.1)))
+			hidden_block.append(torch.nn.Dropout(p=self.policy_kwargs["default_dropout"]))
 		default_policy = Sequential(layers=[
 			{
 				k: Linear(
@@ -201,14 +219,6 @@ class Agent(torch.nn.Module):
 				)
 				for k, v in self.observation_spec.items()
 			},
-			# *[
-			# 	Linear(
-			# 		input_size=self.policy_kwargs["default_hidden_units"][i],
-			# 		output_size=self.policy_kwargs["default_hidden_units"][i + 1],
-			# 		activation=self.policy_kwargs["default_activation"]
-			# 	)
-			# 	for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1)
-			# ],
 			*hidden_block,
 			{
 				k: Linear(
@@ -230,6 +240,16 @@ class Agent(torch.nn.Module):
 		:return: The default critic.
 		:rtype: BaseModel
 		"""
+		hidden_block = [torch.nn.Dropout(p=self.critic_kwargs["default_dropout"])]
+		for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1):
+			hidden_block.append(
+				Linear(
+					input_size=self.critic_kwargs["default_hidden_units"][i],
+					output_size=self.critic_kwargs["default_hidden_units"][i + 1],
+					activation=self.critic_kwargs["default_activation"]
+				)
+			)
+			hidden_block.append(torch.nn.Dropout(p=self.critic_kwargs["default_dropout"]))
 		default_policy = Sequential(layers=[
 			{
 				k: Linear(
@@ -239,14 +259,7 @@ class Agent(torch.nn.Module):
 				)
 				for k, v in self.observation_spec.items()
 			},
-			*[
-				Linear(
-					input_size=self.critic_kwargs["default_hidden_units"][i],
-					output_size=self.critic_kwargs["default_hidden_units"][i + 1],
-					activation=self.critic_kwargs["default_activation"]
-				)
-				for i in range(len(self.critic_kwargs["default_hidden_units"]) - 1)
-			],
+			*hidden_block,
 			Linear(
 				input_size=self.critic_kwargs["default_hidden_units"][-1],
 				output_size=self.critic_kwargs["default_n_values"],
@@ -263,7 +276,7 @@ class Agent(torch.nn.Module):
 
 		:return: The output of the agent.
 		"""
-		return self.policy(*args, **kwargs)
+		return self.policy_predict_method(*args, **kwargs)
 	
 	def get_actions(
 			self,
@@ -289,7 +302,7 @@ class Agent(torch.nn.Module):
 		as_numpy = kwargs.get("as_numpy", True)
 		
 		obs_as_tensor = to_tensor(obs)
-		out_actions = self.policy(obs_as_tensor, **kwargs)
+		out_actions, _ = unpack_out_hh(self.policy_predict_method(obs_as_tensor, **kwargs))
 		re_actions_list = [
 			self.format_batch_discrete_actions(out_actions, re_format=re_format)
 			for re_format in re_formats
@@ -334,21 +347,29 @@ class Agent(torch.nn.Module):
 			if isinstance(actions, torch.Tensor):
 				return torch.softmax(actions, dim=-1) if len(discrete_actions) >= 1 else actions
 			elif isinstance(actions, dict):
-				return {k: (torch.softmax(v, dim=-1) if k in discrete_actions else v) for k, v in actions.items()}
+				return {k: (
+					torch.softmax(v, dim=-1) if (k in discrete_actions or len(actions) == 1) else v
+				) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
 		elif re_format.lower() == "log_probs":
 			if isinstance(actions, torch.Tensor):
 				return torch.log_softmax(actions, dim=-1) if len(discrete_actions) >= 1 else actions
 			elif isinstance(actions, dict):
-				return {k: (torch.log_softmax(v, dim=-1) if k in discrete_actions else v) for k, v in actions.items()}
+				return {k: (
+					torch.log_softmax(v, dim=-1)
+					if (k in discrete_actions or len(actions) == 1) else v
+				) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
 		elif re_format.lower() in ["index", "indices", "argmax", "imax", "amax"]:
 			if isinstance(actions, torch.Tensor):
 				return torch.argmax(actions, dim=-1).long() if len(discrete_actions) >= 1 else actions
 			elif isinstance(actions, dict):
-				return {k: (torch.argmax(v, dim=-1).long() if k in discrete_actions else v) for k, v in actions.items()}
+				return {k: (
+					torch.argmax(v, dim=-1).long()
+					if (k in discrete_actions or len(actions) == 1) else v
+				) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
 		elif re_format.lower() == "one_hot":
@@ -361,7 +382,7 @@ class Agent(torch.nn.Module):
 				return {
 					k: (
 						torch.nn.functional.one_hot(torch.argmax(v, dim=-1), num_classes=v.shape[-1])
-						if k in discrete_actions else v
+						if (k in discrete_actions or len(actions) == 1) else v
 					)
 					for k, v in actions.items()
 				}
@@ -371,7 +392,10 @@ class Agent(torch.nn.Module):
 			if isinstance(actions, torch.Tensor):
 				return torch.max(actions, dim=-1).values if len(discrete_actions) >= 1 else actions
 			elif isinstance(actions, dict):
-				return {k: (torch.max(v, dim=-1).values if k in discrete_actions else v) for k, v in actions.items()}
+				return {k: (
+					torch.max(v, dim=-1).values
+					if (k in discrete_actions or len(actions) == 1) else v
+				) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
 		elif re_format.lower() == "smax":
@@ -379,7 +403,10 @@ class Agent(torch.nn.Module):
 				return torch.softmax(actions, dim=-1).max(dim=-1).values if len(discrete_actions) >= 1 else actions
 			elif isinstance(actions, dict):
 				return {
-					k: (torch.softmax(v, dim=-1).max(dim=-1).values if k in discrete_actions else v)
+					k: (
+						torch.softmax(v, dim=-1).max(dim=-1).values
+						if (k in discrete_actions or len(actions) == 1) else v
+					)
 					for k, v in actions.items()
 				}
 			else:
@@ -389,7 +416,10 @@ class Agent(torch.nn.Module):
 				return torch.log_softmax(actions, dim=-1).max(dim=-1).values if len(discrete_actions) >= 1 else actions
 			elif isinstance(actions, dict):
 				return {
-					k: (torch.log_softmax(v, dim=-1).max(dim=-1).values if k in discrete_actions else v)
+					k: (
+						torch.log_softmax(v, dim=-1).max(dim=-1).values
+						if (k in discrete_actions or len(actions) == 1) else v
+					)
 					for k, v in actions.items()
 				}
 			else:
@@ -405,7 +435,7 @@ class Agent(torch.nn.Module):
 				return {
 					k: (
 						torch.distributions.Categorical(probs=maybe_apply_softmax(v, dim=-1)).sample()
-						if k in discrete_actions else v
+						if (k in discrete_actions or len(actions) == 1) else v
 					)
 					for k, v in actions.items()
 				}
@@ -454,7 +484,7 @@ class Agent(torch.nn.Module):
 		re_as_dict = kwargs.get("re_as_dict", isinstance(obs, dict) or isinstance(obs[0], dict))
 		as_numpy = kwargs.get("as_numpy", True)
 		obs_as_tensor = to_tensor(obs)
-		values = self.critic(obs_as_tensor)
+		values, _ = unpack_out_hh(self.critic_predict_method(obs_as_tensor))
 		if as_numpy:
 			values = to_numpy(values)
 		if not re_as_dict and isinstance(values, dict):

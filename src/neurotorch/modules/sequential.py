@@ -466,7 +466,11 @@ class Sequential(BaseModel):
 				if hasattr(layer, "input_size") and layer.input_size is None and inputs_sum_valid:
 					layer.input_size = last_hidden_out_size
 				# layer.input_size = inputs_layers_out_sum
-			elif hasattr(self.hidden_layers[layer_idx - 1], "output_size") and layer.input_size is None:
+			elif (
+					hasattr(self.hidden_layers[layer_idx - 1], "output_size")
+					and hasattr(layer, "input_size")
+					and layer.input_size is None
+			):
 				layer.input_size = self.hidden_layers[layer_idx - 1].output_size
 			if hasattr(layer, "output_size") and layer.output_size is None:
 				layer.output_size = self._default_n_hidden_neurons

@@ -164,7 +164,7 @@ class PPO(LearningAlgorithm):
 		else:
 			critic_values = critic_predictions.view(-1)
 		values_targets = self.get_returns_from_batch(batch).view(-1)
-		critic_loss = torch.nn.functional.mse_loss(critic_values, values_targets)
+		critic_loss = torch.mean(self.critic_criterion(critic_values, values_targets))
 		return critic_loss
 
 	def update_params(self, batch: BatchExperience) -> float:

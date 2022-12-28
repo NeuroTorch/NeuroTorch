@@ -317,7 +317,7 @@ class RLAcademy(Trainer):
 
 	def train(
 			self,
-			env,
+			env,  # TODO: add eval_env
 			n_iterations: Optional[int] = None,
 			*,
 			n_epochs: int = 1,

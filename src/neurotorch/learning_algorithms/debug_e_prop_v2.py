@@ -59,16 +59,16 @@ class SimplifiedEprop:
 		for param_idx, param in enumerate(self.model.parameters()):
 			if param.ndim == 0:
 				param = torch.unsqueeze(param.detach(), dim=0)
-			self.random_matrices.append(torch.randn((param.shape[-1], self.true_time_series.shape[-1]), dtype=param.dtype, device=param.device))
+			self.random_matrices.append(torch.randn((param.shape[-1], self.true_time_series.shape[-1]), dtype=param.dtype, device=param.device).detach())
 
 	def begin(self):
 		self._set_default_random_matrix()
 		for param in self.model.parameters():
 			if param.ndim == 0:
 				param = torch.unsqueeze(param.detach(), dim=0)
-			self.delta_params.append(torch.zeros_like(param, dtype=param.dtype, device=param.device))
-			self.eligibility_trace_t.append(torch.zeros_like(param, dtype=param.dtype, device=param.device))
-			self.learning_signal_with_eligibility_trace_at_t.append(torch.zeros_like(param, dtype=param.dtype, device=param.device))
+			self.delta_params.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
+			self.eligibility_trace_t.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
+			self.learning_signal_with_eligibility_trace_at_t.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
 		with torch.no_grad():
 			self.out["true_time_series"] = self.true_time_series
 			self.out["W0"] = self.model.forward_weights.clone()
@@ -138,7 +138,10 @@ class SimplifiedEprop:
 			# for each neuron at a time step t
 			for neuron_idx in range(self.true_time_series.shape[1]):
 				if param.requires_grad:
-					self.eligibility_trace_t[param_idx][:, neuron_idx] = torch.autograd.grad(z[neuron_idx], param, retain_graph=True)[0][:, neuron_idx]
+					try:
+						self.eligibility_trace_t[param_idx][:, neuron_idx] = torch.autograd.grad(z[neuron_idx], param, retain_graph=True)[0][:, neuron_idx]
+					except:
+						self.eligibility_trace_t[param_idx][:, neuron_idx] = torch.autograd.grad(z[neuron_idx], param, retain_graph=True)[0][:, neuron_idx]
 
 
 	def compute_learning_signal_with_eligibility_trace(self, loss_at_t: torch.tensor):
@@ -165,24 +168,29 @@ class SimplifiedEprop:
 		Equation (28)
 		"""
 		for param_idx, param in enumerate(self.model.parameters()):
-			print(self.delta_params[param_idx].shape, self.learning_signal_with_eligibility_trace_at_t[param_idx].shape)
 			self.delta_params[param_idx] += -self.learning_rate * self.learning_signal_with_eligibility_trace_at_t[param_idx]
 
 	def update_parameters(self):
-		for param_idx, param in enumerate(self.model.parameters()):
-			self.model.parameters()[param_idx] = param + self.delta_params[param_idx]
+		with torch.no_grad():
+			for param_idx, param in enumerate(self.model.parameters()):
+				new_param = param + self.delta_params[param_idx]
+				if param.ndim == 0:
+					param.copy_(torch.squeeze(new_param))
+				else:
+					param.copy_(new_param)
+			self.model.zero_grad()
+				#self.model.parameters()[param_idx] = param + self.delta_params[param_idx]
 
 	def reset_parameters_update(self):
 		"""
 		Apply this function after each update of the parameters
 		"""
-		for param in self.model.parameters():
+		for param_idx, param in enumerate(self.model.parameters()):
 			if param.ndim == 0:
 				param = torch.unsqueeze(param.detach(), dim=0)
-			self.delta_params.append(torch.zeros_like(param, dtype=param.dtype, device=param.device))
-			self.eligibility_trace_t.append(torch.zeros_like(param, dtype=param.dtype, device=param.device))
-			self.learning_signal_with_eligibility_trace_at_t.append(
-				torch.zeros_like(param, dtype=param.dtype, device=param.device))
+			self.delta_params[param_idx] = torch.zeros_like(param, dtype=param.dtype, device=param.device).detach()
+			self.eligibility_trace_t[param_idx] = torch.zeros_like(param, dtype=param.dtype, device=param.device).detach()
+			self.learning_signal_with_eligibility_trace_at_t[param_idx] = (torch.zeros_like(param, dtype=param.dtype, device=param.device)).detach()
 
 
 if __name__ == '__main__':
@@ -302,7 +310,7 @@ if __name__ == '__main__':
 			**kwargs
 	):
 
-		dataset = WSDataset(filename=filename, sample_size=kwargs.get("n_units", 200), smoothing_sigma=sigma, device=device)
+		dataset = WSDataset(filename=filename, sample_size=kwargs.get("n_units", 50), smoothing_sigma=sigma, device=device)
 		true_time_series = torch.squeeze(dataset.full_time_series)
 
 		ws_layer = WilsonCowanLayerDebug(
@@ -338,7 +346,7 @@ if __name__ == '__main__':
 		trainer.train()
 
 		return "done"
-	n_units = 200
+	n_units = 50
 	forward_weights = nt.init.dale_(torch.zeros(n_units, n_units), inh_ratio=0.5, rho=0.2)
 
 	res = train_with_params(

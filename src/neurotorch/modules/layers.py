@@ -2641,6 +2641,7 @@ class WilsonCowanLayerDebug(BaseNeuronsLayer):
 		transition_rate = (1 - inputs * self.r)
 		activation = self.activation(rec_inputs + torch.matmul(inputs, self.forward_weights) - self.mu)
 		output = inputs * (1 - ratio_dt_tau) + transition_rate * activation * ratio_dt_tau
+		output = torch.squeeze(output)
 		return output, (output,)
 
 

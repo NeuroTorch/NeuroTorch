@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -42,24 +44,32 @@ class SimplifiedEprop:
 		self.update_per_iter = math.ceil(true_time_series.shape[0] // self.update_each)
 
 		self.eligibility_trace_t = []
-		self.eligibility_trace_t_minus_1 = None
+		self.eligibility_trace_t_minus_1 = []
 		self.learning_signal_with_eligibility_trace_at_t = []
 		self.delta_params = []
 		self.random_matrices = []
+		self.data = [defaultdict(list) for _ in self.model.parameters()]
+		self.learning_signal = 0.0
+
+		self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.learning_rate)
 
 	def _set_default_kwargs(self):
 		"""
 		TODO : Implement a better way to generate the random B matrix (maybe with the init...)
 		"""
 		self.kwargs.setdefault("kappa", 0.0)
-		#random_matrix = torch.randn(self.model.forward_weights.shape, dtype=self.model.forward_weights.dtype, device=self.model.forward_weights.device)
-		#self.kwargs.setdefault("B", random_matrix)
 
 	def _set_default_random_matrix(self):
+		"""
+		TODO : Figure out how to generate the random matrix
+		"""
 		for param_idx, param in enumerate(self.model.parameters()):
-			if param.ndim == 0:
-				param = torch.unsqueeze(param.detach(), dim=0)
-			self.random_matrices.append(torch.randn((param.shape[-1], self.true_time_series.shape[-1]), dtype=param.dtype, device=param.device).detach())
+			rn_matrix = None
+			if param.requires_grad:
+				if param.ndim == 0:
+					param = torch.unsqueeze(param.detach(), dim=0)
+				rn_matrix = torch.rand((param.shape[-1], self.true_time_series.shape[-1]), dtype=param.dtype, device=param.device).detach()
+			self.random_matrices.append(rn_matrix)
 
 	def begin(self):
 		self._set_default_random_matrix()
@@ -68,6 +78,7 @@ class SimplifiedEprop:
 				param = torch.unsqueeze(param.detach(), dim=0)
 			self.delta_params.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
 			self.eligibility_trace_t.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
+			self.eligibility_trace_t_minus_1.append(None)
 			self.learning_signal_with_eligibility_trace_at_t.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
 		with torch.no_grad():
 			self.out["true_time_series"] = self.true_time_series
@@ -75,7 +86,6 @@ class SimplifiedEprop:
 			self.out["mu0"] = self.model.mu.clone()
 			self.out["r0"] = self.model.r.clone()
 			self.out["tau0"] = self.model.tau.clone()
-			#self.out["B"] = self.kwargs["B"].clone()
 			self.out["kappa"] = self.kwargs["kappa"]
 			return self
 
@@ -97,6 +107,7 @@ class SimplifiedEprop:
 				forward_tensor = self.model(forward_tensor)[0]
 				x_pred.append(forward_tensor)
 				self.compute_dz_dw_local(forward_tensor)
+				forward_tensor = forward_tensor.detach()
 				loss_at_t = forward_tensor - self.true_time_series[t]
 				self.compute_learning_signal_with_eligibility_trace(loss_at_t)
 				self.update_delta_param()
@@ -135,13 +146,22 @@ class SimplifiedEprop:
 		Equation (13)
 		"""
 		for param_idx, param in enumerate(self.model.parameters()):
+			if param.ndim >= 1:
+				N_out = param.shape[-1]
+			else:
+				N_out = param.numel()
 			# for each neuron at a time step t
-			for neuron_idx in range(self.true_time_series.shape[1]):
+			for neuron_idx in range(N_out):
 				if param.requires_grad:
-					try:
-						self.eligibility_trace_t[param_idx][:, neuron_idx] = torch.autograd.grad(z[neuron_idx], param, retain_graph=True)[0][:, neuron_idx]
-					except:
-						self.eligibility_trace_t[param_idx][:, neuron_idx] = torch.autograd.grad(z[neuron_idx], param, retain_graph=True)[0][:, neuron_idx]
+					if param.ndim >= 1:
+						self.eligibility_trace_t[param_idx][..., neuron_idx] = torch.autograd.grad(z[..., neuron_idx], param, retain_graph=True)[0][..., neuron_idx]
+					else:
+						self.eligibility_trace_t[param_idx] = torch.squeeze(torch.autograd.grad(z[neuron_idx], param, retain_graph=True)[0])
+			if self.eligibility_trace_t_minus_1[param_idx] is None:
+				self.eligibility_trace_t_minus_1[param_idx] = self.eligibility_trace_t[param_idx].clone()
+			eligibility_trace_t_filter = self.kwargs["kappa"] * self.eligibility_trace_t_minus_1[param_idx] + self.eligibility_trace_t[param_idx]
+			self.eligibility_trace_t_minus_1[param_idx] = self.eligibility_trace_t[param_idx]
+			self.eligibility_trace_t[param_idx] = eligibility_trace_t_filter.clone()
 
 
 	def compute_learning_signal_with_eligibility_trace(self, loss_at_t: torch.tensor):
@@ -151,35 +171,40 @@ class SimplifiedEprop:
 		loss @ B.T = B @ loss.T -> loss.T is the biological convention where loss is the NeuroTorch convention
 		"""
 		# self.filtered_eligibility_trace_t()
-		for param_idx, _ in enumerate(self.model.parameters()):
-			learning_signal_at_t = loss_at_t @ self.random_matrices[param_idx].T
-			self.learning_signal_with_eligibility_trace_at_t[param_idx] = learning_signal_at_t * self.eligibility_trace_t[param_idx]
+		for param_idx, param in enumerate(self.model.parameters()):
+			if param.requires_grad:
+				learning_signal_at_t = loss_at_t @ self.random_matrices[param_idx].T
+				self.learning_signal += learning_signal_at_t
+				self.learning_signal_with_eligibility_trace_at_t[param_idx] = learning_signal_at_t * self.eligibility_trace_t[param_idx]
 
-
-
-	def filter_eligibility_trace_t(self):
-		"""
-		TODO : Equation (12) -> Only usefull if using spiking (now, kappa=0).
-		"""
-		pass
 
 	def update_delta_param(self):
 		"""
 		Equation (28)
 		"""
 		for param_idx, param in enumerate(self.model.parameters()):
-			self.delta_params[param_idx] += -self.learning_rate * self.learning_signal_with_eligibility_trace_at_t[param_idx]
+			self.delta_params[param_idx] += self.learning_signal_with_eligibility_trace_at_t[param_idx]
 
 	def update_parameters(self):
+		self.optimizer.zero_grad()
 		with torch.no_grad():
 			for param_idx, param in enumerate(self.model.parameters()):
-				new_param = param + self.delta_params[param_idx]
-				if param.ndim == 0:
-					param.copy_(torch.squeeze(new_param))
-				else:
-					param.copy_(new_param)
-			self.model.zero_grad()
-				#self.model.parameters()[param_idx] = param + self.delta_params[param_idx]
+				if param.requires_grad:
+					# new_param = param - self.learning_rate * self.delta_params[param_idx]
+					# if param.ndim == 0:
+					# 	param.copy_(torch.squeeze(new_param))
+					# else:
+					# 	param.copy_(new_param)
+					param.grad = self.delta_params[param_idx].view(param.shape)
+					self.data[param_idx]["learning_signal_mean"].append(nt.to_numpy(torch.mean(self.learning_signal)).item())
+					self.data[param_idx]["learning_signal_std"].append(nt.to_numpy(torch.std(self.learning_signal)).item())
+					self.data[param_idx]["eligibility_trace_mean"].append(nt.to_numpy(torch.mean(self.eligibility_trace_t[param_idx])).item())
+					self.data[param_idx]["eligibility_trace_std"].append(nt.to_numpy(torch.std(self.eligibility_trace_t[param_idx])).item())
+					self.data[param_idx]["mean_grad"].append(nt.to_numpy(torch.mean(param.grad)).item())
+					self.data[param_idx]["std_grad"].append(nt.to_numpy(torch.std(param.grad)).item())
+					self.data[param_idx]["max_absolute_grad"].append(nt.to_numpy(torch.max(torch.abs(param.grad))).item())
+
+		self.optimizer.step()
 
 	def reset_parameters_update(self):
 		"""
@@ -189,8 +214,8 @@ class SimplifiedEprop:
 			if param.ndim == 0:
 				param = torch.unsqueeze(param.detach(), dim=0)
 			self.delta_params[param_idx] = torch.zeros_like(param, dtype=param.dtype, device=param.device).detach()
-			self.eligibility_trace_t[param_idx] = torch.zeros_like(param, dtype=param.dtype, device=param.device).detach()
-			self.learning_signal_with_eligibility_trace_at_t[param_idx] = (torch.zeros_like(param, dtype=param.dtype, device=param.device)).detach()
+			#self.eligibility_trace_t[param_idx] = torch.zeros_like(param, dtype=param.dtype, device=param.device).detach()
+			#self.learning_signal_with_eligibility_trace_at_t[param_idx] = (torch.zeros_like(param, dtype=param.dtype, device=param.device)).detach()
 
 
 if __name__ == '__main__':
@@ -286,7 +311,7 @@ if __name__ == '__main__':
 			return self.original_time_series
 
 
-	def train_with_params(
+	def train_with_params_eprop(
 			filename: Optional[str] = None,
 			forward_weights: Optional[torch.Tensor or np.ndarray] = None,
 			std_weights: float = 1,
@@ -307,11 +332,12 @@ if __name__ == '__main__':
 			hh_init: str = "inputs",
 			checkpoint_folder="./checkpoints",
 			force_dale_law: bool = False,
+			kappa: float = 0.0,
 			**kwargs
 	):
 
-		dataset = WSDataset(filename=filename, sample_size=kwargs.get("n_units", 50), smoothing_sigma=sigma, device=device)
-		true_time_series = torch.squeeze(dataset.full_time_series)
+		dataset = WSDataset(filename=filename, sample_size=kwargs.get("n_units", 50), smoothing_sigma=sigma, device=device, n_time_steps=100)
+		true_time_series = torch.squeeze(dataset.full_time_series)[:100, :]
 
 		ws_layer = WilsonCowanLayerDebug(
 			true_time_series.shape[-1], true_time_series.shape[1],
@@ -339,21 +365,68 @@ if __name__ == '__main__':
 			true_time_series=true_time_series,
 			model=ws_layer,
 			learning_rate=learning_rate,
-			update_each=1,
-			iteration=50,
-			device=device
+			update_each=kwargs.get("update_each", 1),
+			iteration=kwargs.get("iteration", 1000),
+			device=device,
+			kappa=kappa,
 		)
 		trainer.train()
 
-		return "done"
-	n_units = 50
+		return trainer.data
+	n_units = 10
 	forward_weights = nt.init.dale_(torch.zeros(n_units, n_units), inh_ratio=0.5, rho=0.2)
 
-	res = train_with_params(
+	result = np.load("res.npy", allow_pickle=True).item()
+
+
+	res = train_with_params_eprop(
 			dt=0.02,
-			learn_mu=False,
-			learn_r=False,
-			learn_tau=False,
+			tau=result["tau"],
+			mu=result["mu"],
+			r=result["r"],
+			learn_mu=True,
+			learn_r=True,
+			learn_tau=True,
 			forward_weights=forward_weights,
+			learning_rate=1e-2,
+			update_each=1,
+			n_units=n_units,
+			iteration=200,
+			sigma=20,
+			kappa=0.05,
 	)
 
+	import matplotlib.pyplot as plt
+
+	res = res[-1]
+	fig, ax = plt.subplots(3, 1, figsize=(10, 10))
+	ax[0].plot(res["learning_signal_mean"])
+	ax[0].fill_between(
+		np.arange(len(res["learning_signal_mean"])),
+		np.asarray(res["learning_signal_std"]) - np.asarray(res["learning_signal_mean"]),
+		np.asarray(res["learning_signal_std"]) + np.asarray(res["learning_signal_mean"]),
+		alpha=0.2,
+	)
+	ax[0].set_title("learning_signal")
+
+	ax[1].plot(res["eligibility_trace_mean"])
+	ax[1].fill_between(
+		np.arange(len(res["eligibility_trace_mean"])),
+		np.asarray(res["eligibility_trace_std"]) - np.asarray(res["eligibility_trace_mean"]),
+		np.asarray(res["eligibility_trace_std"]) + np.asarray(res["eligibility_trace_mean"]),
+		alpha=0.2,
+	)
+	ax[1].set_title("eligibility_trace")
+
+	ax[2].plot(res["mean_grad"], label="mean_grad")
+	ax[2].plot(res["max_absolute_grad"], label="max_absolute_grad")
+	ax[2].fill_between(
+		np.arange(len(res["mean_grad"])),
+		np.asarray(res["std_grad"]) - np.asarray(res["mean_grad"]),
+		np.asarray(res["std_grad"]) + np.asarray(res["mean_grad"]),
+		alpha=0.2,
+	)
+	ax[2].set_title("grad")
+	ax[2].legend(loc='upper right')
+
+	plt.show()

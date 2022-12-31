@@ -48,6 +48,9 @@ class SimplifiedEprop:
 		self.learning_signal_with_eligibility_trace_at_t = []
 		self.delta_params = []
 		self.random_matrices = []
+		self.predicted_bptt_at_t = []
+		self.predicted_bptt_for_all_t = []
+		self.true_bptt = []
 		self.data = [defaultdict(list) for _ in self.model.parameters()]
 		self.learning_signal = 0.0
 
@@ -79,6 +82,9 @@ class SimplifiedEprop:
 			self.delta_params.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
 			self.eligibility_trace_t.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
 			self.eligibility_trace_t_minus_1.append(None)
+			self.predicted_bptt_at_t.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
+			self.predicted_bptt_for_all_t.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
+			self.true_bptt.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
 			self.learning_signal_with_eligibility_trace_at_t.append(torch.zeros_like(param, dtype=param.dtype, device=param.device).detach())
 		with torch.no_grad():
 			self.out["true_time_series"] = self.true_time_series
@@ -106,7 +112,8 @@ class SimplifiedEprop:
 			for t in range(1, self.true_time_series.shape[0]):
 				forward_tensor = self.model(forward_tensor)[0]
 				x_pred.append(forward_tensor)
-				self.compute_dz_dw_local(forward_tensor)
+				mse_loss = torch.nn.MSELoss()(forward_tensor, self.true_time_series[t])
+				self.compute_dz_dw_local(forward_tensor, mse_loss=mse_loss)
 				forward_tensor = forward_tensor.detach()
 				loss_at_t = forward_tensor - self.true_time_series[t]
 				self.compute_learning_signal_with_eligibility_trace(loss_at_t)
@@ -119,6 +126,9 @@ class SimplifiedEprop:
 				# Final update
 				self.update_parameters()
 				self.reset_parameters_update()
+
+			mse_loss = torch.nn.MSELoss()(torch.stack(x_pred), self.true_time_series)
+			self.compute_true_bptt(mse_loss=mse_loss)
 
 			x_pred = torch.stack(x_pred, dim=0)
 			pvar = PVarianceLoss()(x_pred, self.true_time_series)
@@ -142,7 +152,7 @@ class SimplifiedEprop:
 			# 		x_pred.append(forward_tensor)
 
 
-	def compute_dz_dw_local(self, z: torch.tensor):
+	def compute_dz_dw_local(self, z: torch.tensor, mse_loss: torch.tensor):
 		"""
 		Equation (13)
 		"""
@@ -151,6 +161,7 @@ class SimplifiedEprop:
 				N_out = param.shape[-1]
 			else:
 				N_out = param.numel()
+
 			# for each neuron at a time step t
 			for neuron_idx in range(N_out):
 				if param.requires_grad:
@@ -158,11 +169,15 @@ class SimplifiedEprop:
 						self.eligibility_trace_t[param_idx][..., neuron_idx] = torch.autograd.grad(z[..., neuron_idx], param, retain_graph=True)[0][..., neuron_idx]
 					else:
 						self.eligibility_trace_t[param_idx] = torch.squeeze(torch.autograd.grad(z[neuron_idx], param, retain_graph=True)[0])
+			if param.requires_grad:
+				self.predicted_bptt_at_t[param_idx] = torch.autograd.grad(mse_loss, z, retain_graph=True)[0] * self.eligibility_trace_t[param_idx]
+				self.predicted_bptt_for_all_t[param_idx] += self.predicted_bptt_at_t[param_idx].clone()
 			if self.eligibility_trace_t_minus_1[param_idx] is None:
 				self.eligibility_trace_t_minus_1[param_idx] = self.eligibility_trace_t[param_idx].clone()
 			eligibility_trace_t_filter = self.kwargs["kappa"] * self.eligibility_trace_t_minus_1[param_idx] + self.eligibility_trace_t[param_idx]
 			self.eligibility_trace_t_minus_1[param_idx] = self.eligibility_trace_t[param_idx]
 			self.eligibility_trace_t[param_idx] = eligibility_trace_t_filter.clone()
+
 
 
 	def compute_learning_signal_with_eligibility_trace(self, loss_at_t: torch.tensor):
@@ -215,8 +230,19 @@ class SimplifiedEprop:
 			if param.ndim == 0:
 				param = torch.unsqueeze(param.detach(), dim=0)
 			self.delta_params[param_idx] = torch.zeros_like(param, dtype=param.dtype, device=param.device).detach()
+			self.predicted_bptt_for_all_t[param_idx] = torch.zeros_like(param, dtype=param.dtype, device=param.device).detach()
+			#self.true_bptt = torch.zeros_like(param, dtype=param.dtype, device=param.device).detach()
 			#self.eligibility_trace_t[param_idx] = torch.zeros_like(param, dtype=param.dtype, device=param.device).detach()
 			#self.learning_signal_with_eligibility_trace_at_t[param_idx] = (torch.zeros_like(param, dtype=param.dtype, device=param.device)).detach()
+
+	def compute_true_bptt(self, mse_loss):
+		for param_idx, param in enumerate(self.model.parameters()):
+			if param.requires_grad:
+				mse_loss = torch.unsqueeze(mse_loss, dim=0)
+				self.true_bptt[param_idx] = torch.autograd.grad(mse_loss, param, retain_graph=True)[0]
+				mse_between_methods = torch.nn.MSELoss()(self.true_bptt[param_idx], self.predicted_bptt_for_all_t[param_idx])
+				self.data[param_idx]["mse_between_methods"].append(nt.to_numpy(mse_between_methods).item())
+
 
 
 if __name__ == '__main__':
@@ -388,14 +414,14 @@ if __name__ == '__main__':
 			tau=result["tau"],
 			mu=result["mu"],
 			r=result["r"],
-			learn_mu=True,
-			learn_r=True,
-			learn_tau=True,
+			learn_mu=False,
+			learn_r=False,
+			learn_tau=False,
 			forward_weights=forward_weights,
 			learning_rate=1e-3,
 			update_each=1,
 			n_units=n_units,
-			iteration=200,
+			iteration=100,
 			sigma=20,
 			kappa=0.05,
 			n_time_steps=100,
@@ -404,7 +430,7 @@ if __name__ == '__main__':
 	import matplotlib.pyplot as plt
 
 	res = res[-1]
-	fig, ax = plt.subplots(3, 1, figsize=(10, 10))
+	fig, ax = plt.subplots(4, 1, figsize=(10, 10))
 	ax[0].plot(res["learning_signal_mean"])
 	ax[0].fill_between(
 		np.arange(len(res["learning_signal_mean"])),
@@ -433,5 +459,8 @@ if __name__ == '__main__':
 	)
 	ax[2].set_title("grad")
 	ax[2].legend(loc='upper right')
+
+	ax[3].plot(res["mse_between_methods"])
+	ax[3].set_title("mse_between_methods")
 
 	plt.show()

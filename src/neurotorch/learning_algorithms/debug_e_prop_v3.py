@@ -103,17 +103,17 @@ class SimplifiedEprop:
 			desc="Training",
 			unit="iteration",
 		)
-
+		pvars, mses = [], []
 		for _ in progress_bar:
 			x_pred = []
 			x_pred.append(self.true_time_series[0].clone())
 			forward_tensor = self.true_time_series[0].clone()
-
+			hh = None
 			for t in range(1, self.true_time_series.shape[0]):
-				forward_tensor = self.model(forward_tensor)[0]
+				forward_tensor, hh = self.model(forward_tensor, hh)
 				x_pred.append(forward_tensor)
-				mse_loss = torch.nn.MSELoss()(forward_tensor, self.true_time_series[t])
-				self.compute_dz_dw_local(forward_tensor, mse_loss=mse_loss)
+				mse_loss_t = torch.nn.MSELoss()(forward_tensor, self.true_time_series[t])
+				self.compute_dz_dw_local(forward_tensor, mse_loss=mse_loss_t)
 				forward_tensor = forward_tensor.detach()
 				loss_at_t = forward_tensor - self.true_time_series[t]
 				self.compute_learning_signal_with_eligibility_trace(loss_at_t)
@@ -133,24 +133,13 @@ class SimplifiedEprop:
 			x_pred = torch.stack(x_pred, dim=0)
 			pvar = PVarianceLoss()(x_pred, self.true_time_series)
 			MSE = torch.nn.MSELoss()(x_pred, self.true_time_series)
+			pvars.append(nt.to_numpy(pvar).item())
+			mses.append(nt.to_numpy(MSE).item())
 			progress_bar.set_postfix({"pvar": pvar.detach().item(), "MSE": MSE.detach().item()})
 
 		self.out["x_pred"] = x_pred
-
-
-
-
-
-
-			# for update_complete in range(self.update_per_iter):
-			# 	x_pred = []
-			# 	x_pred.append(self.true_time_series[0].clone())
-			# 	forward_tensor = self.true_time_series[0].clone()
-			#
-			# 	for i in range(self.update_each)
-			# 		forward_tensor = self.model(forward_tensor)
-			# 		x_pred.append(forward_tensor)
-
+		self.out["pvar"] = pvars
+		self.out["MSE"] = mses
 
 	def compute_dz_dw_local(self, z: torch.tensor, mse_loss: torch.tensor):
 		"""
@@ -178,8 +167,6 @@ class SimplifiedEprop:
 			self.eligibility_trace_t_minus_1[param_idx] = self.eligibility_trace_t[param_idx]
 			self.eligibility_trace_t[param_idx] = eligibility_trace_t_filter.clone()
 
-
-
 	def compute_learning_signal_with_eligibility_trace(self, loss_at_t: torch.tensor):
 		"""
 		Compute L_j^t * e_{ij}^t for equation (28)
@@ -192,7 +179,6 @@ class SimplifiedEprop:
 				learning_signal_at_t = loss_at_t @ self.random_matrices[param_idx].T
 				self.learning_signal += learning_signal_at_t
 				self.learning_signal_with_eligibility_trace_at_t[param_idx] = learning_signal_at_t * self.eligibility_trace_t[param_idx]
-
 
 	def update_delta_param(self):
 		"""
@@ -211,7 +197,8 @@ class SimplifiedEprop:
 					# 	param.copy_(torch.squeeze(new_param))
 					# else:
 					# 	param.copy_(new_param)
-					param.grad = self.delta_params[param_idx].view(param.shape)
+					# param.grad = self.delta_params[param_idx].view(param.shape)
+					param.grad = self.predicted_bptt_for_all_t[param_idx].view(param.shape)
 					self.data[param_idx]["learning_signal_mean"].append(nt.to_numpy(torch.mean(self.learning_signal)).item())
 					self.data[param_idx]["learning_signal_std"].append(nt.to_numpy(torch.std(self.learning_signal)).item())
 					self.data[param_idx]["eligibility_trace_mean"].append(nt.to_numpy(torch.mean(self.eligibility_trace_t[param_idx])).item())
@@ -242,7 +229,6 @@ class SimplifiedEprop:
 				self.true_bptt[param_idx] = torch.autograd.grad(mse_loss, param, retain_graph=True)[0]
 				mse_between_methods = torch.nn.MSELoss()(self.true_bptt[param_idx], self.predicted_bptt_for_all_t[param_idx])
 				self.data[param_idx]["mse_between_methods"].append(nt.to_numpy(mse_between_methods).item())
-
 
 
 if __name__ == '__main__':
@@ -402,14 +388,14 @@ if __name__ == '__main__':
 		)
 		trainer.train()
 
-		return trainer.data
+		return trainer
 	n_units = 10
 	forward_weights = nt.init.dale_(torch.zeros(n_units, n_units), inh_ratio=0.5, rho=0.2)
 
-	result = np.load("res.npy", allow_pickle=True).item()
+	result = np.load("data/res.npy", allow_pickle=True).item()
 
 
-	res = train_with_params_eprop(
+	trainer = train_with_params_eprop(
 			dt=0.02,
 			tau=result["tau"],
 			mu=result["mu"],
@@ -421,7 +407,7 @@ if __name__ == '__main__':
 			learning_rate=1e-3,
 			update_each=1,
 			n_units=n_units,
-			iteration=100,
+			iteration=1000,
 			sigma=20,
 			kappa=0.05,
 			n_time_steps=100,
@@ -429,7 +415,18 @@ if __name__ == '__main__':
 
 	import matplotlib.pyplot as plt
 
-	res = res[-1]
+	res = trainer.data[-1]
+	
+	if len(trainer.out["pvar"]) > 1:
+		fig, axes = plt.subplots(2, 1, figsize=(10, 10))
+		axes[0].plot(trainer.out["pvar"], label="pvar")
+		axes[0].legend()
+		axes[1].plot(trainer.out["MSE"], label="MSE")
+		axes[1].legend()
+		plt.show()
+	else:
+		print("pvar: ", trainer.out["pvar"], "MSE: ", trainer.out["MSE"])
+	
 	fig, ax = plt.subplots(4, 1, figsize=(10, 10))
 	ax[0].plot(res["learning_signal_mean"])
 	ax[0].fill_between(
@@ -462,5 +459,7 @@ if __name__ == '__main__':
 
 	ax[3].plot(res["mse_between_methods"])
 	ax[3].set_title("mse_between_methods")
+	
+	plt.tight_layout()
 
 	plt.show()

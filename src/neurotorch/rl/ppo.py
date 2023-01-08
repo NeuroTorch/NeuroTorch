@@ -23,10 +23,30 @@ class PPO(LearningAlgorithm):
 	def __init__(
 			self,
 			agent: Optional[Agent] = None,
-			# params: Optional[Sequence[torch.nn.Parameter]] = None,
 			optimizer: Optional[torch.optim.Optimizer] = None,
 			**kwargs
 	):
+		"""
+		Constructor of the PPO algorithm.
+		
+		:param agent: The agent to train.
+		:type agent: Agent
+		:param optimizer: The optimizer to use.
+		:type optimizer: torch.optim.Optimizer
+		:param kwargs: Additional keyword arguments.
+		
+		:keyword float clip_ratio: The clipping ratio for the policy loss.
+		:keyword float tau: The smoothing factor for the policy update.
+		:keyword float gamma: The discount factor.
+		:keyword float gae_lambda: The lambda parameter for the generalized advantage estimation (GAE).
+		:keyword float critic_weight: The weight of the critic loss.
+		:keyword float entropy_weight: The weight of the entropy loss.
+		:keyword torch.nn.Module critic_criterion: The loss function to use for the critic.
+		:keyword bool advantages=returns-values: This keyword is introduced to fix a bug when using the GAE. If set to
+			True, the advantages are computed as the returns minus the values. If set to False, the advantages are
+			compute as in the PPO paper. The default value is True and it is recommended to keep it that way until the
+			bug is fixed. TODO: Fix this.
+		"""
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
 		super().__init__(params=None, **kwargs)

@@ -151,7 +151,18 @@ class PPO(LearningAlgorithm):
 						policy_dist.log_prob(key_actions) - last_policy_dist.log_prob(key_actions)
 					)
 				else:
-					policy_ratio[k] = policy_preds[k] / (last_policy_preds[k] + 1e-8)
+					std = torch.std(policy_preds[k].view(-1, policy_preds[k].shape[-1]), dim=0)
+					cov = torch.eye(policy_preds[k].shape[-1], device=policy_preds[k].device) * std * std
+					policy_dist = torch.distributions.MultivariateNormal(policy_preds[k], cov)
+					
+					last_std = torch.std(last_policy_preds[k].view(-1, last_policy_preds[k].shape[-1]), dim=0)
+					last_cov = torch.eye(last_policy_preds[k].shape[-1], device=last_policy_preds[k].device) * last_std * last_std
+					last_policy_dist = torch.distributions.MultivariateNormal(last_policy_preds[k], last_cov)
+					key_actions = actions[k] if isinstance(actions, dict) else actions
+					policy_ratio[k] = torch.exp(
+						policy_dist.log_prob(key_actions) - last_policy_dist.log_prob(key_actions)
+					)
+					# policy_ratio[k] = policy_preds[k] / (last_policy_preds[k] + 1e-8)
 		elif self.agent.discrete_actions:
 			key_actions = actions[list(actions.keys())[0]] if isinstance(actions, dict) else actions
 			policy_dist = torch.distributions.Categorical(probs=maybe_apply_softmax(policy_preds, dim=-1))
@@ -161,7 +172,18 @@ class PPO(LearningAlgorithm):
 				policy_dist.log_prob(key_actions) - last_policy_dist.log_prob(key_actions)
 			)
 		else:
-			policy_ratio = policy_preds / (last_policy_preds + 1e-8)
+			std = torch.std(policy_preds.view(-1, policy_preds.shape[-1]), dim=0)
+			cov = torch.eye(policy_preds.shape[-1], device=policy_preds.device) * std * std
+			policy_dist = torch.distributions.MultivariateNormal(policy_preds, cov)
+			
+			last_std = torch.std(last_policy_preds.view(-1, last_policy_preds.shape[-1]), dim=0)
+			last_cov = torch.eye(last_policy_preds.shape[-1], device=last_policy_preds.device) * last_std * last_std
+			last_policy_dist = torch.distributions.MultivariateNormal(last_policy_preds, last_cov)
+			key_actions = actions[list(actions.keys())[0]] if isinstance(actions, dict) else actions
+			policy_ratio = torch.exp(
+				policy_dist.log_prob(key_actions) - last_policy_dist.log_prob(key_actions)
+			)
+			# policy_ratio = policy_preds / (last_policy_preds + 1e-8)
 		return policy_ratio
 
 	def _compute_policy_loss(self, batch: BatchExperience, **kwargs) -> torch.Tensor:
@@ -201,20 +223,18 @@ class PPO(LearningAlgorithm):
 					)
 					entropy_loss += torch.mean(policy_dist.entropy())
 				else:
-					policy_dist = torch.distributions.Normal(
-						loc=policy_preds[k][..., :self.agent.continuous_actions[k]],
-						scale=torch.exp(policy_preds[k][..., self.agent.continuous_actions[k]:])
-					)
-					entropy_loss += torch.mean(policy_dist.entropy())
+					# TODO: implement covariance matrix to compute entropy
+					# policy_dist = torch.distributions.MultivariateNormal(policy_preds[k], torch.eye(policy_preds[k].shape[-1]))
+					# entropy_loss += torch.mean(policy_dist.entropy())
+					pass
 		elif self.agent.discrete_actions:
 			policy_dist = torch.distributions.Categorical(probs=maybe_apply_softmax(policy_preds, dim=-1))
 			entropy_loss = torch.mean(policy_dist.entropy())
 		else:
-			policy_dist = torch.distributions.Normal(
-				loc=policy_preds[..., :self.agent.continuous_actions],
-				scale=torch.exp(policy_preds[..., self.agent.continuous_actions:])
-			)
-			entropy_loss = torch.mean(policy_dist.entropy())
+			# TODO: implement covariance matrix to compute entropy
+			# policy_dist = torch.distributions.MultivariateNormal(policy_preds, torch.eye(policy_preds.shape[-1]))
+			# entropy_loss = torch.mean(policy_dist.entropy())
+			entropy_loss = to_tensor(0.0).to(self.policy.device)
 		return entropy_loss
 
 	def update_params(self, batch: BatchExperience) -> float:

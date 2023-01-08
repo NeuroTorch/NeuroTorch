@@ -43,7 +43,9 @@ class PPO(LearningAlgorithm):
 		self.gamma = kwargs.get("gamma", 0.99)
 		self.gae_lambda = kwargs.get("gae_lambda", 0.99)
 		self.critic_weight = kwargs.get("critic_weight", 0.5)
+		self.entropy_weight = kwargs.get("entropy_weight", 0.01)
 		self.critic_criterion = kwargs.get("critic_criterion", torch.nn.MSELoss())
+		self.adv_as_returns_values = kwargs.get("advantages=returns-values", True)
 	
 	@property
 	def policy(self):
@@ -107,10 +109,10 @@ class PPO(LearningAlgorithm):
 			self.tau = 1 / trainer.state.n_epochs
 		assert self.tau >= 0, "The parameter `tau` must be greater or equal to 0."
 	
-	def _compute_policy_ratio(self, batch: BatchExperience) -> torch.Tensor:
+	def _compute_policy_ratio(self, batch: BatchExperience, **kwargs) -> torch.Tensor:
 		obs_as_tensor = to_tensor(batch.obs)
 		actions = self.get_actions_from_batch(batch)
-		policy_preds = self.agent.get_actions(obs_as_tensor, re_format="raw", as_numpy=False)
+		policy_preds = kwargs.get("policy_preds", self.agent.get_actions(obs_as_tensor, re_format="raw", as_numpy=False))
 		with torch.no_grad():
 			last_policy_preds = self.last_agent.get_actions(obs_as_tensor, re_format="raw", as_numpy=False)
 		
@@ -142,8 +144,8 @@ class PPO(LearningAlgorithm):
 			policy_ratio = policy_preds / (last_policy_preds + 1e-8)
 		return policy_ratio
 
-	def _compute_policy_loss(self, batch: BatchExperience) -> torch.Tensor:
-		policy_ratio = self._compute_policy_ratio(batch)
+	def _compute_policy_loss(self, batch: BatchExperience, **kwargs) -> torch.Tensor:
+		policy_ratio = self._compute_policy_ratio(batch, **kwargs)
 		advantages = self.get_advantages_from_batch(batch)
 		if not isinstance(policy_ratio, dict):
 			policy_ratio = {"default": policy_ratio}
@@ -151,12 +153,12 @@ class PPO(LearningAlgorithm):
 		for key, ratio in policy_ratio.items():
 			view_shape = [policy_ratio[key].shape[0], ] + (policy_ratio[key].ndim - 1) * [1]
 			ratio_adv = policy_ratio[key] * advantages.view(*view_shape).to(self.policy.device)
-			ratio_clamped = torch.clamp(policy_ratio[key], 1 - self.clip_ratio, 1 + self.clip_ratio)
+			ratio_clamped = torch.clamp(policy_ratio[key], min=1.0 - self.clip_ratio, max=1.0 + self.clip_ratio)
 			ratio_adv_clamped = ratio_clamped * advantages.view(*view_shape).to(self.policy.device)
 			policy_loss += -torch.mean(torch.min(ratio_adv, ratio_adv_clamped))
 		return policy_loss
 	
-	def _compute_critic_loss(self, batch: BatchExperience) -> torch.Tensor:
+	def _compute_critic_loss(self, batch: BatchExperience, **kwargs) -> torch.Tensor:
 		critic_predictions = self.critic(to_tensor(batch.obs))
 		if isinstance(critic_predictions, dict):
 			assert len(critic_predictions) == 1, "Only one critic output is supported."
@@ -166,14 +168,46 @@ class PPO(LearningAlgorithm):
 		values_targets = self.get_returns_from_batch(batch).view(-1)
 		critic_loss = torch.mean(self.critic_criterion(critic_values, values_targets))
 		return critic_loss
+	
+	def _compute_entropy_loss(self, batch: BatchExperience, **kwargs) -> torch.Tensor:
+		obs_as_tensor = to_tensor(batch.obs)
+		policy_preds = kwargs.get("policy_preds", self.agent.get_actions(obs_as_tensor, re_format="raw", as_numpy=False))
+		if isinstance(policy_preds, dict):
+			entropy_loss = to_tensor(0.0).to(self.policy.device)
+			for k in policy_preds:
+				if k in self.agent.discrete_actions:
+					policy_dist = torch.distributions.Categorical(
+						probs=maybe_apply_softmax(policy_preds[k], dim=-1)
+					)
+					entropy_loss += torch.mean(policy_dist.entropy())
+				else:
+					policy_dist = torch.distributions.Normal(
+						loc=policy_preds[k][..., :self.agent.continuous_actions[k]],
+						scale=torch.exp(policy_preds[k][..., self.agent.continuous_actions[k]:])
+					)
+					entropy_loss += torch.mean(policy_dist.entropy())
+		elif self.agent.discrete_actions:
+			policy_dist = torch.distributions.Categorical(probs=maybe_apply_softmax(policy_preds, dim=-1))
+			entropy_loss = torch.mean(policy_dist.entropy())
+		else:
+			policy_dist = torch.distributions.Normal(
+				loc=policy_preds[..., :self.agent.continuous_actions],
+				scale=torch.exp(policy_preds[..., self.agent.continuous_actions:])
+			)
+			entropy_loss = torch.mean(policy_dist.entropy())
+		return entropy_loss
 
 	def update_params(self, batch: BatchExperience) -> float:
 		"""
 		Performs a single update of the policy network using the provided optimizer and buffer
 		"""
-		policy_loss = self._compute_policy_loss(batch)
+		policy_preds = self.agent.get_actions(to_tensor(batch.obs), re_format="raw", as_numpy=False)
+		policy_loss = self._compute_policy_loss(batch, policy_preds=policy_preds)
 		critic_loss = self._compute_critic_loss(batch)
-		loss = policy_loss + self.critic_weight * critic_loss.to(self.policy.device)
+		entropy_loss = self._compute_entropy_loss(batch, policy_preds=policy_preds)
+		weighted_critic_loss = self.critic_weight * critic_loss.to(self.policy.device)
+		weighted_entropy_loss = self.entropy_weight * entropy_loss.to(self.policy.device)
+		loss = policy_loss + weighted_critic_loss - weighted_entropy_loss
 		
 		self.optimizer.zero_grad()
 		loss.backward()
@@ -192,14 +226,17 @@ class PPO(LearningAlgorithm):
 		return obs_batched
 	
 	def _compute_advantages(self, trajectory, values):
-		terminals = np.asarray([ex.terminal for ex in trajectory])
 		values = to_numpy(values).reshape(-1)
-		values = np.append(values, (1 - int(terminals[-1])) * values[-1])  # from: https://keras.io/examples/rl/ppo_cartpole/
-		rewards = np.array([ex.reward for ex in trajectory.experiences])
-		rewards = np.append(rewards, (1 - int(terminals[-1])) * values[-1])  # from: https://keras.io/examples/rl/ppo_cartpole/
-		deltas = rewards[:-1] + self.gamma * values[1:] - values[:-1]
-		# deltas = np.append(deltas, rewards[-1] - values[-1])
-		advantages = discounted_cumulative_sums(deltas, self.gamma * self.gae_lambda)
+		if self.adv_as_returns_values:
+			advantages = self._compute_returns(trajectory, values) - values
+		else:
+			terminals = np.asarray([ex.terminal for ex in trajectory])
+			rewards = np.array([ex.reward for ex in trajectory.experiences])
+			rewards = np.append(rewards, (1 - int(terminals[-1])) * values[-1])  # from: https://keras.io/examples/rl/ppo_cartpole/
+			values = np.append(values, (1 - int(terminals[-1])) * values[-1])  # from: https://keras.io/examples/rl/ppo_cartpole/
+			deltas = rewards[:-1] + self.gamma * values[1:] - values[:-1]
+			advantages = discounted_cumulative_sums(deltas, self.gamma * self.gae_lambda)
+		
 		adv_mean, adv_std = np.mean(advantages), np.std(advantages)
 		advantages = (advantages - adv_mean) / (adv_std + 1e-8)
 		return advantages

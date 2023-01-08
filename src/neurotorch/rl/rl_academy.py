@@ -98,7 +98,7 @@ class RLAcademy(Trainer):
 		kwargs.setdefault("n_batches", None)
 		kwargs.setdefault("tau", 0.0)
 		kwargs.setdefault("batch_size", 256)
-		kwargs.setdefault("buffer_size", 4096)
+		kwargs.setdefault("buffer_size", np.inf)
 		kwargs.setdefault("clear_buffer", True)
 		kwargs.setdefault("randomize_buffer", True)
 		kwargs.setdefault("n_new_trajectories", None)
@@ -107,7 +107,7 @@ class RLAcademy(Trainer):
 		kwargs.setdefault("use_priority_buffer", False)
 		kwargs.setdefault("normalize_rewards", False)
 		kwargs.setdefault("rewards_horizon", 128)
-		kwargs.setdefault("last_k_rewards", 100)
+		kwargs.setdefault("last_k_rewards", 10)
 		kwargs.setdefault("last_k_rewards_key", RLAcademy.CUM_REWARDS_METRIC_KEY)
 
 		assert kwargs["batch_size"] <= kwargs["buffer_size"]
@@ -320,7 +320,7 @@ class RLAcademy(Trainer):
 			env,  # TODO: add eval_env
 			n_iterations: Optional[int] = None,
 			*,
-			n_epochs: int = 1,
+			n_epochs: int = 10,
 			load_checkpoint_mode: LoadCheckpointMode = None,
 			force_overwrite: bool = False,
 			p_bar_position: Optional[int] = None,

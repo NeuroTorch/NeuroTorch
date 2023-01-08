@@ -16,7 +16,7 @@ if __name__ == '__main__':
     env_id = "LunarLander-v2"
     # env_id = "CartPole-v1"
     # env = gym.vector.make(env_id, num_envs=1, render_mode="human")
-    env = gym.vector.make(env_id, num_envs=1, render_mode="rgb_array")
+    env = gym.vector.make(env_id, num_envs=10, render_mode="rgb_array")
     # env = gym.make(env_id, render_mode="human")
     # env = gym.make(env_id, render_mode="rgb_array")
     checkpoint_manager = nt.CheckpointManager(
@@ -29,7 +29,7 @@ if __name__ == '__main__':
     ppo_la = nt.rl.PPO(
         tau=0.0,
         critic_weight=0.5,
-        gae_lambda=1.0,
+        gae_lambda=0.99,
         default_critic_lr=5e-4,
         default_policy_lr=5e-4,
         critic_criterion=torch.nn.SmoothL1Loss(),
@@ -98,8 +98,8 @@ if __name__ == '__main__':
     )
     history = academy.train(
         env,
-        n_iterations=1_000,
-        n_epochs=5,
+        n_iterations=100,
+        n_epochs=50,
         n_batches=-1,
         n_new_trajectories=env.num_envs,
         # n_new_experiences=10_000,
@@ -111,11 +111,15 @@ if __name__ == '__main__':
         force_overwrite=True,
         verbose=True,
         render=False,
-        last_k_rewards=25,
+        last_k_rewards=10,
     )
     history.plot(show=True)
     if not env.closed:
         env.close()
+    agent.load_checkpoint(
+        checkpoints_meta_path=checkpoint_manager.checkpoints_meta_path,
+        load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR
+    )
     env = gym.make(env_id, render_mode="rgb_array")
     gen_trajectories_out = academy.generate_trajectories(
         n_trajectories=1, epsilon=0.0, verbose=True, env=env, render=True, re_trajectories=True,

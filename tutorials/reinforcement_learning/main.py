@@ -16,9 +16,16 @@ if __name__ == '__main__':
     env_id = "LunarLander-v2"
     # env_id = "CartPole-v1"
     # env = gym.vector.make(env_id, num_envs=1, render_mode="human")
-    env = gym.vector.make(env_id, num_envs=10, render_mode="rgb_array")
-    # env = gym.make(env_id, render_mode="human")
-    # env = gym.make(env_id, render_mode="rgb_array")
+    env = gym.vector.make(
+        env_id, num_envs=10, render_mode="rgb_array",
+        continuous=True,
+        # gravity=-10.0,
+        # enable_wind=False,
+        # wind_power=15.0,
+        # turbulence_power=1.5,
+    )
+    # env = gym.make(env_id, render_mode="human", continuous=True)
+    # env = gym.make(env_id, render_mode="rgb_array", continuous=True)
     checkpoint_manager = nt.CheckpointManager(
         checkpoint_folder=f"data/tr_data/checkpoints_{env_id}_default-policy",
         save_freq=100,
@@ -54,38 +61,39 @@ if __name__ == '__main__':
         #     ],
         #     output_transform=[nt.transforms.ReduceMax(dim=1)],
         # ).build(),
-        policy=nt.Sequential(
-            layers=[
-                torch.nn.Linear(space_to_continuous_shape(env.single_observation_space)[0], 128),
-                torch.nn.Dropout(0.1),
-                torch.nn.PReLU(),
-                torch.nn.Linear(128, 128),
-                torch.nn.Dropout(0.1),
-                torch.nn.PReLU(),
-                torch.nn.Linear(128, space_to_continuous_shape(env.single_action_space)[0]),
-            ]
-        ),
+        # policy=nt.Sequential(
+        #     layers=[
+        #         torch.nn.Linear(space_to_continuous_shape(env.single_observation_space)[0], 128),
+        #         torch.nn.Dropout(0.1),
+        #         torch.nn.PReLU(),
+        #         torch.nn.Linear(128, 128),
+        #         torch.nn.Dropout(0.1),
+        #         torch.nn.PReLU(),
+        #         torch.nn.Linear(128, space_to_continuous_shape(env.single_action_space)[0]),
+        #     ]
+        # ),
         policy_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
             default_hidden_units=[128, 128],
             default_activation=torch.nn.PReLU(),
         ),
-        critic=nt.Sequential(
-            layers=[
-                torch.nn.Linear(space_to_continuous_shape(env.single_observation_space)[0], 128),
-                torch.nn.Dropout(0.1),
-                torch.nn.PReLU(),
-                torch.nn.Linear(128, 128),
-                torch.nn.Dropout(0.1),
-                torch.nn.PReLU(),
-                torch.nn.Linear(128, 1),
-            ]
-        ),
+        # critic=nt.Sequential(
+        #     layers=[
+        #         torch.nn.Linear(space_to_continuous_shape(env.single_observation_space)[0], 128),
+        #         torch.nn.Dropout(0.1),
+        #         torch.nn.PReLU(),
+        #         torch.nn.Linear(128, 128),
+        #         torch.nn.Dropout(0.1),
+        #         torch.nn.PReLU(),
+        #         torch.nn.Linear(128, 1),
+        #     ]
+        # ),
         critic_kwargs=dict(
             checkpoint_folder=checkpoint_manager.checkpoint_folder,
             default_hidden_units=[128, 128],
             default_activation=torch.nn.PReLU(),
         ),
+        checkpoint_folder=checkpoint_manager.checkpoint_folder,
     )
     print(agent)
     
@@ -101,7 +109,8 @@ if __name__ == '__main__':
         n_iterations=100,
         n_epochs=50,
         n_batches=-1,
-        n_new_trajectories=env.num_envs,
+        # n_new_trajectories=env.num_envs,
+        n_new_trajectories=1,
         # n_new_experiences=10_000,
         batch_size=-1,
         buffer_size=np.inf,
@@ -121,6 +130,7 @@ if __name__ == '__main__':
         load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR
     )
     env = gym.make(env_id, render_mode="rgb_array")
+    agent.eval()
     gen_trajectories_out = academy.generate_trajectories(
         n_trajectories=1, epsilon=0.0, verbose=True, env=env, render=True, re_trajectories=True,
     )

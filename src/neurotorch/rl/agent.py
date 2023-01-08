@@ -138,6 +138,7 @@ class Agent(torch.nn.Module):
 		self.critic_predict_method = getattr(self.critic, self.critic_predict_method_name)
 		assert callable(self.policy_predict_method), \
 			f"Critic method '{self.critic_predict_method_name}' is not callable"
+		self.checkpoint_folder = kwargs.get("checkpoint_folder", ".")
 	
 	@property
 	def observation_spec(self) -> Dict[str, Any]:
@@ -203,37 +204,37 @@ class Agent(torch.nn.Module):
 		:return: The default policy.
 		:rtype: BaseModel
 		"""
-		hidden_block = [torch.nn.PReLU(), torch.nn.Dropout(p=self.policy_kwargs["default_dropout"])]
+		hidden_block = [torch.nn.Dropout(p=self.policy_kwargs["default_dropout"])]
 		for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1):
 			hidden_block.extend([
-				# Linear(
-				# 	input_size=self.policy_kwargs["default_hidden_units"][i],
-				# 	output_size=self.policy_kwargs["default_hidden_units"][i + 1],
-				# 	# activation=self.policy_kwargs["default_activation"]
-				# ),
-				torch.nn.Linear(
-					in_features=self.policy_kwargs["default_hidden_units"][i],
-					out_features=self.policy_kwargs["default_hidden_units"][i + 1]
+				Linear(
+					input_size=self.policy_kwargs["default_hidden_units"][i],
+					output_size=self.policy_kwargs["default_hidden_units"][i + 1],
+					activation=self.policy_kwargs["default_activation"]
 				),
-				torch.nn.PReLU(),  # TODO: for Debugging
+				# torch.nn.Linear(
+				# 	in_features=self.policy_kwargs["default_hidden_units"][i],
+				# 	out_features=self.policy_kwargs["default_hidden_units"][i + 1]
+				# ),
+				# torch.nn.PReLU(),  # TODO: for Debugging
 				torch.nn.Dropout(p=self.policy_kwargs["default_dropout"]),
 			])
 		default_policy = Sequential(layers=[
 			{
-				# k: Linear(
-				# 	input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-				# 	output_size=self.policy_kwargs["default_hidden_units"][0],
-				# 	activation=self.policy_kwargs["default_activation"]
-				# )
-				k: torch.nn.Linear(
-					in_features=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-					out_features=self.policy_kwargs["default_hidden_units"][0]
+				f"in_{k}": Linear(
+					input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
+					output_size=self.policy_kwargs["default_hidden_units"][0],
+					activation=self.policy_kwargs["default_activation"]
 				)
+				# k: torch.nn.Linear(
+				# 	in_features=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
+				# 	out_features=self.policy_kwargs["default_hidden_units"][0]
+				# )
 				for k, v in self.observation_spec.items()
 			},
 			*hidden_block,
 			{
-				k: Linear(
+				f"out_{k}": Linear(
 					input_size=self.policy_kwargs["default_hidden_units"][-1],
 					output_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
 					activation=self.policy_kwargs["default_output_activation"]
@@ -264,7 +265,7 @@ class Agent(torch.nn.Module):
 			])
 		default_policy = Sequential(layers=[
 			{
-				k: Linear(
+				f"in_{k}": Linear(
 					input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
 					output_size=self.critic_kwargs["default_hidden_units"][0],
 					activation=self.critic_kwargs["default_activation"]
@@ -352,6 +353,7 @@ class Agent(torch.nn.Module):
 		:return: The formatted actions.
 		"""
 		discrete_actions = kwargs.get("discrete_actions", self.discrete_actions)
+		continuous_actions = kwargs.get("continuous_actions", self.continuous_actions)
 		actions = to_tensor(actions)
 		if re_format.lower() in ["logits", "raw"]:
 			return actions
@@ -360,7 +362,7 @@ class Agent(torch.nn.Module):
 				return torch.softmax(actions, dim=-1) if len(discrete_actions) >= 1 else actions
 			elif isinstance(actions, dict):
 				return {k: (
-					torch.softmax(v, dim=-1) if (k in discrete_actions or len(actions) == 1) else v
+					torch.softmax(v, dim=-1) if (k in discrete_actions or len(continuous_actions) == 0) else v
 				) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
@@ -370,7 +372,7 @@ class Agent(torch.nn.Module):
 			elif isinstance(actions, dict):
 				return {k: (
 					torch.log_softmax(v, dim=-1)
-					if (k in discrete_actions or len(actions) == 1) else v
+					if (k in discrete_actions or len(continuous_actions) == 0) else v
 				) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
@@ -380,7 +382,7 @@ class Agent(torch.nn.Module):
 			elif isinstance(actions, dict):
 				return {k: (
 					torch.argmax(v, dim=-1).long()
-					if (k in discrete_actions or len(actions) == 1) else v
+					if (k in discrete_actions or len(continuous_actions) == 0) else v
 				) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
@@ -394,7 +396,7 @@ class Agent(torch.nn.Module):
 				return {
 					k: (
 						torch.nn.functional.one_hot(torch.argmax(v, dim=-1), num_classes=v.shape[-1])
-						if (k in discrete_actions or len(actions) == 1) else v
+						if (k in discrete_actions or len(continuous_actions) == 0) else v
 					)
 					for k, v in actions.items()
 				}
@@ -406,7 +408,7 @@ class Agent(torch.nn.Module):
 			elif isinstance(actions, dict):
 				return {k: (
 					torch.max(v, dim=-1).values
-					if (k in discrete_actions or len(actions) == 1) else v
+					if (k in discrete_actions or len(continuous_actions) == 0) else v
 				) for k, v in actions.items()}
 			else:
 				raise ValueError(f"Cannot format actions of type {type(actions)}.")
@@ -417,7 +419,7 @@ class Agent(torch.nn.Module):
 				return {
 					k: (
 						torch.softmax(v, dim=-1).max(dim=-1).values
-						if (k in discrete_actions or len(actions) == 1) else v
+						if (k in discrete_actions or len(continuous_actions) == 0) else v
 					)
 					for k, v in actions.items()
 				}
@@ -430,7 +432,7 @@ class Agent(torch.nn.Module):
 				return {
 					k: (
 						torch.log_softmax(v, dim=-1).max(dim=-1).values
-						if (k in discrete_actions or len(actions) == 1) else v
+						if (k in discrete_actions or len(continuous_actions) == 0) else v
 					)
 					for k, v in actions.items()
 				}
@@ -442,12 +444,19 @@ class Agent(torch.nn.Module):
 					probs = maybe_apply_softmax(actions, dim=-1)
 					return torch.distributions.Categorical(probs=probs).sample()
 				else:
-					return actions
+					# TODO: implement covariance matrix to compute entropy
+					std = torch.std(actions.view(-1, actions.shape[-1]), dim=0)
+					cov = torch.eye(actions.shape[-1], device=actions.device) * std * std
+					return torch.distributions.MultivariateNormal(actions, cov).sample()
 			elif isinstance(actions, dict):
 				return {
 					k: (
 						torch.distributions.Categorical(probs=maybe_apply_softmax(v, dim=-1)).sample()
-						if (k in discrete_actions or len(actions) == 1) else v
+						if (k in discrete_actions or len(continuous_actions) == 0)
+						# TODO: implement covariance matrix to compute entropy
+						else torch.distributions.MultivariateNormal(
+							v, torch.eye(v.shape[-1], device=v.device) * torch.std(v.view(-1, v.shape[-1]), dim=0) ** 2
+						).sample()
 					)
 					for k, v in actions.items()
 				}

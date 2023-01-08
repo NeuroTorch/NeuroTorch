@@ -315,7 +315,8 @@ def env_batch_step(
 		observations, rewards, dones, truncateds, info = env.step(actions_as_numpy)
 		infos = [info for _ in range(env.num_envs)]
 	else:
-		observation, reward, done, truncated, info = env.step(actions_as_numpy.item())
+		actions_as_single = actions_as_numpy[0] if actions_as_numpy.ndim > 0 else actions_as_numpy
+		observation, reward, done, truncated, info = env.step(actions_as_single)
 		observations = np.array([observation])
 		rewards = np.array([reward])
 		dones = np.array([done])

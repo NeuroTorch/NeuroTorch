@@ -112,7 +112,7 @@ if __name__ == '__main__':
     )
     history = academy.train(
         env,
-        n_iterations=300,
+        n_iterations=500,
         n_epochs=30,
         n_batches=-1,
         # n_new_trajectories=env.num_envs,

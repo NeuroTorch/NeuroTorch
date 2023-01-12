@@ -268,7 +268,7 @@ class Trajectory:
 
 
 class ReplayBuffer:
-	def __init__(self, capacity=np.inf, seed=None, use_priority=False):
+	def __init__(self, capacity=np.inf, seed=None, use_priority=False, **kwargs):
 		self.__capacity = capacity
 		self._seed = seed
 		self.random_generator = np.random.RandomState(seed)
@@ -276,6 +276,7 @@ class ReplayBuffer:
 		self._counter = 0
 		self._counter_is_started = False
 		self.use_priority = use_priority
+		self.priority_key = kwargs.get("priority_key", "discounted_reward")
 
 	@property
 	def counter(self):
@@ -341,7 +342,7 @@ class ReplayBuffer:
 		"""
 		if len(self.data) >= self.__capacity:
 			if self.use_priority:
-				self.data.pop(np.argmin([np.abs(e.advantage) for e in self.data]))
+				self.data.pop(np.argmin([np.abs(getattr(e, self.priority_key, 0.0)) for e in self.data]))
 			else:
 				self.data.pop(0)
 		self.data.append(element)

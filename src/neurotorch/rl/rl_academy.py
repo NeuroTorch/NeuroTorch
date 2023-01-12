@@ -105,6 +105,7 @@ class RLAcademy(Trainer):
 		kwargs.setdefault("n_new_experiences", kwargs["buffer_size"])
 		kwargs.setdefault("clip_ratio", 0.2)
 		kwargs.setdefault("use_priority_buffer", False)
+		kwargs.setdefault("buffer_priority_key", "discounted_reward")
 		kwargs.setdefault("normalize_rewards", False)
 		kwargs.setdefault("rewards_horizon", 128)
 		kwargs.setdefault("last_k_rewards", 10)
@@ -207,7 +208,12 @@ class RLAcademy(Trainer):
 			n_experiences = self.kwargs["n_new_experiences"]
 		if buffer is None:
 			buffer = self.current_training_state.objects.get(
-				"buffer", ReplayBuffer(self.kwargs["buffer_size"], use_priority=self.kwargs["use_priority_buffer"])
+				"buffer",
+				ReplayBuffer(
+					self.kwargs["buffer_size"],
+					use_priority=self.kwargs["use_priority_buffer"],
+					priority_key=self.kwargs["buffer_priority_key"],
+				)
 			)
 			self.update_objects_state_(buffer=buffer)
 		if self.kwargs["clear_buffer"]:

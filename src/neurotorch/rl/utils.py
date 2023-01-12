@@ -506,6 +506,7 @@ class TrajectoryRenderer:
 		title = f"Trajectory on {env_name}.\nCumulative reward: {self.trajectory.cumulative_reward:.2f}."
 		title = kwargs.get("title", title)
 		ax.set_title(title)
+		fig.suptitle(title, fontsize=kwargs.get("title_font_size", 16))
 		
 		def _animation(i):
 			ax.clear()
@@ -547,3 +548,34 @@ class TrajectoryRenderer:
 	
 	def to_gif(self, file_path: str, fps: int = 30, **kwargs):
 		return self.to_file(file_path, fps=fps, ext="gif", **kwargs)
+
+
+def continuous_actions_distribution(
+		actions: Union[Dict, torch.Tensor, np.ndarray],
+		covariance: Optional[Union[Dict, torch.Tensor, np.ndarray]] = None
+) -> Union[Dict, torch.distributions.Distribution]:
+	"""
+	Creates a continuous action distribution from the actions and the covariance.
+	
+	:param actions: The actions.
+	:type actions: Union[Dict, torch.Tensor, np.ndarray]
+	:param covariance: The covariance of the actions. If None, a diagonal covariance is assumed using the variance of
+		the given actions.
+	:type covariance: Optional[Union[Dict, torch.Tensor, np.ndarray]]
+	:return: The action distribution.
+	:rtype: Union[Dict, torch.distributions.Distribution]
+	"""
+	if isinstance(actions, dict):
+		dist = {
+			k: continuous_actions_distribution(actions[k], covariance[k] if covariance is not None else None)
+			for k in actions
+		}
+	else:
+		actions = to_tensor(actions)
+		if covariance is None:
+			std = torch.std(actions.view(-1, actions.shape[-1]), dim=0)
+			covariance = torch.diag(std**2)
+		else:
+			covariance = to_tensor(covariance)
+		dist = torch.distributions.MultivariateNormal(actions, covariance)
+	return dist

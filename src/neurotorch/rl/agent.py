@@ -25,6 +25,7 @@ from .utils import (
 	get_single_observation_space,
 	get_single_action_space,
 	sample_action_space,
+	continuous_actions_distribution,
 )
 
 
@@ -444,19 +445,13 @@ class Agent(torch.nn.Module):
 					probs = maybe_apply_softmax(actions, dim=-1)
 					return torch.distributions.Categorical(probs=probs).sample()
 				else:
-					# TODO: implement covariance matrix to compute entropy
-					std = torch.std(actions.view(-1, actions.shape[-1]), dim=0)
-					cov = torch.eye(actions.shape[-1], device=actions.device) * std * std
-					return torch.distributions.MultivariateNormal(actions, cov).sample()
+					return continuous_actions_distribution(actions).sample()
 			elif isinstance(actions, dict):
 				return {
 					k: (
 						torch.distributions.Categorical(probs=maybe_apply_softmax(v, dim=-1)).sample()
 						if (k in discrete_actions or len(continuous_actions) == 0)
-						# TODO: implement covariance matrix to compute entropy
-						else torch.distributions.MultivariateNormal(
-							v, torch.eye(v.shape[-1], device=v.device) * torch.std(v.view(-1, v.shape[-1]), dim=0) ** 2
-						).sample()
+						else continuous_actions_distribution(v).sample()
 					)
 					for k, v in actions.items()
 				}

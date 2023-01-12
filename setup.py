@@ -27,8 +27,7 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
     ],
-    # install_requires=install_requires,
-    install_requires=["torch", "pythonbasictools", "numpy", "matplotlib"],
+    install_requires=install_requires,
     project_urls={
         'Source': 'https://github.com/NeuroTorch/NeuroTorch',
         'Documentation': 'https://neurotorch.github.io/NeuroTorch',

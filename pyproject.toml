@@ -2,3 +2,7 @@
 pythonpath = [
   ".", "src",
 ]
+
+
+[build-system]
+requires = ["setuptools", "wheel", "torch", "torchvision"]

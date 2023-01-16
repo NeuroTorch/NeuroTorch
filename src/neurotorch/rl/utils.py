@@ -3,7 +3,6 @@ import warnings
 from collections import defaultdict
 from typing import Optional, Union, Sequence, Dict, Tuple, Any, List
 
-import imageio
 import matplotlib.pyplot as plt
 import numpy as np
 import gym
@@ -424,7 +423,8 @@ def sample_action_space(action_space: gym.spaces.Space, re_format: str = "raw"):
 
 def discounted_cumulative_sums(x, discount, axis=-1, **kwargs):
 	# Discounted cumulative sums of vectors for computing rewards-to-go and advantage estimates
-	conv = scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=axis)[::-1]
+	from scipy.signal import lfilter
+	conv = lfilter([1], [1, float(-discount)], x[::-1], axis=axis)[::-1]
 	return conv
 
 
@@ -530,6 +530,8 @@ class TrajectoryRenderer:
 			plt.show()
 	
 	def to_file(self, file_path: str, fps: int = 30, **kwargs):
+		import imageio
+		
 		if "." in file_path:
 			ext = os.path.splitext(file_path)[-1]
 		else:

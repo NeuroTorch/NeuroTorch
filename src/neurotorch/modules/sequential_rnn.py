@@ -689,7 +689,7 @@ class SequentialRNN(Sequential):
 			inputs: torch.Tensor,
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
-	) -> Union[tuple[Tensor, Any, Any], tuple[Tensor, Any], Tensor]:
+	) -> Union[Tuple[Tensor, Any, Any], Tuple[Tensor, Any], Tensor]:
 		"""
 		Get the prediction log probability of the model which is the log softmax of the output of the forward pass.
 		The log softmax is performed on the time dimension. This method is generally used for training in classification

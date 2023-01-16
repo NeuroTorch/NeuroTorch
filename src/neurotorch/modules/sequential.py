@@ -2,6 +2,7 @@ import warnings
 from collections import defaultdict, OrderedDict
 from copy import deepcopy
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
+from typing import OrderedDict as OrderedDictType
 
 import numpy as np
 import torch
@@ -50,7 +51,7 @@ class Sequential(BaseModel):
 	def _format_input_output_layers(
 			layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]],
 			default_prefix_layer_name: str = "layer",
-	) -> OrderedDict[str, NamedModule]:
+	) -> OrderedDictType[str, NamedModule]:
 		"""
 		Format the input or output layers. The format is an ordered dictionary of the form {layer_name: layer}.
 		
@@ -65,7 +66,7 @@ class Sequential(BaseModel):
 		"""
 		layers: Iterable[torch.nn.Module] = [layers] if not isinstance(layers, (Iterable, Mapping)) else layers
 		if isinstance(layers, Mapping):
-			layers: OrderedDict[str, NamedModule] = OrderedDict(
+			layers: OrderedDictType[str, NamedModule] = OrderedDict(
 				(k, (v if isinstance(v, NamedModule) else NamedModuleWrapper(v))) for k, v in layers.items()
 			)
 			for layer_key, layer in layers.items():
@@ -585,7 +586,7 @@ class Sequential(BaseModel):
 			self,
 			inputs: torch.Tensor,
 			**kwargs
-	) -> Union[tuple[Tensor, Any, Any], tuple[Tensor, Any], Tensor]:
+	) -> Union[Tuple[Tensor, Any, Any], Tuple[Tensor, Any], Tensor]:
 		"""
 		Get the prediction log probability of the model which is the log softmax of the output of the forward pass.
 		The log softmax is performed on the last dimension. This method is generally used for training in classification

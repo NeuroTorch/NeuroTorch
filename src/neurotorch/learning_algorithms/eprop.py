@@ -24,7 +24,9 @@ class Eprop(TBPTT):
 			self,
 			*,
 			params: Optional[Sequence[torch.nn.Parameter]] = None,
+			output_params: Optional[Sequence[torch.nn.Parameter]] = None,
 			layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
+			output_layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
 			**kwargs
 	):
 		"""

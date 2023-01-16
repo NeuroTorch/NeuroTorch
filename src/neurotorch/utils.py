@@ -356,6 +356,19 @@ def compute_jacobian(
 	return jacobian
 
 
+def dz_dw_local(z: torch.Tensor, params: Sequence[torch.nn.Parameter]):
+	grad_local = []
+	for param_idx, param in enumerate(filter_parameters(params, requires_grad=True)):
+		grad_local.append(torch.zeros_like(param))
+		for unit_idx in range(param.shape[-1]):
+			grad_local[param_idx][..., unit_idx] = torch.autograd.grad(
+				z[..., unit_idx], param,
+				grad_outputs=torch.ones_like(z[..., -1]),
+				retain_graph=True,
+			)[0][..., unit_idx]
+	return grad_local
+
+
 def vmap(f):
 	# TODO: replace by torch.vmap when it is available
 	def wrapper(batch_tensor):

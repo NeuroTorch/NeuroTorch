@@ -62,6 +62,8 @@ class SpikesEncoder(torch.nn.Module):
 
 	def forward(self, x: Any):
 		x = to_tensor(x).to(self.spikes_layer.device)
+		if x.ndim < 3:
+			x = x.unsqueeze(1)
 		x = self.const_transform(x)
 		x_spikes, hh = [], None
 		for t in range(self.n_steps):

@@ -21,6 +21,7 @@ class LearningAlgorithm(BaseCallback):
 		:type params: Optional[Sequence[torch.nn.Parameter]]
 		"""
 		super().__init__(**kwargs)
+		self.kwargs = kwargs
 		if params is None:
 			params = []
 		else:

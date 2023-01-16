@@ -7,6 +7,9 @@ from .base import (
 	IdentityTransform,
 	ToDevice,
 	ToTensor,
+	ReduceMax,
+	ReduceMean,
+	ReduceSum,
 )
 
 # from .spikes_encoders import (

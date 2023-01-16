@@ -51,7 +51,7 @@ class RLS(TBPTT):
 
 		:param params: The parameters to optimize. If None, the parameters of the model's trainer will be used.
 		:type params: Optional[Sequence[torch.nn.Parameter]]
-		:param layers: The layers to optimize. If not Noen the parameters of the layers wiill be added to the
+		:param layers: The layers to optimize. If not None the parameters of the layers will be added to the
 			parameters to optimize.
 		:type layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]]
 		:param criterion: The criterion to use. If not provided, torch.nn.MSELoss is used.

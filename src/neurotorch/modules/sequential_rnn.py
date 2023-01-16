@@ -201,7 +201,8 @@ class SequentialRNN(Sequential):
 		self._out_memory_size: int = self.kwargs.get("out_memory_size", default_mem_value)
 		self._hh_memory_size: int = self.kwargs.get("hh_memory_size", default_mem_value)
 		self._memory_device_transform = ToDevice(self.kwargs.get("memory_device", self.device))
-		assert self._out_memory_size is not None and self._out_memory_size > 0, "The memory size must be greater than 0 and not None."
+		assert self._out_memory_size is not None and self._out_memory_size > 0, \
+			"The memory size must be greater than 0 and not None."
 		self._outputs_to_inputs_names_map: Optional[Dict[str, str]] = None
 	
 	@property
@@ -625,7 +626,7 @@ class SequentialRNN(Sequential):
 		:rtype: Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]
 		"""
 		
-		outputs_trace, hidden_states = self(inputs.to(self._device))
+		outputs_trace, hidden_states = self(inputs.to(self.device))
 		if isinstance(outputs_trace, torch.Tensor):
 			logits, _ = torch.max(outputs_trace, dim=1)
 		elif isinstance(outputs_trace, dict):
@@ -688,7 +689,7 @@ class SequentialRNN(Sequential):
 			inputs: torch.Tensor,
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
-	) -> Union[tuple[Tensor, Any, Any], tuple[Tensor, Any], Tensor]:
+	) -> Union[Tuple[Tensor, Any, Any], Tuple[Tensor, Any], Tensor]:
 		"""
 		Get the prediction log probability of the model which is the log softmax of the output of the forward pass.
 		The log softmax is performed on the time dimension. This method is generally used for training in classification

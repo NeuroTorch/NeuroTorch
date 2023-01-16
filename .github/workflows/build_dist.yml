@@ -23,10 +23,11 @@ jobs:
         pip install flake8
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         pip install wheel
+        python -m pip install --upgrade build
 
     - name: Build dist
       run: |
-        python setup.py sdist bdist_wheel
+        python -m build
 
     - name: Commit
       run: |

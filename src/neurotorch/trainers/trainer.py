@@ -83,7 +83,7 @@ TrainingState = CurrentTrainingState  # Alias
 class Trainer:
 	def __init__(
 			self,
-			model: BaseModel,
+			model: torch.nn.Module,
 			*,
 			predict_method: str = "__call__",
 			criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
@@ -138,12 +138,12 @@ class Trainer:
 			this can be used to convert the target data to a one-hot encoding or to long tensor
 			using `nt.ToTensor(dtype=torch.long)`.
 		"""
-		assert model.is_built, "Model must be built before training"
+		# assert model.is_built, "Model must be built before training"
 		self.kwargs = self._set_default_kwargs(kwargs)
 		self.model = model
 		self.predict_method = predict_method
-		assert hasattr(model, predict_method), f"Model does not have a method named '{predict_method}'"
-		assert callable(getattr(model, predict_method)), f"Model method '{predict_method}' is not callable"
+		assert hasattr(model, predict_method), f"Model {model.__class__} does not have a method named '{predict_method}'"
+		assert callable(getattr(model, predict_method)), f"Model method '{model.__class__}.{predict_method}' is not callable"
 		self.criterion = self._set_default_criterion(criterion)
 		self.regularization = self._set_default_regularization(regularization)
 		# self._maybe_add_regularization(self.regularization)
@@ -293,7 +293,10 @@ class Trainer:
 	
 	def _set_default_device(self, device: Optional[torch.device]) -> torch.device:
 		if device is None:
-			device = self.model.device
+			if hasattr(self.model, "device"):
+				device = self.model.device
+			else:
+				device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 		return device
 	
 	@staticmethod

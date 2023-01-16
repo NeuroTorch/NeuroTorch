@@ -123,7 +123,7 @@ if __name__ == '__main__':
         clear_buffer=True,
         randomize_buffer=True,
         load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
-        force_overwrite=False,
+        force_overwrite=True,
         verbose=True,
         render=False,
         last_k_rewards=10,
@@ -142,8 +142,7 @@ if __name__ == '__main__':
     )
     best_trajectory_idx = np.argmax([t.cumulative_reward for t in gen_trajectories_out.trajectories])
     trajectory_renderer = TrajectoryRenderer(trajectory=gen_trajectories_out.trajectories[best_trajectory_idx], env=env)
-    trajectory_renderer.render()
-    trajectory_renderer.to_mp4(f"figures/trajectory_{best_trajectory_idx}.mp4")
+    
     # for i, trajectory in enumerate(gen_trajectories_out.trajectories):
     #     trajectory_renderer = TrajectoryRenderer(trajectory=trajectory, env=env)
     #     trajectory_renderer.render()
@@ -151,6 +150,8 @@ if __name__ == '__main__':
     cumulative_rewards = gen_trajectories_out.cumulative_rewards
     print(f"Buffer: {gen_trajectories_out.buffer}")
     print(f"Cumulative rewards: {np.nanmean(cumulative_rewards):.3f} +/- {np.nanstd(cumulative_rewards):.3f}")
-    n_terminated = sum([int(e.terminal) for e in gen_trajectories_out.buffer])
-    print(f"{n_terminated = }")
+    print(f"Best trajectory: {best_trajectory_idx}, cumulative reward: {cumulative_rewards[best_trajectory_idx]:.3f}")
     env.close()
+
+    trajectory_renderer.render()
+    trajectory_renderer.to_mp4(f"figures/trajectory_{best_trajectory_idx}.mp4")

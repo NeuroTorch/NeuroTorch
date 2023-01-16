@@ -78,7 +78,7 @@ class BatchExperience:
 	def __init__(
 			self,
 			batch: List[Experience],
-			device: torch.device("cpu"),
+			device: torch.device = torch.device("cpu"),
 	):
 		"""
 		An object that contains a batch of experiences as tensors.

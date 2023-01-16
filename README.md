@@ -193,5 +193,3 @@ First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
 ```
 
 
-
----------------------------------------------------------------------------

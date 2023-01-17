@@ -165,9 +165,13 @@ class Lp(BaseRegularization):
 		:return: The loss of the regularization.
 		:rtype: torch.Tensor
 		"""
-		loss = torch.tensor(0.0, requires_grad=True).to(self.params[0].device)
+		losses = []
 		for param in filter_parameters(self.params, requires_grad=True):
-			loss += torch.linalg.norm(param, self.p)
+			losses.append(torch.linalg.norm(param, self.p))
+		if len(losses) > 0:
+			loss = sum(losses)
+		else:
+			loss = torch.tensor(0.0, requires_grad=True).to(self.params[0].device)
 		return loss
 
 

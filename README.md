@@ -1,7 +1,4 @@
-<p align="center" width="100%">
-    <img width="40%" src="images/neurotorch.svg">
-</p>
-
+<div style="text-align:center"><img src="images/neurotorch.svg" width="40%" /></div>
 
 
 [![Star on GitHub](https://img.shields.io/github/stars/NeuroTorch/NeuroTorch.svg?style=social)](https://github.com/NeuroTorch/NeuroTorch/stargazers)
@@ -51,12 +48,13 @@ What can be done with NeuroTorch in the current version?
 
 # 2. Installation
 
+
+
 | Method     | Commands                                                                                                                                                                       |
 |------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **PyPi**   | `pip install neurotorch`                                                                                                                                                       |
 | **source** | `pip install git+https://github.com/NeuroTorch/NeuroTorch`                                                                                                                     |
 | **wheel**  | 1.Download the .whl file [here](https://github.com/NeuroTorch/NeuroTorch/tree/main/dist);<br> 2. Copy the path of this file on your computer; <br> 3. `pip install [path].whl` |
-
 
 
 ### 2.1 Last unstable version

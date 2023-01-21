@@ -300,9 +300,7 @@ def zero_grad_params(params: Iterable[torch.nn.Parameter]):
 	:param params: The parameters to set the gradient to zero.
 	"""
 	for p in params:
-		if p.grad is not None:
-			p.grad.detach_()
-			p.grad.zero_()
+		p.grad = torch.zeros_like(p).detach()
 
 
 def compute_jacobian(
@@ -412,3 +410,13 @@ def filter_parameters(
 	:return: The filtered parameters.
 	"""
 	return [p for p in parameters if p.requires_grad == requires_grad]
+
+
+def recursive_detach(tensors: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]]):
+	if isinstance(tensors, tuple):
+		out = tuple([recursive_detach(o) for o in tensors])
+	elif isinstance(tensors, list):
+		out = [recursive_detach(o) for o in tensors]
+	else:
+		out = tensors.detach()
+	return out

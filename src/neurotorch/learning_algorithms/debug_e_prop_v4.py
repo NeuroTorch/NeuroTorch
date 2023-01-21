@@ -19,7 +19,8 @@ from neurotorch.utils import (
 	legend_without_duplicate_labels_,
 	batchwise_temporal_recursive_filter,
 	filter_parameters,
-	zero_grad_params, recursive_detach,
+	zero_grad_params,
+	recursive_detach,
 )
 
 
@@ -88,7 +89,7 @@ class SimplifiedEpropFinal:
 
 		self.param_groups = [
 			{"params": self.params, "lr": self.kwargs.get("params_lr", 1e-4)},
-			{"params": self.output_params, "lr": self.kwargs.get("output_params_lr", 1e-3)},
+			{"params": self.output_params, "lr": self.kwargs.get("output_params_lr", 2e-4)},
 		]
 		# self.optimizer = torch.optim.SGD(self.param_groups, lr=0.1, maximize=True)
 		# self.optimizer = torch.optim.Adam(self.param_groups, maximize=True)
@@ -124,7 +125,7 @@ class SimplifiedEpropFinal:
 		progress_bar = tqdm(
 			range(iteration),
 			total=iteration,
-			desc="Training",
+			desc=f"Training [{self.true_time_series.shape[-1]} units, {self.true_time_series.shape[-2]} time steps]",
 			unit="iteration",
 		)
 		pvars, mses = [], []
@@ -314,7 +315,7 @@ if __name__ == '__main__':
 			**kwargs
 	):
 
-		dataset = WSDataset(filename=filename, sample_size=kwargs.get("n_units", 50), smoothing_sigma=sigma, device=device, n_time_steps=100)
+		dataset = WSDataset(filename=filename, sample_size=kwargs.get("n_units", 50), smoothing_sigma=sigma, device=device, n_time_steps=-1)
 		if kwargs.get("n_time_steps", None) is not None:
 			true_time_series = torch.squeeze(dataset.full_time_series)[:kwargs["n_time_steps"], :]
 		else:
@@ -365,16 +366,16 @@ if __name__ == '__main__':
 
 		return res_trainer
 
-	n_units = 10
+	n_units = 200
 	forward_weights = nt.init.dale_(torch.zeros(n_units, n_units), inh_ratio=0.5, rho=0.2)
 
-	result = np.load("res.npy", allow_pickle=True).item()
+	# result = np.load("res.npy", allow_pickle=True).item()
 
 	res = train_with_params_eprop(
 			dt=0.02,
-			tau=result["tau"],
-			mu=result["mu"],
-			r=result["r"],
+			# tau=result["tau"],
+			# mu=result["mu"],
+			# r=result["r"],
 			learn_mu=True,
 			learn_r=True,
 			learn_tau=True,
@@ -382,9 +383,9 @@ if __name__ == '__main__':
 			learning_rate=1e-3,
 			update_each=1,
 			n_units=n_units,
-			iteration=200,
+			iteration=300,
 			sigma=20,
 			kappa=0,
-			n_time_steps=100,
+			n_time_steps=-1,
 			device=torch.device("cpu"),
 	)

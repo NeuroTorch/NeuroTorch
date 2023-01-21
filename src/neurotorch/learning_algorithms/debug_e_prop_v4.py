@@ -19,23 +19,34 @@ from neurotorch.utils import (
 	legend_without_duplicate_labels_,
 	batchwise_temporal_recursive_filter,
 	filter_parameters,
+	zero_grad_params, recursive_detach,
 )
 
 
 def dz_dw_local(z: torch.Tensor, params: Sequence[torch.nn.Parameter]):
 	grad_local = []
-	for param_idx, param in enumerate(filter_parameters(params, requires_grad=True)):
-		grad_local.append(torch.zeros_like(param))
-		if param.ndim <= 1:
-			param = param.view(1, -1)
-		for unit_idx in range(param.shape[-1]):
-			# [..., unit_idx] will not work for 0D tensor
-			# TODO: Fix this!
-			grad_local[param_idx][..., unit_idx] = torch.autograd.grad(
-				z[..., unit_idx], param,
-				grad_outputs=torch.ones_like(z[..., -1]),
+	with torch.no_grad():
+		for param_idx, param in enumerate(filter_parameters(params, requires_grad=True)):
+			grad_local.append(torch.zeros_like(param))
+			if param.ndim >= 1:
+				N_out = param.shape[-1]
+			else:
+				N_out = param.numel()
+			# for unit_idx in range(N_out):
+			# 	if param.ndim >= 1:
+			# 		grad_local[param_idx][..., unit_idx] = torch.autograd.grad(
+			# 			z[..., unit_idx], param,
+			# 			grad_outputs=torch.ones_like(z[..., -1]),
+			# 			retain_graph=True,
+			# 		)[0][..., unit_idx]
+			# 	else:
+			# 		grad_local[param_idx] = torch.squeeze(torch.autograd.grad(z[..., unit_idx], param, retain_graph=True)[0])
+			grad_local[param_idx] = torch.autograd.grad(
+				z, param,
+				grad_outputs=torch.ones_like(z),
 				retain_graph=True,
-			)[0][..., unit_idx]
+				# allow_unused=True,
+			)[0]
 	return grad_local
 
 
@@ -76,10 +87,12 @@ class SimplifiedEpropFinal:
 		self.learning_signal = 0.0
 
 		self.param_groups = [
-			{"params": self.params, "lr": self.kwargs.get("params_lr", 2e-4)},
+			{"params": self.params, "lr": self.kwargs.get("params_lr", 1e-4)},
 			{"params": self.output_params, "lr": self.kwargs.get("output_params_lr", 1e-3)},
 		]
-		self.optimizer = torch.optim.SGD(self.param_groups, lr=0.1)
+		# self.optimizer = torch.optim.SGD(self.param_groups, lr=0.1, maximize=True)
+		# self.optimizer = torch.optim.Adam(self.param_groups, maximize=True)
+		self.optimizer = torch.optim.Adam(self.param_groups)
 
 	def _set_default_kwargs(self):
 		"""
@@ -116,11 +129,14 @@ class SimplifiedEpropFinal:
 		)
 		pvars, mses = [], []
 		x_pred = None
+		mse_func = torch.nn.MSELoss()
 		self.optimizer.zero_grad()
+		zero_grad_params(self.params)
+		zero_grad_params(self.output_params)
 		for _ in progress_bar:
 			x_pred = []
 			x_pred.append(self.true_time_series[:, 0, :].clone())
-			forward_tensor = self.true_time_series[:, 0, :].clone()
+			forward_tensor = self.true_time_series[:, 0, :].clone().to(reservoir.device)
 			hh = None
 
 			for t in range(1, self.true_time_series.shape[-2]):
@@ -128,17 +144,27 @@ class SimplifiedEpropFinal:
 				forward_tensor, _ = unpack_out_hh(output_layer(forward_tensor, None))
 				x_pred.append(forward_tensor)
 				eligibility_traces = dz_dw_local(z=forward_tensor, params=self.params)
-				loss_at_t = forward_tensor - self.true_time_series[t]
+				loss_at_t = forward_tensor - self.true_time_series[:, t].to(forward_tensor.device)
+				mse_at_t = mse_func(forward_tensor, self.true_time_series[:, t].to(forward_tensor.device))
 				learning_signals = self.compute_learning_signals(loss_at_t)
-				self.update_instantaneous_grad(loss_at_t, learning_signals, eligibility_traces)
+				self.update_instantaneous_grad(mse_at_t, learning_signals, eligibility_traces)
 				forward_tensor.detach_()
+				hh = recursive_detach(hh)
 				if t % self.update_each == 0:
 					self.optimizer.step()
 					self.optimizer.zero_grad()
+			# x_pred_tensor = torch.stack(x_pred[1:], dim=1)
+			# pvar_loss = PVarianceLoss()(x_pred_tensor, self.true_time_series[:, 1:].to(x_pred_tensor.device))
+			# self.optimizer.zero_grad()
+			# pvar_loss.backward()
+			# for out_param in self.output_params:
+			# 	out_param.grad = torch.autograd.grad(pvar_loss, out_param, retain_graph=True)[0]
+			self.optimizer.step()
+			self.optimizer.zero_grad()
 
-			x_pred = torch.stack(x_pred, dim=0)
-			pvar = PVarianceLoss()(x_pred, self.true_time_series)
-			mse = torch.nn.MSELoss()(x_pred, self.true_time_series)
+			x_pred = torch.stack([t.cpu() for t in x_pred], dim=1)
+			pvar = PVarianceLoss()(x_pred, self.true_time_series.to(x_pred.device))
+			mse = torch.nn.MSELoss()(x_pred, self.true_time_series.to(x_pred.device))
 			progress_bar.set_postfix({"pvar": to_numpy(pvar).item(), "MSE": to_numpy(mse).item()})
 			pvars.append(to_numpy(pvar).item())
 			mses.append(to_numpy(mse).item())
@@ -149,7 +175,7 @@ class SimplifiedEpropFinal:
 		learning_signals = []
 		error_mean = torch.mean(error.view(-1, error.shape[-1]), dim=0)
 		for rn_feedback in self.random_matrices:
-			learning_signals.append(torch.matmul(error_mean, rn_feedback.T))
+			learning_signals.append(torch.matmul(error_mean, rn_feedback.T.to(error_mean.device)))
 		return learning_signals
 
 	def update_instantaneous_grad(
@@ -158,12 +184,14 @@ class SimplifiedEpropFinal:
 			learning_signals: List[torch.Tensor],
 			eligibility_traces: List[torch.Tensor],
 	):
-		for param, ls, et in (self.params, learning_signals, eligibility_traces):
-			param.grad = ls * et  # TODO: check shapes
+		with torch.no_grad():
+			for param, ls, et in zip(self.params, learning_signals, eligibility_traces):
+				param.grad += (ls * et.to(ls.device)).to(param.device).view(param.shape).detach()
 
 		mean_error = torch.mean(error)
-		for out_param in self.output_params:
-			out_param.grad = torch.autograd.grad(mean_error, out_param, retain_graph=True)[0]
+		with torch.no_grad():
+			for out_param in self.output_params:
+				out_param.grad += torch.autograd.grad(mean_error, out_param, retain_graph=True)[0]
 
 	def filter_eligibility_traces(self, current_eligibility_traces: List[torch.Tensor]):
 		for curr_et, last_et in zip(current_eligibility_traces, self.last_eligibility_traces):
@@ -261,8 +289,6 @@ if __name__ == '__main__':
 		def original_series(self):
 			return self.original_time_series
 
-
-
 	def train_with_params_eprop(
 			filename: Optional[str] = None,
 			forward_weights: Optional[torch.Tensor or np.ndarray] = None,
@@ -316,7 +342,11 @@ if __name__ == '__main__':
 			force_dale_law=force_dale_law
 		).build()
 
-		linear_layer = nt.LILayer(true_time_series.shape[-1], true_time_series.shape[-1], use_bias=False, kappa=0.0).build()
+		linear_layer = nt.LILayer(
+			true_time_series.shape[-1], true_time_series.shape[-1],
+			device=device,
+			use_bias=False, kappa=0.0
+		).build()
 		trainer = SimplifiedEpropFinal(
 			true_time_series=true_time_series.unsqueeze(dim=0),
 			params=ws_layer.parameters(),
@@ -356,4 +386,5 @@ if __name__ == '__main__':
 			sigma=20,
 			kappa=0,
 			n_time_steps=100,
+			device=torch.device("cpu"),
 	)

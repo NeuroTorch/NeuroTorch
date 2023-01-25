@@ -6,6 +6,7 @@ This tutorial is currently under construction. Will be finished in the next vers
 import pprint
 
 import matplotlib.pyplot as plt
+import torch.nn
 from torch.utils.data import DataLoader
 
 import neurotorch as nt
@@ -83,9 +84,8 @@ def make_learning_algorithm(**kwargs):
 		learning_algorithm = nt.BPTT(optimizer=optimizer, criterion=nt.losses.PVarianceLoss())
 	elif la_name == "eprop":
 		learning_algorithm = nt.Eprop(
-			layers=[kwargs["model"].get_layer()],
-			criterion=nt.losses.PVarianceLoss(),
-			lr=0.5,
+			# criterion=nt.losses.PVarianceLoss(),
+			criterion=torch.nn.MSELoss(),
 		)
 	elif la_name == "tbptt":
 		optimizer = torch.optim.AdamW(
@@ -295,14 +295,14 @@ if __name__ == '__main__':
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
-			"learning_algorithm": "rls",
-			"auto_backward_time_steps_ratio": 0.0,
+			"learning_algorithm": "eprop",
+			# "auto_backward_time_steps_ratio": 0.0,
 			"weight_decay": 1e-5,
-			"learn_mu": False,
-			"learn_r": False,
-			"learn_tau": False,
+			"learn_mu": True,
+			"learn_r": True,
+			"learn_tau": True,
 			"activation": "sigmoid",
-			"rls_strategy": "inputs",
+			# "rls_strategy": "inputs",
 			# "add_aux_tbptt": True,
 		},
 		n_iterations=100,

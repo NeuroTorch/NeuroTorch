@@ -8,17 +8,29 @@ from unstable import unstable
 from .learning_algorithm import LearningAlgorithm
 from ..transforms.base import to_numpy
 from ..learning_algorithms.tbptt import TBPTT
-from ..utils import batchwise_temporal_filter, list_insert_replace_at, zero_grad_params
+from ..utils import (
+	batchwise_temporal_filter,
+	list_insert_replace_at,
+	zero_grad_params,
+	unpack_out_hh,
+	recursive_detach,
+	filter_parameters,
+	dy_dw_local
+)
 
 
-@unstable
+# @unstable
 class Eprop(TBPTT):
 	r"""
 	Apply the eligibility trace forward propagation (e-prop) :cite:t:`bellec_solution_2020`
 	algorithm to the given model.
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
-	CHECKPOINT_RN_FEEDBACK_WEIGHTS_KEY: str = "rn_feedback_weights"
+	CHECKPOINT_FEEDBACK_WEIGHTS_KEY: str = "feedback_weights"
+	OPTIMIZER_PARAMS_GROUP_IDX = 0
+	OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX = 1
+	DEFAULT_OPTIMIZER_CLS = torch.optim.Adam
+	DEFAULT_Y_KEY = "default_key"
 	
 	def __init__(
 			self,
@@ -34,7 +46,11 @@ class Eprop(TBPTT):
 
 		:param params: The parameters to optimize. If None, the parameters of the model's trainer will be used.
 		:type params: Optional[Sequence[torch.nn.Parameter]]
-		:param optimizer: The optimizer to use. If not provided, torch.optim.SGD is used.
+		:param optimizer: The optimizer to use. If provided make sure to provide the param_group in the following format:
+								[{"params": params, "lr": params_lr}, {"params": output_params, "lr": output_params_lr}]
+						The index of the group must be the same as the OPTIMIZER_PARAMS_GROUP_IDX and
+						OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX constants which are 0 and 1 respectively.
+						If not provided, torch.optim.Adam is used.
 		:type optimizer: Optional[torch.optim.Optimizer]
 		:param criterion: The criterion to use. If not provided, torch.nn.MSELoss is used.
 		:type criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]]
@@ -49,8 +65,8 @@ class Eprop(TBPTT):
 		# TODO: implement a optim step at each `optim_time_steps` steps.
 		assert "backward_time_steps" not in kwargs, f"{self.__class__} does not support backward_time_steps."
 		assert "optim_time_steps" not in kwargs, f"{self.__class__} does not support optim_time_steps."
-		assert params is None, f"{self.__class__} does not support params yet."
-		assert layers is not None, f"{self.__class__} requires layers."
+		# assert params is None, f"{self.__class__} does not support params yet."
+		# assert layers is not None, f"{self.__class__} requires layers."
 		super().__init__(
 			params=params,
 			layers=layers,
@@ -58,25 +74,33 @@ class Eprop(TBPTT):
 			optim_time_steps=1,
 			**kwargs
 		)
+		self.output_params = output_params
+		self.output_layers = output_layers
 		self.random_feedbacks = kwargs.get("random_feedbacks", True)
 		if not self.random_feedbacks:
 			raise NotImplementedError("Non-random feedbacks are not implemented yet.")
 		self.feedback_weights = None
 		self.rn_gen = torch.Generator()
 		self.rn_gen.manual_seed(kwargs.get("seed", 0))
-		self.running_grads = None
-		self.eligibility_traces = defaultdict(list)
+		self.eligibility_traces = None
 		self.learning_signals = defaultdict(list)
-		self.layers_to_params = defaultdict(list)
+		self.param_groups = []
+		self._hidden_layer_names = []
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
 			state = checkpoint.get(self.name, {})
 			opt_state_dict = state.get(self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY, None)
 			if opt_state_dict is not None:
+				saved_param_groups = opt_state_dict["param_groups"]
+				if self.optimizer is None:
+					self.optimizer = self.DEFAULT_OPTIMIZER_CLS(saved_param_groups)
 				self.optimizer.load_state_dict(opt_state_dict)
+				self.param_groups = self.optimizer.param_groups
+				self.params = self.param_groups[self.OPTIMIZER_PARAMS_GROUP_IDX]["params"]
+				self.output_params = self.param_groups[self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX]["params"]
 			if self.random_feedbacks:
-				self.feedback_weights = state.get(self.CHECKPOINT_RN_FEEDBACK_WEIGHTS_KEY, None)
+				self.feedback_weights = state.get(self.CHECKPOINT_FEEDBACK_WEIGHTS_KEY, None)
 	
 	def get_checkpoint_state(self, trainer, **kwargs) -> object:
 		if self.save_state:
@@ -84,188 +108,221 @@ class Eprop(TBPTT):
 			if self.optimizer is not None:
 				state[self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY] = self.optimizer.state_dict()
 			if self.random_feedbacks:
-				state[self.CHECKPOINT_RN_FEEDBACK_WEIGHTS_KEY] = self.feedback_weights
+				state[self.CHECKPOINT_FEEDBACK_WEIGHTS_KEY] = self.feedback_weights
 			return state
 		return None
 	
-	def initialize_running_grads(self):
-		self.running_grads = {
-			layer.name: [
-				torch.zeros_like(p)
-				for p in self.layers_to_params[layer.name]
-			]
-			for layer in self.layers
+	def initialize_feedback_weights(self, y_batch: Optional[Union[Dict[str, torch.Tensor], torch.Tensor]] = None):
+		if y_batch is None:
+			y_batch = self.trainer.current_training_state.y_batch
+		if not isinstance(y_batch, dict):
+			y_batch = {self.DEFAULT_Y_KEY: y_batch}
+		self.feedback_weights = {
+			k: [
+				torch.randn((y_batch.shape[-1], p.shape[-1]), generator=self.rn_gen)
+				for p in self.params
+			] for k, y_batch in y_batch.items()
 		}
 	
-	def initialize_feedback_weights(self, pred_batch: Optional[torch.Tensor] = None):
-		if pred_batch is None:
-			pred_batch = self.trainer.current_training_state.pred_batch
-		self.feedback_weights = {
-			layer.name: [
-				torch.randn((pred_batch.shape[-1], p.shape[-1]), generator=self.rn_gen)
-				for p in self.layers_to_params[layer.name]
+	def _initialize_original_forwards(self):
+		for layer in self.trainer.model.get_all_layers():
+			self._original_forwards[layer.name] = layer.forward
+	
+	def initialize_params(self, trainer):
+		"""
+		Initialize the parameters of the optimizer. Must be called after `initialize_output_params`.
+		
+		:param trainer: The trainer to use.
+		:return: None
+		"""
+		if not self.params and self.optimizer:
+			self.params = self.optimizer.param_groups[self.OPTIMIZER_PARAMS_GROUP_IDX]["params"]
+		elif not self.params:
+			self.params = list(trainer.model.parameters())
+		
+		self.params = [p for p in self.params if p not in self.output_params]
+		self.params = filter_parameters(self.params, requires_grad=True)
+	
+	def initialize_output_params(self, trainer):
+		if not self.output_layers:
+			if hasattr(trainer.model, "output_layers"):
+				self.output_layers = trainer.model.output_layers
+			elif hasattr(trainer.model, "output_layer"):
+				self.output_layers = [trainer.model.output_layer]
+			else:
+				raise ValueError(
+					"Could not find output layers. Please provide them manually."
+				)
+			if isinstance(self.output_layers, torch.nn.Module):
+				self.output_layers = [self.output_layers]
+			elif isinstance(self.output_layers, (list, tuple)):
+				self.output_layers = list(self.output_layers)
+			elif isinstance(self.output_layers, dict):
+				self.output_layers = list(self.output_layers.values())
+		
+		if not self.output_params:
+			self.output_params = [
+				param
+				for layer in self.output_layers
+				for param in layer.parameters()
 			]
-			for layer in self.layers
-		}
+		else:
+			raise ValueError("Could not find output parameters. Please provide them manually.")
+		
+		self.output_params = filter_parameters(self.output_params, requires_grad=True)
+		self.params = [p for p in self.params if p not in self.output_params]
 	
 	def start(self, trainer, **kwargs):
 		LearningAlgorithm.start(self, trainer, **kwargs)
-		if self.params and self.optimizer is None:
-			self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0e-3))
-		elif not self.params and self.optimizer is not None:
-			self.params.extend(
-				[
-					param
-					for i in range(len(self.optimizer.param_groups))
-					for param in self.optimizer.param_groups[i]["params"]
-				]
-			)
-		else:
-			self.params = list(trainer.model.parameters())
-			self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0e-3))
+		self.initialize_output_params(trainer)
+		self.initialize_params(trainer)
 		
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
 		
-		# filter params to get only the ones that require gradients
-		self.params = [param for param in self.params if param.requires_grad]
-		assert all(param.ndim == 2 for param in self.params), "Eprop only supports 2D parameters for now."
-		self.layers_to_params = {
-			layer.name: [
-				param for param in layer.parameters() if param.requires_grad
+		if not self.param_groups:
+			self.param_groups = [
+				{"params": self.params, "lr": self.kwargs.get("params_lr", 1e-4)},
+				{"params": self.output_params, "lr": self.kwargs.get("output_params_lr", 2e-4)},
 			]
-			for layer in self.layers
-		}
-		self.params = [p for params in self.layers_to_params.values() for p in params]
-		self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0e-3))
+		if not self.optimizer:
+			self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups)
 		
-		self.output_layers: torch.nn.ModuleDict = torch.nn.ModuleDict({layer.name: layer for layer in self.layers})
 		self._initialize_original_forwards()
-		self.initialize_running_grads()
 	
 	def on_batch_begin(self, trainer, **kwargs):
 		super().on_batch_begin(trainer)
 		if trainer.model.training:
 			if self.feedback_weights is None:
-				self.initialize_feedback_weights(self.trainer.current_training_state.y_batch)
-			self.eligibility_traces = defaultdict(list)
-			self.learning_signals = defaultdict(list)
-			self.initialize_running_grads()
-			self._last_et = {
-				layer.name: [
-					torch.zeros_like(p)
-					for p in self.layers_to_params[layer.name]
-				]
-				for layer in self.layers
-			}
-			# For Debugging
-			self.mean_eligibility_traces = defaultdict(list)
-			self.mean_learning_signals = defaultdict(list)
-			
-	def _get_hidden_tensor(self, out: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]]):
-		if isinstance(out, (tuple, list)):
-			out = out[-1]
-		return out
+				self.initialize_feedback_weights(trainer.current_training_state.y_batch)
+		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
 	
 	def decorate_forwards(self):
 		if self.trainer.model.training:
 			if not self._forwards_decorated:
 				self._initialize_original_forwards()
+			self._hidden_layer_names.clear()
+			
+			for layer in self.trainer.model.input_layers.values():
+				layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
+				self._hidden_layer_names.append(layer.name)
+			
+			for layer in self.trainer.model.hidden_layers:
+				layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
+				self._hidden_layer_names.append(layer.name)
+			
 			for layer in self.output_layers.values():
 				layer.forward = self._decorate_forward(layer.forward, layer.name)
 			self._forwards_decorated = True
 	
-	def _decorate_forward(self, forward, layer_name: str):
+	def _decorate_hidden_forward(self, forward, layer_name: str):
 		def _forward(*args, **kwargs):
 			out = forward(*args, **kwargs)
 			t = kwargs.get("t", None)
 			if t is None:
 				return out
-			out_tensor = self._get_out_tensor(out)
-			h_tensor = self._get_hidden_tensor(out)
+			out_tensor, hh = unpack_out_hh(out)
 			if t == 0:  # Hotfix for the first time step  TODO: fix this
 				ready = bool(self._layers_buffer[layer_name])
 			else:
 				ready = True
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
-			if len(self._layers_buffer[layer_name]) == self.backward_time_steps and ready:
-				self._backward_at_t(t, self.backward_time_steps, layer_name)
+			length = len(self._layers_buffer[layer_name])
+			if length == self.backward_time_steps and ready:
+				self._hidden_backward_at_t(t, self.backward_time_steps, layer_name)
+				out = recursive_detach(out)
 			return out
 		return _forward
 	
+	def _hidden_backward_at_t(self, t: int, backward_t: int, layer_name: str):
+		pred_batch = torch.squeeze(self._get_pred_batch_from_buffer(layer_name))
+		dy_dw_locals = dy_dw_local(y=pred_batch, params=self.params, retain_graph=True, allow_unused=True)
+		self.eligibility_traces = [et+dy_dw for et, dy_dw in zip(self.eligibility_traces, dy_dw_locals)]
+		self._layers_buffer[layer_name].clear()
+	
 	def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
 		y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
-		# TODO: must have a pred batch for the layer and one for the output_layer to compute the learning signals correctly
-		pred_batch = torch.squeeze(self._get_pred_batch_from_buffer(layer_name))
-		
-		# compute dz/dw
-		grad_outputs = torch.eye(pred_batch.shape[-1], device=pred_batch.device)
-		params = self.layers_to_params[layer_name]
-		instantaneous_eligibility_traces = [torch.zeros_like(p) for p in params]
-		# TODO: try to understand what is going on here: https://github.com/IGITUGraz/eligibility_propagation/blob/efd02e6879c01cda3fa9a7838e8e2fd08163c16e/Figure_3_and_S7_e_prop_tutorials/tutorial_pattern_generation.py#L98
-		for i in range(grad_outputs.shape[0]):
-			zero_grad_params(params)
-			
-			# pred_batch.backward(grad_outputs[i], retain_graph=True)
-			for p_idx, param in enumerate(params):
-				# TODO: pas sur du slicing
-				instantaneous_eligibility_traces[p_idx][i] = (
-					# 0.1 * self._last_et[layer_name][p_idx][i] + param.grad.detach().clone()[i]
-					# param.grad.detach().clone()[i]
-					torch.autograd.grad(pred_batch[i], param, retain_graph=True)[0][i]
-				)
-		self._last_et[layer_name] = instantaneous_eligibility_traces
-		self.eligibility_traces[layer_name].append(instantaneous_eligibility_traces)
-		
-		# compute learning signals
-		mean_error = torch.mean((y_batch - pred_batch).view(-1, y_batch.shape[-1]), dim=0)
-		instantaneous_learning_signals = [
-			torch.matmul(mean_error, self.feedback_weights[layer_name][p_idx]).view(1, -1)
-			for p_idx in range(len(self.feedback_weights[layer_name]))
-		]
-		self.learning_signals[layer_name].append(instantaneous_learning_signals)
-		self.running_grads[layer_name] = [
-			self.running_grads[layer_name][p_idx] + (
-					instantaneous_learning_signals[p_idx] * instantaneous_eligibility_traces[p_idx]
+		pred_batch = self._get_pred_batch_from_buffer(layer_name)
+		batch_loss = self.apply_criterion(pred_batch, y_batch)
+		if batch_loss.grad_fn is None:
+			raise ValueError(
+				f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
 			)
-			for p_idx in range(len(self.running_grads[layer_name]))
-		]
+		errors = self.compute_errors(pred_batch, y_batch)
+		self.update_grads(errors, batch_loss)
 		self._layers_buffer[layer_name].clear()
 		
-		# For Debugging
-		self.mean_eligibility_traces[layer_name].append(
-			to_numpy(torch.mean(torch.abs(torch.cat(instantaneous_eligibility_traces, dim=0)))).item()
-		)
-		self.mean_learning_signals[layer_name].append(
-			to_numpy(torch.mean(torch.abs(torch.cat(instantaneous_learning_signals, dim=0)))).item()
-		)
+	def compute_learning_signals(self, errors: Dict[str, torch.Tensor]):
+		learning_signals = [torch.zeros((p.shape[0]), device=p.device) for p in self.params]
+		for k, feedbacks in self.feedback_weights.items():
+			if k not in errors:
+				raise ValueError(
+					f"This is an internal error. Please report this issue on GitHub."
+					f"Key {k} from {self.feedback_weights.keys()=} not found in errors of keys {errors.keys()}."
+				)
+			error_mean = torch.mean(errors[k].view(-1, errors[k].shape[-1]), dim=0)
+			for i, feedback in enumerate(feedbacks):
+				learning_signals[i] += torch.matmul(error_mean, feedback.to(error_mean.device))
+		return learning_signals
 	
-	def apply_grads(self):
-		for layer_name, params in self.layers_to_params.items():
-			for p_idx, param in enumerate(params):
-				param.grad = self.running_grads[layer_name][p_idx].detach().clone()
+	def compute_errors(
+			self,
+			pred_batch: Union[Dict[str, torch.Tensor], torch.Tensor],
+			y_batch: Union[Dict[str, torch.Tensor], torch.Tensor]
+	) -> Dict[str, torch.Tensor]:
+		if isinstance(y_batch, dict) or isinstance(pred_batch, dict):
+			if isinstance(y_batch, torch.Tensor):
+				y_batch = {k: y_batch for k in pred_batch}
+			else:
+				raise ValueError(f"y_batch must be a dict or a tensor, not {type(y_batch)}.")
+			if isinstance(pred_batch, torch.Tensor):
+				pred_batch = {k: pred_batch for k in y_batch}
+			else:
+				raise ValueError(f"pred_batch must be a dict or a tensor, not {type(pred_batch)}.")
+			batch_error = {
+				k: (pred_batch[k] - y_batch[k].to(pred_batch[k].device))
+				for k in y_batch
+			}
+		else:
+			batch_error = {self.DEFAULT_Y_KEY: pred_batch - y_batch.to(pred_batch.device)}
+		return batch_error
 	
-	def on_optimization_begin(self, trainer, **kwargs):
-		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+	def update_grads(
+			self,
+			error: Dict[str, torch.Tensor],
+			loss: torch.Tensor,
+	):
+		learning_signals = self.compute_learning_signals(error)
+		with torch.no_grad():
+			for param, ls, et in zip(self.params, learning_signals, self.eligibility_traces):
+				param.grad += (ls * et.to(ls.device)).to(param.device).view(param.shape).detach()
+
+		mean_loss = torch.mean(loss)
+		with torch.no_grad():
+			for out_param in self.output_params:
+				out_param.grad += torch.autograd.grad(mean_loss, out_param, retain_graph=True, allow_unused=True)[0]
+	
+	def _make_optim_step(self, **kwargs):
+		super()._make_optim_step(**kwargs)
+		zero_grad_params(self.output_params)
+		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
+	
+	def on_batch_end(self, trainer, **kwargs):
+		super().on_batch_end(trainer)
+		if trainer.model.training:
+			need_optim_step = False
+			for layer_name in self._layers_buffer:
+				backward_t = len(self._layers_buffer[layer_name])
+				if backward_t > 0:
+					need_optim_step = True
+					if layer_name in self._hidden_layer_names:
+						self._hidden_backward_at_t(self._data_n_time_steps - 1, backward_t, layer_name)
+					else:
+						self._backward_at_t(self._data_n_time_steps - 1, backward_t, layer_name)
+			if need_optim_step:
+				self._make_optim_step()
+		self.undecorate_forwards()
+		self._layers_buffer.clear()
 		self.optimizer.zero_grad()
-		self.apply_grads()
-		self.optimizer.step()
-		trainer.update_state_(batch_loss=self.apply_criterion(pred_batch, y_batch).detach_())
-	
-	def on_optimization_end(self, trainer, **kwargs):
-		self.optimizer.zero_grad()
-	
-	def on_pbar_update(self, trainer, **kwargs) -> dict:
-		return {
-			# "mean_grads": {
-			# 	layer_name: [
-			# 		to_numpy(torch.mean(torch.abs(p.grad.detach().clone()))).item()
-			# 		for p in self.running_grads[layer_name]
-			# 	]
-			# 	for layer_name in self.running_grads
-			# },
-			# "mean_eligibility_traces": self.mean_eligibility_traces,
-			# "mean_learning_signals": self.mean_learning_signals,
-		}
+
 	

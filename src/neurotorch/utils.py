@@ -354,17 +354,46 @@ def compute_jacobian(
 	return jacobian
 
 
-def dz_dw_local(z: torch.Tensor, params: Sequence[torch.nn.Parameter]):
-	grad_local = []
-	for param_idx, param in enumerate(filter_parameters(params, requires_grad=True)):
-		grad_local.append(torch.zeros_like(param))
-		for unit_idx in range(param.shape[-1]):
-			grad_local[param_idx][..., unit_idx] = torch.autograd.grad(
-				z[..., unit_idx], param,
-				grad_outputs=torch.ones_like(z[..., -1]),
-				retain_graph=True,
-			)[0][..., unit_idx]
-	return grad_local
+def dy_dw_local(
+		y: torch.Tensor,
+		params: Sequence[torch.nn.Parameter],
+		grad_outputs: Optional[torch.Tensor] = None,
+		retain_graph: bool = True,
+		allow_unused: bool = True,
+) -> List[torch.Tensor]:
+	"""
+	Compute the derivative of z with respect to the parameters using torch.autograd.grad. If a parameter not
+	requires grad, the derivative is set to zero.
+	
+	:param y: The tensor to compute the derivative.
+	:type y: torch.Tensor
+	:param params: The parameters to compute the derivative with respect to.
+	:type params: Sequence[torch.nn.Parameter]
+	:param grad_outputs: The gradient of the output. If None, use a tensor of ones.
+	:type grad_outputs: torch.Tensor or None
+	:param retain_graph: If True, the graph used to compute the grad will be retained.
+	:type retain_graph: bool
+	:param allow_unused: If True, allow the computation of the derivative with respect to a parameter that is not
+		used in the computation of z.
+	:type allow_unused: bool
+	:return: The derivative of z with respect to the parameters.
+	:rtype: List[torch.Tensor]
+	"""
+	grad_outputs = torch.ones_like(y) if grad_outputs is None else grad_outputs
+	grads_local = []
+	for param_idx, param in enumerate(params):
+		grad = None
+		if param.requires_grad:
+			grad = torch.autograd.grad(
+				y, param,
+				grad_outputs=grad_outputs,
+				retain_graph=retain_graph,
+				allow_unused=allow_unused,
+			)[0]
+		if grad is None:
+			grad = torch.zeros_like(param)
+		grads_local.append(grad)
+	return grads_local
 
 
 def vmap(f):
@@ -420,3 +449,24 @@ def recursive_detach(tensors: Union[torch.Tensor, Tuple[torch.Tensor], List[torc
 	else:
 		out = tensors.detach()
 	return out
+
+
+def get_contributing_params(y, top_level=True):
+	"""
+	Get the parameters that contribute to the computation of y.
+	
+	Taken from "https://stackoverflow.com/questions/72301628/find-pytorch-model-parameters-that-dont-contribute-to-loss".
+	
+	:param y: The tensor to compute the contribution of the parameters.
+	:param top_level: Whether y is a top level tensor or not.
+	:type top_level: bool
+	:return: A generator of the parameters that contribute to the computation of y.
+	"""
+	nf = y.grad_fn.next_functions if top_level else y.next_functions
+	for f, _ in nf:
+		try:
+			yield f.variable
+		except AttributeError:
+			pass  # node has no tensor
+		if f is not None:
+			yield from get_contributing_params(f, top_level=False)

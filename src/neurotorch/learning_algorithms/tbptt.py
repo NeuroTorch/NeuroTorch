@@ -21,7 +21,7 @@ class TBPTT(BPTT):
 	):
 		super(TBPTT, self).__init__(params=params, layers=layers, optimizer=optimizer, criterion=criterion, **kwargs)
 		self.output_layers = None
-		self._original_forwards = {}
+		self._original_forwards = {}  # {layer_name: (layer, layer.forward)}
 		self._auto_set_backward_time_steps = backward_time_steps is None
 		self.backward_time_steps = backward_time_steps
 		self._auto_backward_time_steps_ratio = kwargs.get("auto_backward_time_steps_ratio", 0.1)
@@ -70,7 +70,7 @@ class TBPTT(BPTT):
 	
 	def _initialize_original_forwards(self):
 		for layer in self.output_layers.values():
-			self._original_forwards[layer.name] = layer.forward
+			self._original_forwards[layer.name] = (layer, layer.forward)
 	
 	def decorate_forwards(self):
 		if self.trainer.model.training:
@@ -81,8 +81,8 @@ class TBPTT(BPTT):
 			self._forwards_decorated = True
 	
 	def undecorate_forwards(self):
-		for name, layer in self._original_forwards.items():
-			layer.forward = self._original_forwards[name]
+		for name, (layer, original_forward) in self._original_forwards.items():
+			layer.forward = original_forward
 		self._forwards_decorated = False
 	
 	def _maybe_update_time_steps(self):
@@ -90,8 +90,8 @@ class TBPTT(BPTT):
 			self.backward_time_steps = max(1, int(self._auto_backward_time_steps_ratio * self._data_n_time_steps))
 		if self._auto_set_optim_time_steps:
 			self.optim_time_steps = max(1, int(self._auto_optim_time_steps_ratio * self._data_n_time_steps))
-		# if self.backward_time_steps != self.optim_time_steps:
-		# 	raise NotImplementedError("backward_time_steps != optim_time_steps is not implemented yet")
+		if self.backward_time_steps != self.optim_time_steps:
+			raise NotImplementedError("backward_time_steps != optim_time_steps is not implemented yet")
 	
 	def _decorate_forward(self, forward, layer_name: str):
 		def _forward(*args, **kwargs):
@@ -109,7 +109,7 @@ class TBPTT(BPTT):
 			if length == self.backward_time_steps and ready:
 				self._backward_at_t(t, self.backward_time_steps, layer_name)
 				out = self._detach_out(out)
-			if length == self.optim_time_steps and ready:
+			if length == self.optim_time_steps and ready:  # TODO: add a counter for optim
 				self._make_optim_step()
 			return out
 		return _forward

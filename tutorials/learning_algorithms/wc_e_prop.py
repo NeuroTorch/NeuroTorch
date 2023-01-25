@@ -9,7 +9,6 @@ from neurotorch.callbacks.convergence import ConvergenceTimeGetter
 from neurotorch.callbacks.early_stopping import EarlyStoppingThreshold
 from neurotorch.callbacks.events import EventOnMetricThreshold
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
-from neurotorch.learning_algorithms.curbd import CURBD
 from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
 from neurotorch.utils import hash_params
@@ -89,7 +88,8 @@ def train_with_params(
 		name="WilsonCowan_layer1",
 		force_dale_law=params["force_dale_law"],
 		activation=params["activation"],
-		use_recurrent_connection=params["add_out_layer"],
+		# use_recurrent_connection=params["add_out_layer"],
+		use_recurrent_connection=False,
 	).build()
 	layers = [ws_layer]
 	if params["add_out_layer"]:
@@ -102,17 +102,8 @@ def train_with_params(
 		layers.append(out_layer)
 	model = nt.SequentialRNN(layers=layers, device=device, foresight_time_steps=dataset.n_time_steps - 1).build()
 	callbacks = [
-		# nt.Eprop(
-		# 	layers=[model.get_layer()],
-		# 	criterion=nt.losses.PVarianceLoss(),
-		# 	lr=0.5,
-		# )
-		nt.BPTT(
-			optimizer=torch.optim.AdamW(
-				model.parameters(), lr=params["learning_rate"], maximize=True,
-				weight_decay=params.get("weight_decay", 0.1)
-			),
-			criterion=nt.losses.PVarianceLoss(),
+		nt.Eprop(
+			criterion=nt.losses.PVarianceLoss()
 		)
 	]
 	
@@ -134,6 +125,7 @@ def train_with_params(
 		model,
 		predict_method="get_prediction_trace",
 		callbacks=callbacks,
+		metrics=[nt.metrics.RegressionMetrics(model, "p_var")],
 	)
 	print(f"{trainer}")
 	history = trainer.train(
@@ -203,7 +195,7 @@ if __name__ == '__main__':
 			"activation"                    : "sigmoid",
 			"add_out_layer"                 : True,
 			"learning_rate"                 : 0.001,
-			# "hh_init"                       : "random",
+			"hh_init"                       : "inputs",
 		},
 		n_iterations=500,
 		device=torch.device("cuda"),

@@ -22,6 +22,7 @@ from neurotorch.utils import (
 	zero_grad_params,
 	recursive_detach,
 )
+from neurotorch import Visualise, VisualisePCA, VisualiseUMAP, VisualiseKMeans
 
 
 def dz_dw_local(z: torch.Tensor, params: Sequence[torch.nn.Parameter]):
@@ -170,7 +171,7 @@ class SimplifiedEpropFinal:
 			pvars.append(to_numpy(pvar).item())
 			mses.append(to_numpy(mse).item())
 
-		return x_pred
+		return x_pred, self.true_time_series
 
 	def compute_learning_signals(self, error: torch.Tensor):
 		learning_signals = []
@@ -383,9 +384,31 @@ if __name__ == '__main__':
 			learning_rate=1e-3,
 			update_each=1,
 			n_units=n_units,
-			iteration=300,
-			sigma=20,
+			iteration=250,
+			sigma=15,
 			kappa=0,
 			n_time_steps=-1,
 			device=torch.device("cpu"),
+	)
+
+	predicted, true = res
+
+	predicted = torch.squeeze(predicted)
+	true = torch.squeeze(true)
+
+	pred_viz = Visualise(
+		predicted,
+		shape=nt.Size(
+			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
+				nt.Dimension(None, nt.DimensionProperty.NONE, "Activity [-]"),
+			]
+		)
+	)
+	pred_viz.plot_timeseries_comparison_report(
+		true,
+		title=f"Prediction",
+		#filename=f"{res['network'].checkpoint_folder}/figures/WilsonCowan_prediction_report.png",
+		show=True,
+		dpi=600,
 	)

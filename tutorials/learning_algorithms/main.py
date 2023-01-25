@@ -63,6 +63,7 @@ def set_default_param(**kwargs):
 	kwargs.setdefault("learn_mu", True)
 	kwargs.setdefault("learn_r", True)
 	kwargs.setdefault("learn_tau", True)
+	kwargs.setdefault("add_readout_layer", False)
 	kwargs.setdefault("hh_init", "inputs")
 	kwargs.setdefault("force_dale_law", True)
 	kwargs.setdefault("seed", 0)
@@ -84,7 +85,7 @@ def make_learning_algorithm(**kwargs):
 		learning_algorithm = nt.BPTT(optimizer=optimizer, criterion=nt.losses.PVarianceLoss())
 	elif la_name == "eprop":
 		learning_algorithm = nt.Eprop(
-			# criterion=nt.losses.PVarianceLoss(),
+			# criterion=nt.losses.PVarianceLoss(negative=True),
 			criterion=torch.nn.MSELoss(),
 		)
 	elif la_name == "tbptt":
@@ -160,7 +161,7 @@ def train_with_params(
 		ws_layer_i.name = f"WilsonCowan_layer{i+1}"
 		layers.append(ws_layer_i)
 	
-	if kwargs.get("add_readout_layer", False):
+	if params.get("add_readout_layer", False):
 		linear_layer = nt.LILayer(
 			x.shape[-1], x.shape[-1],
 			device=device,
@@ -209,9 +210,9 @@ def train_with_params(
 		# 	retain_progress=True,
 		# ),
 		*learning_algorithms,
-		checkpoint_manager,
-		convergence_time_getter,
-		EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
+		# checkpoint_manager,
+		# convergence_time_getter,
+		# EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
 		# EventOnMetricThreshold(
 		# 	metric_name='train_loss', threshold=0.8, minimize_metric=False,
 		# 	event=increase_trainer_iteration_event, do_once=False, event_kwargs={"delta_iterations": 2}
@@ -245,6 +246,7 @@ def train_with_params(
 		# regularization_optimizer=optimizer_reg,
 		# regularization=regularisation,
 		# metrics=[regularisation],
+		metrics=[nt.metrics.RegressionMetrics(model, "p_var")]
 	)
 	print(f"{trainer}")
 	history = trainer.train(
@@ -311,6 +313,7 @@ if __name__ == '__main__':
 			"learn_r": True,
 			"learn_tau": True,
 			"activation": "sigmoid",
+			"add_readout_layer": True,
 			# "rls_strategy": "inputs",
 			# "add_aux_tbptt": True,
 		},

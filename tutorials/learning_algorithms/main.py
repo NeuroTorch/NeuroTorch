@@ -159,6 +159,15 @@ def train_with_params(
 		ws_layer_i = deepcopy(ws_layer)
 		ws_layer_i.name = f"WilsonCowan_layer{i+1}"
 		layers.append(ws_layer_i)
+	
+	if kwargs.get("add_readout_layer", False):
+		linear_layer = nt.LILayer(
+			x.shape[-1], x.shape[-1],
+			device=device,
+			use_bias=False,
+			kappa=0.0
+		).build()
+		layers.append(linear_layer)
 
 	model = nt.SequentialRNN(layers=layers, device=device, foresight_time_steps=dataset.n_time_steps - 1).build()
 

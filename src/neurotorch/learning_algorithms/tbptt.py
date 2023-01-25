@@ -4,7 +4,7 @@ from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple
 
 import torch
 from .bptt import BPTT
-from ..utils import list_insert_replace_at
+from ..utils import list_insert_replace_at, zero_grad_params
 
 
 class TBPTT(BPTT):
@@ -79,10 +79,10 @@ class TBPTT(BPTT):
 			for layer in self.output_layers.values():
 				layer.forward = self._decorate_forward(layer.forward, layer.name)
 			self._forwards_decorated = True
-			
+	
 	def undecorate_forwards(self):
-		for layer in self.output_layers.values():
-			layer.forward = self._original_forwards[layer.name]
+		for name, layer in self._original_forwards.items():
+			layer.forward = self._original_forwards[name]
 		self._forwards_decorated = False
 	
 	def _maybe_update_time_steps(self):
@@ -90,8 +90,8 @@ class TBPTT(BPTT):
 			self.backward_time_steps = max(1, int(self._auto_backward_time_steps_ratio * self._data_n_time_steps))
 		if self._auto_set_optim_time_steps:
 			self.optim_time_steps = max(1, int(self._auto_optim_time_steps_ratio * self._data_n_time_steps))
-		if self.backward_time_steps != self.optim_time_steps:
-			raise NotImplementedError("backward_time_steps != optim_time_steps is not implemented yet")
+		# if self.backward_time_steps != self.optim_time_steps:
+		# 	raise NotImplementedError("backward_time_steps != optim_time_steps is not implemented yet")
 	
 	def _decorate_forward(self, forward, layer_name: str):
 		def _forward(*args, **kwargs):
@@ -110,8 +110,7 @@ class TBPTT(BPTT):
 				self._backward_at_t(t, self.backward_time_steps, layer_name)
 				out = self._detach_out(out)
 			if length == self.optim_time_steps and ready:
-				self.optimizer.step()
-				self.optimizer.zero_grad()
+				self._make_optim_step()
 			return out
 		return _forward
 	
@@ -125,6 +124,11 @@ class TBPTT(BPTT):
 			)
 		batch_loss.backward()
 		self._layers_buffer[layer_name].clear()
+		
+	def _make_optim_step(self, **kwargs):
+		self.optimizer.step()
+		self.optimizer.zero_grad()
+		zero_grad_params(self.params)
 	
 	def _get_y_batch_slice_from_trainer(self, t_first: int, t_last: int, layer_name: str = None):
 		y_batch = self.trainer.current_training_state.y_batch

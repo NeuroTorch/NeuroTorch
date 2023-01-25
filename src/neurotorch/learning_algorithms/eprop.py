@@ -137,28 +137,36 @@ class Eprop(TBPTT):
 		"""
 		if not self.params and self.optimizer:
 			self.params = self.optimizer.param_groups[self.OPTIMIZER_PARAMS_GROUP_IDX]["params"]
-		elif not self.params:
-			self.params = list(trainer.model.parameters())
+		if not self.params:
+			self.params = []
+			possible_attrs = ["input_layers", "input_layer", "hidden_layers", "hidden_layer"]
+			for attr in possible_attrs:
+				if hasattr(trainer.model, attr):
+					self.params += list(getattr(trainer.model, attr).parameters())
+		if not self.params:
+			warnings.warn("No hidden parameters found. Please provide them manually if you have any.")
 		
-		self.params = [p for p in self.params if p not in self.output_params]
+		# self.params = [p for p in self.params if p not in self.output_params]
 		self.params = filter_parameters(self.params, requires_grad=True)
 	
 	def initialize_output_params(self, trainer):
 		if not self.output_layers:
-			if hasattr(trainer.model, "output_layers"):
-				self.output_layers = trainer.model.output_layers
-			elif hasattr(trainer.model, "output_layer"):
-				self.output_layers = [trainer.model.output_layer]
-			else:
-				raise ValueError(
-					"Could not find output layers. Please provide them manually."
-				)
-			if isinstance(self.output_layers, torch.nn.Module):
-				self.output_layers = [self.output_layers]
-			elif isinstance(self.output_layers, (list, tuple)):
-				self.output_layers = list(self.output_layers)
-			elif isinstance(self.output_layers, dict):
-				self.output_layers = list(self.output_layers.values())
+			self.output_layers = []
+			possible_attrs = ["output_layers", "output_layer"]
+			for attr in possible_attrs:
+				obj = getattr(trainer.model, attr, [])
+				if isinstance(obj, (list, tuple)):
+					obj = list(obj)
+				elif isinstance(obj, dict):
+					obj = list(obj.values())
+				elif isinstance(obj, torch.nn.Module):
+					obj = [obj]
+				self.output_layers += list(obj)
+		
+		if not self.output_layers:
+			raise ValueError(
+				"Could not find output layers. Please provide them manually."
+			)
 		
 		if not self.output_params:
 			self.output_params = [
@@ -170,12 +178,30 @@ class Eprop(TBPTT):
 			raise ValueError("Could not find output parameters. Please provide them manually.")
 		
 		self.output_params = filter_parameters(self.output_params, requires_grad=True)
-		self.params = [p for p in self.params if p not in self.output_params]
+		# self.params = [p for p in self.params if p not in self.output_params]
+	
+	def initialize_layers(self, trainer):
+		if not self.layers:
+			self.layers = []
+			possible_attrs = ["input_layers", "input_layer", "hidden_layers", "hidden_layer"]
+			for attr in possible_attrs:
+				if hasattr(trainer.model, attr):
+					obj = getattr(trainer.model, attr, [])
+					if isinstance(obj, (list, tuple)):
+						obj = list(obj)
+					elif isinstance(obj, dict):
+						obj = list(obj.values())
+					elif isinstance(obj, torch.nn.Module):
+						obj = [obj]
+					self.layers += list(obj)
+		if not self.layers:
+			warnings.warn("No hidden layers found. Please provide them manually if you have any.")
 	
 	def start(self, trainer, **kwargs):
 		LearningAlgorithm.start(self, trainer, **kwargs)
 		self.initialize_output_params(trainer)
 		self.initialize_params(trainer)
+		self.initialize_layers(trainer)
 		
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
@@ -203,15 +229,11 @@ class Eprop(TBPTT):
 				self._initialize_original_forwards()
 			self._hidden_layer_names.clear()
 			
-			for layer in self.trainer.model.input_layers.values():
+			for layer in self.layers:
 				layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
 				self._hidden_layer_names.append(layer.name)
 			
-			for layer in self.trainer.model.hidden_layers:
-				layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
-				self._hidden_layer_names.append(layer.name)
-			
-			for layer in self.output_layers.values():
+			for layer in self.output_layers:
 				layer.forward = self._decorate_forward(layer.forward, layer.name)
 			self._forwards_decorated = True
 	

@@ -131,7 +131,7 @@ class TBPTT(BPTT):
 		zero_grad_params(self.params)
 	
 	def _get_y_batch_slice_from_trainer(self, t_first: int, t_last: int, layer_name: str = None):
-		y_batch = self.trainer.current_training_state.y_batch
+		y_batch = self.trainer.current_training_state.y_batch.clone()
 		if isinstance(y_batch, dict):
 			if layer_name is None:
 				y_batch = {
@@ -142,7 +142,7 @@ class TBPTT(BPTT):
 				y_batch = y_batch[layer_name][:, t_first:t_last]
 		else:
 			y_batch = y_batch[:, t_first:t_last]
-		return y_batch.clone()
+		return y_batch
 	
 	def _get_out_tensor(self, out: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]]):
 		if isinstance(out, (tuple, list)):

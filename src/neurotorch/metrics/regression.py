@@ -10,7 +10,7 @@ from sklearn import metrics as sk_metrics
 
 from .base import BaseMetrics
 from ..modules import BaseModel
-from ..transforms import to_tensor
+from ..transforms import to_tensor, to_numpy
 
 
 class RegressionMetrics(BaseMetrics):
@@ -53,11 +53,11 @@ class RegressionMetrics(BaseMetrics):
 					if not isinstance(targets, dict):
 						targets = {k: targets for k in preds}
 					for k, v in preds.items():
-						predictions[k].extend(v.cpu().numpy())
-						targets[k].extend(y_true[k].cpu().numpy())
+						predictions[k].extend(to_numpy(v))
+						targets[k].extend(to_numpy(y_true[k]))
 				else:
-					predictions["__all__"].extend(preds.cpu().numpy())
-					targets["__all__"].extend(y_true.cpu().numpy())
+					predictions["__all__"].extend(to_numpy(preds))
+					targets["__all__"].extend(to_numpy(y_true))
 		predictions = {k: np.asarray(v) for k, v in predictions.items()}
 		targets = {k: np.asarray(v) for k, v in targets.items()}
 		if len(targets) == 1:
@@ -169,9 +169,9 @@ class RegressionMetrics(BaseMetrics):
 			device = y_pred.device
 		y_true, y_pred = y_true.to(device), y_pred.to(device)
 		dims = list(range(y_pred.ndim))[1:]
-		mse = torch.mean(mse_loss(y_true, y_pred, reduction='none'), dim=dims)
+		mse = torch.mean(mse_loss(y_pred, y_true, reduction='none'), dim=dims)
 		var = torch.var(y_true, dim=dims)
-		p_var_values = 1 - mse / (var + RegressionMetrics.EPSILON)
+		p_var_values = 1 - (mse / (var + RegressionMetrics.EPSILON))
 		if reduction.lower() == 'none':
 			p_var_value = p_var_values
 		elif reduction.lower() == 'mean':
@@ -216,10 +216,10 @@ class RegressionMetrics(BaseMetrics):
 
 		if isinstance(y_true, dict):
 			return {
-				k: RegressionMetrics.compute_p_var(y_true[k], y_pred[k], device).detach().cpu().numpy()
+				k: to_numpy(RegressionMetrics.compute_p_var(y_true[k], y_pred[k], device))
 				for k in y_true
 			}
-		return RegressionMetrics.compute_p_var(y_true, y_pred, device).detach().cpu().numpy()
+		return to_numpy(RegressionMetrics.compute_p_var(y_true, y_pred, device))
 
 	def __call__(
 			self,

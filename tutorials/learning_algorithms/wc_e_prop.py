@@ -113,12 +113,14 @@ def train_with_params(
 	).build()
 	la = nt.Eprop(
 		criterion=nt.losses.PVarianceLoss(negative=True),
-		#criterion=torch.nn.MSELoss(),
+		# criterion=torch.nn.MSELoss(),
+		# backward_time_steps=dataset.n_time_steps - 1,
+		# optim_time_steps=dataset.n_time_steps - 1,
+		# backward_time_steps=10,
+		# optim_time_steps=10,
 	)
-	callbacks = [
-		la,
-		checkpoint_manager,
-	]
+	# la = nt.BPTT(criterion=nt.losses.PVarianceLoss(), maximize=True)
+	callbacks = [la, checkpoint_manager]
 	
 	with torch.no_grad():
 		W0 = ws_layer.forward_weights.clone().detach().cpu().numpy()
@@ -161,7 +163,7 @@ def train_with_params(
 		], dim=1
 	)
 	# x_pred = trainer.current_training_state.pred_batch
-	loss = PVarianceLoss()(x_pred.to(x.device), x)
+	loss = PVarianceLoss()(x_pred.to(x.device)[:, 1:], x[:, 1:])
 	
 	out = {
 		"params"              : params,
@@ -198,8 +200,8 @@ if __name__ == '__main__':
 			# "filename": "curbd_Adata.npy",
 			"filename"                      : None,
 			"smoothing_sigma"               : 15.0,
-			"n_units"                       : 50,
-			"n_aux_units"                   : 50,
+			"n_units"                       : 200,
+			"n_aux_units"                   : 200,
 			"n_time_steps"                  : -1,
 			"dataset_length"                : 1,
 			"dataset_randomize_indexes"     : False,

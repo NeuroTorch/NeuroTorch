@@ -369,12 +369,14 @@ class SequentialRNN(Sequential):
 			self,
 			inputs: Dict[str, torch.Tensor],
 			hidden_states: Dict[str, List],
-			t: int
+			idx: int,
+			t: Optional[int] = None,
+			**forward_kwargs
 	) -> torch.Tensor:
 		features_list = []
 		for layer_name, layer in self.input_layers.items():
 			hh = sequence_get(hidden_states.get(layer.name, []), idx=-1, default=None)
-			features, hh = unpack_out_hh(layer(inputs[layer_name][:, t], hh, t=t))
+			features, hh = unpack_out_hh(layer(inputs[layer_name][:, idx], hh, t=t, **forward_kwargs))
 			hidden_states[layer_name].append(self._memory_device_transform(hh))
 			features_list.append(features)
 		if features_list:
@@ -387,24 +389,26 @@ class SequentialRNN(Sequential):
 			self,
 			forward_tensor: torch.Tensor,
 			hidden_states: Dict[str, List],
-			t: int
+			t: int,
+			**forward_kwargs
 	) -> torch.Tensor:
 		for layer_idx, layer in enumerate(self.hidden_layers):
 			hh = sequence_get(hidden_states.get(layer.name, []), idx=-1, default=None)
-			forward_tensor, hh = unpack_out_hh(layer(forward_tensor, hh, t=t))
+			forward_tensor, hh = unpack_out_hh(layer(forward_tensor, hh, t=t, **forward_kwargs))
 			hidden_states[layer.name].append(self._memory_device_transform(hh))
 		return forward_tensor
 
-	def _readout_forward_(
+	def _outputs_forward_(
 			self,
 			forward_tensor: torch.Tensor,
 			hidden_states: Dict[str, List],
 			outputs_trace: Dict[str, List[torch.Tensor]],
-			t: int
+			t: int,
+			**forward_kwargs
 	):
 		for layer_name, layer in self.output_layers.items():
 			hh = sequence_get(hidden_states.get(layer.name, []), idx=-1, default=None)
-			out, hh = unpack_out_hh(layer(forward_tensor, hh, t=t))
+			out, hh = unpack_out_hh(layer(forward_tensor, hh, t=t, **forward_kwargs))
 			outputs_trace[layer_name].append(self._memory_device_transform(out))
 			hidden_states[layer_name].append(self._memory_device_transform(hh))
 		return outputs_trace
@@ -432,9 +436,9 @@ class SequentialRNN(Sequential):
 		:rtype: Tuple[Dict[str, torch.Tensor], Dict[str, List]]
 		"""
 		for t in range(time_steps):
-			forward_tensor = self._inputs_forward_(inputs, hidden_states, t=t)
+			forward_tensor = self._inputs_forward_(inputs, hidden_states, idx=t, t=t)
 			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states, t=t)
-			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace, t=t)
+			outputs_trace = self._outputs_forward_(forward_tensor, hidden_states, outputs_trace, t=t)
 
 			outputs_trace = {
 				layer_name: self._pop_memory_(trace, self._out_memory_size)
@@ -451,6 +455,7 @@ class SequentialRNN(Sequential):
 			self,
 			hidden_states: Dict[str, List],
 			outputs_trace: Dict[str, List[torch.Tensor]],
+			inputs_time_steps: int,
 			foresight_time_steps: int,
 	) -> Tuple[Dict[str, List[torch.Tensor]], Dict[str, List]]:
 		"""
@@ -469,14 +474,16 @@ class SequentialRNN(Sequential):
 		if self._outputs_to_inputs_names_map is None:
 			self._map_outputs_to_inputs()
 		
-		for t in range(foresight_time_steps-1):
+		for tau in range(foresight_time_steps-1):
+			t = inputs_time_steps + tau
 			foresight_inputs_tensor = {
 				self._outputs_to_inputs_names_map[layer_name]: torch.unsqueeze(trace[-1], dim=1)
 				for layer_name, trace in outputs_trace.items()
 			}
-			forward_tensor = self._inputs_forward_(foresight_inputs_tensor, hidden_states, t=-1)
-			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states, t=t)
-			outputs_trace = self._readout_forward_(forward_tensor, hidden_states, outputs_trace, t=t)
+			forecast_kwargs = dict(forecasting=True, tau=tau)
+			forward_tensor = self._inputs_forward_(foresight_inputs_tensor, hidden_states, idx=-1, t=t, **forecast_kwargs)
+			forward_tensor = self._hidden_forward_(forward_tensor, hidden_states, t=t, **forecast_kwargs)
+			outputs_trace = self._outputs_forward_(forward_tensor, hidden_states, outputs_trace, t=t, **forecast_kwargs)
 			
 			outputs_trace = {
 				layer_name: self._pop_memory_(trace, self._out_memory_size)
@@ -544,7 +551,9 @@ class SequentialRNN(Sequential):
 		outputs_trace, hidden_states = self._integrate_inputs_(inputs, hidden_states, outputs_trace, time_steps)
 		if foresight_time_steps > 0:
 			# Foresight prediction of the initial conditions
-			outputs_trace, hidden_states = self._forecast_integration_(hidden_states, outputs_trace, foresight_time_steps)
+			outputs_trace, hidden_states = self._forecast_integration_(
+				hidden_states, outputs_trace, time_steps, foresight_time_steps
+			)
 
 		hidden_states = self._format_hidden_outputs_traces(hidden_states)
 		outputs_trace_tensor = self.apply_output_transform({

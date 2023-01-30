@@ -33,6 +33,7 @@ class BPTT(LearningAlgorithm):
 		
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
+		:keyword bool maximize: Whether to maximize the loss. Defaults to False.
 		"""
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)

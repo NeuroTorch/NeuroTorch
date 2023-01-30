@@ -1,3 +1,4 @@
+import copy
 import warnings
 from collections import defaultdict
 from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List, Mapping
@@ -281,6 +282,7 @@ class Eprop(TBPTT):
 		self.initialize_output_params(trainer)
 		self.initialize_layers(trainer)
 		self.initialize_params(trainer)
+		self._debug_start_model = copy.deepcopy(trainer.model)
 
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
@@ -346,17 +348,13 @@ class Eprop(TBPTT):
 		"""
 		def _forward(*args, **kwargs):
 			out = forward(*args, **kwargs)
-			t = kwargs.get("t", None)
+			t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
 			if t is None:
 				return out
 			out_tensor, hh = unpack_out_hh(out)
-			if t == 0:  # Hotfix for the first time step  TODO: fix this
-				ready = bool(self._layers_buffer[layer_name])
-			else:
-				ready = True
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
 			length = len(self._layers_buffer[layer_name])
-			if length == self.backward_time_steps and ready:
+			if length == self.backward_time_steps:
 				self._hidden_backward_at_t(t, self.backward_time_steps, layer_name)
 				out = recursive_detach(out)
 			return out
@@ -511,11 +509,27 @@ class Eprop(TBPTT):
 		self.undecorate_forwards()
 		self._layers_buffer.clear()
 		self.optimizer.zero_grad()
-
+		
+		# debug_bool = True
+		# for param, m_param in zip(self.output_params, self.trainer.model.output_layers.parameters()):
+		# 	assert torch.equal(param, m_param)
+		# 	debug_bool = torch.equal(param, m_param) and debug_bool
+		# for param, m_param in zip(self.params, self._debug_start_model.output_layers.parameters()):
+		# 	assert torch.equal(param, m_param)
+		# 	debug_bool = not torch.equal(param, m_param) and debug_bool
+		# assert debug_bool
+	
+	def on_train_end(self, trainer, **kwargs):
+		from neurotorch.metrics import PVarianceLoss
+		y_batch = trainer.current_training_state.y_batch
+		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+		self._debug_on_train_end_metrics = to_numpy(PVarianceLoss()(pred_batch, y_batch)).item()
+		return self.on_pbar_update(trainer, **kwargs)
+	
 	def on_pbar_update(self, trainer, **kwargs) -> dict:
 		from neurotorch.metrics import PVarianceLoss
 		y_batch = trainer.current_training_state.y_batch
 		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
-		return {"pVar": to_numpy(PVarianceLoss()(pred_batch, y_batch)).item()}
+		return {"pVar": to_numpy(PVarianceLoss()(pred_batch, y_batch)).item(), "pVar_debug": self._debug_on_train_end_metrics}
 
-	
+

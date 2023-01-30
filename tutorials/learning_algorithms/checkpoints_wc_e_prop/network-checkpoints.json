@@ -1,0 +1,6 @@
+{
+    "iterations": {
+        "99": "network-itr99.pth"
+    },
+    "best": "network-itr99.pth"
+}

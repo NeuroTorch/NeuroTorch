@@ -512,4 +512,10 @@ class Eprop(TBPTT):
 		self._layers_buffer.clear()
 		self.optimizer.zero_grad()
 
+	def on_pbar_update(self, trainer, **kwargs) -> dict:
+		from neurotorch.metrics import PVarianceLoss
+		y_batch = trainer.current_training_state.y_batch
+		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+		return {"pVar": to_numpy(PVarianceLoss()(pred_batch, y_batch)).item()}
+
 	

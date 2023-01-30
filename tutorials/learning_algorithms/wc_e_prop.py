@@ -39,7 +39,7 @@ def set_default_param(**kwargs):
 	kwargs.setdefault("learn_mu", True)
 	kwargs.setdefault("learn_r", True)
 	kwargs.setdefault("learn_tau", True)
-	kwargs.setdefault("force_dale_law", True)
+	kwargs.setdefault("force_dale_law", False)
 	kwargs.setdefault("seed", 0)
 	kwargs.setdefault("n_units", 200)
 	kwargs.setdefault("n_aux_units", kwargs["n_units"])
@@ -100,11 +100,24 @@ def train_with_params(
 			# force_dale_law=params["force_dale_law"],
 		)
 		layers.append(out_layer)
-	model = nt.SequentialRNN(layers=layers, device=device, foresight_time_steps=dataset.n_time_steps - 1).build()
+	checkpoint_manager = nt.CheckpointManager(
+		checkpoint_folder="./checkpoints_wc_e_prop",
+		metric="train_loss",
+		save_freq=-1,
+	)
+	model = nt.SequentialRNN(
+		layers=layers,
+		device=device,
+		foresight_time_steps=dataset.n_time_steps - 1,
+		checkpoint_folder=checkpoint_manager.checkpoint_folder,
+	).build()
+	la = nt.Eprop(
+		criterion=nt.losses.PVarianceLoss(negative=True),
+		#criterion=torch.nn.MSELoss(),
+	)
 	callbacks = [
-		nt.Eprop(
-			criterion=nt.losses.PVarianceLoss()
-		)
+		la,
+		checkpoint_manager,
 	]
 	
 	with torch.no_grad():
@@ -136,7 +149,9 @@ def train_with_params(
 		force_overwrite=kwargs["force_overwrite"],
 	)
 	history.plot(show=True)
-	
+
+	model.eval()
+	# model.load_checkpoint(checkpoint_manager.checkpoints_meta_path)
 	model.foresight_time_steps = x.shape[1] - 1
 	model.out_memory_size = model.foresight_time_steps
 	x_pred = torch.concat(
@@ -145,6 +160,7 @@ def train_with_params(
 			model.get_prediction_trace(torch.unsqueeze(x[:, 0].clone(), dim=1))
 		], dim=1
 	)
+	# x_pred = trainer.current_training_state.pred_batch
 	loss = PVarianceLoss()(x_pred.to(x.device), x)
 	
 	out = {
@@ -182,8 +198,8 @@ if __name__ == '__main__':
 			# "filename": "curbd_Adata.npy",
 			"filename"                      : None,
 			"smoothing_sigma"               : 15.0,
-			"n_units"                       : 200,
-			"n_aux_units"                   : 200,
+			"n_units"                       : 50,
+			"n_aux_units"                   : 50,
 			"n_time_steps"                  : -1,
 			"dataset_length"                : 1,
 			"dataset_randomize_indexes"     : False,
@@ -197,8 +213,8 @@ if __name__ == '__main__':
 			"learning_rate"                 : 0.001,
 			"hh_init"                       : "inputs",
 		},
-		n_iterations=500,
-		device=torch.device("cuda"),
+		n_iterations=100,
+		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,
 	)

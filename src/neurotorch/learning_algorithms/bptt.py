@@ -64,11 +64,15 @@ class BPTT(LearningAlgorithm):
 					self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: self.optimizer.state_dict()
 				}
 		return None
+
+	def create_default_optimizer(self):
+		self.optimizer = torch.optim.Adam(self.params, maximize=self.kwargs.get("maximize", False))
+		return self.optimizer
 	
 	def start(self, trainer, **kwargs):
 		super().start(trainer)
 		if self.params and self.optimizer is None:
-			self.optimizer = torch.optim.Adam(self.params)
+			self.optimizer = self.create_default_optimizer()
 		elif not self.params and self.optimizer is not None:
 			self.params.extend([
 				param
@@ -77,7 +81,7 @@ class BPTT(LearningAlgorithm):
 			])
 		else:
 			self.params = trainer.model.parameters()
-			self.optimizer = torch.optim.Adam(self.params)
+			self.optimizer = self.create_default_optimizer()
 		
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion

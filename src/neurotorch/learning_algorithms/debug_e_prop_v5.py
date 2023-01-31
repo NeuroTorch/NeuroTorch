@@ -14,6 +14,7 @@ from torch.utils.data import Dataset
 from neurotorch.dimension import SizeTypes
 from neurotorch.metrics import PVarianceLoss
 from neurotorch.modules.layers import Linear, LILayer, WilsonCowanLayer, SpyLILayer, BellecLIFLayer, WilsonCowanLayerDebug
+from neurotorch.trainers.trainer import CurrentTrainingState
 from neurotorch.utils import (
 	unpack_out_hh,
 	legend_without_duplicate_labels_,
@@ -34,7 +35,6 @@ class SimplifiedEpropFinal:
 			output_params: Optional[Sequence[torch.nn.Parameter]],
 			learning_rate: float = 1e-2,
 			update_each: int = 1,
-
 			device: Optional[torch.device] = torch.device("cpu"),
 			**kwargs
 	):
@@ -60,15 +60,26 @@ class SimplifiedEpropFinal:
 		self.random_matrices = []
 		#self.data = [defaultdict(list) for _ in self.model.parameters()]
 		self.learning_signal = 0.0
-
+		
+		self.eprop = nt.learning_algorithms.Eprop(params=self.params, output_params=self.output_params)
 		self.param_groups = [
 			{"params": self.params, "lr": self.kwargs.get("params_lr", 1e-4)},
 			{"params": self.output_params, "lr": self.kwargs.get("output_params_lr", 2e-4)},
 		]
-		# self.optimizer = torch.optim.SGD(self.param_groups, lr=0.1, maximize=True)
-		# self.optimizer = torch.optim.Adam(self.param_groups, maximize=True)
-		self.optimizer = torch.optim.Adam(self.param_groups)
+		# self.optimizer = torch.optim.Adam(self.eprop.initialize_param_groups())
+		self.optimizer = self.eprop.create_default_optimizer()
+		self.current_training_state = CurrentTrainingState()
+		self.model = kwargs.get("model", None)
+	
+	@property
+	def state(self):
+		"""
+		Alias for the :attr:`current_training_state` attribute.
 
+		:return: The :attr:`current_training_state`
+		"""
+		return self.current_training_state
+		
 	def _set_default_kwargs(self):
 		"""
 		TODO : Implement a better way to generate the random B matrix (maybe with the init...)
@@ -82,14 +93,15 @@ class SimplifiedEpropFinal:
 		for param_idx, param in enumerate(self.params):
 			if param.ndim == 0:
 				param = torch.unsqueeze(param.detach(), dim=0)
-			rn_matrix = torch.rand(
+			rn_matrix = torch.randn(
 				(param.shape[-1], self.true_time_series.shape[-1]),
 				dtype=param.dtype, device=param.device
 			).detach()
-			self.random_matrices.append(rn_matrix)
+			self.feedback_weights.append(rn_matrix)
 
 	def begin(self):
-		self._set_default_random_matrix()
+		# self._set_default_random_matrix()
+		self.eprop.initialize_feedback_weights(self.true_time_series)
 		for param in self.params:
 			self.last_eligibility_traces.append(None)
 		return self
@@ -105,38 +117,32 @@ class SimplifiedEpropFinal:
 		pvars, mses = [], []
 		x_pred = None
 		mse_func = torch.nn.MSELoss()
-		self.optimizer.zero_grad()
+		self.eprop.optimizer.zero_grad()
 		zero_grad_params(self.params)
 		zero_grad_params(self.output_params)
+		reservoir.forward = self.eprop._decorate_hidden_forward(reservoir.forward, reservoir.name)
+		output_layer.forward = self.eprop._decorate_forward(output_layer.forward, output_layer.name)
 		for _ in progress_bar:
 			x_pred = []
 			x_pred.append(self.true_time_series[:, 0, :].clone())
 			forward_tensor = self.true_time_series[:, 0, :].clone().to(reservoir.device)
 			hh = None
-
 			for t in range(1, self.true_time_series.shape[-2]):
-				forward_tensor, hh = unpack_out_hh(reservoir(forward_tensor, hh))
-				forward_tensor, _ = unpack_out_hh(output_layer(forward_tensor, None))
+				forward_tensor, hh = unpack_out_hh(reservoir(forward_tensor, hh, t=t-1))
+				forward_tensor, _ = unpack_out_hh(output_layer(forward_tensor, None, t=t-1))
 				x_pred.append(forward_tensor)
-				eligibility_traces = dy_dw_local(y=forward_tensor, params=self.params)
-				loss_at_t = forward_tensor - self.true_time_series[:, t].to(forward_tensor.device)
-				mse_at_t = mse_func(forward_tensor, self.true_time_series[:, t].to(forward_tensor.device))
-				learning_signals = self.compute_learning_signals(loss_at_t)
-				self.update_instantaneous_grad(mse_at_t, learning_signals, eligibility_traces)
+				# eligibility_traces = dy_dw_local(y=forward_tensor, params=self.params)
+				# self.eprop.eligibility_traces = eligibility_traces
+				# batch_loss = self.eprop.apply_criterion(forward_tensor, self.true_time_series[:, t].to(forward_tensor.device))
+				# learning_signals = self.compute_learning_signals(loss_at_t)
+				# errors = self.eprop.compute_errors(forward_tensor, self.true_time_series[:, t])
+				# learning_signals = self.eprop.compute_learning_signals(errors)
+				# self.eprop.update_grads(errors, batch_loss)
 				forward_tensor.detach_()
 				hh = recursive_detach(hh)
-				if t % self.update_each == 0:
-					self.optimizer.step()
-					self.optimizer.zero_grad()
-			# x_pred_tensor = torch.stack(x_pred[1:], dim=1)
-			# pvar_loss = PVarianceLoss()(x_pred_tensor, self.true_time_series[:, 1:].to(x_pred_tensor.device))
-			# self.optimizer.zero_grad()
-			# pvar_loss.backward()
-			# for out_param in self.output_params:
-			# 	out_param.grad = torch.autograd.grad(pvar_loss, out_param, retain_graph=True)[0]
-			self.optimizer.step()
-			self.optimizer.zero_grad()
-
+				# if t % self.update_each == 0:
+				# 	self.eprop._make_optim_step()
+			self.eprop._make_optim_step()
 			x_pred = torch.stack([t.cpu() for t in x_pred], dim=1)
 			pvar = PVarianceLoss()(x_pred, self.true_time_series.to(x_pred.device))
 			mse = torch.nn.MSELoss()(x_pred, self.true_time_series.to(x_pred.device))

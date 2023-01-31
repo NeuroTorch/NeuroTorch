@@ -83,7 +83,7 @@ class Eprop(TBPTT):
 		self.feedback_weights = None
 		self.rn_gen = torch.Generator()
 		self.rn_gen.manual_seed(kwargs.get("seed", 0))
-		self.eligibility_traces = None
+		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
 		self.learning_signals = defaultdict(list)
 		self.param_groups = []
 		self._hidden_layer_names = []
@@ -139,6 +139,7 @@ class Eprop(TBPTT):
 			}
 		else:
 			raise NotImplementedError("Non-random feedbacks are not implemented yet.")
+		return self.feedback_weights
 	
 	def _initialize_original_forwards(self):
 		for layer in self.trainer.model.get_all_layers():
@@ -167,7 +168,8 @@ class Eprop(TBPTT):
 		
 		# self.params = [p for p in self.params if p not in self.output_params]
 		# self.params = filter_parameters(self.params, requires_grad=True)
-		return
+		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
+		return self.params
 	
 	def initialize_output_params(self, trainer=None):
 		"""
@@ -268,6 +270,13 @@ class Eprop(TBPTT):
 			self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX,
 			{"params": self.output_params, "lr": self.kwargs.get("output_params_lr", 2e-4)}
 		)
+		return self.param_groups
+	
+	def create_default_optimizer(self):
+		if not self.param_groups:
+			self.initialize_param_groups()
+		self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups)
+		return self.optimizer
 
 	def start(self, trainer, **kwargs):
 		"""
@@ -290,7 +299,7 @@ class Eprop(TBPTT):
 		if not self.param_groups:
 			self.initialize_param_groups()
 		if not self.optimizer:
-			self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups)
+			self.optimizer = self.create_default_optimizer()
 		
 		self._initialize_original_forwards()
 	

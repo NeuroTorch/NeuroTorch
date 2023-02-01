@@ -41,8 +41,8 @@ class SimplifiedEpropFinal:
 	):
 		self.raw_time_series = to_tensor(true_time_series)
 		self.true_time_series = to_tensor(true_time_series)
-		self.true_time_series = self.true_time_series.repeat(1024, 1, 1)
-		self.true_time_series += torch.randn_like(self.true_time_series) * 0.1
+		# self.true_time_series = self.true_time_series.repeat(1024, 1, 1)
+		# self.true_time_series += torch.randn_like(self.true_time_series) * 0.1
 		self.params = filter_parameters(params, requires_grad=True)
 		self.output_params = filter_parameters(output_params, requires_grad=True)
 		self.learning_rate = learning_rate
@@ -66,7 +66,11 @@ class SimplifiedEpropFinal:
 		self.learning_signal = 0.0
 		
 		# self.eprop = nt.learning_algorithms.Eprop(params=self.params, output_params=self.output_params)
-		self.eprop = nt.learning_algorithms.Eprop(criterion=torch.nn.MSELoss())
+		self.eprop = nt.learning_algorithms.Eprop(
+			backward_time_steps=100,
+			optim_time_steps=100,
+			criterion=torch.nn.MSELoss(),
+		)
 		self.param_groups = [
 			{"params": self.params, "lr": self.kwargs.get("params_lr", 1e-4)},
 			{"params": self.output_params, "lr": self.kwargs.get("output_params_lr", 2e-4)},
@@ -109,9 +113,6 @@ class SimplifiedEpropFinal:
 		)
 		pvars, mses = [], []
 		x_pred = None
-		mse_func = torch.nn.MSELoss()
-		# self.eprop.optimizer.zero_grad()
-		
 		self.model = SequentialRNN(
 			layers=[reservoir, output_layer],
 			foresight_time_steps=self.true_time_series.shape[-2],
@@ -128,11 +129,12 @@ class SimplifiedEpropFinal:
 			self.eprop.on_batch_end(self)
 			self.eprop.on_train_end(self)
 			
-			pvar = PVarianceLoss()(x_pred, self.true_time_series.to(x_pred.device))
-			mse = torch.nn.MSELoss()(x_pred, self.true_time_series.to(x_pred.device))
-			progress_bar.set_postfix({"pvar": to_numpy(pvar).item(), "MSE": to_numpy(mse).item()})
-			pvars.append(to_numpy(pvar).item())
-			mses.append(to_numpy(mse).item())
+			with torch.no_grad():
+				pvar = PVarianceLoss()(x_pred, self.true_time_series.to(x_pred.device))
+				mse = torch.nn.MSELoss()(x_pred, self.true_time_series.to(x_pred.device))
+				progress_bar.set_postfix({"pvar": to_numpy(pvar).item(), "MSE": to_numpy(mse).item()})
+				pvars.append(to_numpy(pvar).item())
+				mses.append(to_numpy(mse).item())
 		
 		val_pvars = []
 		inputs = self.raw_time_series[:, 0, :].clone().unsqueeze(1).to(self.model.device)
@@ -180,7 +182,7 @@ if __name__ == '__main__':
 	from scipy.ndimage import gaussian_filter1d
 
 	from tutorials.util import GoogleDriveDownloader
-
+	
 	class WSDataset(Dataset):
 		"""
 		Generate a dataset of Wilson-Cowan time series.

@@ -291,6 +291,8 @@ class Eprop(TBPTT):
 		self.initialize_output_params(trainer)
 		self.initialize_layers(trainer)
 		self.initialize_params(trainer)
+		zero_grad_params(self.params)
+		zero_grad_params(self.output_params)
 		self._debug_start_model = copy.deepcopy(trainer.model)
 
 		if self.criterion is None and trainer.criterion is not None:
@@ -383,7 +385,7 @@ class Eprop(TBPTT):
 		"""
 		pred_batch = torch.squeeze(self._get_pred_batch_from_buffer(layer_name))
 		dy_dw_locals = dy_dw_local(y=pred_batch, params=self.params, retain_graph=True, allow_unused=True)
-		self.eligibility_traces = [et+dy_dw for et, dy_dw in zip(self.eligibility_traces, dy_dw_locals)]
+		self.eligibility_traces = [et+dy_dw.to(et.device) for et, dy_dw in zip(self.eligibility_traces, dy_dw_locals)]
 		self._layers_buffer[layer_name].clear()
 	
 	def _backward_at_t(self, t: int, backward_t: int, layer_name: str):

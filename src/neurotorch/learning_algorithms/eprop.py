@@ -57,6 +57,8 @@ class Eprop(TBPTT):
 		:type criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]]
 		:param kwargs: The keyword arguments to pass to the BaseCallback.
 
+		:keyword float params_lr:
+		:keyword float output_params_lr:
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
 		"""
@@ -75,7 +77,7 @@ class Eprop(TBPTT):
 			layers=layers,
 			**kwargs
 		)
-		self.output_params = output_params
+		self.output_params = output_params or []
 		self.output_layers = output_layers
 		self.random_feedbacks = kwargs.get("random_feedbacks", True)
 		if not self.random_feedbacks:
@@ -84,10 +86,13 @@ class Eprop(TBPTT):
 		self.rn_gen = torch.Generator()
 		self.rn_gen.manual_seed(kwargs.get("seed", 0))
 		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
+		self.output_eligibility_traces = [torch.zeros_like(p) for p in self.output_params]
 		self.learning_signals = defaultdict(list)
 		self.param_groups = []
 		self._hidden_layer_names = []
 		self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
+		self.gamma = kwargs.get("gamma", 0.9)
+		self.alpha = kwargs.get("alpha", 0.5)
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
@@ -165,10 +170,7 @@ class Eprop(TBPTT):
 			]
 		if not self.params:
 			warnings.warn("No hidden parameters found. Please provide them manually if you have any.")
-		
-		# self.params = [p for p in self.params if p not in self.output_params]
-		# self.params = filter_parameters(self.params, requires_grad=True)
-		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
+
 		return self.params
 	
 	def initialize_output_params(self, trainer=None):
@@ -193,8 +195,6 @@ class Eprop(TBPTT):
 		if not self.output_params:
 			raise ValueError("Could not find output parameters. Please provide them manually.")
 		
-		# self.output_params = filter_parameters(self.output_params, requires_grad=True)
-		# self.params = [p for p in self.params if p not in self.output_params]
 		return
 
 	def initialize_output_layers(self, trainer):
@@ -278,6 +278,10 @@ class Eprop(TBPTT):
 		self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups)
 		return self.optimizer
 
+	def eligibility_traces_zeros_(self):
+		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
+		self.output_eligibility_traces = [torch.zeros_like(p) for p in self.output_params]
+
 	def start(self, trainer, **kwargs):
 		"""
 		Start the training process with E-prop.
@@ -304,6 +308,7 @@ class Eprop(TBPTT):
 			self.optimizer = self.create_default_optimizer()
 		
 		self._initialize_original_forwards()
+		self.eligibility_traces_zeros_()
 	
 	def on_batch_begin(self, trainer, **kwargs):
 		"""
@@ -318,7 +323,7 @@ class Eprop(TBPTT):
 		if trainer.model.training:
 			if self.feedback_weights is None:
 				self.initialize_feedback_weights(trainer.current_training_state.y_batch)
-		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
+		self.eligibility_traces_zeros_()
 		zero_grad_params(self.params)
 		zero_grad_params(self.output_params)
 	
@@ -386,7 +391,10 @@ class Eprop(TBPTT):
 		pred_batch = torch.squeeze(self._get_pred_batch_from_buffer(layer_name))
 		dy_dw_locals = dy_dw_local(y=pred_batch, params=self.params, retain_graph=True, allow_unused=True)
 		with torch.no_grad():
-			self.eligibility_traces = [et+dy_dw.to(et.device) for et, dy_dw in zip(self.eligibility_traces, dy_dw_locals)]
+			self.eligibility_traces = [
+				self.gamma * et + dy_dw.to(et.device)
+				for et, dy_dw in zip(self.eligibility_traces, dy_dw_locals)
+			]
 			self._layers_buffer[layer_name].clear()
 	
 	def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
@@ -405,9 +413,15 @@ class Eprop(TBPTT):
 			raise ValueError(
 				f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
 			)
-		errors = self.compute_errors(pred_batch, y_batch)
-		
-		self.update_grads(errors, batch_loss)
+		with torch.no_grad():
+			errors = self.compute_errors(pred_batch, y_batch)
+		output_grads = dy_dw_local(torch.mean(batch_loss), self.output_params, retain_graph=True, allow_unused=True)
+		with torch.no_grad():
+			self.output_eligibility_traces = [
+				self.alpha * et + dy_dw.to(et.device)
+				for et, dy_dw in zip(self.output_eligibility_traces, output_grads)
+			]
+		self.update_grads(errors)
 		with torch.no_grad():
 			self._layers_buffer[layer_name].clear()
 		
@@ -463,28 +477,25 @@ class Eprop(TBPTT):
 	
 	def update_grads(
 			self,
-			error: Dict[str, torch.Tensor],
-			loss: torch.Tensor,
+			errors: Dict[str, torch.Tensor],
 	):
 		"""
 		The learning signal is computed. The gradients of the parameters are then updated as seen in equation (28)
 		from :cite:t:`bellec_solution_2020`.
 
-		:param error:
-		:param loss:
+		:param errors:
 		:return:
 		"""
-		learning_signals = self.compute_learning_signals(error)
+		learning_signals = self.compute_learning_signals(errors)
 		with torch.no_grad():
 			for param, ls, et in zip(self.params, learning_signals, self.eligibility_traces):
 				if param.requires_grad:
 					param.grad += (ls * et.to(ls.device)).to(param.device).view(param.shape).detach()
 
-		output_grads = dy_dw_local(torch.mean(loss), self.output_params, retain_graph=True, allow_unused=True)
 		with torch.no_grad():
-			for out_param, out_grad in zip(self.output_params, output_grads):
+			for out_param, out_el in zip(self.output_params, self.output_eligibility_traces):
 				if out_param.requires_grad:
-					out_param.grad += out_grad
+					out_param.grad += out_el.to(out_param.device).view(out_param.shape).detach()
 	
 	def _make_optim_step(self, **kwargs):
 		"""
@@ -497,8 +508,7 @@ class Eprop(TBPTT):
 		super()._make_optim_step(**kwargs)
 		with torch.no_grad():
 			zero_grad_params(self.output_params)
-			self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
-	
+
 	def on_batch_end(self, trainer, **kwargs):
 		"""
 		Ensure that there is not any remaining gradients in the output parameters. The forward are undecorated and the
@@ -508,7 +518,7 @@ class Eprop(TBPTT):
 		:param kwargs:
 		:return:
 		"""
-		super().on_batch_end(trainer)
+		LearningAlgorithm.on_batch_end(self, trainer)
 		if trainer.model.training:
 			need_optim_step = False
 			for layer_name in self._layers_buffer:
@@ -533,6 +543,7 @@ class Eprop(TBPTT):
 		# 	assert torch.equal(param, m_param)
 		# 	debug_bool = not torch.equal(param, m_param) and debug_bool
 		# assert debug_bool
+		self.eligibility_traces_zeros_()
 	
 	def on_train_end(self, trainer, **kwargs):
 		from neurotorch.metrics import PVarianceLoss

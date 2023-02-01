@@ -67,8 +67,8 @@ class SimplifiedEpropFinal:
 		
 		# self.eprop = nt.learning_algorithms.Eprop(params=self.params, output_params=self.output_params)
 		self.eprop = nt.learning_algorithms.Eprop(
-			backward_time_steps=100,
-			optim_time_steps=100,
+			backward_time_steps=1,
+			optim_time_steps=1,
 			criterion=torch.nn.MSELoss(),
 		)
 		self.param_groups = [
@@ -115,8 +115,8 @@ class SimplifiedEpropFinal:
 		x_pred = None
 		self.model = SequentialRNN(
 			layers=[reservoir, output_layer],
-			foresight_time_steps=self.true_time_series.shape[-2],
-			out_memory_size=self.true_time_series.shape[-2],
+			foresight_time_steps=self.true_time_series.shape[-2] - 1,
+			out_memory_size=self.true_time_series.shape[-2] - 1,
 			device=reservoir.device
 		).build()
 		self.eprop.start(self)
@@ -125,6 +125,7 @@ class SimplifiedEpropFinal:
 			self.eprop.on_batch_begin(self)
 			inputs = self.true_time_series[:, 0, :].clone().unsqueeze(1).to(self.model.device)
 			x_pred = self.model.get_prediction_trace(inputs)
+			x_pred = torch.concat([inputs, x_pred], dim=1)
 			self.current_training_state = self.current_training_state.update(pred_batch=x_pred)
 			self.eprop.on_batch_end(self)
 			self.eprop.on_train_end(self)
@@ -132,18 +133,28 @@ class SimplifiedEpropFinal:
 			with torch.no_grad():
 				pvar = PVarianceLoss()(x_pred, self.true_time_series.to(x_pred.device))
 				mse = torch.nn.MSELoss()(x_pred, self.true_time_series.to(x_pred.device))
-				progress_bar.set_postfix({"pvar": to_numpy(pvar).item(), "MSE": to_numpy(mse).item()})
+				val_pvar = self.validate(1)
+				progress_bar.set_postfix({
+					"pvar": to_numpy(pvar).item(),
+					"val_pvar": val_pvar,
+					"MSE": to_numpy(mse).item()
+				})
 				pvars.append(to_numpy(pvar).item())
 				mses.append(to_numpy(mse).item())
 		
+		val_pvar = self.validate(100)
+		print(f"Validation PVariance: {val_pvar:.3f}")
+		return x_pred, self.raw_time_series
+
+	def validate(self, n: int = 1):
 		val_pvars = []
 		inputs = self.raw_time_series[:, 0, :].clone().unsqueeze(1).to(self.model.device)
-		for _ in range(100):
+		for _ in range(n):
 			val_x_pred = self.model.get_prediction_trace(inputs)
+			val_x_pred = torch.concat([inputs, val_x_pred], dim=1)
 			pvar = PVarianceLoss()(val_x_pred, self.raw_time_series.to(val_x_pred.device))
 			val_pvars.append(to_numpy(pvar).item())
-		print(f"Validation PVariance: {np.mean(val_pvars):.3f}")
-		return x_pred, self.raw_time_series
+		return np.mean(val_pvars).item()
 
 	def compute_learning_signals(self, error: torch.Tensor):
 		learning_signals = []
@@ -357,11 +368,11 @@ if __name__ == '__main__':
 			learning_rate=1e-3,
 			update_each=1,
 			n_units=n_units,
-			iteration=10,
+			iteration=300,
 			sigma=15,
 			kappa=0,
 			n_time_steps=-1,
-			device=torch.device("cuda"),
+			device=torch.device("cpu"),
 	)
 
 	predicted, true = res

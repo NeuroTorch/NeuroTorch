@@ -4,7 +4,7 @@ from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple
 
 import torch
 from .bptt import BPTT
-from ..utils import list_insert_replace_at, zero_grad_params
+from ..utils import list_insert_replace_at, zero_grad_params, recursive_detach, unpack_out_hh
 
 
 class TBPTT(BPTT):
@@ -90,26 +90,24 @@ class TBPTT(BPTT):
 			self.backward_time_steps = max(1, int(self._auto_backward_time_steps_ratio * self._data_n_time_steps))
 		if self._auto_set_optim_time_steps:
 			self.optim_time_steps = max(1, int(self._auto_optim_time_steps_ratio * self._data_n_time_steps))
-		if self.backward_time_steps != self.optim_time_steps:
-			raise NotImplementedError("backward_time_steps != optim_time_steps is not implemented yet")
+		# if self.backward_time_steps != self.optim_time_steps:
+		# 	raise NotImplementedError("backward_time_steps != optim_time_steps is not implemented yet")
+		if self.backward_time_steps > self.optim_time_steps:
+			raise NotImplementedError("backward_time_steps must be lower or equal to optim_time_steps.")
 	
 	def _decorate_forward(self, forward, layer_name: str):
 		def _forward(*args, **kwargs):
 			out = forward(*args, **kwargs)
-			t = kwargs.get("t", None)
+			t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
 			if t is None:
 				return out
-			out_tensor = self._get_out_tensor(out)
-			if t == 0:  # Hotfix for the first time step  TODO: fix this
-				ready = bool(self._layers_buffer[layer_name])
-			else:
-				ready = True
+			out_tensor, hh = unpack_out_hh(out)
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
 			length = len(self._layers_buffer[layer_name])
-			if length == self.backward_time_steps and ready:
+			if length == self.backward_time_steps:
 				self._backward_at_t(t, self.backward_time_steps, layer_name)
-				out = self._detach_out(out)
-			if length == self.optim_time_steps and ready:  # TODO: add a counter for optim
+				out = recursive_detach(out)
+			if length == self.optim_time_steps:  # TODO: add a counter for optim
 				self._make_optim_step()
 			return out
 		return _forward
@@ -143,21 +141,7 @@ class TBPTT(BPTT):
 		else:
 			y_batch = y_batch[:, t_first:t_last]
 		return y_batch
-	
-	def _get_out_tensor(self, out: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]]):
-		if isinstance(out, (tuple, list)):
-			out = out[0]
-		return out
-	
-	def _detach_out(self, out: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]]):
-		if isinstance(out, tuple):
-			out = tuple([self._detach_out(o) for o in out])
-		elif isinstance(out, list):
-			out = [self._detach_out(o) for o in out]
-		else:
-			out = out.detach()
-		return out
-	
+
 	def _get_pred_batch_from_buffer(self, layer_name: str):
 		pred_batch = torch.stack(self._layers_buffer[layer_name], dim=1)
 		return pred_batch

@@ -385,8 +385,9 @@ class Eprop(TBPTT):
 		"""
 		pred_batch = torch.squeeze(self._get_pred_batch_from_buffer(layer_name))
 		dy_dw_locals = dy_dw_local(y=pred_batch, params=self.params, retain_graph=True, allow_unused=True)
-		self.eligibility_traces = [et+dy_dw.to(et.device) for et, dy_dw in zip(self.eligibility_traces, dy_dw_locals)]
-		self._layers_buffer[layer_name].clear()
+		with torch.no_grad():
+			self.eligibility_traces = [et+dy_dw.to(et.device) for et, dy_dw in zip(self.eligibility_traces, dy_dw_locals)]
+			self._layers_buffer[layer_name].clear()
 	
 	def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
 		"""
@@ -405,8 +406,10 @@ class Eprop(TBPTT):
 				f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
 			)
 		errors = self.compute_errors(pred_batch, y_batch)
+		
 		self.update_grads(errors, batch_loss)
-		self._layers_buffer[layer_name].clear()
+		with torch.no_grad():
+			self._layers_buffer[layer_name].clear()
 		
 	def compute_learning_signals(self, errors: Dict[str, torch.Tensor]):
 		"""
@@ -492,8 +495,9 @@ class Eprop(TBPTT):
 		:return:
 		"""
 		super()._make_optim_step(**kwargs)
-		zero_grad_params(self.output_params)
-		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
+		with torch.no_grad():
+			zero_grad_params(self.output_params)
+			self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
 	
 	def on_batch_end(self, trainer, **kwargs):
 		"""
@@ -532,15 +536,22 @@ class Eprop(TBPTT):
 	
 	def on_train_end(self, trainer, **kwargs):
 		from neurotorch.metrics import PVarianceLoss
-		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
-		self._debug_on_train_end_metrics = to_numpy(PVarianceLoss()(pred_batch, y_batch)).item()
-		return self.on_pbar_update(trainer, **kwargs)
+		with torch.no_grad():
+			y_batch = trainer.current_training_state.y_batch
+			pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+			self._debug_on_train_end_metrics = to_numpy(PVarianceLoss()(pred_batch, y_batch)).item()
+			re = self.on_pbar_update(trainer, **kwargs)
+		return re
 	
 	def on_pbar_update(self, trainer, **kwargs) -> dict:
 		from neurotorch.metrics import PVarianceLoss
-		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
-		return {"pVar": to_numpy(PVarianceLoss()(pred_batch, y_batch)).item(), "pVar_debug": self._debug_on_train_end_metrics}
+		with torch.no_grad():
+			y_batch = trainer.current_training_state.y_batch
+			pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+			re = {
+				"pVar": to_numpy(PVarianceLoss()(pred_batch, y_batch)).item(),
+				"pVar_debug": self._debug_on_train_end_metrics
+			}
+		return re
 
 

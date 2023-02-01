@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import partial
 
 import torch
 import numpy as np
@@ -7,14 +8,14 @@ from tqdm import tqdm
 import math
 
 import neurotorch as nt
-from neurotorch import to_numpy, to_tensor
+from neurotorch import to_numpy, to_tensor, SequentialRNN
 from typing import *
 from neurotorch.modules import layers
 from torch.utils.data import Dataset
 from neurotorch.dimension import SizeTypes
 from neurotorch.metrics import PVarianceLoss
 from neurotorch.modules.layers import Linear, LILayer, WilsonCowanLayer, SpyLILayer, BellecLIFLayer, WilsonCowanLayerDebug
-from neurotorch.trainers.trainer import CurrentTrainingState
+from neurotorch.trainers.trainer import CurrentTrainingState, Trainer
 from neurotorch.utils import (
 	unpack_out_hh,
 	legend_without_duplicate_labels_,
@@ -38,7 +39,10 @@ class SimplifiedEpropFinal:
 			device: Optional[torch.device] = torch.device("cpu"),
 			**kwargs
 	):
+		self.raw_time_series = to_tensor(true_time_series)
 		self.true_time_series = to_tensor(true_time_series)
+		self.true_time_series = self.true_time_series.repeat(1024, 1, 1)
+		self.true_time_series += torch.randn_like(self.true_time_series) * 0.1
 		self.params = filter_parameters(params, requires_grad=True)
 		self.output_params = filter_parameters(output_params, requires_grad=True)
 		self.learning_rate = learning_rate
@@ -61,15 +65,17 @@ class SimplifiedEpropFinal:
 		#self.data = [defaultdict(list) for _ in self.model.parameters()]
 		self.learning_signal = 0.0
 		
-		self.eprop = nt.learning_algorithms.Eprop(params=self.params, output_params=self.output_params)
+		# self.eprop = nt.learning_algorithms.Eprop(params=self.params, output_params=self.output_params)
+		self.eprop = nt.learning_algorithms.Eprop(criterion=torch.nn.MSELoss())
 		self.param_groups = [
 			{"params": self.params, "lr": self.kwargs.get("params_lr", 1e-4)},
 			{"params": self.output_params, "lr": self.kwargs.get("output_params_lr", 2e-4)},
 		]
 		# self.optimizer = torch.optim.Adam(self.eprop.initialize_param_groups())
-		self.optimizer = self.eprop.create_default_optimizer()
+		# self.optimizer = self.eprop.create_default_optimizer()
 		self.current_training_state = CurrentTrainingState()
 		self.model = kwargs.get("model", None)
+		self.format_pred_batch = partial(Trainer.format_pred_batch, self)
 	
 	@property
 	def state(self):
@@ -86,22 +92,9 @@ class SimplifiedEpropFinal:
 		"""
 		self.kwargs.setdefault("kappa", 0.0)
 
-	def _set_default_random_matrix(self):
-		"""
-		TODO : COPY LINEAR LAYER INIT FOR RANDOM MATRIX ... NO IDEA HOW TO DO IT
-		"""
-		for param_idx, param in enumerate(self.params):
-			if param.ndim == 0:
-				param = torch.unsqueeze(param.detach(), dim=0)
-			rn_matrix = torch.randn(
-				(param.shape[-1], self.true_time_series.shape[-1]),
-				dtype=param.dtype, device=param.device
-			).detach()
-			self.feedback_weights.append(rn_matrix)
-
 	def begin(self):
-		# self._set_default_random_matrix()
-		self.eprop.initialize_feedback_weights(self.true_time_series)
+		self.eprop.trainer = self
+		self.current_training_state = self.current_training_state.update(y_batch=self.true_time_series)
 		for param in self.params:
 			self.last_eligibility_traces.append(None)
 		return self
@@ -117,40 +110,38 @@ class SimplifiedEpropFinal:
 		pvars, mses = [], []
 		x_pred = None
 		mse_func = torch.nn.MSELoss()
-		self.eprop.optimizer.zero_grad()
-		zero_grad_params(self.params)
-		zero_grad_params(self.output_params)
-		reservoir.forward = self.eprop._decorate_hidden_forward(reservoir.forward, reservoir.name)
-		output_layer.forward = self.eprop._decorate_forward(output_layer.forward, output_layer.name)
+		# self.eprop.optimizer.zero_grad()
+		
+		self.model = SequentialRNN(
+			layers=[reservoir, output_layer],
+			foresight_time_steps=self.true_time_series.shape[-2],
+			out_memory_size=self.true_time_series.shape[-2],
+			device=reservoir.device
+		).build()
+		self.eprop.start(self)
 		for _ in progress_bar:
-			x_pred = []
-			x_pred.append(self.true_time_series[:, 0, :].clone())
-			forward_tensor = self.true_time_series[:, 0, :].clone().to(reservoir.device)
-			hh = None
-			for t in range(1, self.true_time_series.shape[-2]):
-				forward_tensor, hh = unpack_out_hh(reservoir(forward_tensor, hh, t=t-1))
-				forward_tensor, _ = unpack_out_hh(output_layer(forward_tensor, None, t=t-1))
-				x_pred.append(forward_tensor)
-				# eligibility_traces = dy_dw_local(y=forward_tensor, params=self.params)
-				# self.eprop.eligibility_traces = eligibility_traces
-				# batch_loss = self.eprop.apply_criterion(forward_tensor, self.true_time_series[:, t].to(forward_tensor.device))
-				# learning_signals = self.compute_learning_signals(loss_at_t)
-				# errors = self.eprop.compute_errors(forward_tensor, self.true_time_series[:, t])
-				# learning_signals = self.eprop.compute_learning_signals(errors)
-				# self.eprop.update_grads(errors, batch_loss)
-				forward_tensor.detach_()
-				hh = recursive_detach(hh)
-				# if t % self.update_each == 0:
-				# 	self.eprop._make_optim_step()
-			self.eprop._make_optim_step()
-			x_pred = torch.stack([t.cpu() for t in x_pred], dim=1)
+			self.eprop.on_train_begin(self)
+			self.eprop.on_batch_begin(self)
+			inputs = self.true_time_series[:, 0, :].clone().unsqueeze(1).to(self.model.device)
+			x_pred = self.model.get_prediction_trace(inputs)
+			self.current_training_state = self.current_training_state.update(pred_batch=x_pred)
+			self.eprop.on_batch_end(self)
+			self.eprop.on_train_end(self)
+			
 			pvar = PVarianceLoss()(x_pred, self.true_time_series.to(x_pred.device))
 			mse = torch.nn.MSELoss()(x_pred, self.true_time_series.to(x_pred.device))
 			progress_bar.set_postfix({"pvar": to_numpy(pvar).item(), "MSE": to_numpy(mse).item()})
 			pvars.append(to_numpy(pvar).item())
 			mses.append(to_numpy(mse).item())
-
-		return x_pred, self.true_time_series
+		
+		val_pvars = []
+		inputs = self.raw_time_series[:, 0, :].clone().unsqueeze(1).to(self.model.device)
+		for _ in range(100):
+			val_x_pred = self.model.get_prediction_trace(inputs)
+			pvar = PVarianceLoss()(val_x_pred, self.raw_time_series.to(val_x_pred.device))
+			val_pvars.append(to_numpy(pvar).item())
+		print(f"Validation PVariance: {np.mean(val_pvars):.3f}")
+		return x_pred, self.raw_time_series
 
 	def compute_learning_signals(self, error: torch.Tensor):
 		learning_signals = []
@@ -239,7 +230,8 @@ if __name__ == '__main__':
 			self.original_time_series = data
 			self.x = torch.tensor(data.T, dtype=torch.float32, device=device)
 			self._n_time_steps = int(
-				np.clip(kwargs.get("n_time_steps", self.max_time_steps), -np.inf, self.max_time_steps))
+				np.clip(kwargs.get("n_time_steps", self.max_time_steps), -np.inf, self.max_time_steps)
+			)
 
 		@property
 		def n_time_steps(self):
@@ -363,11 +355,11 @@ if __name__ == '__main__':
 			learning_rate=1e-3,
 			update_each=1,
 			n_units=n_units,
-			iteration=100,
+			iteration=10,
 			sigma=15,
 			kappa=0,
 			n_time_steps=-1,
-			device=torch.device("cpu"),
+			device=torch.device("cuda"),
 	)
 
 	predicted, true = res

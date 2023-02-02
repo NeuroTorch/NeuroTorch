@@ -67,6 +67,7 @@ class Eprop(TBPTT):
 		kwargs.setdefault("load_state", True)
 		kwargs.setdefault("backward_time_steps", 1)
 		kwargs.setdefault("optim_time_steps", 1)
+		kwargs.setdefault("criterion", torch.nn.MSELoss())
 		# TODO: implement a optim step at each `optim_time_steps` steps.
 		# assert "backward_time_steps" not in kwargs, f"{self.__class__} does not support backward_time_steps."
 		# assert "optim_time_steps" not in kwargs, f"{self.__class__} does not support optim_time_steps."
@@ -275,7 +276,7 @@ class Eprop(TBPTT):
 	def create_default_optimizer(self):
 		if not self.param_groups:
 			self.initialize_param_groups()
-		self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups)
+		self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups, **self.kwargs.get("default_optim_kwargs", {}))
 		return self.optimizer
 
 	def eligibility_traces_zeros_(self):
@@ -297,8 +298,7 @@ class Eprop(TBPTT):
 		self.initialize_params(trainer)
 		zero_grad_params(self.params)
 		zero_grad_params(self.output_params)
-		self._debug_start_model = copy.deepcopy(trainer.model)
-
+		
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
 		
@@ -369,8 +369,7 @@ class Eprop(TBPTT):
 				return out
 			out_tensor, hh = unpack_out_hh(out)
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
-			length = len(self._layers_buffer[layer_name])
-			if length == self.backward_time_steps:
+			if len(self._layers_buffer[layer_name]) >= self.backward_time_steps:
 				self._hidden_backward_at_t(t, self.backward_time_steps, layer_name)
 				out = recursive_detach(out)
 			return out
@@ -433,14 +432,14 @@ class Eprop(TBPTT):
 		:param errors:
 		:return:
 		"""
-		learning_signals = [torch.zeros((p.shape[0] if p.ndim > 0 else 1), device=p.device) for p in self.params]
+		learning_signals = [torch.zeros((p.shape[-1] if p.ndim > 0 else 1), device=p.device) for p in self.params]
 		for k, feedbacks in self.feedback_weights.items():
 			if k not in errors:
 				raise ValueError(
 					f"This is an internal error. Please report this issue on GitHub."
 					f"Key {k} from {self.feedback_weights.keys()=} not found in errors of keys {errors.keys()}."
 				)
-			error_mean = torch.mean(errors[k].view(-1, errors[k].shape[-1]), dim=0)
+			error_mean = torch.mean(errors[k].view(-1, errors[k].shape[-1]), dim=0).view(1, -1)
 			for i, feedback in enumerate(feedbacks):
 				learning_signals[i] = learning_signals[i] + torch.matmul(error_mean, feedback.to(error_mean.device))
 		return learning_signals
@@ -534,35 +533,6 @@ class Eprop(TBPTT):
 		self.undecorate_forwards()
 		self._layers_buffer.clear()
 		self.optimizer.zero_grad()
-		
-		# debug_bool = True
-		# for param, m_param in zip(self.output_params, self.trainer.model.output_layers.parameters()):
-		# 	assert torch.equal(param, m_param)
-		# 	debug_bool = torch.equal(param, m_param) and debug_bool
-		# for param, m_param in zip(self.params, self._debug_start_model.output_layers.parameters()):
-		# 	assert torch.equal(param, m_param)
-		# 	debug_bool = not torch.equal(param, m_param) and debug_bool
-		# assert debug_bool
 		self.eligibility_traces_zeros_()
-	
-	def on_train_end(self, trainer, **kwargs):
-		from neurotorch.metrics import PVarianceLoss
-		with torch.no_grad():
-			y_batch = trainer.current_training_state.y_batch
-			pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
-			self._debug_on_train_end_metrics = to_numpy(PVarianceLoss()(pred_batch, y_batch)).item()
-			re = self.on_pbar_update(trainer, **kwargs)
-		return re
-	
-	def on_pbar_update(self, trainer, **kwargs) -> dict:
-		from neurotorch.metrics import PVarianceLoss
-		with torch.no_grad():
-			y_batch = trainer.current_training_state.y_batch
-			pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
-			re = {
-				"pVar": to_numpy(PVarianceLoss()(pred_batch, y_batch)).item(),
-				"pVar_debug": self._debug_on_train_end_metrics
-			}
-		return re
 
 

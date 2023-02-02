@@ -32,51 +32,19 @@ class SimplifiedEpropFinal:
 	def __init__(
 			self,
 			true_time_series: torch.Tensor,
-			params: Optional[Sequence[torch.nn.Parameter]],
-			output_params: Optional[Sequence[torch.nn.Parameter]],
-			learning_rate: float = 1e-2,
-			update_each: int = 1,
 			device: Optional[torch.device] = torch.device("cpu"),
 			**kwargs
 	):
 		self.raw_time_series = to_tensor(true_time_series)
 		self.true_time_series = to_tensor(true_time_series)
-		# self.true_time_series = self.true_time_series.repeat(1024, 1, 1)
-		# self.true_time_series += torch.randn_like(self.true_time_series) * 0.1
-		self.params = filter_parameters(params, requires_grad=True)
-		self.output_params = filter_parameters(output_params, requires_grad=True)
-		self.learning_rate = learning_rate
-		self.update_each = update_each
 		self.device = device
 		self.kwargs = kwargs
-		self._set_default_kwargs()
-		self.out = {}
-		#self.filtered_eligibility_trace_t = torch.zeros_like(self.model.forward_weights, dtype=self.model.forward_weights.dtype, device=self.model.forward_weights.device)
-		self.loss = torch.zeros_like(self.true_time_series)
-
-		self.update_per_iter = math.ceil(true_time_series.shape[0] // self.update_each)
-
-		self.eligibility_trace = []
-		self.last_eligibility_traces = []
-
-		self.grad_params = []
-		self.grad_output_params = []
-		self.random_matrices = []
-		#self.data = [defaultdict(list) for _ in self.model.parameters()]
-		self.learning_signal = 0.0
 		
-		# self.eprop = nt.learning_algorithms.Eprop(params=self.params, output_params=self.output_params)
 		self.eprop = nt.learning_algorithms.Eprop(
-			backward_time_steps=1,
-			optim_time_steps=1,
-			criterion=torch.nn.MSELoss(),
+			# backward_time_steps=1,
+			# optim_time_steps=1,
+			# criterion=torch.nn.MSELoss(),
 		)
-		self.param_groups = [
-			{"params": self.params, "lr": self.kwargs.get("params_lr", 1e-4)},
-			{"params": self.output_params, "lr": self.kwargs.get("output_params_lr", 2e-4)},
-		]
-		# self.optimizer = torch.optim.Adam(self.eprop.initialize_param_groups())
-		# self.optimizer = self.eprop.create_default_optimizer()
 		self.current_training_state = CurrentTrainingState()
 		self.model = kwargs.get("model", None)
 		self.format_pred_batch = partial(Trainer.format_pred_batch, self)
@@ -89,22 +57,10 @@ class SimplifiedEpropFinal:
 		:return: The :attr:`current_training_state`
 		"""
 		return self.current_training_state
-		
-	def _set_default_kwargs(self):
-		"""
-		TODO : Implement a better way to generate the random B matrix (maybe with the init...)
-		"""
-		self.kwargs.setdefault("kappa", 0.0)
-
-	def begin(self):
-		self.eprop.trainer = self
-		self.current_training_state = self.current_training_state.update(y_batch=self.true_time_series)
-		for param in self.params:
-			self.last_eligibility_traces.append(None)
-		return self
 
 	def train(self, output_layer, reservoir, iteration: int = 100):
-		self.begin()
+		self.eprop.trainer = self
+		self.current_training_state = self.current_training_state.update(y_batch=self.true_time_series)
 		progress_bar = tqdm(
 			range(iteration),
 			total=iteration,
@@ -119,8 +75,12 @@ class SimplifiedEpropFinal:
 			out_memory_size=self.true_time_series.shape[-2] - 1,
 			device=reservoir.device
 		).build()
+		print(self.model)
 		self.eprop.start(self)
 		for _ in progress_bar:
+			# self.true_time_series = self.raw_time_series.clone().repeat(32, 1, 1)
+			# self.true_time_series += torch.randn_like(self.true_time_series) * 0.1
+			self.current_training_state = self.current_training_state.update(y_batch=self.true_time_series)
 			self.eprop.on_train_begin(self)
 			self.eprop.on_batch_begin(self)
 			inputs = self.true_time_series[:, 0, :].clone().unsqueeze(1).to(self.model.device)
@@ -156,31 +116,6 @@ class SimplifiedEpropFinal:
 			val_pvars.append(to_numpy(pvar).item())
 		return np.mean(val_pvars).item()
 
-	def compute_learning_signals(self, error: torch.Tensor):
-		learning_signals = []
-		error_mean = torch.mean(error.view(-1, error.shape[-1]), dim=0)
-		for rn_feedback in self.random_matrices:
-			learning_signals.append(torch.matmul(error_mean, rn_feedback.T.to(error_mean.device)))
-		return learning_signals
-
-	def update_instantaneous_grad(
-			self,
-			error: torch.Tensor,
-			learning_signals: List[torch.Tensor],
-			eligibility_traces: List[torch.Tensor],
-	):
-		with torch.no_grad():
-			for param, ls, et in zip(self.params, learning_signals, eligibility_traces):
-				param.grad += (ls * et.to(ls.device)).to(param.device).view(param.shape).detach()
-
-		mean_error = torch.mean(error)
-		with torch.no_grad():
-			for out_param in self.output_params:
-				out_param.grad += torch.autograd.grad(mean_error, out_param, retain_graph=True)[0]
-
-	def filter_eligibility_traces(self, current_eligibility_traces: List[torch.Tensor]):
-		for curr_et, last_et in zip(current_eligibility_traces, self.last_eligibility_traces):
-			pass
 
 
 if __name__ == '__main__':
@@ -230,6 +165,9 @@ if __name__ == '__main__':
 					f"File {filename} not found in the list of available files: {list(self.FILE_ID_NAME.keys())}."
 				GoogleDriveDownloader(self.FILE_ID_NAME[filename], path, skip_existing=True, verbose=False).download()
 			ts = np.load(path)
+			self.original_time_series = ts.copy()
+			if kwargs.get("rm_dead_units", True):
+				ts = ts[np.sum(ts, axis=-1) > 0, :]
 			n_neurons, self.max_time_steps = ts.shape
 			self.seed = kwargs.get("seed", 0)
 			self.random_generator = np.random.RandomState(self.seed)
@@ -240,7 +178,7 @@ if __name__ == '__main__':
 				data[neuron, :] = gaussian_filter1d(data[neuron, :], sigma=smoothing_sigma)
 				data[neuron, :] = data[neuron, :] - np.min(data[neuron, :])
 				data[neuron, :] = data[neuron, :] / (np.max(data[neuron, :]) + 1e-5)
-			self.original_time_series = data
+			
 			self.x = torch.tensor(data.T, dtype=torch.float32, device=device)
 			self._n_time_steps = int(
 				np.clip(kwargs.get("n_time_steps", self.max_time_steps), -np.inf, self.max_time_steps)
@@ -273,41 +211,43 @@ if __name__ == '__main__':
 
 		@property
 		def original_series(self):
-			return self.original_time_series
+			return to_tensor(self.original_time_series, dtype=torch.float32)
 
 	def train_with_params_eprop(
 			filename: Optional[str] = None,
 			forward_weights: Optional[torch.Tensor or np.ndarray] = None,
 			std_weights: float = 1,
-			dt: float = 1e-3,
+			dt: float = 2e-2,
 			mu: Optional[float or torch.Tensor or np.ndarray] = 0.0,
 			mean_mu: Optional[float] = 0.0,
 			std_mu: Optional[float] = 1.0,
-			r: Optional[float or torch.Tensor or np.ndarray] = 1.0,
-			mean_r: Optional[float] = 1.0,
-			std_r: Optional[float] = 1.0,
-			tau: float = 1.0,
-			learn_mu: bool = False,
-			learn_r: bool = False,
-			learn_tau: bool = False,
+			r: Optional[float or torch.Tensor or np.ndarray] = 0.1,
+			mean_r: Optional[float] = 0.5,
+			std_r: Optional[float] = 0.4,
+			tau: float = 0.1,
+			learn_mu: bool = True,
+			learn_r: bool = True,
+			learn_tau: bool = True,
 			device: torch.device = torch.device("cpu"),
 			learning_rate: float = 1e-2,
-			sigma: float = 20.0,
+			sigma: float = 15.0,
 			hh_init: str = "inputs",
 			checkpoint_folder="./checkpoints",
 			force_dale_law: bool = False,
-			kappa: float = 0.0,
 			**kwargs
 	):
-
-		dataset = WSDataset(filename=filename, sample_size=kwargs.get("n_units", 50), smoothing_sigma=sigma, device=device, n_time_steps=-1)
-		if kwargs.get("n_time_steps", None) is not None:
-			true_time_series = torch.squeeze(dataset.full_time_series)[:kwargs["n_time_steps"], :]
-		else:
-			true_time_series = torch.squeeze(dataset.full_time_series)[:, :]
-
+		from tutorials.learning_algorithms.dataset import get_dataloader
+		torch.manual_seed(0)
+		old_dataset = WSDataset(filename=filename, sample_size=kwargs.get("n_units", 50), smoothing_sigma=sigma, device=device, n_time_steps=-1)
+		dataloader = get_dataloader(
+			batch_size=kwargs.get("batch_size", 512), verbose=True, n_workers=kwargs.get("n_workers"),
+			filename=filename, n_units=kwargs.get("n_units", 50), smoothing_sigma=sigma, device=device,
+			n_time_steps=-1, rm_dead_units=True
+		)
+		dataset = dataloader.dataset
+		# assert torch.allclose(dataset.full_time_series, old_dataset.full_time_series), "The dataset is not the same as the old one."
 		ws_layer = WilsonCowanLayer(
-			true_time_series.shape[-1], true_time_series.shape[1],
+			dataset.n_units, dataset.n_units,
 			forward_weights=forward_weights,
 			std_weights=std_weights,
 			forward_sign=0.5,
@@ -328,19 +268,15 @@ if __name__ == '__main__':
 			force_dale_law=force_dale_law
 		).build()
 
-		linear_layer = nt.LILayer(
-			true_time_series.shape[-1], true_time_series.shape[-1],
+		linear_layer = nt.Linear(
+			dataset.n_units, dataset.n_units,
 			device=device,
-			use_bias=False, kappa=0.0
+			use_bias=False,
+			activation="sigmoid",
 		).build()
 		trainer = SimplifiedEpropFinal(
-			true_time_series=true_time_series.unsqueeze(dim=0),
-			params=ws_layer.parameters(),
-			output_params=linear_layer.parameters(),
-			learning_rate=learning_rate,
-			update_each=kwargs.get("update_each", 1),
+			true_time_series=dataset.full_time_series,
 			device=device,
-			kappa=kappa,
 		)
 
 		res_trainer = trainer.train(
@@ -352,25 +288,20 @@ if __name__ == '__main__':
 		return res_trainer
 
 	n_units = 200
-	forward_weights = nt.init.dale_(torch.zeros(n_units, n_units), inh_ratio=0.5, rho=0.2)
+	# forward_weights = nt.init.dale_(torch.zeros(n_units, n_units), inh_ratio=0.5, rho=0.2)
 
 	# result = np.load("res.npy", allow_pickle=True).item()
 
 	res = train_with_params_eprop(
 			dt=0.02,
-			# tau=result["tau"],
-			# mu=result["mu"],
-			# r=result["r"],
 			learn_mu=True,
 			learn_r=True,
 			learn_tau=True,
-			forward_weights=forward_weights,
+			# forward_weights=forward_weights,
 			learning_rate=1e-3,
-			update_each=1,
 			n_units=n_units,
-			iteration=300,
+			iteration=200,
 			sigma=15,
-			kappa=0,
 			n_time_steps=-1,
 			device=torch.device("cpu"),
 	)

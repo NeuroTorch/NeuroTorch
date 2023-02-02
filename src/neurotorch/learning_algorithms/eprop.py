@@ -30,7 +30,7 @@ class Eprop(TBPTT):
 	CHECKPOINT_FEEDBACK_WEIGHTS_KEY: str = "feedback_weights"
 	OPTIMIZER_PARAMS_GROUP_IDX = 0
 	OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX = 1
-	DEFAULT_OPTIMIZER_CLS = torch.optim.Adam
+	DEFAULT_OPTIMIZER_CLS = torch.optim.AdamW
 	DEFAULT_Y_KEY = "default_key"
 	
 	def __init__(

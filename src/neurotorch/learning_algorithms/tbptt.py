@@ -33,6 +33,7 @@ class TBPTT(BPTT):
 		self._data_n_time_steps = 0
 		self._layers_buffer = defaultdict(list)
 		self._forwards_decorated = False
+		self._optim_counter = 0
 	
 	def start(self, trainer, **kwargs):
 		super().start(trainer)
@@ -103,11 +104,11 @@ class TBPTT(BPTT):
 				return out
 			out_tensor, hh = unpack_out_hh(out)
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
-			length = len(self._layers_buffer[layer_name])
-			if length == self.backward_time_steps:
+			self._optim_counter += 1
+			if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
 				self._backward_at_t(t, self.backward_time_steps, layer_name)
 				out = recursive_detach(out)
-			if length == self.optim_time_steps:  # TODO: add a counter for optim
+			if self._optim_counter >= self.optim_time_steps:
 				self._make_optim_step()
 			return out
 		return _forward
@@ -127,6 +128,7 @@ class TBPTT(BPTT):
 		self.optimizer.step()
 		self.optimizer.zero_grad()
 		zero_grad_params(self.params)
+		self._optim_counter = 0
 	
 	def _get_y_batch_slice_from_trainer(self, t_first: int, t_last: int, layer_name: str = None):
 		y_batch = self.trainer.current_training_state.y_batch.clone()

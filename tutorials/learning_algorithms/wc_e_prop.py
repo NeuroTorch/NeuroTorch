@@ -116,7 +116,7 @@ def train_with_params(
 		checkpoint_folder=checkpoint_manager.checkpoint_folder,
 	).build()
 	la = nt.Eprop(alpha=0.9, default_optim_kwargs={"weight_decay": 1e-5, "lr": 1e-3})
-	la.DEFAULT_OPTIMIZER_CLS = torch.optim.SGD
+	# la.DEFAULT_OPTIMIZER_CLS = torch.optim.SGD
 	callbacks = [la, checkpoint_manager]
 	
 	with torch.no_grad():

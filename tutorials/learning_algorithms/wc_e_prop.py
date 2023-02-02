@@ -43,6 +43,7 @@ def set_default_param(**kwargs):
 	kwargs.setdefault("seed", 0)
 	kwargs.setdefault("n_units", 200)
 	kwargs.setdefault("n_aux_units", kwargs["n_units"])
+	kwargs.setdefault("use_recurrent_connection", False)
 	kwargs.setdefault("add_out_layer", True)
 	if not kwargs["add_out_layer"]:
 		kwargs["n_aux_units"] = kwargs["n_units"]
@@ -88,38 +89,34 @@ def train_with_params(
 		name="WilsonCowan_layer1",
 		force_dale_law=params["force_dale_law"],
 		activation=params["activation"],
-		# use_recurrent_connection=params["add_out_layer"],
-		use_recurrent_connection=False,
+		use_recurrent_connection=params["use_recurrent_connection"],
 	).build()
 	layers = [ws_layer]
 	if params["add_out_layer"]:
-		out_layer = nt.LILayer(
+		out_layer = nt.Linear(
 			params["n_aux_units"], x.shape[-1],
-			# forward_weights=torch.eye(x.shape[-1], device=device),
-			device=device, use_bias=False, kappa=0.0,
-			# force_dale_law=params["force_dale_law"],
+			device=device,
+			use_bias=False,
+			activation=params["activation"],
 		)
 		layers.append(out_layer)
 	checkpoint_manager = nt.CheckpointManager(
 		checkpoint_folder="./checkpoints_wc_e_prop",
-		metric="train_loss",
-		save_freq=-1,
+		# metric="val_loss",
+		metric="val_p_var",
+		minimise_metric=False,
+		save_freq=max(1, int(n_iterations / 10)),
+		save_best_only=True,
 	)
 	model = nt.SequentialRNN(
 		layers=layers,
 		device=device,
 		foresight_time_steps=dataset.n_time_steps - 1,
+		out_memory_size=dataset.n_time_steps - 1,
 		checkpoint_folder=checkpoint_manager.checkpoint_folder,
 	).build()
-	la = nt.Eprop(
-		criterion=nt.losses.PVarianceLoss(negative=True),
-		# criterion=torch.nn.MSELoss(),
-		# backward_time_steps=dataset.n_time_steps - 1,
-		# optim_time_steps=dataset.n_time_steps - 1,
-		# backward_time_steps=10,
-		# optim_time_steps=10,
-	)
-	# la = nt.BPTT(criterion=nt.losses.PVarianceLoss(), maximize=True)
+	la = nt.Eprop(alpha=0.9, default_optim_kwargs={"weight_decay": 1e-5, "lr": 1e-3})
+	la.DEFAULT_OPTIMIZER_CLS = torch.optim.SGD
 	callbacks = [la, checkpoint_manager]
 	
 	with torch.no_grad():
@@ -145,15 +142,16 @@ def train_with_params(
 	print(f"{trainer}")
 	history = trainer.train(
 		dataloader,
+		dataloader,
 		n_iterations=n_iterations,
-		exec_metrics_on_train=True,
+		exec_metrics_on_train=False,
 		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
 		force_overwrite=kwargs["force_overwrite"],
 	)
 	history.plot(show=True)
 
 	model.eval()
-	# model.load_checkpoint(checkpoint_manager.checkpoints_meta_path)
+	model.load_checkpoint(checkpoint_manager.checkpoints_meta_path)
 	model.foresight_time_steps = x.shape[1] - 1
 	model.out_memory_size = model.foresight_time_steps
 	x_pred = torch.concat(
@@ -162,8 +160,7 @@ def train_with_params(
 			model.get_prediction_trace(torch.unsqueeze(x[:, 0].clone(), dim=1))
 		], dim=1
 	)
-	# x_pred = trainer.current_training_state.pred_batch
-	loss = PVarianceLoss()(x_pred.to(x.device)[:, 1:], x[:, 1:])
+	loss = PVarianceLoss()(x_pred.to(x.device), x)
 	
 	out = {
 		"params"              : params,
@@ -179,7 +176,7 @@ def train_with_params(
 		"tau0"                : nt.to_numpy(tau0),
 		"tau"                 : nt.to_numpy(ws_layer.tau),
 		"x_pred"              : nt.to_numpy(torch.squeeze(x_pred).T),
-		"original_time_series": dataset.original_series,
+		"original_time_series": dataset.full_time_series,
 		"force_dale_law"      : params["force_dale_law"],
 	}
 	if ws_layer.force_dale_law:
@@ -206,16 +203,12 @@ if __name__ == '__main__':
 			"dataset_length"                : 1,
 			"dataset_randomize_indexes"     : False,
 			"force_dale_law"                : False,
-			"weight_decay"                  : 1e-5,
 			"learn_mu"                      : True,
 			"learn_r"                       : True,
 			"learn_tau"                     : True,
-			"activation"                    : "sigmoid",
-			"add_out_layer"                 : True,
-			"learning_rate"                 : 0.001,
-			"hh_init"                       : "inputs",
+			"use_recurrent_connection"      : False,
 		},
-		n_iterations=100,
+		n_iterations=300,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,
@@ -248,13 +241,19 @@ if __name__ == '__main__':
 			]
 		)
 	)
+	viz.plot_timeseries_comparison_report(
+		res["original_time_series"],
+		title=f"Prediction",
+		show=True,
+		dpi=600,
+	)
 	viz.plot_timeseries_comparison(
-		res["original_time_series"].T, title=f"Prediction", show=True, filename="figures/prediction.png"
+		res["original_time_series"], title=f"Prediction", show=True, filename="figures/prediction.png"
 	)
 	
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	VisualiseKMeans(
-		res["original_time_series"],
+		res["original_time_series"].T,
 		nt.Size(
 			[
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),

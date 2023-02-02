@@ -657,12 +657,12 @@ class BaseNeuronsLayer(BaseLayer):
 
 	def initialize_weights_(self):
 		super().initialize_weights_()
-		if "forward_weights" in self.kwargs:
+		if self.kwargs.get("forward_weights", None):
 			self._forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
 			torch.nn.init.xavier_normal_(self._forward_weights)
 
-		if "recurrent_weights" in self.kwargs and self.use_recurrent_connection:
+		if self.kwargs.get("recurrent_weights", None) and self.use_recurrent_connection:
 			self._recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
 		elif self.use_recurrent_connection:
 			torch.nn.init.xavier_normal_(self._recurrent_weights)
@@ -726,7 +726,8 @@ class BaseNeuronsLayer(BaseLayer):
 		_repr += f"({int(self.input_size)}"
 		if self.use_recurrent_connection:
 			_repr += "<"
-		_repr += f"->{int(self.output_size)})"
+		_repr += f"->{int(self.output_size)}"
+		_repr += f"{self.extra_repr()})"
 		if self.freeze_weights:
 			_repr += "[frozen]"
 		_repr += f"@{self.device}"
@@ -776,6 +777,9 @@ class Linear(BaseNeuronsLayer):
 		else:
 			self.activation = activation
 		return self.activation
+	
+	def extra_repr(self):
+		return f"{', bias' if self.kwargs['use_bias'] else ''}, activation:{self.activation.__class__.__name__}"
 	
 	def build(self) -> 'Linear':
 		if self.kwargs["use_bias"]:
@@ -2053,7 +2057,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		Initialize the parameters (weights) that will be trained.
 		"""
 		super().initialize_weights_()
-		if "forward_weights" in self.kwargs:
+		if self.kwargs.get("forward_weights", None):
 			self.forward_weights = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
 			torch.nn.init.normal_(self._forward_weights, mean=0.0, std=self.std_weight)

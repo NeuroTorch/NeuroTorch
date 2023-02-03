@@ -93,7 +93,7 @@ class Eprop(TBPTT):
 		self._hidden_layer_names = []
 		self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
 		self.gamma = kwargs.get("gamma", 0.9)
-		self.alpha = kwargs.get("alpha", 0.5)
+		self.alpha = kwargs.get("alpha", 0.9)
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:

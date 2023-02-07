@@ -20,11 +20,17 @@ from ..utils import (
 )
 
 
-# @unstable
 class Eprop(TBPTT):
 	r"""
 	Apply the eligibility trace forward propagation (e-prop) :cite:t:`bellec_solution_2020`
 	algorithm to the given model.
+	
+	
+	.. image:: ../../images/learning_algorithms/EpropDiagram.png
+		:width: 300
+		:align: center
+	
+	
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
 	CHECKPOINT_FEEDBACK_WEIGHTS_KEY: str = "feedback_weights"
@@ -45,34 +51,41 @@ class Eprop(TBPTT):
 		"""
 		Constructor for Eprop class.
 
-		:param params: The parameters to optimize. If None, the parameters of the model's trainer will be used.
+		:param params: The hidden parameters to optimize. If not provided, eprop will try to find the hidden parameters
+						by looking for the parameters of the layers provided or in the inputs and hidden layers of the
+						model provided in the trainer.
 		:type params: Optional[Sequence[torch.nn.Parameter]]
-		:param optimizer: The optimizer to use. If provided make sure to provide the param_group in the following format:
+		:param output_params: The output parameters to optimize. If not provided, eprop will try to find the output
+						parameters by looking for the parameters of the output layers provided or in the output layers
+						of the model provided in the trainer.
+		:type output_params: Optional[Sequence[torch.nn.Parameter]]
+		:param layers: The hidden layers to optimize. If not provided, eprop will try to find the hidden layers
+						by looking for the layers of the model provided in the trainer.
+		:type layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]]
+		:param output_layers: The output layers to optimize. If not provided, eprop will try to find the output layers
+						by looking for the layers of the model provided in the trainer.
+		:type output_layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]]
+		:param kwargs: Keyword arguments to pass to the parent class and to configure the algorithm.
+		
+		:keyword Optional[torch.optim.Optimizer] optimizer: The optimizer to use. If provided make sure to provide the
+						param_group in the following format:
 								[{"params": params, "lr": params_lr}, {"params": output_params, "lr": output_params_lr}]
 						The index of the group must be the same as the OPTIMIZER_PARAMS_GROUP_IDX and
 						OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX constants which are 0 and 1 respectively.
 						If not provided, torch.optim.Adam is used.
-		:type optimizer: Optional[torch.optim.Optimizer]
-		:param criterion: The criterion to use. If not provided, torch.nn.MSELoss is used.
-		:type criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]]
-		:param kwargs: The keyword arguments to pass to the BaseCallback.
-
-		:keyword float params_lr:
-		:keyword float output_params_lr:
+		:keyword Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] criterion: The
+						criterion to use for the output learning signal. If not provided, torch.nn.MSELoss is used. Note
+						that this criterion will be minimized.
+		:keyword float params_lr: The learning rate for the hidden parameters. Defaults to 1e-4.
+		:keyword float output_params_lr: The learning rate for the output parameters. Defaults to 2e-4.
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
 		"""
-		warnings.warn("Eprop is still in beta and may not work as expected or act exactly as BPTT.", DeprecationWarning)
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
 		kwargs.setdefault("backward_time_steps", 1)
 		kwargs.setdefault("optim_time_steps", 1)
 		kwargs.setdefault("criterion", torch.nn.MSELoss())
-		# TODO: implement a optim step at each `optim_time_steps` steps.
-		# assert "backward_time_steps" not in kwargs, f"{self.__class__} does not support backward_time_steps."
-		# assert "optim_time_steps" not in kwargs, f"{self.__class__} does not support optim_time_steps."
-		# assert params is None, f"{self.__class__} does not support params yet."
-		# assert layers is not None, f"{self.__class__} requires layers."
 		super().__init__(
 			params=params,
 			layers=layers,

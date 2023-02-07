@@ -247,10 +247,12 @@ def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Se
 	:return: List of modules.
 	"""
 	from neurotorch.transforms.wrappers import CallableToModuleWrapper
-	return torch.nn.Sequential(*[
+	return torch.nn.Sequential(
+		*[
 			c if isinstance(c, torch.nn.Module) else CallableToModuleWrapper(c)
 			for c in callable_list
-		])
+		]
+		)
 
 
 def format_pseudo_rn_seed(seed: Optional[int] = None) -> int:
@@ -400,6 +402,7 @@ def vmap(f):
 	# TODO: replace by torch.vmap when it is available
 	def wrapper(batch_tensor):
 		return torch.stack([f(batch_tensor[i]) for i in range(batch_tensor.shape[0])])
+	
 	return wrapper
 
 
@@ -470,3 +473,59 @@ def get_contributing_params(y, top_level=True):
 			pass  # node has no tensor
 		if f is not None:
 			yield from get_contributing_params(f, top_level=False)
+
+
+def clip_tensors_norm_(
+		tensors: Union[torch.Tensor, Iterable[torch.Tensor]],
+		max_norm: float,
+		norm_type: float = 2.0,
+		error_if_nonfinite: bool = False
+) -> torch.Tensor:
+	r"""Clips norm of an iterable of tensors.
+	
+	This function is a clone from torch.nn.utils.clip_grad_norm_ with the difference that it
+	works on tensors instead of parameters.
+	
+	The norm is computed over all tensors together, as if they were
+	concatenated into a single vector.
+	
+	Args:
+		tensors (Iterable[Tensor] or Tensor): an iterable of Tensors or a
+			single Tensor that will have data normalized
+		max_norm (float or int): max norm of the data
+		norm_type (float or int): type of the used p-norm. Can be ``'inf'`` for
+			infinity norm.
+		error_if_nonfinite (bool): if True, an error is thrown if the total
+			norm of the data from :attr:`parameters` is ``nan``,
+			``inf``, or ``-inf``. Default: False
+	
+	Returns:
+		Total norm of the tensors (viewed as a single vector).
+	"""
+	if isinstance(tensors, torch.Tensor):
+		tensors = [tensors]
+	max_norm = float(max_norm)
+	norm_type = float(norm_type)
+	if len(tensors) == 0:
+		return torch.tensor(0.)
+	device = tensors[0].device
+	if norm_type == torch.inf:
+		norms = [t.detach().abs().max().to(device) for t in tensors]
+		total_norm = norms[0] if len(norms) == 1 else torch.max(torch.stack(norms))
+	else:
+		total_norm = torch.norm(torch.stack([torch.norm(t.detach(), norm_type).to(device) for t in tensors]), norm_type)
+	if error_if_nonfinite and torch.logical_or(total_norm.isnan(), total_norm.isinf()):
+		raise RuntimeError(
+			f'The total norm of order {norm_type} for gradients from '
+			'`parameters` is non-finite, so it cannot be clipped. To disable '
+			'this error and scale the gradients by the non-finite norm anyway, '
+			'set `error_if_nonfinite=False`'
+		)
+	clip_coef = max_norm / (total_norm + 1e-6)
+	# Note: multiplying by the clamped coef is redundant when the coef is clamped to 1, but doing so
+	# avoids a `if clip_coef < 1:` conditional which can require a CPU <=> device synchronization
+	# when the gradients do not reside in CPU memory.
+	clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
+	for t in tensors:
+		t.detach().mul_(clip_coef_clamped.to(t.device))
+	return total_norm

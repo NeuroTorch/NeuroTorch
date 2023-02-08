@@ -106,6 +106,7 @@ def train_with_params(
 		metric="val_p_var",
 		minimise_metric=False,
 		save_freq=max(1, int(n_iterations / 10)),
+		start_save_at=max(1, int(n_iterations / 3)),
 		save_best_only=True,
 	)
 	model = nt.SequentialRNN(
@@ -113,6 +114,7 @@ def train_with_params(
 		device=device,
 		foresight_time_steps=dataset.n_time_steps - 1,
 		out_memory_size=dataset.n_time_steps - 1,
+		hh_memory_size=1,
 		checkpoint_folder=checkpoint_manager.checkpoint_folder,
 	).build()
 	la = nt.Eprop(
@@ -122,9 +124,11 @@ def train_with_params(
 		output_params_lr=2e-4,
 		default_optimizer_cls=torch.optim.AdamW,
 		default_optim_kwargs={"weight_decay": 1e-12, "lr": 1e-4},
-		eligibility_traces_norm_clip_value=torch.inf,
+		eligibility_traces_norm_clip_value=100,
 		grad_norm_clip_value=1.0,
-		learning_signal_norm_clip_value=torch.inf,
+		learning_signal_norm_clip_value=100,
+		feedback_weights_norm_clip_value=np.inf,
+		feedbacks_gen_strategy="randn",
 	)
 	callbacks = [la, checkpoint_manager]
 	

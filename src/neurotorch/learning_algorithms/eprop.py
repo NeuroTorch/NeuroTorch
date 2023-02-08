@@ -38,6 +38,17 @@ class Eprop(TBPTT):
 	OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX = 1
 	DEFAULT_OPTIMIZER_CLS = torch.optim.AdamW
 	DEFAULT_Y_KEY = "default_key"
+	DEFAULT_FEEDBACKS_GEN_STRATEGY = "randn"
+	FEEDBACKS_GEN_FUNCS = {
+		"randn"  : lambda *args, **kwargs: torch.randn(*args, **kwargs),
+		"rand"   : lambda *args, **kwargs: torch.rand(*args, **kwargs),
+		"unitary": lambda *args, **kwargs: unitary_rn_normal_matrix(*args, **kwargs)
+	}
+	DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE = {
+		"randn"  : 1.0,
+		"rand"   : 1.0,
+		"unitary": torch.inf,
+	}
 	
 	def __init__(
 			self,
@@ -83,6 +94,12 @@ class Eprop(TBPTT):
 		:keyword float grad_norm_clip_value: The value to clip the gradients norm to. This parameter is used to
 						normalize the gradients of the parameters in order to help the convergence and avoid
 						overflowing. Defaults to 1.0.
+		:keyword str feedbacks_gen_strategy: The strategy to use to generate the feedbacks. Defaults to
+						Eprop.DEFAULT_FEEDBACKS_GEN_STRATEGY which is "randn". The available strategies are stored in
+						Eprop.FEEDBACKS_GEN_FUNCS which are:
+							- "randn": Normal distribution with mean 0 and variance 1.
+							- "rand": Uniform distribution between 0 and 1.
+							- "unitary": Unitary matrix with normal distribution.
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
 		"""
@@ -98,9 +115,15 @@ class Eprop(TBPTT):
 		)
 		self.output_params = output_params or []
 		self.output_layers = output_layers
-		self.random_feedbacks = kwargs.get("random_feedbacks", True)
-		if not self.random_feedbacks:
-			raise NotImplementedError("Non-random feedbacks are not implemented yet.")
+		self._feedbacks_gen_strategy = kwargs.get("feedbacks_gen_strategy", self.DEFAULT_FEEDBACKS_GEN_STRATEGY).lower()
+		if self._feedbacks_gen_strategy not in self.FEEDBACKS_GEN_FUNCS:
+			raise NotImplementedError(
+				f"Feedbacks generation strategy '{self._feedbacks_gen_strategy}' is not implemented."
+				f"Maybe you meant one of the following: {', '.join(self.FEEDBACKS_GEN_FUNCS.keys())}"
+				f" or you can implement your own by adding it to the Eprop.FEEDBACKS_GEN_FUNCS dictionary."
+				f" If your new strategy is a common one, please consider contributing to the library by opening a "
+				f"pull request on https://github.com/NeuroTorch/NeuroTorch."
+			)
 		self.feedback_weights = None
 		self.rn_gen = torch.Generator()
 		self.rn_gen.manual_seed(kwargs.get("seed", 0))
@@ -117,6 +140,10 @@ class Eprop(TBPTT):
 		self.eligibility_traces_norm_clip_value = kwargs.get("eligibility_traces_norm_clip_value", torch.inf)
 		self.learning_signal_norm_clip_value = kwargs.get("learning_signal_norm_clip_value", 1.0)
 		self.grad_norm_clip_value = kwargs.get("grad_norm_clip_value", 1.0)
+		self.feedback_weights_norm_clip_value = kwargs.get(
+			"feedback_weights_norm_clip_value",
+			self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(str(self._feedbacks_gen_strategy), torch.inf)
+		)
 		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
 		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-5, "lr": 1e-4})
 	
@@ -132,7 +159,6 @@ class Eprop(TBPTT):
 				self.param_groups = self.optimizer.param_groups
 				self.params = self.param_groups[self.OPTIMIZER_PARAMS_GROUP_IDX]["params"]
 				self.output_params = self.param_groups[self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX]["params"]
-			if self.random_feedbacks:
 				self.feedback_weights = state.get(self.CHECKPOINT_FEEDBACK_WEIGHTS_KEY, None)
 	
 	def get_checkpoint_state(self, trainer, **kwargs) -> object:
@@ -140,10 +166,34 @@ class Eprop(TBPTT):
 			state = {}
 			if self.optimizer is not None:
 				state[self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY] = self.optimizer.state_dict()
-			if self.random_feedbacks:
 				state[self.CHECKPOINT_FEEDBACK_WEIGHTS_KEY] = self.feedback_weights
 			return state
 		return None
+	
+	def _get_feedback_gen_func(self):
+		if self._feedbacks_gen_strategy is None:
+			self._feedbacks_gen_strategy = self.DEFAULT_FEEDBACKS_GEN_STRATEGY
+		if self._feedbacks_gen_strategy not in self.FEEDBACKS_GEN_FUNCS:
+			raise NotImplementedError(
+				f"Feedbacks generation strategy '{self._feedbacks_gen_strategy}' is not implemented."
+				f"Maybe you meant one of the following: {', '.join(self.FEEDBACKS_GEN_FUNCS.keys())}"
+				f" or you can implement your own by adding it to the Eprop.FEEDBACKS_GEN_FUNCS dictionary."
+				f" If your new strategy is a common one, please consider contributing to the library by opening a "
+				f"pull request on https://github.com/NeuroTorch/NeuroTorch."
+			)
+		return self.FEEDBACKS_GEN_FUNCS[self._feedbacks_gen_strategy]
+	
+	def make_feedback_weights(self, *args, **kwargs):
+		"""
+		Generate the feedback weights for each params.
+		The random feedback is noted B_{ij} in Bellec's paper :cite:t:`bellec_solution_2020`.
+		
+		:return: The feedback weights for each params.
+		"""
+		feedback_gen_func = self._get_feedback_gen_func()
+		feedback_weights = feedback_gen_func(*args, **kwargs)
+		clip_tensors_norm_(feedback_weights, max_norm=self.feedback_weights_norm_clip_value)
+		return feedback_weights
 	
 	def initialize_feedback_weights(self, y_batch: Optional[Union[Dict[str, torch.Tensor], torch.Tensor]] = None):
 		"""
@@ -161,20 +211,12 @@ class Eprop(TBPTT):
 		if not isinstance(y_batch, dict):
 			y_batch = {self.DEFAULT_Y_KEY: y_batch}
 		last_dims = [p.shape[-1] if p.ndim > 0 else 1 for p in self.params]
-		if self.random_feedbacks:
-			self.feedback_weights = {
-				k: [
-					torch.randn((y_batch_item.shape[-1], pld), generator=self.rn_gen)
-					#unitary_rn_normal_matrix(y_batch_item.shape[-1], pld, generator=self.rn_gen)
-					for pld in last_dims
-				] for k, y_batch_item in y_batch.items()
-			}
-		else:
-			raise NotImplementedError("Non-random feedbacks are not implemented yet.")
-
-		for key in self.feedback_weights.keys():
-			for i, fw in enumerate(self.feedback_weights[key]):
-				clip_tensors_norm_(self.feedback_weights[key][i], max_norm=1.0)
+		self.feedback_weights = {
+			k: [
+				self.make_feedback_weights(y_batch_item.shape[-1], pld, generator=self.rn_gen)
+				for pld in last_dims
+			] for k, y_batch_item in y_batch.items()
+		}
 		return self.feedback_weights
 	
 	def _initialize_original_forwards(self):

@@ -115,8 +115,18 @@ def train_with_params(
 		out_memory_size=dataset.n_time_steps - 1,
 		checkpoint_folder=checkpoint_manager.checkpoint_folder,
 	).build()
-	la = nt.Eprop(alpha=0.9, default_optim_kwargs={"weight_decay": 1e-5, "lr": 1e-3})
-	# la.DEFAULT_OPTIMIZER_CLS = torch.optim.SGD
+	la = nt.Eprop(
+		# alpha=0.004,
+		# gamma=0.004,
+		alpha=0.9,
+		gamma=0.9,
+		params_lr=1e-4,
+		output_params_lr=2e-4,
+		default_optimizer_cls=torch.optim.AdamW,
+		default_optim_kwargs={"weight_decay": 1e-12, "lr": 1e-4},
+		eligibility_traces_norm_clip_value=torch.inf,
+		grad_norm_clip_value=1.0,
+	)
 	callbacks = [la, checkpoint_manager]
 	
 	with torch.no_grad():
@@ -246,9 +256,6 @@ if __name__ == '__main__':
 		title=f"Prediction",
 		show=True,
 		dpi=600,
-	)
-	viz.plot_timeseries_comparison(
-		res["original_time_series"], title=f"Prediction", show=True, filename="figures/prediction.png"
 	)
 	
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))

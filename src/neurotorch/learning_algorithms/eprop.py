@@ -16,7 +16,7 @@ from ..utils import (
 	unpack_out_hh,
 	recursive_detach,
 	filter_parameters,
-	dy_dw_local
+	dy_dw_local, clip_tensors_norm_
 )
 
 
@@ -78,6 +78,11 @@ class Eprop(TBPTT):
 						that this criterion will be minimized.
 		:keyword float params_lr: The learning rate for the hidden parameters. Defaults to 1e-4.
 		:keyword float output_params_lr: The learning rate for the output parameters. Defaults to 2e-4.
+		:keyword float eligibility_traces_norm_clip_value: The value to clip the eligibility traces norm to.
+						Defaults to torch.inf.
+		:keyword float grad_norm_clip_value: The value to clip the gradients norm to. This parameter is used to
+						normalize the gradients of the parameters in order to help the convergence and avoid
+						overflowing. Defaults to 1.0.
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
 		"""
@@ -107,6 +112,12 @@ class Eprop(TBPTT):
 		self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
 		self.gamma = kwargs.get("gamma", 0.9)
 		self.alpha = kwargs.get("alpha", 0.9)
+		self._default_params_lr = kwargs.get("params_lr", 1e-4)
+		self._default_output_params_lr = kwargs.get("output_params_lr", 2e-4)
+		self.eligibility_traces_norm_clip_value = kwargs.get("eligibility_traces_norm_clip_value", torch.inf)
+		self.grad_norm_clip_value = kwargs.get("grad_norm_clip_value", 1.0)
+		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
+		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-5, "lr": 1e-4})
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
@@ -158,6 +169,10 @@ class Eprop(TBPTT):
 			}
 		else:
 			raise NotImplementedError("Non-random feedbacks are not implemented yet.")
+		
+		for key in self.feedback_weights.keys():
+			for i, fw in enumerate(self.feedback_weights[key]):
+				clip_tensors_norm_(self.feedback_weights[key][i], max_norm=1.0)
 		return self.feedback_weights
 	
 	def _initialize_original_forwards(self):
@@ -277,19 +292,19 @@ class Eprop(TBPTT):
 		list_insert_replace_at(
 			self.param_groups,
 			self.OPTIMIZER_PARAMS_GROUP_IDX,
-			{"params": self.params, "lr": self.kwargs.get("params_lr", 1e-4)}
+			{"params": self.params, "lr": self._default_params_lr}
 		)
 		list_insert_replace_at(
 			self.param_groups,
 			self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX,
-			{"params": self.output_params, "lr": self.kwargs.get("output_params_lr", 2e-4)}
+			{"params": self.output_params, "lr": self._default_output_params_lr}
 		)
 		return self.param_groups
 	
 	def create_default_optimizer(self):
 		if not self.param_groups:
 			self.initialize_param_groups()
-		self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups, **self.kwargs.get("default_optim_kwargs", {}))
+		self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups, **self._default_optim_kwargs)
 		return self.optimizer
 
 	def eligibility_traces_zeros_(self):
@@ -404,9 +419,15 @@ class Eprop(TBPTT):
 		dy_dw_locals = dy_dw_local(y=pred_batch, params=self.params, retain_graph=True, allow_unused=True)
 		with torch.no_grad():
 			self.eligibility_traces = [
-				self.gamma * et + dy_dw.to(et.device)
+				self.gamma * et + torch.nan_to_num(
+					dy_dw.to(et.device),
+					nan=0.0,
+					neginf=-self.eligibility_traces_norm_clip_value,
+					posinf=self.eligibility_traces_norm_clip_value,
+				)
 				for et, dy_dw in zip(self.eligibility_traces, dy_dw_locals)
 			]
+			clip_tensors_norm_(self.eligibility_traces, self.eligibility_traces_norm_clip_value)
 			self._layers_buffer[layer_name].clear()
 	
 	def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
@@ -430,9 +451,15 @@ class Eprop(TBPTT):
 		output_grads = dy_dw_local(torch.mean(batch_loss), self.output_params, retain_graph=True, allow_unused=True)
 		with torch.no_grad():
 			self.output_eligibility_traces = [
-				self.alpha * et + dy_dw.to(et.device)
+				self.alpha * et + torch.nan_to_num(
+					dy_dw.to(et.device),
+					nan=0.0,
+					neginf=-self.eligibility_traces_norm_clip_value,
+					posinf=self.eligibility_traces_norm_clip_value,
+				)
 				for et, dy_dw in zip(self.output_eligibility_traces, output_grads)
 			]
+			clip_tensors_norm_(self.output_eligibility_traces, self.eligibility_traces_norm_clip_value)
 		self.update_grads(errors)
 		with torch.no_grad():
 			self._layers_buffer[layer_name].clear()
@@ -503,11 +530,13 @@ class Eprop(TBPTT):
 			for param, ls, et in zip(self.params, learning_signals, self.eligibility_traces):
 				if param.requires_grad:
 					param.grad += (ls * et.to(ls.device)).to(param.device).view(param.shape).detach()
+			torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
 
 		with torch.no_grad():
 			for out_param, out_el in zip(self.output_params, self.output_eligibility_traces):
 				if out_param.requires_grad:
 					out_param.grad += out_el.to(out_param.device).view(out_param.shape).detach()
+			torch.nn.utils.clip_grad_norm_(self.output_params, self.grad_norm_clip_value)
 	
 	def _make_optim_step(self, **kwargs):
 		"""
@@ -520,6 +549,16 @@ class Eprop(TBPTT):
 		super()._make_optim_step(**kwargs)
 		with torch.no_grad():
 			zero_grad_params(self.output_params)
+		if not all([torch.isfinite(p).all() for p in self.params]):
+			raise ValueError(
+				"Non-finite detected in hidden parameters gradients. Try to reduce the learning rate of the hidden "
+				"parameters with the argument `params_lr`."
+			)
+		if not all([torch.isfinite(p).all() for p in self.output_params]):
+			raise ValueError(
+				"Non-finite detected in output parameters gradients. Try to reduce the learning rate of the output "
+				"parameters with the argument `output_params_lr`."
+			)
 
 	def on_batch_end(self, trainer, **kwargs):
 		"""

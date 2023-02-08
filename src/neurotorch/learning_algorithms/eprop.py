@@ -16,7 +16,7 @@ from ..utils import (
 	unpack_out_hh,
 	recursive_detach,
 	filter_parameters,
-	dy_dw_local, clip_tensors_norm_
+	dy_dw_local, clip_tensors_norm_, unitary_rn_normal_matrix
 )
 
 
@@ -115,6 +115,7 @@ class Eprop(TBPTT):
 		self._default_params_lr = kwargs.get("params_lr", 1e-4)
 		self._default_output_params_lr = kwargs.get("output_params_lr", 2e-4)
 		self.eligibility_traces_norm_clip_value = kwargs.get("eligibility_traces_norm_clip_value", torch.inf)
+		self.learning_signal_norm_clip_value = kwargs.get("learning_signal_norm_clip_value", 1.0)
 		self.grad_norm_clip_value = kwargs.get("grad_norm_clip_value", 1.0)
 		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
 		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-5, "lr": 1e-4})
@@ -164,12 +165,13 @@ class Eprop(TBPTT):
 			self.feedback_weights = {
 				k: [
 					torch.randn((y_batch_item.shape[-1], pld), generator=self.rn_gen)
+					#unitary_rn_normal_matrix(y_batch_item.shape[-1], pld, generator=self.rn_gen)
 					for pld in last_dims
 				] for k, y_batch_item in y_batch.items()
 			}
 		else:
 			raise NotImplementedError("Non-random feedbacks are not implemented yet.")
-		
+
 		for key in self.feedback_weights.keys():
 			for i, fw in enumerate(self.feedback_weights[key]):
 				clip_tensors_norm_(self.feedback_weights[key][i], max_norm=1.0)
@@ -480,6 +482,7 @@ class Eprop(TBPTT):
 					f"Key {k} from {self.feedback_weights.keys()=} not found in errors of keys {errors.keys()}."
 				)
 			error_mean = torch.mean(errors[k].view(-1, errors[k].shape[-1]), dim=0).view(1, -1)
+			clip_tensors_norm_(error_mean, max_norm=self.learning_signal_norm_clip_value)
 			for i, feedback in enumerate(feedbacks):
 				learning_signals[i] = learning_signals[i] + torch.matmul(error_mean, feedback.to(error_mean.device))
 		return learning_signals

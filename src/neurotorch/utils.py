@@ -529,3 +529,10 @@ def clip_tensors_norm_(
 	for t in tensors:
 		t.detach().mul_(clip_coef_clamped.to(t.device))
 	return total_norm
+
+
+def unitary_rn_normal_matrix(n: int, m: int, generator: Optional[torch.Generator] = None) -> torch.Tensor:
+	matrix = torch.randn((n, m), generator=generator)
+	u, s, v = torch.linalg.svd(matrix, full_matrices=True)
+	unitary_matrix = u @ torch.eye(*matrix.shape) @ v
+	return unitary_matrix

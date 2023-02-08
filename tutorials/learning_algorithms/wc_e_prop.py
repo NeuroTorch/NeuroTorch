@@ -116,8 +116,6 @@ def train_with_params(
 		checkpoint_folder=checkpoint_manager.checkpoint_folder,
 	).build()
 	la = nt.Eprop(
-		# alpha=0.004,
-		# gamma=0.004,
 		alpha=0.9,
 		gamma=0.9,
 		params_lr=1e-4,
@@ -126,6 +124,7 @@ def train_with_params(
 		default_optim_kwargs={"weight_decay": 1e-12, "lr": 1e-4},
 		eligibility_traces_norm_clip_value=torch.inf,
 		grad_norm_clip_value=1.0,
+		learning_signal_norm_clip_value=torch.inf,
 	)
 	callbacks = [la, checkpoint_manager]
 	
@@ -186,7 +185,7 @@ def train_with_params(
 		"tau0"                : nt.to_numpy(tau0),
 		"tau"                 : nt.to_numpy(ws_layer.tau),
 		"x_pred"              : nt.to_numpy(torch.squeeze(x_pred).T),
-		"original_time_series": dataset.full_time_series,
+		"original_time_series": dataset.full_time_series.squeeze(),
 		"force_dale_law"      : params["force_dale_law"],
 	}
 	if ws_layer.force_dale_law:
@@ -257,7 +256,8 @@ if __name__ == '__main__':
 		show=True,
 		dpi=600,
 	)
-	
+
+
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	VisualiseKMeans(
 		res["original_time_series"].T,

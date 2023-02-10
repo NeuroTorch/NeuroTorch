@@ -118,16 +118,16 @@ def train_with_params(
 		checkpoint_folder=checkpoint_manager.checkpoint_folder,
 	).build()
 	la = nt.Eprop(
-		alpha=0.9,
+		alpha=0.1,
 		gamma=0.9,
 		params_lr=1e-4,
 		output_params_lr=2e-4,
-		default_optimizer_cls=torch.optim.AdamW,
-		default_optim_kwargs={"weight_decay": 1e-12, "lr": 1e-4},
-		eligibility_traces_norm_clip_value=100,
-		grad_norm_clip_value=1.0,
-		learning_signal_norm_clip_value=100,
-		feedback_weights_norm_clip_value=np.inf,
+		default_optimizer_cls=torch.optim.Adam,
+		default_optim_kwargs={"weight_decay": 0.0, "lr": 1e-4},
+		eligibility_traces_norm_clip_value=torch.inf,
+		grad_norm_clip_value=torch.inf,
+		learning_signal_norm_clip_value=torch.inf,
+		feedback_weights_norm_clip_value=torch.inf,
 		feedbacks_gen_strategy="randn",
 	)
 	callbacks = [la, checkpoint_manager]
@@ -221,7 +221,7 @@ if __name__ == '__main__':
 			"learn_tau"                     : True,
 			"use_recurrent_connection"      : False,
 		},
-		n_iterations=300,
+		n_iterations=150,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,
@@ -260,7 +260,6 @@ if __name__ == '__main__':
 		show=True,
 		dpi=600,
 	)
-
 
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	VisualiseKMeans(

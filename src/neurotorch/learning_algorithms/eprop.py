@@ -42,11 +42,13 @@ class Eprop(TBPTT):
 	FEEDBACKS_GEN_FUNCS = {
 		"randn"  : lambda *args, **kwargs: torch.randn(*args, **kwargs),
 		"rand"   : lambda *args, **kwargs: torch.rand(*args, **kwargs),
+		"ones"   : lambda *args, **kwargs: torch.ones(*args),
 		"unitary": lambda *args, **kwargs: unitary_rn_normal_matrix(*args, **kwargs)
 	}
 	DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE = {
 		"randn"  : 1.0,
 		"rand"   : 1.0,
+		"ones"   : 1.0,
 		"unitary": torch.inf,
 	}
 	

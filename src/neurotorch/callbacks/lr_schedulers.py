@@ -313,7 +313,7 @@ class LRSchedulerOnMetric(BaseCallback):
 		:return: The dictionary to update the progress bar.
 		:rtype: dict
 		"""
-		return {'lr': self.lr}
+		return {}
 	
 	def extra_repr(self) -> str:
 		return f"metric={self.metric}, minimize={self.minimize_metric}"

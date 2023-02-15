@@ -1,22 +1,10 @@
 import pprint
 
-import matplotlib.pyplot as plt
-import torch
-from torch.utils.data import DataLoader
-
 import neurotorch as nt
-from neurotorch.callbacks.convergence import ConvergenceTimeGetter
-from neurotorch.callbacks.early_stopping import EarlyStoppingThreshold
-from neurotorch.callbacks.events import EventOnMetricThreshold
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
-from neurotorch.modules.layers import WilsonCowanLayer
-from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
-from neurotorch.utils import hash_params
 from neurotorch.visualisation.connectome import visualize_init_final_weights
 from neurotorch.visualisation.time_series_visualisation import *
 from tutorials.learning_algorithms.dataset import get_dataloader
-from tutorials.time_series_forecasting_wilson_cowan.dataset import WSDataset
-
 
 def set_default_param(**kwargs):
 	kwargs.setdefault("filename", None)
@@ -91,7 +79,7 @@ def train_with_params(
 		activation=params["activation"],
 		use_recurrent_connection=params["use_recurrent_connection"],
 	).build()
-	layers = [ws_layer]
+	layers = [ws_layer, ]
 	if params["add_out_layer"]:
 		out_layer = nt.Linear(
 			params["n_aux_units"], x.shape[-1],
@@ -102,7 +90,6 @@ def train_with_params(
 		layers.append(out_layer)
 	checkpoint_manager = nt.CheckpointManager(
 		checkpoint_folder="./checkpoints_wc_e_prop",
-		# metric="val_loss",
 		metric="val_p_var",
 		minimise_metric=False,
 		save_freq=max(1, int(n_iterations / 10)),
@@ -118,19 +105,26 @@ def train_with_params(
 		checkpoint_folder=checkpoint_manager.checkpoint_folder,
 	).build()
 	la = nt.Eprop(
-		alpha=0.01,
-		gamma=0.01,
+		alpha=1e-3,
+		gamma=1e-3,
 		params_lr=1e-5,
 		output_params_lr=2e-5,
 		default_optimizer_cls=torch.optim.AdamW,
-		default_optim_kwargs={"weight_decay": 1e-6, "lr": 1e-6},
+		default_optim_kwargs={"weight_decay": 1e-3, "lr": 1e-6},
 		eligibility_traces_norm_clip_value=1.0,
 		grad_norm_clip_value=1.0,
 		learning_signal_norm_clip_value=1.0,
 		feedback_weights_norm_clip_value=1.0,
 		feedbacks_gen_strategy="randn",
 	)
-	callbacks = [la, checkpoint_manager]
+	lr_scheduler = LRSchedulerOnMetric(
+		'val_p_var',
+		metric_schedule=np.linspace(kwargs.get("lr_schedule_start", 0.5), 1.0, 100),
+		min_lr=[1e-7, 2e-7],
+		retain_progress=True,
+		priority=la.priority + 1,
+	)
+	callbacks = [la, checkpoint_manager, lr_scheduler]
 	
 	with torch.no_grad():
 		W0 = ws_layer.forward_weights.clone().detach().cpu().numpy()
@@ -210,8 +204,8 @@ if __name__ == '__main__':
 			# "filename": "curbd_Adata.npy",
 			"filename"                      : None,
 			"smoothing_sigma"               : 5.0,
-			"n_units"                       : 200,
-			"n_aux_units"                   : 200,
+			"n_units"                       : 500,
+			"n_aux_units"                   : 500,
 			"n_time_steps"                  : -1,
 			"dataset_length"                : 1,
 			"dataset_randomize_indexes"     : False,
@@ -221,7 +215,7 @@ if __name__ == '__main__':
 			"learn_tau"                     : True,
 			"use_recurrent_connection"      : False,
 		},
-		n_iterations=1000,
+		n_iterations=2000,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,
@@ -257,6 +251,7 @@ if __name__ == '__main__':
 	viz.plot_timeseries_comparison_report(
 		res["original_time_series"],
 		title=f"Prediction",
+		filename=f"figures/timeseries_comparison_report.png",
 		show=True,
 		dpi=600,
 	)

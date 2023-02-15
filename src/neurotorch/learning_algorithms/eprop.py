@@ -135,10 +135,10 @@ class Eprop(TBPTT):
 		self.param_groups = []
 		self._hidden_layer_names = []
 		self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
-		self.gamma = kwargs.get("gamma", 0.9)
-		self.alpha = kwargs.get("alpha", 0.9)
-		self._default_params_lr = kwargs.get("params_lr", 1e-4)
-		self._default_output_params_lr = kwargs.get("output_params_lr", 2e-4)
+		self.gamma = kwargs.get("gamma", 0.01)
+		self.alpha = kwargs.get("alpha", 0.01)
+		self._default_params_lr = kwargs.get("params_lr", 1e-5)
+		self._default_output_params_lr = kwargs.get("output_params_lr", 2e-5)
 		self.eligibility_traces_norm_clip_value = kwargs.get("eligibility_traces_norm_clip_value", torch.inf)
 		self.learning_signal_norm_clip_value = kwargs.get("learning_signal_norm_clip_value", 1.0)
 		self.grad_norm_clip_value = kwargs.get("grad_norm_clip_value", 1.0)
@@ -147,7 +147,7 @@ class Eprop(TBPTT):
 			self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(str(self._feedbacks_gen_strategy), torch.inf)
 		)
 		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
-		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-5, "lr": 1e-4})
+		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-3, "lr": 1e-5})
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:

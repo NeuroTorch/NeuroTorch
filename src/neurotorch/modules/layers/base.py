@@ -5,12 +5,13 @@ import numpy as np
 import torch
 from torch import nn
 
+from ..base import SizedModule
 from ...dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 from ...transforms import to_tensor, ToDevice
 from ...utils import format_pseudo_rn_seed
 
 
-class BaseLayer(torch.nn.Module):
+class BaseLayer(SizedModule):
 	"""
 	Base class for all layers.
 
@@ -21,6 +22,7 @@ class BaseLayer(torch.nn.Module):
 		- :attr:`kwargs` (dict): Additional keyword arguments.
 
 	"""
+	
 	def __init__(
 			self,
 			input_size: Optional[SizeTypes] = None,
@@ -48,12 +50,8 @@ class BaseLayer(torch.nn.Module):
 			will be called after each forward pass. Defaults to False.
 		:keyword bool freeze_weights: Whether to freeze the weights of the layer. Defaults to False.
 		"""
-		super(BaseLayer, self).__init__()
+		super(BaseLayer, self).__init__(input_size=input_size, output_size=output_size, name=name)
 		self._is_built = False
-		self._name_is_set = False
-		self.name = name
-		self._name_is_default = name is None
-		
 		self._freeze_weights = kwargs.get("freeze_weights", False)
 		self._device = device
 		if self._device is None:
@@ -69,26 +67,6 @@ class BaseLayer(torch.nn.Module):
 		self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 	
 	@property
-	def input_size(self) -> Optional[Dimension]:
-		if not hasattr(self, "_input_size"):
-			return None
-		return self._input_size
-	
-	@input_size.setter
-	def input_size(self, size: Optional[SizeTypes]):
-		self._input_size = self._format_size(size)
-	
-	@property
-	def output_size(self) -> Optional[Dimension]:
-		if not hasattr(self, "_output_size"):
-			return None
-		return self._output_size
-	
-	@output_size.setter
-	def output_size(self, size: Optional[SizeTypes]):
-		self._output_size = self._format_size(size)
-	
-	@property
 	def freeze_weights(self) -> bool:
 		return self._freeze_weights
 	
@@ -102,32 +80,16 @@ class BaseLayer(torch.nn.Module):
 		return not self.freeze_weights
 	
 	@property
-	def name(self) -> str:
-		if self._name is None:
-			return self.__class__.__name__
-		return self._name
-	
-	@property
-	def name_is_set(self) -> bool:
-		return self._name_is_set
-	
-	@name.setter
-	def name(self, name: str):
-		self._name = name
-		if name is not None:
-			assert isinstance(name, str), "name must be a string."
-			self._name_is_set = True
-	
-	@property
 	def is_ready_to_build(self) -> bool:
-		return all \
-			([
-			s is not None
-			for s in [
+		return all(
+			[
+				s is not None
+				for s in [
 				self._input_size,
 				(self._output_size if hasattr(self, "_output_size") else None)
 			]
-		])
+			]
+		)
 	
 	@property
 	def is_built(self) -> bool:
@@ -155,26 +117,15 @@ class BaseLayer(torch.nn.Module):
 		_repr = f"{self.__class__.__name__}"
 		if self.name_is_set:
 			_repr += f"<{self.name}>"
-		_repr += f"({int(self.input_size)}->{int(self.output_size)})"
+		_repr += f"({int(self.input_size)}->{int(self.output_size)}"
+		_repr += f"{self.extra_repr()})"
 		_repr += f"[{self.learning_type}]"
 		_repr += f"@{self.device}"
 		return _repr
 	
-	def _format_size(self, size: Optional[SizeTypes]) -> Optional[Dimension]:
-		# TODO: must accept multiple time dimensions
-		if size is not None:
-			if isinstance(size, Iterable):
-				size = [Dimension.from_int_or_dimension(s) for s in size]
-				time_dim_count = len(list(filter(lambda d: d.dtype == DimensionProperty.TIME, size)))
-				assert time_dim_count <= 1, "Size must not contain more than one Time dimension."
-				size = list(filter(lambda d: d.dtype != DimensionProperty.TIME, size))
-				if len(size) == 1:
-					size = size[0]
-				else:
-					raise ValueError("Size must be a single dimension or a list of 2 dimensions with a Time one.")
-			assert isinstance(size, (int, Dimension)), "Size must be an int or Dimension."
-			size = Dimension.from_int_or_dimension(size)
-		return size
+	def _format_size(self, size: Optional[SizeTypes], **kwargs) -> Optional[Dimension]:
+		kwargs["filter_time"] = True
+		return super(BaseLayer, self)._format_size(size, **kwargs)
 	
 	def _set_default_kwargs(self):
 		pass
@@ -697,3 +648,4 @@ class BaseNeuronsLayer(BaseLayer):
 			_repr += "[frozen]"
 		_repr += f"@{self.device}"
 		return _repr
+

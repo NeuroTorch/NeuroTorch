@@ -89,7 +89,7 @@ def train_with_params(
 		)
 		layers.append(out_layer)
 	checkpoint_manager = nt.CheckpointManager(
-		checkpoint_folder="./checkpoints_wc_e_prop",
+		checkpoint_folder="data/tr_data/checkpoints_wc_e_prop",
 		metric="val_p_var",
 		minimise_metric=False,
 		save_freq=max(1, int(n_iterations / 10)),
@@ -251,7 +251,7 @@ if __name__ == '__main__':
 	viz.plot_timeseries_comparison_report(
 		res["original_time_series"],
 		title=f"Prediction",
-		filename=f"figures/timeseries_comparison_report.png",
+		filename=f"data/figures/wc_eprop/timeseries_comparison_report.png",
 		show=True,
 		dpi=600,
 	)
@@ -273,7 +273,7 @@ if __name__ == '__main__':
 				nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")]
 		)
 	).heatmap(fig=fig, ax=axes[1], title="Predicted time series")
-	plt.savefig("figures/heatmap.png")
+	plt.savefig("data/figures/wc_eprop/heatmap.png")
 	plt.show()
 	
 	Visualise(
@@ -284,5 +284,11 @@ if __name__ == '__main__':
 				nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")
 			]
 		)
-	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=False, filename="figures/animation.mp4")
+	).animate(
+		time_interval=0.1,
+		forward_weights=res["W"],
+		dt=0.1,
+		show=False,
+		filename="data/figures/wc_eprop/animation.mp4"
+	)
 

@@ -289,9 +289,10 @@ if __name__ == '__main__':
 		)
 	).animate(
 		time_interval=0.1,
-		forward_weights=res["W"],
+		weights=res["W"],
 		dt=0.1,
-		show=False,
-		filename="data/figures/wc_eprop/animation.mp4"
+		show=True,
+		filename="data/figures/wc_eprop/animation.gif",
+		writer=None,
 	)
 

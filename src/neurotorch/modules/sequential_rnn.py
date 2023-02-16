@@ -382,7 +382,7 @@ class SequentialRNN(Sequential):
 		if features_list:
 			forward_tensor = torch.concat(features_list, dim=1)
 		else:
-			forward_tensor = torch.concat([inputs[in_name][:, t] for in_name in inputs], dim=1)
+			forward_tensor = torch.concat([inputs[in_name][:, idx] for in_name in inputs], dim=1)
 		return forward_tensor
 
 	def _hidden_forward_(

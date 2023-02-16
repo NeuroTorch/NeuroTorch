@@ -195,7 +195,7 @@ class SpyLIFLayerLPF(SpyLIFLayer):
 	
 	def extra_repr(self) -> str:
 		_repr = super().extra_repr()
-		_repr += f", low_pass_filter_alpha={self._low_pass_filter_alpha:.2f}"
+		_repr += f", low_pass_filter_alpha={self.lpf_alpha:.2f}"
 		return _repr
 
 

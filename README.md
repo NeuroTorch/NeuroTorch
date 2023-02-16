@@ -25,7 +25,7 @@ Moreover, NeuroTorch is modular so you can adapt it to your needs relatively qui
 because more is coming!
 
 
-### Current Version (v0.0.1-beta0)
+### Current Version (v0.0.1-beta3)
 
 What can be done with NeuroTorch in the current version? 
 - Image classification with spiking networks.
@@ -35,15 +35,15 @@ What can be done with NeuroTorch in the current version?
 - Reconstruction/Prediction of continuous time series with spiking networks.  
 - Backpropagation Through Time (BPTT).
 - Truncated-Backpropagation-Through-Time (TBPTT).
+- Learning Algorithm: [Eligibility-Propagation](https://doi.org/10.1038/s41467-020-17236-y).
 - Anything you are able to do using the modules already created.
 
 
-### Next Version (v0.0.1-beta)
-- Learning Algorithm: RLS (Recursive Least Squares).
-- Learning Algorithm: [Eligibility-Propagation](https://doi.org/10.1038/s41467-020-17236-y).
-
-### Upcoming Versions (v0.0.1+)
+### Next Versions
 - Reinforcement Learning.
+- Learning Algorithm: RLS (Recursive Least Squares).
+
+
 
 
 # 2. Installation
@@ -165,6 +165,10 @@ NeuroTorch will soon allow to easily use modules from Norse.
 gradient approach SuperSpike by [F. Zenke, and S. Ganguli (2017)](https://arxiv.org/abs/1705.11146). In fact,
 the prefix 'Spy' of certain layers in NeuroTorch is a reference to SpyTorch.
 * [PySNN](https://github.com/BasBuller/PySNN/) is a PyTorch extension similar to [Norse](https://github.com/norse/norse).
+* [Pytorch Lightning](https://github.com/Lightning-AI/lightning) is a deep learning framework to train, deploy, and 
+  ship AI products Lightning fast. 
+* [Poutyne](https://github.com/GRAAL-Research/poutyne) is a simplified framework for PyTorch and handles much of the 
+  boilerplating code needed to train classical neural networks.
 
 
 
@@ -194,8 +198,10 @@ First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
 
 
 # 10. Thanks
-- [Anthony Drouin](https://github.com/AnthoDrouin) who helped develop the Wilson-Cowan application during his 2022 summer internship.
-- [Antoine Légaré](https://github.com/AntoineLegare) who made the awesome [logo](images/neurotorch.svg) of NeuroTorch.
+- [Anthony Drouin](https://github.com/AnthoDrouin) who helped develop the Wilson-Cowan application during his 2022 
+  summer internship and who is now a collaborator of the project.
+- [Antoine Légaré](https://github.com/AntoineLegare) and [Thomas Charland]() who made the awesome 
+  [logo](images/neurotorch.svg) of NeuroTorch.
 - To my dog Chewy who has been a great help during the whole development.
 
 

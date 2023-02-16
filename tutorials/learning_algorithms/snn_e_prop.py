@@ -529,7 +529,7 @@ if __name__ == '__main__':
 	viz.plot_timeseries_comparison_report(
 		res["original_time_series"],
 		title=f"Prediction",
-		filename=f"figures/timeseries_comparison_report.png",
+		filename=f"figures/snn_eprop/timeseries_comparison_report.png",
 		show=True,
 		dpi=600,
 	)
@@ -552,7 +552,7 @@ if __name__ == '__main__':
 				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]")]
 		)
 	).heatmap(fig=fig, ax=axes[1], title="Predicted time series")
-	plt.savefig("figures/heatmap.png")
+	plt.savefig("figures/snn_eprop/heatmap.png")
 	plt.show()
 	Visualise(
 		res["x_pred"],
@@ -562,5 +562,5 @@ if __name__ == '__main__':
 				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]")
 			]
 		)
-	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=False, filename="figures/animation.mp4")
+	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=False, filename="figures/snn_eprop/animation.mp4")
 

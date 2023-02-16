@@ -215,7 +215,7 @@ if __name__ == '__main__':
 		show=True,
 		dpi=600,
 	)
-	
+
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	viz_kmeans = VisualiseKMeans(
 		res["original_time_series"],
@@ -248,8 +248,9 @@ if __name__ == '__main__':
 		)
 	).animate(
 		time_interval=0.1,
-		forward_weights=res["W"],
+		weights=res["W"],
 		dt=0.1,
-		show=False,
-		filename="data/figures/snn_eprop/animation.mp4"
+		show=True,
+		filename="data/figures/snn_eprop/animation.gif",
+		writer=None,
 	)

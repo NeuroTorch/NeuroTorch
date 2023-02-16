@@ -35,6 +35,7 @@ from .modules.layers import (
 	SpyLIFLayer,
 	SpyALIFLayer,
 	ALIFLayer,
+	SpyLIFLayerLPF,
 	WilsonCowanLayer,
 	WilsonCowanCURBDLayer,
 )

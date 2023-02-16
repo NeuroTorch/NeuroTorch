@@ -57,7 +57,7 @@ def train_with_params(
 	)
 	dataset = dataloader.dataset
 	x = dataset.full_time_series
-	ws_layer = nt.WilsonCowanLayer(
+	wc_layer = nt.WilsonCowanLayer(
 		x.shape[-1], params["n_aux_units"],
 		std_weights=params["std_weights"],
 		forward_sign=params["forward_sign"],
@@ -79,7 +79,7 @@ def train_with_params(
 		activation=params["activation"],
 		use_recurrent_connection=params["use_recurrent_connection"],
 	).build()
-	layers = [ws_layer, ]
+	layers = [wc_layer, ]
 	if params["add_out_layer"]:
 		out_layer = nt.Linear(
 			params["n_aux_units"], x.shape[-1],
@@ -127,18 +127,18 @@ def train_with_params(
 	callbacks = [la, checkpoint_manager, lr_scheduler]
 	
 	with torch.no_grad():
-		W0 = nt.to_numpy(ws_layer.forward_weights.clone())
+		W0 = nt.to_numpy(wc_layer.forward_weights.clone())
 		if params["force_dale_law"]:
-			sign0 = nt.to_numpy(ws_layer.forward_sign.clone())
+			sign0 = nt.to_numpy(wc_layer.forward_sign.clone())
 		else:
 			sign0 = None
-		mu0 = ws_layer.mu.clone()
-		r0 = ws_layer.r.clone()
-		tau0 = ws_layer.tau.clone()
-		if ws_layer.force_dale_law:
-			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_sign))) + 1) / 2
+		mu0 = wc_layer.mu.clone()
+		r0 = wc_layer.r.clone()
+		tau0 = wc_layer.tau.clone()
+		if wc_layer.force_dale_law:
+			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(wc_layer.forward_sign))) + 1) / 2
 		else:
-			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_weights))) + 1) / 2
+			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(wc_layer.forward_weights))) + 1) / 2
 	
 	trainer = nt.trainers.Trainer(
 		model,
@@ -172,25 +172,25 @@ def train_with_params(
 	out = {
 		"params"              : params,
 		"pVar"                : nt.to_numpy(loss.item()),
-		"W"                   : nt.to_numpy(ws_layer.forward_weights),
+		"W"                   : nt.to_numpy(wc_layer.forward_weights),
 		"sign0"               : sign0,
-		"mu"                  : nt.to_numpy(ws_layer.mu),
-		"r"                   : nt.to_numpy(ws_layer.r),
+		"mu"                  : nt.to_numpy(wc_layer.mu),
+		"r"                   : nt.to_numpy(wc_layer.r),
 		"W0"                  : W0,
 		"ratio_0"             : ratio_sign_0,
 		"mu0"                 : nt.to_numpy(mu0),
 		"r0"                  : nt.to_numpy(r0),
 		"tau0"                : nt.to_numpy(tau0),
-		"tau"                 : nt.to_numpy(ws_layer.tau),
+		"tau"                 : nt.to_numpy(wc_layer.tau),
 		"x_pred"              : nt.to_numpy(torch.squeeze(x_pred)),
 		"original_time_series": dataset.full_time_series.squeeze(),
 		"force_dale_law"      : params["force_dale_law"],
 	}
-	if ws_layer.force_dale_law:
-		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_sign))) + 1) / 2
-		out["sign"] = nt.to_numpy(ws_layer.forward_sign.clone())
+	if wc_layer.force_dale_law:
+		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(wc_layer.forward_sign))) + 1) / 2
+		out["sign"] = nt.to_numpy(wc_layer.forward_sign.clone())
 	else:
-		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_weights))) + 1) / 2
+		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(wc_layer.forward_weights))) + 1) / 2
 		out["sign"] = None
 	
 	return out

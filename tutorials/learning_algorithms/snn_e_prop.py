@@ -169,6 +169,8 @@ class SpyLIFLayerLowPassFilter(BaseNeuronsLayer):
 		self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 		self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
 		self._total_count = 0
+		self._use_low_pass_filter = self.kwargs["use_low_pass_filter"]
+		self._low_pass_filter_alpha = self.kwargs["low_pass_filter_alpha"]
 	
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("tau_syn", 5.0 * self.dt)
@@ -177,6 +179,8 @@ class SpyLIFLayerLowPassFilter(BaseNeuronsLayer):
 		self.kwargs.setdefault("gamma", 100.0)
 		self.kwargs.setdefault("spikes_regularization_factor", 0.0)
 		self.kwargs.setdefault("hh_init", "zeros")
+		self.kwargs.setdefault("use_low_pass_filter", False)
+		self.kwargs.setdefault("low_pass_filter_alpha", np.exp(-self.dt / self.kwargs["tau_mem"]))
 	
 	def initialize_weights_(self):
 		super().initialize_weights_()
@@ -205,7 +209,7 @@ class SpyLIFLayerLowPassFilter(BaseNeuronsLayer):
 		:param batch_size: The size of the current batch.
 		:return: The current state.
 		"""
-		kwargs.setdefault("n_hh", 3)
+		kwargs.setdefault("n_hh", 3 + int(self._use_low_pass_filter))
 		thr = self.threshold.detach().cpu().item()
 		# TODO: add the low pass filter version of Z.
 		if self.kwargs["hh_init"] == "random":
@@ -230,7 +234,11 @@ class SpyLIFLayerLowPassFilter(BaseNeuronsLayer):
 			)
 			Z = self.spike_func.apply(V, self.threshold, self.gamma)
 			V = V * (1.0 - Z)
-			return tuple([V, I, Z])
+			if self._use_low_pass_filter:
+				Z_filtered = Z.clone()
+				return tuple([V, I, Z, Z_filtered])
+			else:
+				return tuple([V, I, Z])
 		elif self.kwargs["hh_init"] == "inputs":
 			assert "inputs" in kwargs, "The inputs must be provided to initialize the state."
 			assert int(self.input_size) == int(self.output_size), \
@@ -255,8 +263,11 @@ class SpyLIFLayerLowPassFilter(BaseNeuronsLayer):
 				generator=gen,
 			) * V_std + V_mu)
 			V = (self.beta * V + self.alpha * I) * (1.0 - Z)
-			
-			return tuple([V, I, Z])
+			if self._use_low_pass_filter:
+				Z_filtered = Z.clone()
+				return tuple([V, I, Z, Z_filtered])
+			else:
+				return tuple([V, I, Z])
 		return super(SpyLIFLayerLowPassFilter, self).create_empty_state(batch_size=batch_size, **kwargs)
 	
 	def forward(
@@ -265,10 +276,13 @@ class SpyLIFLayerLowPassFilter(BaseNeuronsLayer):
 			state: Tuple[torch.Tensor, ...] = None,
 			**kwargs
 	):
-		# TODO: add the low pass filter version of Z and output it.
 		assert inputs.ndim == 2, f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
 		batch_size, nb_features = inputs.shape
-		V, I_syn, Z = self._init_forward_state(state, batch_size, inputs=inputs)
+		if self._use_low_pass_filter:
+			V, I_syn, Z, z_filtered = self._init_forward_state(state, batch_size, inputs=inputs)
+		else:
+			V, I_syn, Z = self._init_forward_state(state, batch_size, inputs=inputs)
+			z_filtered = None
 		input_current = torch.matmul(inputs, self.forward_weights)
 		if self.use_recurrent_connection:
 			rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
@@ -277,7 +291,18 @@ class SpyLIFLayerLowPassFilter(BaseNeuronsLayer):
 		next_I_syn = self.alpha * I_syn + input_current + rec_current
 		next_V = (self.beta * V + next_I_syn) * (1.0 - Z.detach())
 		next_Z = self.spike_func.apply(next_V, self.threshold, self.gamma)
-		return next_Z, (next_V, next_I_syn, next_Z)
+		
+		if self._use_low_pass_filter:
+			next_z_filtered = self._low_pass_filter_alpha * z_filtered + next_Z
+			return next_z_filtered, (next_V, next_I_syn, next_Z, next_z_filtered)
+		else:
+			return next_Z, (next_V, next_I_syn, next_Z)
+		
+	def extra_repr(self) -> str:
+		_repr = super(SpyLIFLayerLowPassFilter, self).extra_repr()
+		if self._use_low_pass_filter:
+			_repr += f", low_pass_filter_alpha={self._low_pass_filter_alpha:.2f}"
+		return _repr
 
 
 def set_default_param(**kwargs):
@@ -331,36 +356,16 @@ def train_with_params(
 	)
 	dataset = dataloader.dataset
 	x = dataset.full_time_series
-	ws_layer = nt.WilsonCowanLayer(
+	lif_layer = SpyLIFLayerLowPassFilter(
 		x.shape[-1], params["n_aux_units"],
-		std_weights=params["std_weights"],
-		forward_sign=params["forward_sign"],
 		dt=params["dt"],
-		r=params["r"],
-		mean_r=params["mean_r"],
-		std_r=params["std_r"],
-		mu=params["mu"],
-		mean_mu=params["mean_mu"],
-		std_mu=params["std_mu"],
-		tau=params["tau"],
-		learn_r=params["learn_r"],
-		learn_mu=params["learn_mu"],
-		learn_tau=params["learn_tau"],
 		hh_init=params["hh_init"],
-		device=device,
-		name="WilsonCowan_layer1",
 		force_dale_law=params["force_dale_law"],
-		activation=params["activation"],
 		use_recurrent_connection=params["use_recurrent_connection"],
+		use_low_pass_filter=True,
+		# low_pass_filter_alpha=0.01,
+		device=device,
 	).build()
-	lif_layer = nt.SpyLIFLayer(
-		x.shape[-1], params["n_aux_units"],
-		dt=params["dt"],
-		hh_init=params["hh_init"],
-		force_dale_law=params["force_dale_law"],
-		use_recurrent_connection=params["use_recurrent_connection"],
-		device=device,
-	).build()  # TODO: remove this and return to WilsonCowanLayer
 	layers = [lif_layer, ]
 	if params["add_out_layer"]:
 		out_layer = nt.Linear(
@@ -371,7 +376,7 @@ def train_with_params(
 		)
 		layers.append(out_layer)
 	checkpoint_manager = nt.CheckpointManager(
-		checkpoint_folder="./checkpoints_wc_e_prop",
+		checkpoint_folder="./checkpoints_snn_e_prop",
 		metric="val_p_var",
 		minimise_metric=False,
 		save_freq=max(1, int(n_iterations / 10)),
@@ -409,18 +414,15 @@ def train_with_params(
 	callbacks = [la, checkpoint_manager, lr_scheduler]
 	
 	with torch.no_grad():
-		W0 = ws_layer.forward_weights.clone().detach().cpu().numpy()
+		W0 = nt.to_numpy(lif_layer.forward_weights.clone())
 		if params["force_dale_law"]:
-			sign0 = ws_layer.forward_sign.clone().detach().cpu().numpy()
+			sign0 = nt.to_numpy(lif_layer.forward_sign.clone())
 		else:
 			sign0 = None
-		mu0 = ws_layer.mu.clone()
-		r0 = ws_layer.r.clone()
-		tau0 = ws_layer.tau.clone()
-		if ws_layer.force_dale_law:
-			ratio_sign_0 = (np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy()) + 1) / 2
+		if lif_layer.force_dale_law:
+			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(lif_layer.forward_sign))) + 1) / 2
 		else:
-			ratio_sign_0 = (np.mean(torch.sign(ws_layer.forward_weights).detach().cpu().numpy()) + 1) / 2
+			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(lif_layer.forward_weights))) + 1) / 2
 	
 	trainer = nt.trainers.Trainer(
 		model,
@@ -454,25 +456,19 @@ def train_with_params(
 	out = {
 		"params"              : params,
 		"pVar"                : nt.to_numpy(loss.item()),
-		"W"                   : nt.to_numpy(ws_layer.forward_weights),
+		"W"                   : nt.to_numpy(lif_layer.forward_weights),
 		"sign0"               : sign0,
-		"mu"                  : nt.to_numpy(ws_layer.mu),
-		"r"                   : nt.to_numpy(ws_layer.r),
 		"W0"                  : W0,
 		"ratio_0"             : ratio_sign_0,
-		"mu0"                 : nt.to_numpy(mu0),
-		"r0"                  : nt.to_numpy(r0),
-		"tau0"                : nt.to_numpy(tau0),
-		"tau"                 : nt.to_numpy(ws_layer.tau),
 		"x_pred"              : nt.to_numpy(torch.squeeze(x_pred).T),
 		"original_time_series": dataset.full_time_series.squeeze(),
 		"force_dale_law"      : params["force_dale_law"],
 	}
-	if ws_layer.force_dale_law:
-		out["ratio_end"] = (np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy()) + 1) / 2
-		out["sign"] = ws_layer.forward_sign.clone().detach().cpu().numpy()
+	if lif_layer.force_dale_law:
+		out["ratio_end"] = (nt.to_numpy(np.mean(torch.sign(lif_layer.forward_sign))) + 1) / 2
+		out["sign"] = nt.to_numpy(lif_layer.forward_sign.clone())
 	else:
-		out["ratio_end"] = (np.mean(torch.sign(ws_layer.forward_weights).detach().cpu().numpy()) + 1) / 2
+		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(lif_layer.forward_weights))) + 1) / 2
 		out["sign"] = None
 	
 	return out
@@ -495,10 +491,10 @@ if __name__ == '__main__':
 			"learn_mu"                      : True,
 			"learn_r"                       : True,
 			"learn_tau"                     : True,
-			"use_recurrent_connection"      : True,
+			"use_recurrent_connection"      : False,
 		},
 		n_iterations=2000,
-		device=torch.device("cuda"),
+		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,
 	)
@@ -539,31 +535,31 @@ if __name__ == '__main__':
 	)
 
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
-	VisualiseKMeans(
+	viz_kmeans = VisualiseKMeans(
 		res["original_time_series"].T,
 		nt.Size(
 			[
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")]
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]")]
 		)
-	).heatmap(fig=fig, ax=axes[0], title="True time series")
-	VisualiseKMeans(
-		res["x_pred"],
+	)
+	viz_kmeans.heatmap(fig=fig, ax=axes[0], title="True time series")
+	Visualise(
+		viz_kmeans._permute_timeseries(res["x_pred"]),
 		nt.Size(
 			[
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")]
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]")]
 		)
 	).heatmap(fig=fig, ax=axes[1], title="Predicted time series")
 	plt.savefig("figures/heatmap.png")
 	plt.show()
-	
 	Visualise(
 		res["x_pred"],
 		nt.Size(
 			[
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]")
 			]
 		)
 	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=False, filename="figures/animation.mp4")

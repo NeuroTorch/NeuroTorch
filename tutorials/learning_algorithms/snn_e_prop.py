@@ -563,7 +563,7 @@ if __name__ == '__main__':
 			]
 		)
 	).animate(
-		time_interval=0.1, 
+		time_interval=0.1,
 		forward_weights=res["W"],
 		dt=0.1,
 		show=False,

@@ -72,7 +72,7 @@ def train_with_params(
 	)
 	dataset = dataloader.dataset
 	x = dataset.full_time_series
-	lif_layer = SpyLIFLayerLPF(
+	lif_layer = nt.SpyLIFLayerLPF(
 		x.shape[-1], params["n_aux_units"],
 		dt=params["dt"],
 		hh_init=params["hh_init"],
@@ -154,7 +154,7 @@ def train_with_params(
 		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
 		force_overwrite=kwargs["force_overwrite"],
 	)
-	history.plot(show=True)
+	history.plot(save_path=f"data/figures/snn_eprop/tr_history.png", show=True)
 
 	model.eval()
 	model.load_checkpoint(checkpoint_manager.checkpoints_meta_path)
@@ -175,7 +175,7 @@ def train_with_params(
 		"sign0"               : sign0,
 		"W0"                  : W0,
 		"ratio_0"             : ratio_sign_0,
-		"x_pred"              : nt.to_numpy(torch.squeeze(x_pred).T),
+		"x_pred"              : nt.to_numpy(torch.squeeze(x_pred)),
 		"original_time_series": dataset.full_time_series.squeeze(),
 		"force_dale_law"      : params["force_dale_law"],
 	}
@@ -210,7 +210,7 @@ if __name__ == '__main__':
 		},
 		n_iterations=2000,
 		device=torch.device("cpu"),
-		force_overwrite=True,
+		force_overwrite=False,
 		batch_size=1,
 	)
 	pprint.pprint({k: v for k, v in res.items() if isinstance(v, (int, float, str, bool))})
@@ -233,7 +233,7 @@ if __name__ == '__main__':
 		plt.show()
 	
 	viz = Visualise(
-		res["x_pred"].T,
+		res["x_pred"],
 		shape=nt.Size(
 			[
 				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
@@ -251,20 +251,22 @@ if __name__ == '__main__':
 
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	viz_kmeans = VisualiseKMeans(
-		res["original_time_series"].T,
+		res["original_time_series"],
 		nt.Size(
 			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]")]
+			]
 		)
 	)
 	viz_kmeans.heatmap(fig=fig, ax=axes[0], title="True time series")
 	Visualise(
-		viz_kmeans._permute_timeseries(res["x_pred"]),
+		viz_kmeans.permute_timeseries(res["x_pred"]),
 		nt.Size(
 			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]")]
+			]
 		)
 	).heatmap(fig=fig, ax=axes[1], title="Predicted time series")
 	plt.savefig("data/figures/snn_eprop/heatmap.png")
@@ -273,8 +275,8 @@ if __name__ == '__main__':
 		res["x_pred"],
 		nt.Size(
 			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]")
 			]
 		)
 	).animate(

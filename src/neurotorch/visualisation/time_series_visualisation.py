@@ -646,13 +646,13 @@ class VisualiseKMeans(Visualise):
 		self.random_state = random_state
 		self.labels = self._compute_kmeans_labels()
 		self.cluster_labels = np.unique(self.labels)
-		self.timeseries = self._permute_timeseries(self.timeseries)
+		self.timeseries = self.permute_timeseries(self.timeseries)
 
 	def _compute_kmeans_labels(self):
 		kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(self.timeseries.T)
 		return kmeans.labels_
 
-	def _permute_timeseries(self, timeseries: np.ndarray):
+	def permute_timeseries(self, timeseries: np.ndarray):
 		# TODO: optimize this method
 		assert timeseries.shape[-1] == int(self.shape[-1])
 		permuted_timeseries = np.zeros_like(timeseries)

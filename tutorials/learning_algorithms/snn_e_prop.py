@@ -16,18 +16,7 @@ def set_default_param(**kwargs):
 	kwargs.setdefault("rm_dead_units", True)
 	kwargs.setdefault("smoothing_sigma", 15.0)
 	kwargs.setdefault("learning_rate", 1e-2)
-	kwargs.setdefault("std_weights", 1)
 	kwargs.setdefault("dt", 0.02)
-	kwargs.setdefault("mu", 0.0)
-	kwargs.setdefault("mean_mu", 0.0)
-	kwargs.setdefault("std_mu", 1.0)
-	kwargs.setdefault("r", 0.1)
-	kwargs.setdefault("mean_r", 0.5)
-	kwargs.setdefault("std_r", 0.4)
-	kwargs.setdefault("tau", 0.1)
-	kwargs.setdefault("learn_mu", True)
-	kwargs.setdefault("learn_r", True)
-	kwargs.setdefault("learn_tau", True)
 	kwargs.setdefault("force_dale_law", False)
 	kwargs.setdefault("seed", 0)
 	kwargs.setdefault("n_units", 200)
@@ -170,16 +159,12 @@ def train_with_params(
 	else:
 		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(lif_layer.forward_weights))) + 1) / 2
 		out["sign"] = None
-	
 	return out
 
 
 if __name__ == '__main__':
 	res = train_with_params(
 		params={
-			# "filename": "ts_nobaselines_fish3.npy",
-			# "filename": "corrected_data.npy",
-			# "filename": "curbd_Adata.npy",
 			"filename"                 : None,
 			"smoothing_sigma"          : 5.0,
 			"n_units"                  : 500,
@@ -188,9 +173,6 @@ if __name__ == '__main__':
 			"dataset_length"           : 1,
 			"dataset_randomize_indexes": False,
 			"force_dale_law"           : False,
-			"learn_mu"                 : True,
-			"learn_r"                  : True,
-			"learn_tau"                : True,
 			"use_recurrent_connection" : False,
 		},
 		n_iterations=2000,

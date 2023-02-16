@@ -150,25 +150,24 @@ class Visualise:
 
 	def animate(
 			self,
-			forward_weights: np.ndarray,
+			weights: np.ndarray,
 			dt: float = 1.0,
 			step: int = 1,
 			time_interval: float = 1.0,
 			node_size: float = 50,
-			alpha: float = 0.01,
+			alpha: Optional[float] = None,
 			filename: Optional[str] = None,
 			file_extension: Optional[str] = None,
 			show: bool = False,
 			**kwargs
 	):
-		import networkx as nx
 		"""
 		Animate the time series. The position of the nodes are obtained using the spring layout.
 		Spring-Layout use the Fruchterman-Reingold force-directed algorithm. For more information,
 		please refer to the following documentation of networkx:
 		https://networkx.org/documentation/stable/reference/generated/networkx.drawing.layout.spring_layout.html
 
-		:param forward_weights: Weight matrix of size (number of neurons, number of neurons).
+		:param weights: Weight matrix of size (number of neurons, number of neurons).
 		:param dt: Time step between two time steps.
 		:param step: Number of time step between two animation frames.
 			example: if step = 4, the animation will play at t = 0, t = 4, t = 8, t = 12 ...
@@ -183,10 +182,14 @@ class Visualise:
 		
 		:keyword fps: Frames per second. Default is 30.
 		"""
+		import networkx as nx
+		
+		if alpha is None:
+			alpha = 1.0 / np.sqrt(weights.size)
 		num_frames = int(self.shape[0]) // step
-		connectome = nx.from_numpy_array(forward_weights)
+		connectome = nx.from_numpy_array(weights)
 		pos = nx.spring_layout(connectome)
-		fig, ax = plt.subplots(figsize=(7, 7))
+		fig, ax = plt.subplots(figsize=kwargs.get("figsize", (14, 8)))
 		nx.draw_networkx_nodes(
 			connectome,
 			pos,
@@ -196,9 +199,8 @@ class Visualise:
 			cmap="hot"
 		)
 		nx.draw_networkx_edges(connectome, pos, ax=ax, width=1.0, alpha=alpha)
-		x, y = ax.get_xlim()[0], ax.get_ylim()[1]
 		plt.axis("off")
-		text = ax.text(0, 1.08, rf"$t = 0 / {int(self.shape[0]) * dt}$", ha="center")
+		text = ax.text(0.5, 0.97, rf"$t = 0 / {int(self.shape[0]) * dt}$", ha="center", transform=ax.transAxes)
 		plt.tight_layout(pad=0)
 
 		def _animation(i):
@@ -223,7 +225,11 @@ class Visualise:
 			assert file_extension in ["mp4", "gif"], "The extension of the file must be mp4 or gif."
 			if filename.endswith(file_extension):
 				filename = ''.join(filename.split('.')[:-1])
-			anim.save(f"{filename}.{file_extension}", writer="imagemagick", fps=kwargs.get("fps", 30))
+			anim.save(
+				f"{filename}.{file_extension}",
+				writer=kwargs.get("writer", "imagemagick"),
+				fps=kwargs.get("fps", 30)
+			)
 		if show:
 			plt.show()
 
@@ -646,13 +652,13 @@ class VisualiseKMeans(Visualise):
 		self.random_state = random_state
 		self.labels = self._compute_kmeans_labels()
 		self.cluster_labels = np.unique(self.labels)
-		self.timeseries = self._permute_timeseries(self.timeseries)
+		self.timeseries = self.permute_timeseries(self.timeseries)
 
 	def _compute_kmeans_labels(self):
 		kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(self.timeseries.T)
 		return kmeans.labels_
 
-	def _permute_timeseries(self, timeseries: np.ndarray):
+	def permute_timeseries(self, timeseries: np.ndarray):
 		# TODO: optimize this method
 		assert timeseries.shape[-1] == int(self.shape[-1])
 		permuted_timeseries = np.zeros_like(timeseries)

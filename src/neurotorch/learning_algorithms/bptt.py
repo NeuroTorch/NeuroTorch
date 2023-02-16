@@ -33,6 +33,7 @@ class BPTT(LearningAlgorithm):
 		
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
+		:keyword bool maximize: Whether to maximize the loss. Defaults to False.
 		"""
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
@@ -64,11 +65,15 @@ class BPTT(LearningAlgorithm):
 					self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: self.optimizer.state_dict()
 				}
 		return None
+
+	def create_default_optimizer(self):
+		self.optimizer = torch.optim.Adam(self.params, maximize=self.kwargs.get("maximize", False))
+		return self.optimizer
 	
 	def start(self, trainer, **kwargs):
 		super().start(trainer)
 		if self.params and self.optimizer is None:
-			self.optimizer = torch.optim.Adam(self.params)
+			self.optimizer = self.create_default_optimizer()
 		elif not self.params and self.optimizer is not None:
 			self.params.extend([
 				param
@@ -77,33 +82,34 @@ class BPTT(LearningAlgorithm):
 			])
 		else:
 			self.params = trainer.model.parameters()
-			self.optimizer = torch.optim.Adam(self.params)
+			self.optimizer = self.create_default_optimizer()
 		
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
 	
-	def apply_criterion(self, pred_batch, y_batch):
-		if self.criterion is None:
+	def apply_criterion(self, pred_batch, y_batch, **kwargs):
+		criterion = kwargs.get("criterion", self.criterion)
+		if criterion is None:
 			if isinstance(y_batch, dict):
-				self.criterion = {key: torch.nn.MSELoss() for key in y_batch}
+				criterion = {key: torch.nn.MSELoss() for key in y_batch}
 			else:
-				self.criterion = torch.nn.MSELoss()
+				criterion = torch.nn.MSELoss()
 		
-		if isinstance(self.criterion, dict):
+		if isinstance(criterion, dict):
 			if isinstance(y_batch, torch.Tensor):
-				y_batch = {k: y_batch for k in self.criterion}
+				y_batch = {k: y_batch for k in criterion}
 			if isinstance(pred_batch, torch.Tensor):
-				pred_batch = {k: pred_batch for k in self.criterion}
+				pred_batch = {k: pred_batch for k in criterion}
 			assert isinstance(pred_batch, dict) and isinstance(y_batch, dict), \
 				"If criterion is a dict, pred, y_batch and pred must be a dict too."
 			batch_loss = sum([
-				self.criterion[k](pred_batch[k], y_batch[k].to(pred_batch[k].device))
-				for k in self.criterion
+				criterion[k](pred_batch[k], y_batch[k].to(pred_batch[k].device))
+				for k in criterion
 			])
 		else:
 			if isinstance(pred_batch, dict) and len(pred_batch) == 1:
 				pred_batch = pred_batch[list(pred_batch.keys())[0]]
-			batch_loss = self.criterion(pred_batch, y_batch.to(pred_batch.device))
+			batch_loss = criterion(pred_batch, y_batch.to(pred_batch.device))
 		return batch_loss
 	
 	def _make_optim_step(self, pred_batch, y_batch, retain_graph=False):

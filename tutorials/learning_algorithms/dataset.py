@@ -77,8 +77,9 @@ class TimeSeriesDataset(Dataset):
 			).download()
 		self.filename = filename
 		self.ts = np.load(path)
+		self.original_time_series = self.ts.copy()
 		if self.kwargs.get("rm_dead_units", True):
-			self.ts = self.ts[np.sum(self.ts, axis=-1) > 0, :]
+			self.ts = self.ts[np.sum(np.abs(self.ts), axis=-1) > 0, :]
 		self.total_n_neurons, self.total_n_time_steps = self.ts.shape
 		
 		self.seed = seed
@@ -112,7 +113,7 @@ class TimeSeriesDataset(Dataset):
 			if self.sigma > 0.0:
 				self.data[:, neuron] = gaussian_filter1d(self.data[:, neuron], sigma=self.sigma)
 			self.data[:, neuron] = self.data[:, neuron] - np.min(self.data[:, neuron])
-			self.data[:, neuron] = self.data[:, neuron] / (np.max(self.data[:, neuron]) + self.kwargs.get("eps", 1e-8))
+			self.data[:, neuron] = self.data[:, neuron] / (np.max(self.data[:, neuron]) + self.kwargs.get("eps", 1e-5))
 		
 		self.data = nt.to_tensor(self.data, dtype=torch.float32)
 		self.transform = input_transform
@@ -167,7 +168,7 @@ class TimeSeriesDataset(Dataset):
 	
 	@property
 	def original_series(self):
-		return self.data.T
+		return nt.to_tensor(self.original_time_series, dtype=torch.float32)
 
 
 def get_dataloader(

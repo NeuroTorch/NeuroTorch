@@ -134,6 +134,8 @@ class Lp(BaseRegularization):
 	
 	:Attributes:
 		- :attr:`p` (int): The p parameter of the LP norm. Example: p=1 -> L1 norm, p=2 -> L2 norm.
+		
+	:Note: 0D parameters are not regularized.
 	"""
 	def __init__(
 			self,
@@ -165,14 +167,14 @@ class Lp(BaseRegularization):
 		:return: The loss of the regularization.
 		:rtype: torch.Tensor
 		"""
+		if len(self.params) == 0:
+			return torch.tensor(0)
 		losses = []
+		device = self.params[0].device
 		for param in filter_parameters(self.params, requires_grad=True):
-			losses.append(torch.linalg.norm(param, self.p))
-		if len(losses) > 0:
-			loss = sum(losses)
-		else:
-			loss = torch.tensor(0.0, requires_grad=True).to(self.params[0].device)
-		return loss
+			if param.dim() > 0:
+				losses.append(torch.linalg.norm(param, self.p).to(device))
+		return sum(losses)
 
 
 # @pybt.docstring.inherit_fields_docstring(fields=["Attributes"], bases=[Lp])

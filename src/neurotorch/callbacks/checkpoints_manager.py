@@ -418,3 +418,10 @@ class CheckpointManager(BaseCallback):
 		"""
 		if trainer.current_training_state.iteration < trainer.state.n_iterations:
 			self.save_on(trainer)
+			
+	def extra_repr(self) -> str:
+		extra_repr = f"folder={self.checkpoint_folder}, metric={self.metric}, minimise={self.minimise_metric}"
+		extra_repr += f", start_save_at={self.start_save_at}"
+		extra_repr += f", save_freq={self.save_freq}"
+		extra_repr += f", save_best_only={self.save_best_only}"
+		return extra_repr

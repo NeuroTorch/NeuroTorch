@@ -292,5 +292,5 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
 			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")
 		])
-	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=True)
+	).animate(time_interval=0.1, weights=res["W"], dt=0.1, show=True)
 

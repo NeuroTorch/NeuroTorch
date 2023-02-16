@@ -1,6 +1,7 @@
+import copy
 import warnings
 from collections import defaultdict
-from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List
+from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List, Mapping
 
 import torch
 from unstable import unstable
@@ -8,262 +9,629 @@ from unstable import unstable
 from .learning_algorithm import LearningAlgorithm
 from ..transforms.base import to_numpy
 from ..learning_algorithms.tbptt import TBPTT
-from ..utils import batchwise_temporal_filter, list_insert_replace_at, zero_grad_params
+from ..utils import (
+	batchwise_temporal_filter,
+	list_insert_replace_at,
+	zero_grad_params,
+	unpack_out_hh,
+	recursive_detach,
+	filter_parameters,
+	dy_dw_local, clip_tensors_norm_, unitary_rn_normal_matrix
+)
 
 
-@unstable
 class Eprop(TBPTT):
 	r"""
 	Apply the eligibility trace forward propagation (e-prop) :cite:t:`bellec_solution_2020`
 	algorithm to the given model.
+	
+	
+	.. image:: ../../images/learning_algorithms/EpropDiagram.png
+		:width: 300
+		:align: center
+	
+	
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
-	CHECKPOINT_RN_FEEDBACK_WEIGHTS_KEY: str = "rn_feedback_weights"
+	CHECKPOINT_FEEDBACK_WEIGHTS_KEY: str = "feedback_weights"
+	OPTIMIZER_PARAMS_GROUP_IDX = 0
+	OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX = 1
+	DEFAULT_OPTIMIZER_CLS = torch.optim.AdamW
+	DEFAULT_Y_KEY = "default_key"
+	DEFAULT_FEEDBACKS_GEN_STRATEGY = "randn"
+	FEEDBACKS_GEN_FUNCS = {
+		"randn"  : lambda *args, **kwargs: torch.randn(*args, **kwargs),
+		"rand"   : lambda *args, **kwargs: torch.rand(*args, **kwargs),
+		"ones"   : lambda *args, **kwargs: torch.ones(*args),
+		"unitary": lambda *args, **kwargs: unitary_rn_normal_matrix(*args, **kwargs)
+	}
+	DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE = {
+		"randn"  : 1.0,
+		"rand"   : 1.0,
+		"ones"   : 1.0,
+		"unitary": torch.inf,
+	}
 	
 	def __init__(
 			self,
 			*,
 			params: Optional[Sequence[torch.nn.Parameter]] = None,
+			output_params: Optional[Sequence[torch.nn.Parameter]] = None,
 			layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
+			output_layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
 			**kwargs
 	):
 		"""
 		Constructor for Eprop class.
 
-		:param params: The parameters to optimize. If None, the parameters of the model's trainer will be used.
+		:param params: The hidden parameters to optimize. If not provided, eprop will try to find the hidden parameters
+						by looking for the parameters of the layers provided or in the inputs and hidden layers of the
+						model provided in the trainer.
 		:type params: Optional[Sequence[torch.nn.Parameter]]
-		:param optimizer: The optimizer to use. If not provided, torch.optim.SGD is used.
-		:type optimizer: Optional[torch.optim.Optimizer]
-		:param criterion: The criterion to use. If not provided, torch.nn.MSELoss is used.
-		:type criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]]
-		:param kwargs: The keyword arguments to pass to the BaseCallback.
-
+		:param output_params: The output parameters to optimize. If not provided, eprop will try to find the output
+						parameters by looking for the parameters of the output layers provided or in the output layers
+						of the model provided in the trainer.
+		:type output_params: Optional[Sequence[torch.nn.Parameter]]
+		:param layers: The hidden layers to optimize. If not provided, eprop will try to find the hidden layers
+						by looking for the layers of the model provided in the trainer.
+		:type layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]]
+		:param output_layers: The output layers to optimize. If not provided, eprop will try to find the output layers
+						by looking for the layers of the model provided in the trainer.
+		:type output_layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]]
+		:param kwargs: Keyword arguments to pass to the parent class and to configure the algorithm.
+		
+		:keyword Optional[torch.optim.Optimizer] optimizer: The optimizer to use. If provided make sure to provide the
+						param_group in the following format:
+								[{"params": params, "lr": params_lr}, {"params": output_params, "lr": output_params_lr}]
+						The index of the group must be the same as the OPTIMIZER_PARAMS_GROUP_IDX and
+						OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX constants which are 0 and 1 respectively.
+						If not provided, torch.optim.Adam is used.
+		:keyword Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] criterion: The
+						criterion to use for the output learning signal. If not provided, torch.nn.MSELoss is used. Note
+						that this criterion will be minimized.
+		:keyword float params_lr: The learning rate for the hidden parameters. Defaults to 1e-4.
+		:keyword float output_params_lr: The learning rate for the output parameters. Defaults to 2e-4.
+		:keyword float eligibility_traces_norm_clip_value: The value to clip the eligibility traces norm to.
+						Defaults to torch.inf.
+		:keyword float grad_norm_clip_value: The value to clip the gradients norm to. This parameter is used to
+						normalize the gradients of the parameters in order to help the convergence and avoid
+						overflowing. Defaults to 1.0.
+		:keyword str feedbacks_gen_strategy: The strategy to use to generate the feedbacks. Defaults to
+						Eprop.DEFAULT_FEEDBACKS_GEN_STRATEGY which is "randn". The available strategies are stored in
+						Eprop.FEEDBACKS_GEN_FUNCS which are:
+							- "randn": Normal distribution with mean 0 and variance 1.
+							- "rand": Uniform distribution between 0 and 1.
+							- "unitary": Unitary matrix with normal distribution.
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
 		"""
-		warnings.warn("Eprop is still in beta and may not work as expected or act exactly as BPTT.", DeprecationWarning)
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
-		# TODO: implement a optim step at each `optim_time_steps` steps.
-		assert "backward_time_steps" not in kwargs, f"{self.__class__} does not support backward_time_steps."
-		assert "optim_time_steps" not in kwargs, f"{self.__class__} does not support optim_time_steps."
-		assert params is None, f"{self.__class__} does not support params yet."
-		assert layers is not None, f"{self.__class__} requires layers."
+		kwargs.setdefault("backward_time_steps", 1)
+		kwargs.setdefault("optim_time_steps", 1)
+		kwargs.setdefault("criterion", torch.nn.MSELoss())
 		super().__init__(
 			params=params,
 			layers=layers,
-			backward_time_steps=1,
-			optim_time_steps=1,
 			**kwargs
 		)
-		self.random_feedbacks = kwargs.get("random_feedbacks", True)
-		if not self.random_feedbacks:
-			raise NotImplementedError("Non-random feedbacks are not implemented yet.")
+		self.output_params = output_params or []
+		self.output_layers = output_layers
+		self._feedbacks_gen_strategy = kwargs.get("feedbacks_gen_strategy", self.DEFAULT_FEEDBACKS_GEN_STRATEGY).lower()
+		if self._feedbacks_gen_strategy not in self.FEEDBACKS_GEN_FUNCS:
+			raise NotImplementedError(
+				f"Feedbacks generation strategy '{self._feedbacks_gen_strategy}' is not implemented."
+				f"Maybe you meant one of the following: {', '.join(self.FEEDBACKS_GEN_FUNCS.keys())}"
+				f" or you can implement your own by adding it to the Eprop.FEEDBACKS_GEN_FUNCS dictionary."
+				f" If your new strategy is a common one, please consider contributing to the library by opening a "
+				f"pull request on https://github.com/NeuroTorch/NeuroTorch."
+			)
 		self.feedback_weights = None
 		self.rn_gen = torch.Generator()
 		self.rn_gen.manual_seed(kwargs.get("seed", 0))
-		self.running_grads = None
-		self.eligibility_traces = defaultdict(list)
+		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
+		self.output_eligibility_traces = [torch.zeros_like(p) for p in self.output_params]
 		self.learning_signals = defaultdict(list)
-		self.layers_to_params = defaultdict(list)
+		self.param_groups = []
+		self._hidden_layer_names = []
+		self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
+		self.gamma = kwargs.get("gamma", 0.01)
+		self.alpha = kwargs.get("alpha", 0.01)
+		self._default_params_lr = kwargs.get("params_lr", 1e-5)
+		self._default_output_params_lr = kwargs.get("output_params_lr", 2e-5)
+		self.eligibility_traces_norm_clip_value = kwargs.get("eligibility_traces_norm_clip_value", torch.inf)
+		self.learning_signal_norm_clip_value = kwargs.get("learning_signal_norm_clip_value", 1.0)
+		self.grad_norm_clip_value = kwargs.get("grad_norm_clip_value", 1.0)
+		self.feedback_weights_norm_clip_value = kwargs.get(
+			"feedback_weights_norm_clip_value",
+			self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(str(self._feedbacks_gen_strategy), torch.inf)
+		)
+		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
+		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-3, "lr": 1e-5})
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
 			state = checkpoint.get(self.name, {})
 			opt_state_dict = state.get(self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY, None)
 			if opt_state_dict is not None:
+				saved_param_groups = opt_state_dict["param_groups"]
+				if self.optimizer is None:
+					self.optimizer = self.DEFAULT_OPTIMIZER_CLS(saved_param_groups)
 				self.optimizer.load_state_dict(opt_state_dict)
-			if self.random_feedbacks:
-				self.feedback_weights = state.get(self.CHECKPOINT_RN_FEEDBACK_WEIGHTS_KEY, None)
+				self.param_groups = self.optimizer.param_groups
+				self.params = self.param_groups[self.OPTIMIZER_PARAMS_GROUP_IDX]["params"]
+				self.output_params = self.param_groups[self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX]["params"]
+				self.feedback_weights = state.get(self.CHECKPOINT_FEEDBACK_WEIGHTS_KEY, None)
 	
 	def get_checkpoint_state(self, trainer, **kwargs) -> object:
 		if self.save_state:
 			state = {}
 			if self.optimizer is not None:
 				state[self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY] = self.optimizer.state_dict()
-			if self.random_feedbacks:
-				state[self.CHECKPOINT_RN_FEEDBACK_WEIGHTS_KEY] = self.feedback_weights
+				state[self.CHECKPOINT_FEEDBACK_WEIGHTS_KEY] = self.feedback_weights
 			return state
 		return None
 	
-	def initialize_running_grads(self):
-		self.running_grads = {
-			layer.name: [
-				torch.zeros_like(p)
-				for p in self.layers_to_params[layer.name]
-			]
-			for layer in self.layers
-		}
-	
-	def initialize_feedback_weights(self, pred_batch: Optional[torch.Tensor] = None):
-		if pred_batch is None:
-			pred_batch = self.trainer.current_training_state.pred_batch
-		self.feedback_weights = {
-			layer.name: [
-				torch.randn((pred_batch.shape[-1], p.shape[-1]), generator=self.rn_gen)
-				for p in self.layers_to_params[layer.name]
-			]
-			for layer in self.layers
-		}
-	
-	def start(self, trainer, **kwargs):
-		LearningAlgorithm.start(self, trainer, **kwargs)
-		if self.params and self.optimizer is None:
-			self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0e-3))
-		elif not self.params and self.optimizer is not None:
-			self.params.extend(
-				[
-					param
-					for i in range(len(self.optimizer.param_groups))
-					for param in self.optimizer.param_groups[i]["params"]
-				]
+	def _get_feedback_gen_func(self):
+		if self._feedbacks_gen_strategy is None:
+			self._feedbacks_gen_strategy = self.DEFAULT_FEEDBACKS_GEN_STRATEGY
+		if self._feedbacks_gen_strategy not in self.FEEDBACKS_GEN_FUNCS:
+			raise NotImplementedError(
+				f"Feedbacks generation strategy '{self._feedbacks_gen_strategy}' is not implemented."
+				f"Maybe you meant one of the following: {', '.join(self.FEEDBACKS_GEN_FUNCS.keys())}"
+				f" or you can implement your own by adding it to the Eprop.FEEDBACKS_GEN_FUNCS dictionary."
+				f" If your new strategy is a common one, please consider contributing to the library by opening a "
+				f"pull request on https://github.com/NeuroTorch/NeuroTorch."
 			)
-		else:
-			self.params = list(trainer.model.parameters())
-			self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0e-3))
+		return self.FEEDBACKS_GEN_FUNCS[self._feedbacks_gen_strategy]
+	
+	def make_feedback_weights(self, *args, **kwargs):
+		"""
+		Generate the feedback weights for each params.
+		The random feedback is noted B_{ij} in Bellec's paper :cite:t:`bellec_solution_2020`.
+		
+		:return: The feedback weights for each params.
+		"""
+		feedback_gen_func = self._get_feedback_gen_func()
+		feedback_weights = feedback_gen_func(*args, **kwargs)
+		clip_tensors_norm_(feedback_weights, max_norm=self.feedback_weights_norm_clip_value)
+		return feedback_weights
+	
+	def initialize_feedback_weights(self, y_batch: Optional[Union[Dict[str, torch.Tensor], torch.Tensor]] = None):
+		"""
+		TODO : Possibility to initialize the feedback weights with any initialization methods
+		TODO : Non-random feedbacks must be implemented with {W_out}.T
+		Initialize the feedback weights for each params.
+		The random feedback is noted B_{ij} in Bellec's paper :cite:t:`bellec_solution_2020`
+		.
+
+		:param y_batch:
+		:return:
+		"""
+		if y_batch is None:
+			y_batch = self.trainer.current_training_state.y_batch
+		if not isinstance(y_batch, dict):
+			y_batch = {self.DEFAULT_Y_KEY: y_batch}
+		last_dims = [p.shape[-1] if p.ndim > 0 else 1 for p in self.params]
+		self.feedback_weights = {
+			k: [
+				self.make_feedback_weights(y_batch_item.shape[-1], pld, generator=self.rn_gen)
+				for pld in last_dims
+			] for k, y_batch_item in y_batch.items()
+		}
+		return self.feedback_weights
+	
+	def _initialize_original_forwards(self):
+		for layer in self.trainer.model.get_all_layers():
+			self._original_forwards[layer.name] = (layer, layer.forward)
+	
+	def initialize_params(self, trainer=None):
+		"""
+		Initialize the parameters of the optimizer.
+
+		:Note: Must be called after :meth:`initialize_output_params` and :meth:`initialize_layers`.
+		
+		:param trainer: The trainer to use.
+		:return: None
+		"""
+		if not self.params and self.optimizer:
+			self.params = self.optimizer.param_groups[self.OPTIMIZER_PARAMS_GROUP_IDX]["params"]
+
+		if not self.params:
+			self.params = [
+				param
+				for layer in self.layers
+				for param in layer.parameters()
+			]
+		if not self.params:
+			warnings.warn("No hidden parameters found. Please provide them manually if you have any.")
+
+		return self.params
+	
+	def initialize_output_params(self, trainer=None):
+		"""
+		Initialize the output parameters of the optimizer. Try multiple ways to identify the
+		output parameters if those are not provided by the user.
+
+		:Note: Must be called after :meth:`initialize_output_layers`.
+
+		:param trainer: The trainer object
+		:return: None
+		"""
+		if not self.output_params and self.optimizer:
+			self.output_params = self.optimizer.param_groups[self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX]["params"]
+
+		if not self.output_params:
+			self.output_params = [
+				param
+				for layer in self.output_layers
+				for param in layer.parameters()
+			]
+		if not self.output_params:
+			raise ValueError("Could not find output parameters. Please provide them manually.")
+		
+		return
+
+	def initialize_output_layers(self, trainer):
+		"""
+		Initialize the output layers of the optimizer. Try multiple ways to identify the output layers if those are not
+		provided by the user.
+
+		:Note: Must be called before :meth:`initialize_output_params`.
+
+		:param trainer: The trainer object.
+		:return: None
+		"""
+		if not self.output_layers:
+			self.output_layers = []
+			possible_attrs = ["output_layers", "output_layer"]
+			for attr in possible_attrs:
+				obj = getattr(trainer.model, attr, [])
+				if isinstance(obj, (Sequence, torch.nn.ModuleList)):
+					obj = list(obj)
+				elif isinstance(obj, (Mapping, torch.nn.ModuleDict)):
+					obj = list(obj.values())
+				elif isinstance(obj, torch.nn.Module):
+					obj = [obj]
+				self.output_layers += list(obj)
+
+		if not self.output_layers:
+			raise ValueError(
+				"Could not find output layers. Please provide them manually."
+			)
+
+	def initialize_layers(self, trainer):
+		"""
+		Initialize the layers of the optimizer. Try multiple ways to identify the output layers if those are not
+		provided by the user.
+
+		:param trainer:
+		:return:
+		"""
+		if not self.layers:
+			self.layers = []
+			possible_attrs = ["input_layers", "input_layer", "hidden_layers", "hidden_layer"]
+			for attr in possible_attrs:
+				if hasattr(trainer.model, attr):
+					obj = getattr(trainer.model, attr, [])
+					if isinstance(obj, (Sequence, torch.nn.ModuleList)):
+						obj = list(obj)
+					elif isinstance(obj, (Mapping, torch.nn.ModuleDict)):
+						obj = list(obj.values())
+					elif isinstance(obj, torch.nn.Module):
+						obj = [obj]
+					self.layers += list(obj)
+		if not self.layers:
+			warnings.warn(
+				"No hidden layers found. Please provide them manually if you have any."
+				"If you are using only one layer, please note that E-prop is equivalent to a TBPTT. If this is the"
+				"case, one might consider using TBPTT instead of E-prop."
+			)
+
+	def initialize_param_groups(self):
+		"""
+		The learning rate are initialize. If the user has provided a learning rate for each parameter, then it is used.
+
+		:return:
+		"""
+		self.param_groups = []
+		list_insert_replace_at(
+			self.param_groups,
+			self.OPTIMIZER_PARAMS_GROUP_IDX,
+			{"params": self.params, "lr": self._default_params_lr}
+		)
+		list_insert_replace_at(
+			self.param_groups,
+			self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX,
+			{"params": self.output_params, "lr": self._default_output_params_lr}
+		)
+		return self.param_groups
+	
+	def create_default_optimizer(self):
+		if not self.param_groups:
+			self.initialize_param_groups()
+		self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups, **self._default_optim_kwargs)
+		return self.optimizer
+
+	def eligibility_traces_zeros_(self):
+		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
+		self.output_eligibility_traces = [torch.zeros_like(p) for p in self.output_params]
+
+	def start(self, trainer, **kwargs):
+		"""
+		Start the training process with E-prop.
+
+		:param trainer:
+		:param kwargs:
+		:return:
+		"""
+		LearningAlgorithm.start(self, trainer, **kwargs)
+		self.initialize_output_layers(trainer)
+		self.initialize_output_params(trainer)
+		self.initialize_layers(trainer)
+		self.initialize_params(trainer)
+		zero_grad_params(self.params)
+		zero_grad_params(self.output_params)
 		
 		if self.criterion is None and trainer.criterion is not None:
 			self.criterion = trainer.criterion
 		
-		# filter params to get only the ones that require gradients
-		self.params = [param for param in self.params if param.requires_grad]
-		assert all(param.ndim == 2 for param in self.params), "Eprop only supports 2D parameters for now."
-		self.layers_to_params = {
-			layer.name: [
-				param for param in layer.parameters() if param.requires_grad
-			]
-			for layer in self.layers
-		}
-		self.params = [p for params in self.layers_to_params.values() for p in params]
-		self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0e-3))
+		if not self.param_groups:
+			self.initialize_param_groups()
+		if not self.optimizer:
+			self.optimizer = self.create_default_optimizer()
 		
-		self.output_layers: torch.nn.ModuleDict = torch.nn.ModuleDict({layer.name: layer for layer in self.layers})
 		self._initialize_original_forwards()
-		self.initialize_running_grads()
+		self.eligibility_traces_zeros_()
 	
 	def on_batch_begin(self, trainer, **kwargs):
+		"""
+		For each batch. Initialize the random feedback weights if not already done. Also, set the eligibility traces
+		to zero.
+
+		:param trainer:
+		:param kwargs:
+		:return:
+		"""
 		super().on_batch_begin(trainer)
 		if trainer.model.training:
 			if self.feedback_weights is None:
-				self.initialize_feedback_weights(self.trainer.current_training_state.y_batch)
-			self.eligibility_traces = defaultdict(list)
-			self.learning_signals = defaultdict(list)
-			self.initialize_running_grads()
-			self._last_et = {
-				layer.name: [
-					torch.zeros_like(p)
-					for p in self.layers_to_params[layer.name]
-				]
-				for layer in self.layers
-			}
-			# For Debugging
-			self.mean_eligibility_traces = defaultdict(list)
-			self.mean_learning_signals = defaultdict(list)
-			
-	def _get_hidden_tensor(self, out: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]]):
-		if isinstance(out, (tuple, list)):
-			out = out[-1]
-		return out
+				self.initialize_feedback_weights(trainer.current_training_state.y_batch)
+		self.eligibility_traces_zeros_()
+		zero_grad_params(self.params)
+		zero_grad_params(self.output_params)
 	
 	def decorate_forwards(self):
+		"""
+		Ensure that the forward pass is decorated. THe original forward and the hidden layers names are stored. The
+		hidden layers forward method are decorated using :meth: `_decorate_hidden_forward`. The output layers forward
+		are decorated using :meth: `_decorate_output_forward` from TBPTT.
+
+		Here, we are using decorators to introduce a specific behavior in the forward pass. For E-prop, we need to
+		ensure that the gradient is computed and optimize at each time step t of the sequence. This can be achieved by
+		decorating our forward. However, we do keep in storage the previous forward pass. This is done to ensure
+		that the forward pass is not modified permanently in any way.
+
+		"""
 		if self.trainer.model.training:
 			if not self._forwards_decorated:
 				self._initialize_original_forwards()
-			for layer in self.output_layers.values():
+			self._hidden_layer_names.clear()
+			
+			for layer in self.layers:
+				layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
+				self._hidden_layer_names.append(layer.name)
+			
+			for layer in self.output_layers:
 				layer.forward = self._decorate_forward(layer.forward, layer.name)
 			self._forwards_decorated = True
 	
-	def _decorate_forward(self, forward, layer_name: str):
+	def _decorate_hidden_forward(self, forward, layer_name: str):
+		"""
+		In TBPTT, we decorate forward to ensure that the backpropagation and the optimizer at t is done for the entire
+		network. In E-prop, we want to backpropagate the hidden layers locally (and not the entire network) at each
+		time step t.
+
+		:param forward:
+		:param layer_name:
+		:return:
+		"""
 		def _forward(*args, **kwargs):
 			out = forward(*args, **kwargs)
-			t = kwargs.get("t", None)
+			t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
 			if t is None:
 				return out
-			out_tensor = self._get_out_tensor(out)
-			h_tensor = self._get_hidden_tensor(out)
-			if t == 0:  # Hotfix for the first time step  TODO: fix this
-				ready = bool(self._layers_buffer[layer_name])
-			else:
-				ready = True
+			out_tensor, hh = unpack_out_hh(out)
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
-			if len(self._layers_buffer[layer_name]) == self.backward_time_steps and ready:
-				self._backward_at_t(t, self.backward_time_steps, layer_name)
+			if len(self._layers_buffer[layer_name]) >= self.backward_time_steps:
+				self._hidden_backward_at_t(t, self.backward_time_steps, layer_name)
+				out = recursive_detach(out)
 			return out
 		return _forward
 	
-	def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
-		y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
-		# TODO: must have a pred batch for the layer and one for the output_layer to compute the learning signals correctly
+	def _hidden_backward_at_t(self, t: int, backward_t: int, layer_name: str):
+		"""
+		TODO : Filter with kappa must be added in order to train SNNs
+		Here, we compute the eligibility trace as seen in equation (13) from :cite:t:`bellec_solution_2020`. Please
+		note that while the notation used in this paper for the equation (13) is [dz/dW]_{local}, we have used [dy/dW]
+		in order to be coherent with our own convention.
+
+		:param t:
+		:param backward_t:
+		:param layer_name:
+		:return:
+		"""
 		pred_batch = torch.squeeze(self._get_pred_batch_from_buffer(layer_name))
-		
-		# compute dz/dw
-		grad_outputs = torch.eye(pred_batch.shape[-1], device=pred_batch.device)
-		params = self.layers_to_params[layer_name]
-		instantaneous_eligibility_traces = [torch.zeros_like(p) for p in params]
-		# TODO: try to understand what is going on here: https://github.com/IGITUGraz/eligibility_propagation/blob/efd02e6879c01cda3fa9a7838e8e2fd08163c16e/Figure_3_and_S7_e_prop_tutorials/tutorial_pattern_generation.py#L98
-		for i in range(grad_outputs.shape[0]):
-			zero_grad_params(params)
-			
-			# pred_batch.backward(grad_outputs[i], retain_graph=True)
-			for p_idx, param in enumerate(params):
-				# TODO: pas sur du slicing
-				instantaneous_eligibility_traces[p_idx][i] = (
-					# 0.1 * self._last_et[layer_name][p_idx][i] + param.grad.detach().clone()[i]
-					# param.grad.detach().clone()[i]
-					torch.autograd.grad(pred_batch[i], param, retain_graph=True)[0][i]
+		dy_dw_locals = dy_dw_local(y=pred_batch, params=self.params, retain_graph=True, allow_unused=True)
+		with torch.no_grad():
+			self.eligibility_traces = [
+				self.gamma * et + torch.nan_to_num(
+					dy_dw.to(et.device),
+					nan=0.0,
+					neginf=-self.eligibility_traces_norm_clip_value,
+					posinf=self.eligibility_traces_norm_clip_value,
 				)
-		self._last_et[layer_name] = instantaneous_eligibility_traces
-		self.eligibility_traces[layer_name].append(instantaneous_eligibility_traces)
-		
-		# compute learning signals
-		mean_error = torch.mean((y_batch - pred_batch).view(-1, y_batch.shape[-1]), dim=0)
-		instantaneous_learning_signals = [
-			torch.matmul(mean_error, self.feedback_weights[layer_name][p_idx]).view(1, -1)
-			for p_idx in range(len(self.feedback_weights[layer_name]))
-		]
-		self.learning_signals[layer_name].append(instantaneous_learning_signals)
-		self.running_grads[layer_name] = [
-			self.running_grads[layer_name][p_idx] + (
-					instantaneous_learning_signals[p_idx] * instantaneous_eligibility_traces[p_idx]
+				for et, dy_dw in zip(self.eligibility_traces, dy_dw_locals)
+			]
+			clip_tensors_norm_(self.eligibility_traces, self.eligibility_traces_norm_clip_value)
+			self._layers_buffer[layer_name].clear()
+	
+	def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
+		"""
+		Apply the criterion on the batch. The gradients of each parameters are then updated but are not yet optimized.
+
+		:param t:
+		:param backward_t:
+		:param layer_name:
+		:return:
+		"""
+		y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
+		pred_batch = self._get_pred_batch_from_buffer(layer_name)
+		batch_loss = self.apply_criterion(pred_batch, y_batch)
+		if batch_loss.grad_fn is None:
+			raise ValueError(
+				f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
 			)
-			for p_idx in range(len(self.running_grads[layer_name]))
-		]
-		self._layers_buffer[layer_name].clear()
+		with torch.no_grad():
+			errors = self.compute_errors(pred_batch, y_batch)
+		output_grads = dy_dw_local(torch.mean(batch_loss), self.output_params, retain_graph=True, allow_unused=True)
+		with torch.no_grad():
+			self.output_eligibility_traces = [
+				self.alpha * et + torch.nan_to_num(
+					dy_dw.to(et.device),
+					nan=0.0,
+					neginf=-self.eligibility_traces_norm_clip_value,
+					posinf=self.eligibility_traces_norm_clip_value,
+				)
+				for et, dy_dw in zip(self.output_eligibility_traces, output_grads)
+			]
+			clip_tensors_norm_(self.output_eligibility_traces, self.eligibility_traces_norm_clip_value)
+		self.update_grads(errors)
+		with torch.no_grad():
+			self._layers_buffer[layer_name].clear()
 		
-		# For Debugging
-		self.mean_eligibility_traces[layer_name].append(
-			to_numpy(torch.mean(torch.abs(torch.cat(instantaneous_eligibility_traces, dim=0)))).item()
-		)
-		self.mean_learning_signals[layer_name].append(
-			to_numpy(torch.mean(torch.abs(torch.cat(instantaneous_learning_signals, dim=0)))).item()
-		)
+	def compute_learning_signals(self, errors: Dict[str, torch.Tensor]):
+		"""
+		TODO : Determine if we normalize with the number of output when computing the learning signal.
+		The learning signals are computed using equation (28) from :cite:t:`bellec_solution_2020`.
+
+		:param errors:
+		:return:
+		"""
+		learning_signals = [torch.zeros((p.shape[-1] if p.ndim > 0 else 1), device=p.device) for p in self.params]
+		for k, feedbacks in self.feedback_weights.items():
+			if k not in errors:
+				raise ValueError(
+					f"This is an internal error. Please report this issue on GitHub."
+					f"Key {k} from {self.feedback_weights.keys()=} not found in errors of keys {errors.keys()}."
+				)
+			error_mean = torch.mean(errors[k].view(-1, errors[k].shape[-1]), dim=0).view(1, -1)
+			clip_tensors_norm_(error_mean, max_norm=self.learning_signal_norm_clip_value)
+			for i, feedback in enumerate(feedbacks):
+				learning_signals[i] = learning_signals[i] + torch.matmul(error_mean, feedback.to(error_mean.device))
+		return learning_signals
 	
-	def apply_grads(self):
-		for layer_name, params in self.layers_to_params.items():
-			for p_idx, param in enumerate(params):
-				param.grad = self.running_grads[layer_name][p_idx].detach().clone()
+	def compute_errors(
+			self,
+			pred_batch: Union[Dict[str, torch.Tensor], torch.Tensor],
+			y_batch: Union[Dict[str, torch.Tensor], torch.Tensor]
+	) -> Dict[str, torch.Tensor]:
+		"""
+		The errors for each output is computed then inserted in a dict for further use. This function check if the
+		y_batch and pred_batch are given as a dict or a tensor.
+
+		:param pred_batch:
+		:param y_batch:
+		:return:
+		"""
+		if isinstance(y_batch, dict) or isinstance(pred_batch, dict):
+			if isinstance(y_batch, torch.Tensor):
+				y_batch = {k: y_batch for k in pred_batch}
+			else:
+				raise ValueError(f"y_batch must be a dict or a tensor, not {type(y_batch)}.")
+			if isinstance(pred_batch, torch.Tensor):
+				pred_batch = {k: pred_batch for k in y_batch}
+			else:
+				raise ValueError(f"pred_batch must be a dict or a tensor, not {type(pred_batch)}.")
+			batch_errors = {
+				k: (pred_batch[k] - y_batch[k].to(pred_batch[k].device))
+				for k in y_batch
+			}
+		else:
+			batch_errors = {self.DEFAULT_Y_KEY: pred_batch - y_batch.to(pred_batch.device)}
+		return batch_errors
 	
-	def on_optimization_begin(self, trainer, **kwargs):
-		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+	def update_grads(
+			self,
+			errors: Dict[str, torch.Tensor],
+	):
+		"""
+		The learning signal is computed. The gradients of the parameters are then updated as seen in equation (28)
+		from :cite:t:`bellec_solution_2020`.
+
+		:param errors:
+		:return:
+		"""
+		learning_signals = self.compute_learning_signals(errors)
+		with torch.no_grad():
+			for param, ls, et in zip(self.params, learning_signals, self.eligibility_traces):
+				if param.requires_grad:
+					param.grad += (ls * et.to(ls.device)).to(param.device).view(param.shape).detach()
+			torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
+
+		with torch.no_grad():
+			for out_param, out_el in zip(self.output_params, self.output_eligibility_traces):
+				if out_param.requires_grad:
+					out_param.grad += out_el.to(out_param.device).view(out_param.shape).detach()
+			torch.nn.utils.clip_grad_norm_(self.output_params, self.grad_norm_clip_value)
+	
+	def _make_optim_step(self, **kwargs):
+		"""
+		TODO: check if we really need to zero_grad -> backward_times_steps is not necessary equal to optim_times_steps.
+		Set the gradients and the eligibility traces to zero.
+
+		:param kwargs:
+		:return:
+		"""
+		super()._make_optim_step(**kwargs)
+		with torch.no_grad():
+			zero_grad_params(self.output_params)
+		if not all([torch.isfinite(p).all() for p in self.params]):
+			raise ValueError(
+				"Non-finite detected in hidden parameters gradients. Try to reduce the learning rate of the hidden "
+				"parameters with the argument `params_lr`."
+			)
+		if not all([torch.isfinite(p).all() for p in self.output_params]):
+			raise ValueError(
+				"Non-finite detected in output parameters gradients. Try to reduce the learning rate of the output "
+				"parameters with the argument `output_params_lr`."
+			)
+
+	def on_batch_end(self, trainer, **kwargs):
+		"""
+		Ensure that there is not any remaining gradients in the output parameters. The forward are undecorated and the
+		gradients are set to zero. The buffer are also cleared.
+
+		:param trainer:
+		:param kwargs:
+		:return:
+		"""
+		LearningAlgorithm.on_batch_end(self, trainer)
+		if trainer.model.training:
+			need_optim_step = False
+			for layer_name in self._layers_buffer:
+				backward_t = len(self._layers_buffer[layer_name])
+				if backward_t > 0:
+					need_optim_step = True
+					if layer_name in self._hidden_layer_names:
+						self._hidden_backward_at_t(self._data_n_time_steps - 1, backward_t, layer_name)
+					else:
+						self._backward_at_t(self._data_n_time_steps - 1, backward_t, layer_name)
+			if need_optim_step:
+				self._make_optim_step()
+		self.undecorate_forwards()
+		self._layers_buffer.clear()
 		self.optimizer.zero_grad()
-		self.apply_grads()
-		self.optimizer.step()
-		trainer.update_state_(batch_loss=self.apply_criterion(pred_batch, y_batch).detach_())
-	
-	def on_optimization_end(self, trainer, **kwargs):
-		self.optimizer.zero_grad()
-	
-	def on_pbar_update(self, trainer, **kwargs) -> dict:
-		return {
-			# "mean_grads": {
-			# 	layer_name: [
-			# 		to_numpy(torch.mean(torch.abs(p.grad.detach().clone()))).item()
-			# 		for p in self.running_grads[layer_name]
-			# 	]
-			# 	for layer_name in self.running_grads
-			# },
-			# "mean_eligibility_traces": self.mean_eligibility_traces,
-			# "mean_learning_signals": self.mean_learning_signals,
-		}
-	
+		self.eligibility_traces_zeros_()
+
+

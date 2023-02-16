@@ -6,6 +6,7 @@ This tutorial is currently under construction. Will be finished in the next vers
 import pprint
 
 import matplotlib.pyplot as plt
+import torch.nn
 from torch.utils.data import DataLoader
 
 import neurotorch as nt
@@ -62,6 +63,7 @@ def set_default_param(**kwargs):
 	kwargs.setdefault("learn_mu", True)
 	kwargs.setdefault("learn_r", True)
 	kwargs.setdefault("learn_tau", True)
+	kwargs.setdefault("add_readout_layer", False)
 	kwargs.setdefault("hh_init", "inputs")
 	kwargs.setdefault("force_dale_law", True)
 	kwargs.setdefault("seed", 0)
@@ -83,9 +85,8 @@ def make_learning_algorithm(**kwargs):
 		learning_algorithm = nt.BPTT(optimizer=optimizer, criterion=nt.losses.PVarianceLoss())
 	elif la_name == "eprop":
 		learning_algorithm = nt.Eprop(
-			layers=[kwargs["model"].get_layer()],
-			criterion=nt.losses.PVarianceLoss(),
-			lr=0.5,
+			# criterion=nt.losses.PVarianceLoss(negative=True),
+			criterion=torch.nn.MSELoss(),
 		)
 	elif la_name == "tbptt":
 		optimizer = torch.optim.AdamW(
@@ -159,6 +160,15 @@ def train_with_params(
 		ws_layer_i = deepcopy(ws_layer)
 		ws_layer_i.name = f"WilsonCowan_layer{i+1}"
 		layers.append(ws_layer_i)
+	
+	if params.get("add_readout_layer", False):
+		linear_layer = nt.LILayer(
+			x.shape[-1], x.shape[-1],
+			device=device,
+			use_bias=False,
+			kappa=0.0
+		).build()
+		layers.append(linear_layer)
 
 	model = nt.SequentialRNN(layers=layers, device=device, foresight_time_steps=dataset.n_time_steps - 1).build()
 
@@ -200,9 +210,9 @@ def train_with_params(
 		# 	retain_progress=True,
 		# ),
 		*learning_algorithms,
-		checkpoint_manager,
-		convergence_time_getter,
-		EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
+		# checkpoint_manager,
+		# convergence_time_getter,
+		# EarlyStoppingThreshold(metric='train_loss', threshold=0.99, minimize_metric=False),
 		# EventOnMetricThreshold(
 		# 	metric_name='train_loss', threshold=0.8, minimize_metric=False,
 		# 	event=increase_trainer_iteration_event, do_once=False, event_kwargs={"delta_iterations": 2}
@@ -236,6 +246,7 @@ def train_with_params(
 		# regularization_optimizer=optimizer_reg,
 		# regularization=regularisation,
 		# metrics=[regularisation],
+		metrics=[nt.metrics.RegressionMetrics(model, "p_var")]
 	)
 	print(f"{trainer}")
 	history = trainer.train(
@@ -295,14 +306,15 @@ if __name__ == '__main__':
 			"dataset_length": 1,
 			"dataset_randomize_indexes": False,
 			"force_dale_law": False,
-			"learning_algorithm": "rls",
-			"auto_backward_time_steps_ratio": 0.0,
+			"learning_algorithm": "eprop",
+			# "auto_backward_time_steps_ratio": 0.0,
 			"weight_decay": 1e-5,
-			"learn_mu": False,
-			"learn_r": False,
-			"learn_tau": False,
+			"learn_mu": True,
+			"learn_r": True,
+			"learn_tau": True,
 			"activation": "sigmoid",
-			"rls_strategy": "inputs",
+			"add_readout_layer": True,
+			# "rls_strategy": "inputs",
 			# "add_aux_tbptt": True,
 		},
 		n_iterations=100,
@@ -362,5 +374,5 @@ if __name__ == '__main__':
 			nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
 			nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")
 		])
-	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=False, filename="figures/animation.mp4")
+	).animate(time_interval=0.1, weights=res["W"], dt=0.1, show=False, filename="figures/animation.mp4")
 

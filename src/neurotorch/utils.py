@@ -11,7 +11,7 @@ import torchvision
 from matplotlib import pyplot as plt
 from unstable import unstable
 
-from .transforms.base import to_tensor
+from .transforms.base import to_tensor, to_numpy
 
 
 def batchwise_temporal_decay(x: torch.Tensor, decay: float = 0.9):
@@ -247,10 +247,12 @@ def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Se
 	:return: List of modules.
 	"""
 	from neurotorch.transforms.wrappers import CallableToModuleWrapper
-	return torch.nn.Sequential(*[
+	return torch.nn.Sequential(
+		*[
 			c if isinstance(c, torch.nn.Module) else CallableToModuleWrapper(c)
 			for c in callable_list
-		])
+		]
+		)
 
 
 def format_pseudo_rn_seed(seed: Optional[int] = None) -> int:
@@ -300,9 +302,7 @@ def zero_grad_params(params: Iterable[torch.nn.Parameter]):
 	:param params: The parameters to set the gradient to zero.
 	"""
 	for p in params:
-		if p.grad is not None:
-			p.grad.detach_()
-			p.grad.zero_()
+		p.grad = torch.zeros_like(p).detach()
 
 
 def compute_jacobian(
@@ -356,10 +356,53 @@ def compute_jacobian(
 	return jacobian
 
 
+def dy_dw_local(
+		y: torch.Tensor,
+		params: Sequence[torch.nn.Parameter],
+		grad_outputs: Optional[torch.Tensor] = None,
+		retain_graph: bool = True,
+		allow_unused: bool = True,
+) -> List[torch.Tensor]:
+	"""
+	Compute the derivative of z with respect to the parameters using torch.autograd.grad. If a parameter not
+	requires grad, the derivative is set to zero.
+	
+	:param y: The tensor to compute the derivative.
+	:type y: torch.Tensor
+	:param params: The parameters to compute the derivative with respect to.
+	:type params: Sequence[torch.nn.Parameter]
+	:param grad_outputs: The gradient of the output. If None, use a tensor of ones.
+	:type grad_outputs: torch.Tensor or None
+	:param retain_graph: If True, the graph used to compute the grad will be retained.
+	:type retain_graph: bool
+	:param allow_unused: If True, allow the computation of the derivative with respect to a parameter that is not
+		used in the computation of z.
+	:type allow_unused: bool
+	:return: The derivative of z with respect to the parameters.
+	:rtype: List[torch.Tensor]
+	"""
+	grad_outputs = torch.ones_like(y) if grad_outputs is None else grad_outputs
+	grads_local = []
+	for param_idx, param in enumerate(params):
+		grad = None
+		if param.requires_grad:
+			grad = torch.autograd.grad(
+				y, param,
+				grad_outputs=grad_outputs,
+				retain_graph=retain_graph,
+				allow_unused=allow_unused,
+			)[0]
+		if grad is None:
+			grad = torch.zeros_like(param)
+		grads_local.append(grad)
+	return grads_local
+
+
 def vmap(f):
 	# TODO: replace by torch.vmap when it is available
 	def wrapper(batch_tensor):
 		return torch.stack([f(batch_tensor[i]) for i in range(batch_tensor.shape[0])])
+	
 	return wrapper
 
 
@@ -424,3 +467,119 @@ def filter_parameters(
 	:return: The filtered parameters.
 	"""
 	return [p for p in parameters if p.requires_grad == requires_grad]
+
+
+def recursive_detach(tensors: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]]):
+	if isinstance(tensors, tuple):
+		out = tuple([recursive_detach(o) for o in tensors])
+	elif isinstance(tensors, list):
+		out = [recursive_detach(o) for o in tensors]
+	else:
+		out = tensors.detach()
+	return out
+
+
+def get_contributing_params(y, top_level=True):
+	"""
+	Get the parameters that contribute to the computation of y.
+	
+	Taken from "https://stackoverflow.com/questions/72301628/find-pytorch-model-parameters-that-dont-contribute-to-loss".
+	
+	:param y: The tensor to compute the contribution of the parameters.
+	:param top_level: Whether y is a top level tensor or not.
+	:type top_level: bool
+	:return: A generator of the parameters that contribute to the computation of y.
+	"""
+	nf = y.grad_fn.next_functions if top_level else y.next_functions
+	for f, _ in nf:
+		try:
+			yield f.variable
+		except AttributeError:
+			pass  # node has no tensor
+		if f is not None:
+			yield from get_contributing_params(f, top_level=False)
+
+
+def clip_tensors_norm_(
+		tensors: Union[torch.Tensor, Iterable[torch.Tensor]],
+		max_norm: float,
+		norm_type: float = 2.0,
+		error_if_nonfinite: bool = False
+) -> torch.Tensor:
+	r"""Clips norm of an iterable of tensors.
+	
+	This function is a clone from torch.nn.utils.clip_grad_norm_ with the difference that it
+	works on tensors instead of parameters.
+	
+	The norm is computed over all tensors together, as if they were
+	concatenated into a single vector.
+	
+	Args:
+		tensors (Iterable[Tensor] or Tensor): an iterable of Tensors or a
+			single Tensor that will have data normalized
+		max_norm (float or int): max norm of the data
+		norm_type (float or int): type of the used p-norm. Can be ``'inf'`` for
+			infinity norm.
+		error_if_nonfinite (bool): if True, an error is thrown if the total
+			norm of the data from :attr:`parameters` is ``nan``,
+			``inf``, or ``-inf``. Default: False
+	
+	Returns:
+		Total norm of the tensors (viewed as a single vector).
+	"""
+	if isinstance(tensors, torch.Tensor):
+		tensors = [tensors]
+	max_norm = float(max_norm)
+	norm_type = float(norm_type)
+	if len(tensors) == 0:
+		return torch.tensor(0.)
+	device = tensors[0].device
+	if norm_type == torch.inf:
+		norms = [t.detach().abs().max().to(device) for t in tensors]
+		total_norm = norms[0] if len(norms) == 1 else torch.max(torch.stack(norms))
+	else:
+		total_norm = torch.norm(torch.stack([torch.norm(t.detach(), norm_type).to(device) for t in tensors]), norm_type)
+	if error_if_nonfinite and torch.logical_or(total_norm.isnan(), total_norm.isinf()):
+		raise RuntimeError(
+			f'The total norm of order {norm_type} for gradients from '
+			'`parameters` is non-finite, so it cannot be clipped. To disable '
+			'this error and scale the gradients by the non-finite norm anyway, '
+			'set `error_if_nonfinite=False`'
+		)
+	clip_coef = max_norm / (total_norm + 1e-6)
+	# Note: multiplying by the clamped coef is redundant when the coef is clamped to 1, but doing so
+	# avoids a `if clip_coef < 1:` conditional which can require a CPU <=> device synchronization
+	# when the gradients do not reside in CPU memory.
+	clip_coef_clamped = torch.clamp(clip_coef, max=1.0)
+	for t in tensors:
+		t.detach().mul_(clip_coef_clamped.to(t.device))
+	return total_norm
+
+
+def unitary_rn_normal_matrix(n: int, m: int, generator: Optional[torch.Generator] = None) -> torch.Tensor:
+	max_dim, min_dim = max(n, m), min(n, m)
+	
+	# rn_matrix = torch.randn((n, m), generator=generator)
+	# u, s, v = torch.linalg.svd(rn_matrix, full_matrices=True)
+	# unitary_rn_matrix = u @ torch.eye(*rn_matrix.shape) @ v
+	
+	# rn_matrix = torch.randn((n, m), generator=generator)
+	# u, s, v = torch.linalg.svd(rn_matrix, full_matrices=True)
+	# eye = torch.eye(min_dim, max_dim)
+	# if n > m:
+	# 	unitary_rn_matrix = v @ eye @ u
+	# else:
+	# 	unitary_rn_matrix = u @ eye @ v
+	
+	# rn_matrix = torch.randn((max_dim, max_dim), generator=generator)
+	# rn_matrix[:max_dim-min_dim] = 0.0
+	# u, s, v = torch.linalg.svd(rn_matrix, full_matrices=False)
+	# unitary_rn_matrix = v[:min_dim]
+	
+	rn_matrix = torch.randn((n, m), generator=generator)
+	u, s, v = torch.linalg.svd(rn_matrix, full_matrices=False)
+	unitary_rn_matrix = u @ v
+	
+	if tuple(to_numpy(unitary_rn_matrix.shape, dtype=int)) != (n, m):
+		unitary_rn_matrix = unitary_rn_matrix.T
+	return unitary_rn_matrix

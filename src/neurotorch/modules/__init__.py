@@ -19,6 +19,10 @@ from .layers import (
 	SpyLIFLayer,
 	SpyALIFLayer,
 	SpyLILayer,
+	SpyLIFLayerLPF,
+	SpyALIFLayerLPF,
+	LIFLayerLPF,
+	ALIFLayerLPF,
 )
 
 

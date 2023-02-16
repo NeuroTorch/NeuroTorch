@@ -1,23 +1,10 @@
 import pprint
 
-import matplotlib.pyplot as plt
-import torch
-from torch.utils.data import DataLoader
-
 import neurotorch as nt
-from neurotorch.callbacks.convergence import ConvergenceTimeGetter
-from neurotorch.callbacks.early_stopping import EarlyStoppingThreshold
-from neurotorch.callbacks.events import EventOnMetricThreshold
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
-from neurotorch.learning_algorithms.curbd import CURBD
-from neurotorch.modules.layers import WilsonCowanLayer
-from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
-from neurotorch.utils import hash_params
 from neurotorch.visualisation.connectome import visualize_init_final_weights
 from neurotorch.visualisation.time_series_visualisation import *
 from tutorials.learning_algorithms.dataset import get_dataloader
-from tutorials.time_series_forecasting_wilson_cowan.dataset import WSDataset
-
 
 def set_default_param(**kwargs):
 	kwargs.setdefault("filename", None)
@@ -40,10 +27,11 @@ def set_default_param(**kwargs):
 	kwargs.setdefault("learn_mu", True)
 	kwargs.setdefault("learn_r", True)
 	kwargs.setdefault("learn_tau", True)
-	kwargs.setdefault("force_dale_law", True)
+	kwargs.setdefault("force_dale_law", False)
 	kwargs.setdefault("seed", 0)
 	kwargs.setdefault("n_units", 200)
 	kwargs.setdefault("n_aux_units", kwargs["n_units"])
+	kwargs.setdefault("use_recurrent_connection", False)
 	kwargs.setdefault("add_out_layer", True)
 	if not kwargs["add_out_layer"]:
 		kwargs["n_aux_units"] = kwargs["n_units"]
@@ -69,7 +57,7 @@ def train_with_params(
 	)
 	dataset = dataloader.dataset
 	x = dataset.full_time_series
-	ws_layer = nt.WilsonCowanLayer(
+	wc_layer = nt.WilsonCowanLayer(
 		x.shape[-1], params["n_aux_units"],
 		std_weights=params["std_weights"],
 		forward_sign=params["forward_sign"],
@@ -89,62 +77,88 @@ def train_with_params(
 		name="WilsonCowan_layer1",
 		force_dale_law=params["force_dale_law"],
 		activation=params["activation"],
-		use_recurrent_connection=params["add_out_layer"],
+		use_recurrent_connection=params["use_recurrent_connection"],
 	).build()
-	layers = [ws_layer]
+	layers = [wc_layer, ]
 	if params["add_out_layer"]:
-		out_layer = nt.LILayer(
+		out_layer = nt.Linear(
 			params["n_aux_units"], x.shape[-1],
-			# forward_weights=torch.eye(x.shape[-1], device=device),
-			device=device, use_bias=False, kappa=0.0,
-			# force_dale_law=params["force_dale_law"],
+			device=device,
+			use_bias=False,
+			activation=params["activation"],
 		)
 		layers.append(out_layer)
-	model = nt.SequentialRNN(layers=layers, device=device, foresight_time_steps=dataset.n_time_steps - 1).build()
-	callbacks = [
-		# nt.Eprop(
-		# 	layers=[model.get_layer()],
-		# 	criterion=nt.losses.PVarianceLoss(),
-		# 	lr=0.5,
-		# )
-		nt.BPTT(
-			optimizer=torch.optim.AdamW(
-				model.parameters(), lr=params["learning_rate"], maximize=True,
-				weight_decay=params.get("weight_decay", 0.1)
-			),
-			criterion=nt.losses.PVarianceLoss(),
-		)
-	]
+	checkpoint_manager = nt.CheckpointManager(
+		checkpoint_folder="data/tr_data/checkpoints_wc_e_prop",
+		metric="val_p_var",
+		minimise_metric=False,
+		save_freq=max(1, int(n_iterations / 10)),
+		start_save_at=max(1, int(n_iterations / 3)),
+		save_best_only=True,
+	)
+	model = nt.SequentialRNN(
+		layers=layers,
+		device=device,
+		foresight_time_steps=dataset.n_time_steps - 1,
+		out_memory_size=dataset.n_time_steps - 1,
+		hh_memory_size=1,
+		checkpoint_folder=checkpoint_manager.checkpoint_folder,
+	).build()
+	la = nt.Eprop(
+		alpha=1e-3,
+		gamma=1e-3,
+		params_lr=1e-5,
+		output_params_lr=2e-5,
+		default_optimizer_cls=torch.optim.AdamW,
+		default_optim_kwargs={"weight_decay": 1e-3, "lr": 1e-6},
+		eligibility_traces_norm_clip_value=1.0,
+		grad_norm_clip_value=1.0,
+		learning_signal_norm_clip_value=1.0,
+		feedback_weights_norm_clip_value=1.0,
+		feedbacks_gen_strategy="randn",
+	)
+	lr_scheduler = LRSchedulerOnMetric(
+		'val_p_var',
+		metric_schedule=np.linspace(kwargs.get("lr_schedule_start", 0.5), 1.0, 100),
+		min_lr=[1e-7, 2e-7],
+		retain_progress=True,
+		priority=la.priority + 1,
+	)
+	callbacks = [la, checkpoint_manager, lr_scheduler]
 	
 	with torch.no_grad():
-		W0 = ws_layer.forward_weights.clone().detach().cpu().numpy()
+		W0 = nt.to_numpy(wc_layer.forward_weights.clone())
 		if params["force_dale_law"]:
-			sign0 = ws_layer.forward_sign.clone().detach().cpu().numpy()
+			sign0 = nt.to_numpy(wc_layer.forward_sign.clone())
 		else:
 			sign0 = None
-		mu0 = ws_layer.mu.clone()
-		r0 = ws_layer.r.clone()
-		tau0 = ws_layer.tau.clone()
-		if ws_layer.force_dale_law:
-			ratio_sign_0 = (np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy()) + 1) / 2
+		mu0 = wc_layer.mu.clone()
+		r0 = wc_layer.r.clone()
+		tau0 = wc_layer.tau.clone()
+		if wc_layer.force_dale_law:
+			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(wc_layer.forward_sign))) + 1) / 2
 		else:
-			ratio_sign_0 = (np.mean(torch.sign(ws_layer.forward_weights).detach().cpu().numpy()) + 1) / 2
+			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(wc_layer.forward_weights))) + 1) / 2
 	
 	trainer = nt.trainers.Trainer(
 		model,
 		predict_method="get_prediction_trace",
 		callbacks=callbacks,
+		metrics=[nt.metrics.RegressionMetrics(model, "p_var")],
 	)
 	print(f"{trainer}")
 	history = trainer.train(
 		dataloader,
+		dataloader,
 		n_iterations=n_iterations,
-		exec_metrics_on_train=True,
+		exec_metrics_on_train=False,
 		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
 		force_overwrite=kwargs["force_overwrite"],
 	)
-	history.plot(show=True)
-	
+	history.plot(save_path=f"data/figures/wc_eprop/tr_history.png", show=True)
+
+	model.eval()
+	model.load_checkpoint(checkpoint_manager.checkpoints_meta_path)
 	model.foresight_time_steps = x.shape[1] - 1
 	model.out_memory_size = model.foresight_time_steps
 	x_pred = torch.concat(
@@ -158,25 +172,25 @@ def train_with_params(
 	out = {
 		"params"              : params,
 		"pVar"                : nt.to_numpy(loss.item()),
-		"W"                   : nt.to_numpy(ws_layer.forward_weights),
+		"W"                   : nt.to_numpy(wc_layer.forward_weights),
 		"sign0"               : sign0,
-		"mu"                  : nt.to_numpy(ws_layer.mu),
-		"r"                   : nt.to_numpy(ws_layer.r),
+		"mu"                  : nt.to_numpy(wc_layer.mu),
+		"r"                   : nt.to_numpy(wc_layer.r),
 		"W0"                  : W0,
 		"ratio_0"             : ratio_sign_0,
 		"mu0"                 : nt.to_numpy(mu0),
 		"r0"                  : nt.to_numpy(r0),
 		"tau0"                : nt.to_numpy(tau0),
-		"tau"                 : nt.to_numpy(ws_layer.tau),
-		"x_pred"              : nt.to_numpy(torch.squeeze(x_pred).T),
-		"original_time_series": dataset.original_series,
+		"tau"                 : nt.to_numpy(wc_layer.tau),
+		"x_pred"              : nt.to_numpy(torch.squeeze(x_pred)),
+		"original_time_series": dataset.full_time_series.squeeze(),
 		"force_dale_law"      : params["force_dale_law"],
 	}
-	if ws_layer.force_dale_law:
-		out["ratio_end"] = (np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy()) + 1) / 2
-		out["sign"] = ws_layer.forward_sign.clone().detach().cpu().numpy()
+	if wc_layer.force_dale_law:
+		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(wc_layer.forward_sign))) + 1) / 2
+		out["sign"] = nt.to_numpy(wc_layer.forward_sign.clone())
 	else:
-		out["ratio_end"] = (np.mean(torch.sign(ws_layer.forward_weights).detach().cpu().numpy()) + 1) / 2
+		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(wc_layer.forward_weights))) + 1) / 2
 		out["sign"] = None
 	
 	return out
@@ -189,24 +203,20 @@ if __name__ == '__main__':
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
 			"filename"                      : None,
-			"smoothing_sigma"               : 15.0,
-			"n_units"                       : 200,
-			"n_aux_units"                   : 200,
+			"smoothing_sigma"               : 5.0,
+			"n_units"                       : 500,
+			"n_aux_units"                   : 500,
 			"n_time_steps"                  : -1,
 			"dataset_length"                : 1,
 			"dataset_randomize_indexes"     : False,
 			"force_dale_law"                : False,
-			"weight_decay"                  : 1e-5,
 			"learn_mu"                      : True,
 			"learn_r"                       : True,
 			"learn_tau"                     : True,
-			"activation"                    : "sigmoid",
-			"add_out_layer"                 : True,
-			"learning_rate"                 : 0.001,
-			# "hh_init"                       : "random",
+			"use_recurrent_connection"      : False,
 		},
-		n_iterations=500,
-		device=torch.device("cuda"),
+		n_iterations=2000,
+		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,
 	)
@@ -230,7 +240,7 @@ if __name__ == '__main__':
 		plt.show()
 	
 	viz = Visualise(
-		res["x_pred"].T,
+		res["x_pred"],
 		shape=nt.Size(
 			[
 				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
@@ -238,37 +248,51 @@ if __name__ == '__main__':
 			]
 		)
 	)
-	viz.plot_timeseries_comparison(
-		res["original_time_series"].T, title=f"Prediction", show=True, filename="figures/prediction.png"
+	viz.plot_timeseries_comparison_report(
+		res["original_time_series"],
+		title=f"Prediction",
+		filename=f"data/figures/wc_eprop/timeseries_comparison_report.png",
+		show=True,
+		dpi=600,
 	)
-	
+
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
-	VisualiseKMeans(
+	viz_kmeans = VisualiseKMeans(
 		res["original_time_series"],
 		nt.Size(
 			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")]
+			]
 		)
-	).heatmap(fig=fig, ax=axes[0], title="True time series")
-	VisualiseKMeans(
-		res["x_pred"],
+	)
+	viz_kmeans.heatmap(fig=fig, ax=axes[0], title="True time series")
+	Visualise(
+		viz_kmeans.permute_timeseries(res["x_pred"]),
 		nt.Size(
 			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")]
+			]
 		)
 	).heatmap(fig=fig, ax=axes[1], title="Predicted time series")
-	plt.savefig("figures/heatmap.png")
+	plt.savefig("data/figures/wc_eprop/heatmap.png")
 	plt.show()
 	
 	Visualise(
 		res["x_pred"],
 		nt.Size(
 			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")
 			]
 		)
-	).animate(time_interval=0.1, forward_weights=res["W"], dt=0.1, show=False, filename="figures/animation.mp4")
+	).animate(
+		time_interval=0.1,
+		weights=res["W"],
+		dt=0.1,
+		show=True,
+		filename="data/figures/wc_eprop/animation.gif",
+		writer=None,
+	)
 

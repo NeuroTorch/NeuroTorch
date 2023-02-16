@@ -155,7 +155,7 @@ def train_with_params(
 		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
 		force_overwrite=kwargs["force_overwrite"],
 	)
-	history.plot(show=True)
+	history.plot(save_path=f"data/figures/wc_eprop/tr_history.png", show=True)
 
 	model.eval()
 	model.load_checkpoint(checkpoint_manager.checkpoints_meta_path)

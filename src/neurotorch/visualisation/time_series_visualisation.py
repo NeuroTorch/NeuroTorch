@@ -200,7 +200,7 @@ class Visualise:
 		)
 		nx.draw_networkx_edges(connectome, pos, ax=ax, width=1.0, alpha=alpha)
 		plt.axis("off")
-		text = ax.text(0.5, 0.99, rf"$t = 0 / {int(self.shape[0]) * dt}$", ha="center", transform=ax.transAxes)
+		text = ax.text(0.5, 0.97, rf"$t = 0 / {int(self.shape[0]) * dt}$", ha="center", transform=ax.transAxes)
 		plt.tight_layout(pad=0)
 
 		def _animation(i):

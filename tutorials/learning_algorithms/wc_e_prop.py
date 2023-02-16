@@ -127,18 +127,18 @@ def train_with_params(
 	callbacks = [la, checkpoint_manager, lr_scheduler]
 	
 	with torch.no_grad():
-		W0 = ws_layer.forward_weights.clone().detach().cpu().numpy()
+		W0 = nt.to_numpy(ws_layer.forward_weights.clone())
 		if params["force_dale_law"]:
-			sign0 = ws_layer.forward_sign.clone().detach().cpu().numpy()
+			sign0 = nt.to_numpy(ws_layer.forward_sign.clone())
 		else:
 			sign0 = None
 		mu0 = ws_layer.mu.clone()
 		r0 = ws_layer.r.clone()
 		tau0 = ws_layer.tau.clone()
 		if ws_layer.force_dale_law:
-			ratio_sign_0 = (np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy()) + 1) / 2
+			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_sign))) + 1) / 2
 		else:
-			ratio_sign_0 = (np.mean(torch.sign(ws_layer.forward_weights).detach().cpu().numpy()) + 1) / 2
+			ratio_sign_0 = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_weights))) + 1) / 2
 	
 	trainer = nt.trainers.Trainer(
 		model,
@@ -182,15 +182,15 @@ def train_with_params(
 		"r0"                  : nt.to_numpy(r0),
 		"tau0"                : nt.to_numpy(tau0),
 		"tau"                 : nt.to_numpy(ws_layer.tau),
-		"x_pred"              : nt.to_numpy(torch.squeeze(x_pred).T),
+		"x_pred"              : nt.to_numpy(torch.squeeze(x_pred)),
 		"original_time_series": dataset.full_time_series.squeeze(),
 		"force_dale_law"      : params["force_dale_law"],
 	}
 	if ws_layer.force_dale_law:
-		out["ratio_end"] = (np.mean(torch.sign(ws_layer.forward_sign).detach().cpu().numpy()) + 1) / 2
-		out["sign"] = ws_layer.forward_sign.clone().detach().cpu().numpy()
+		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_sign))) + 1) / 2
+		out["sign"] = nt.to_numpy(ws_layer.forward_sign.clone())
 	else:
-		out["ratio_end"] = (np.mean(torch.sign(ws_layer.forward_weights).detach().cpu().numpy()) + 1) / 2
+		out["ratio_end"] = (np.mean(nt.to_numpy(torch.sign(ws_layer.forward_weights))) + 1) / 2
 		out["sign"] = None
 	
 	return out
@@ -240,7 +240,7 @@ if __name__ == '__main__':
 		plt.show()
 	
 	viz = Visualise(
-		res["x_pred"].T,
+		res["x_pred"],
 		shape=nt.Size(
 			[
 				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
@@ -257,20 +257,23 @@ if __name__ == '__main__':
 	)
 
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
-	VisualiseKMeans(
-		res["original_time_series"].T,
+	viz_kmeans = VisualiseKMeans(
+		res["original_time_series"],
 		nt.Size(
 			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")]
+			]
 		)
-	).heatmap(fig=fig, ax=axes[0], title="True time series")
-	VisualiseKMeans(
-		res["x_pred"],
+	)
+	viz_kmeans.heatmap(fig=fig, ax=axes[0], title="True time series")
+	Visualise(
+		viz_kmeans.permute_timeseries(res["x_pred"]),
 		nt.Size(
 			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")]
+			]
 		)
 	).heatmap(fig=fig, ax=axes[1], title="Predicted time series")
 	plt.savefig("data/figures/wc_eprop/heatmap.png")
@@ -280,8 +283,8 @@ if __name__ == '__main__':
 		res["x_pred"],
 		nt.Size(
 			[
+				nt.Dimension(None, nt.DimensionProperty.TIME, "Time [s]"),
 				nt.Dimension(None, nt.DimensionProperty.NONE, "Neuron [-]"),
-				nt.Dimension(None, nt.DimensionProperty.TIME, "time [s]")
 			]
 		)
 	).animate(

@@ -1,24 +1,10 @@
 import pprint
 
-import matplotlib.pyplot as plt
-import torch
-from torch import nn
-from torch.utils.data import DataLoader
-
 import neurotorch as nt
-from neurotorch.callbacks.convergence import ConvergenceTimeGetter
-from neurotorch.callbacks.early_stopping import EarlyStoppingThreshold
-from neurotorch.callbacks.events import EventOnMetricThreshold
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
-from neurotorch.dimension import SizeTypes
-from neurotorch.modules import HeavisideSigmoidApprox
-from neurotorch.modules.layers import WilsonCowanLayer, BaseNeuronsLayer
-from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
-from neurotorch.utils import hash_params, format_pseudo_rn_seed
 from neurotorch.visualisation.connectome import visualize_init_final_weights
 from neurotorch.visualisation.time_series_visualisation import *
 from tutorials.learning_algorithms.dataset import get_dataloader
-from tutorials.time_series_forecasting_wilson_cowan.dataset import WSDataset
 
 
 def set_default_param(**kwargs):
@@ -78,7 +64,6 @@ def train_with_params(
 		hh_init=params["hh_init"],
 		force_dale_law=params["force_dale_law"],
 		use_recurrent_connection=params["use_recurrent_connection"],
-		# low_pass_filter_alpha=0.01,
 		device=device,
 	).build()
 	layers = [lif_layer, ]
@@ -155,7 +140,7 @@ def train_with_params(
 		force_overwrite=kwargs["force_overwrite"],
 	)
 	history.plot(save_path=f"data/figures/snn_eprop/tr_history.png", show=True)
-
+	
 	model.eval()
 	model.load_checkpoint(checkpoint_manager.checkpoints_meta_path)
 	model.foresight_time_steps = x.shape[1] - 1
@@ -195,18 +180,18 @@ if __name__ == '__main__':
 			# "filename": "ts_nobaselines_fish3.npy",
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
-			"filename"                      : None,
-			"smoothing_sigma"               : 5.0,
-			"n_units"                       : 500,
-			"n_aux_units"                   : 500,
-			"n_time_steps"                  : -1,
-			"dataset_length"                : 1,
-			"dataset_randomize_indexes"     : False,
-			"force_dale_law"                : False,
-			"learn_mu"                      : True,
-			"learn_r"                       : True,
-			"learn_tau"                     : True,
-			"use_recurrent_connection"      : False,
+			"filename"                 : None,
+			"smoothing_sigma"          : 5.0,
+			"n_units"                  : 500,
+			"n_aux_units"              : 500,
+			"n_time_steps"             : -1,
+			"dataset_length"           : 1,
+			"dataset_randomize_indexes": False,
+			"force_dale_law"           : False,
+			"learn_mu"                 : True,
+			"learn_r"                  : True,
+			"learn_tau"                : True,
+			"use_recurrent_connection" : False,
 		},
 		n_iterations=2000,
 		device=torch.device("cpu"),
@@ -248,7 +233,7 @@ if __name__ == '__main__':
 		show=True,
 		dpi=600,
 	)
-
+	
 	fig, axes = plt.subplots(1, 2, figsize=(12, 8))
 	viz_kmeans = VisualiseKMeans(
 		res["original_time_series"],
@@ -286,4 +271,3 @@ if __name__ == '__main__':
 		show=False,
 		filename="data/figures/snn_eprop/animation.mp4"
 	)
-

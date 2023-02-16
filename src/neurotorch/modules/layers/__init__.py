@@ -20,6 +20,9 @@ from .spiking import (
 
 from .spiking_lpf import (
 	SpyLIFLayerLPF,
+	SpyALIFLayerLPF,
+	LIFLayerLPF,
+	ALIFLayerLPF,
 )
 
 from .wilson_cowan import (

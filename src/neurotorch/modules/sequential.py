@@ -2,6 +2,7 @@ import warnings
 from collections import defaultdict, OrderedDict
 from copy import deepcopy
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
+from typing import OrderedDict as OrderedDictType
 
 import numpy as np
 import torch
@@ -18,6 +19,8 @@ from . import (
 	SpikeFuncType2Func,
 	SpikeFunction
 )
+from .base import NamedModule
+from .wrappers import NamedModuleWrapper
 from ..dimension import Dimension
 from ..transforms.base import ToDevice
 from ..utils import sequence_get
@@ -46,63 +49,63 @@ class Sequential(BaseModel):
 
 	@staticmethod
 	def _format_input_output_layers(
-			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
+			layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]],
 			default_prefix_layer_name: str = "layer",
-	) -> OrderedDict[str, BaseLayer]:
+	) -> OrderedDictType[str, NamedModule]:
 		"""
 		Format the input or output layers. The format is an ordered dictionary of the form {layer_name: layer}.
 		
 		:param layers: The input or output layers.
-		:type layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
+		:type layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]]
 		:param default_prefix_layer_name: The default prefix of the layer name. The prefix is used when the name of
 		the layer is not specified.
 		:type default_prefix_layer_name: str
 		
 		:return: The formatted input or output layers.
-		:rtype: OrderedDict[str, BaseLayer]
+		:rtype: OrderedDict[str, NamedModule]
 		"""
-		layers: Iterable[BaseLayer] = [layers] if not isinstance(layers, Iterable) else layers
+		layers: Iterable[torch.nn.Module] = [layers] if not isinstance(layers, (Iterable, Mapping)) else layers
 		if isinstance(layers, Mapping):
-			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for _, layer in layers.items())
-
+			layers: OrderedDictType[str, NamedModule] = OrderedDict(
+				(k, (v if isinstance(v, NamedModule) else NamedModuleWrapper(v))) for k, v in layers.items()
+			)
 			for layer_key, layer in layers.items():
 				if not layer.name_is_set:
 					layer.name = layer_key
 			assert all(layer_key == layer.name for layer_key, layer in layers.items()), \
 				"The layer names must be the same as the keys."
 		else:
-			all_base_layer = all(isinstance(layer, (BaseLayer, dict)) for layer in layers)
-		
-		# TODO: add support for torch.nn.Module
-		assert all_base_layer, "All layers must be of type BaseLayer"
-		if not isinstance(layers, dict):
+			layers: Iterable[NamedModule] = [
+				(layer if isinstance(layer, NamedModule) else NamedModuleWrapper(layer)) for layer in layers
+			]
 			for layer_idx, layer in enumerate(layers):
 				if not layer.name_is_set:
 					layer.name = f"{default_prefix_layer_name}_{layer_idx}"
 			assert len([layer.name for layer in layers]) == len(set([layer.name for layer in layers])), \
-				"There are layers with the same name."
-			layers = OrderedDict((layer.name, layer) for layer in layers)
+				"There are layers with the same name. Please specify the names of the layers without duplicates."
+			layers: OrderedDict[str, NamedModule] = OrderedDict((layer.name, layer) for layer in layers)
 		return layers
 
 	@staticmethod
 	def _format_hidden_layers(
-			layers: Iterable[BaseLayer],
+			layers: Iterable[torch.nn.Module],
 			default_prefix_layer_name: str = "hidden",
-	) -> List[BaseLayer]:
+	) -> List[NamedModule]:
 		"""
 		Format the hidden layers. The format is a list of the form [layer, ...].
 		
 		:param layers: The hidden layers.
-		:type layers: Iterable[BaseLayer]
+		:type layers: Iterable[torch.nn.Module]
 		:param default_prefix_layer_name: The default prefix of the layer name. The prefix is used when the name of
 		the layer is not specified.
 		:type default_prefix_layer_name: str
 		
 		:return: The formatted hidden layers.
-		:rtype: List[BaseLayer]
+		:rtype: List[NamedModule]
 		"""
-		assert all([isinstance(layer, BaseLayer) for layer in layers]), \
-			"All hidden layers must be of type BaseLayer"
+		layers: Iterable[NamedModule] = [
+			(layer if isinstance(layer, NamedModule) else NamedModuleWrapper(layer)) for layer in layers
+		]
 		for i, layer in enumerate(layers):
 			if not layer.name_is_set:
 				layer.name = f"{default_prefix_layer_name}_{i}"
@@ -110,7 +113,7 @@ class Sequential(BaseModel):
 
 	@staticmethod
 	def _format_layers(
-			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
+			layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]]
 	) -> Tuple[OrderedDict, List, OrderedDict]:
 		"""
 		Format the given layers. The format is a tuple of the form:
@@ -197,7 +200,7 @@ class Sequential(BaseModel):
 
 	def __init__(
 			self,
-			layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]],
+			layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]],
 			name: str = "Sequential",
 			checkpoint_folder: str = "checkpoints",
 			device: Optional[torch.device] = None,
@@ -223,7 +226,7 @@ class Sequential(BaseModel):
 				output_layer
 			]
 		
-		:type layers: Iterable[Union[Iterable[BaseLayer], BaseLayer]]
+		:type layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]]
 		:param name: The name of the model.
 		:type name: str
 		:param checkpoint_folder: The folder where the checkpoints are saved.
@@ -240,8 +243,8 @@ class Sequential(BaseModel):
 		self._ordered_inputs_names = [layer.name for _, layer in input_layers.items()]
 		self._ordered_outputs_names = [layer.name for _, layer in output_layers.items()]
 		super(Sequential, self).__init__(
-			input_sizes={layer.name: layer.input_size for _, layer in input_layers.items()},
-			output_size={layer.name: layer.output_size for _, layer in output_layers.items()},
+			input_sizes={layer.name: getattr(layer, "input_size", None) for _, layer in input_layers.items()},
+			output_size={layer.name: getattr(layer, "output_size", None) for _, layer in output_layers.items()},
 			name=name,
 			checkpoint_folder=checkpoint_folder,
 			device=device,
@@ -367,7 +370,7 @@ class Sequential(BaseModel):
 		:return: None
 		"""
 		for layer in self.get_all_layers():
-			if getattr(layer, "initialize_weights_") and callable(layer.initialize_weights_):
+			if hasattr(layer, "initialize_weights_") and callable(layer.initialize_weights_):
 				layer.initialize_weights_()
 
 	def _format_single_inputs(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
@@ -421,9 +424,10 @@ class Sequential(BaseModel):
 		:return: None
 		"""
 		for layer in self.get_all_layers():
-			if getattr(layer, "build") and callable(layer.build):
-				if not getattr(layer, "is_built", False):
-					layer.build()
+			if hasattr(layer, "build"):
+				if callable(layer.build):
+					if not getattr(layer, "is_built", False):
+						layer.build()
 
 	def build(self) -> 'Sequential':
 		"""
@@ -446,27 +450,38 @@ class Sequential(BaseModel):
 		:return: None
 		"""
 		inputs_layers_out_sum = 0
+		inputs_sum_valid = True
 		for layer_name, layer in self.input_layers.items():
-			if layer.input_size is None:
+			if hasattr(layer, "input_size") and layer.input_size is None:
 				layer.input_size = self.input_sizes[layer_name]
-			if layer.output_size is None:
-				layer.output_size = self._default_n_hidden_neurons
-			inputs_layers_out_sum += int(layer.output_size)
+			if hasattr(layer, "output_size"):
+				if layer.output_size is None:
+					layer.output_size = self._default_n_hidden_neurons
+				inputs_layers_out_sum += int(layer.output_size)
+			else:
+				inputs_sum_valid = False
 
 		last_hidden_out_size = inputs_layers_out_sum
 		for layer_idx, layer in enumerate(self.hidden_layers):
 			if layer_idx == 0:
-				layer.input_size = inputs_layers_out_sum
-			else:
+				if hasattr(layer, "input_size") and layer.input_size is None and inputs_sum_valid:
+					layer.input_size = last_hidden_out_size
+				# layer.input_size = inputs_layers_out_sum
+			elif (
+					hasattr(self.hidden_layers[layer_idx - 1], "output_size")
+					and hasattr(layer, "input_size")
+					and layer.input_size is None
+			):
 				layer.input_size = self.hidden_layers[layer_idx - 1].output_size
-			if layer.output_size is None:
+			if hasattr(layer, "output_size") and layer.output_size is None:
 				layer.output_size = self._default_n_hidden_neurons
-			last_hidden_out_size = int(layer.output_size)
+			if hasattr(layer, "output_size"):
+				last_hidden_out_size = int(layer.output_size)
 
 		for layer_name, layer in self.output_layers.items():
-			if layer.input_size is None:
+			if hasattr(layer, "input_size") and layer.input_size is None:
 				layer.input_size = last_hidden_out_size
-			if layer.output_size is None:
+			if hasattr(layer, "output_size") and layer.output_size is None:
 				if self.output_sizes is None or self.output_sizes[layer_name] is None:
 					warnings.warn(
 						f"output_size is not set for layer {layer_name}. It will be set to {last_hidden_out_size}"
@@ -475,8 +490,8 @@ class Sequential(BaseModel):
 				else:
 					layer.output_size = self.output_sizes[layer_name]
 			if self.output_sizes is None:
-				self.output_sizes = {layer_name: layer.output_size}
-			else:
+				self.output_sizes = {layer_name: layer.output_size} if hasattr(layer, "output_size") else {}
+			elif hasattr(layer, "output_size"):
 				self.output_sizes[layer_name] = layer.output_size
 
 	def forward(
@@ -571,7 +586,7 @@ class Sequential(BaseModel):
 			self,
 			inputs: torch.Tensor,
 			**kwargs
-	) -> Union[tuple[Tensor, Any, Any], tuple[Tensor, Any], Tensor]:
+	) -> Union[Tuple[Tensor, Any, Any], Tuple[Tensor, Any], Tensor]:
 		"""
 		Get the prediction log probability of the model which is the log softmax of the output of the forward pass.
 		The log softmax is performed on the last dimension. This method is generally used for training in classification

@@ -147,8 +147,7 @@ class CheckpointManager(BaseCallback):
 		:param save_freq: The frequency at which to save checkpoints. If set to <= 0, will save at the end of the
 							training.
 		:type save_freq: int
-		:param save_best_only: Whether to only save the best checkpoint. If set to True, the save_freq will be set
-		automatically to -1.
+		:param save_best_only: Whether to only save the best checkpoint.
 		:type save_best_only: bool
 		:param start_save_at: The iteration at which to start saving checkpoints.
 		:type start_save_at: int
@@ -387,11 +386,13 @@ class CheckpointManager(BaseCallback):
 		"""
 		if self.start_save_at > trainer.current_training_state.iteration:
 			return
-		if self.save_best_only:
-			if self._check_is_best(trainer):
+		
+		if self.save_freq > 0 and trainer.current_training_state.iteration % self.save_freq == 0:
+			if self.save_best_only:
+				if self._check_is_best(trainer):
+					self.save_on(trainer)
+			else:
 				self.save_on(trainer)
-		elif self.save_freq > 0 and trainer.current_training_state.iteration % self.save_freq == 0:
-			self.save_on(trainer)
 		if trainer.current_training_state.iteration >= trainer.state.n_iterations - 1:
 			self.save_on(trainer)
 	

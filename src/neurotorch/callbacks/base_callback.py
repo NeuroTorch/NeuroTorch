@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Iterator, Dict, Any
+from typing import Iterable, Optional, Iterator, Dict, Any, List
 
 
 class BaseCallback:
@@ -319,6 +319,22 @@ class BaseCallback:
 		:type trainer: Trainer
 
 		:return: None
+		"""
+		pass
+	
+	def on_trajectory_end(self, trainer, trajectory, **kwargs) -> List[Dict[str, Any]]:
+		"""
+		Called when a trajectory ends. This is used in reinforcement learning to update the trajectory loss and metrics.
+		Must return a list of dictionaries containing the trajectory metrics. The list must have the same length as the
+		trajectory. Each item in the list will update the attribute `others` of the corresponding Experience.
+		
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		:param trajectory: The trajectory i.e. the sequence of Experiences.
+		:type trajectory: Trajectory
+		:param kwargs: Additional arguments.
+		
+		:return: A list of dictionaries containing the trajectory metrics.
 		"""
 		pass
 	
@@ -698,7 +714,36 @@ class CallbacksList:
 		"""
 		for callback in self.callbacks:
 			callback.on_validation_batch_end(trainer, **kwargs)
-			
+	
+	def on_trajectory_end(self, trainer, trajectory, **kwargs) -> List[Dict[str, Any]]:
+		"""
+		Called when a trajectory ends. This is used in reinforcement learning to update the trajectory loss and metrics.
+		Must return a  list of dictionaries containing the trajectory metrics. The list must have the same
+		length as the trajectory. Each item in the list will update the attribute `others` of the corresponding
+		Experience.
+		
+		:Note: If the callbacks return the same keys in the dictionaries, the values will be updated, so the
+			last callback will prevail.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		:param trajectory: The trajectory i.e. the sequence of Experiences.
+		:type trajectory: Trajectory
+		:param kwargs: Additional arguments.
+
+		:return: A list of dictionaries containing the trajectory metrics.
+		"""
+		# re_list = [{}] * len(trajectory)
+		re_list = [{} for _ in range(len(trajectory))]
+		for callback in self.callbacks:
+			callback_return = callback.on_trajectory_end(trainer, trajectory, **kwargs)
+			if callback_return is not None:
+				assert len(callback_return) == len(trajectory), \
+					"The callback must return a list of dictionaries with the same length as the trajectory."
+				for i, re in enumerate(callback_return):
+					re_list[i].update(re)
+		return re_list
+	
 	def on_pbar_update(self, trainer, **kwargs) -> dict:
 		"""
 		Called when the progress bar is updated.

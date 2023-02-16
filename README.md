@@ -1,6 +1,5 @@
-<p align="center" width="100%">
-    <img width="40%" src="images/neurotorch.svg">
-</p>
+<div style="text-align:center"><img src="images/neurotorch.svg" width="40%" /></div>
+
 
 [![Star on GitHub](https://img.shields.io/github/stars/NeuroTorch/NeuroTorch.svg?style=social)](https://github.com/NeuroTorch/NeuroTorch/stargazers)
 [![Python 3.6](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-390/)
@@ -10,6 +9,8 @@
 ![Dist Workflow](https://github.com/NeuroTorch/NeuroTorch/actions/workflows/build_dist.yml/badge.svg)
 ![Doc Workflow](https://github.com/NeuroTorch/NeuroTorch/actions/workflows/docs.yml/badge.svg)
 ![Publish Workflow](https://github.com/NeuroTorch/NeuroTorch/actions/workflows/publish.yml/badge.svg)
+
+
 
 
 # 1. Description
@@ -47,15 +48,20 @@ What can be done with NeuroTorch in the current version?
 
 # 2. Installation
 
+
+
 | Method     | Commands                                                                                                                                                                       |
 |------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **PyPi**   | `pip install neurotorch`                                                                                                                                                       |
 | **source** | `pip install git+https://github.com/NeuroTorch/NeuroTorch`                                                                                                                     |
 | **wheel**  | 1.Download the .whl file [here](https://github.com/NeuroTorch/NeuroTorch/tree/main/dist);<br> 2. Copy the path of this file on your computer; <br> 3. `pip install [path].whl` |
 
+
 ### 2.1 Last unstable version
 To install the last unstable version, you can install it by downloading the last version of the .whl file
 and following the instructions above.
+
+
 
 
 # 3. Tutorials / Applications
@@ -68,6 +74,8 @@ See the readme of the tutorials folder [here](tutorials/README.md).
 | [Jupyter Notebook](tutorials/heidelberg/tutorial.ipynb)                           | [Repository](https://github.com/NeuroTorch/HeidelbergClassification_NeuroTorch) | Time series classification with spiking networks (Heidelberg).                                                                      |
 | [Jupyter Notebook](tutorials/time_series_forecasting_spiking/tutorial.ipynb)      | [Repository](https://github.com/NeuroTorch/SNN_TS_Forecasting_NeuroTorch)       | Time series forecasting with spiking networks (Neuronal activity) <br> **Sorry, it's a work in progress, so it's not publish yet.** | 
 | [Jupyter Notebook](tutorials/time_series_forecasting_wilson_cowan/tutorial.ipynb) | Null                                                                            | Time series forecasting with Wilson-Cowan (Neuronal activity).                                                                      |
+
+
 
 
 # 4. Quick usage preview
@@ -131,6 +139,8 @@ accuracies = {
 pprint.pprint(accuracies)
 ```
 
+
+
 # 5. Why NeuroTorch?
 On the one hand, neuroscientists are increasingly using machine learning (ML) without necessarily having the 
 expertise to create training pipelines. On the other hand, most ML experts lack the neuroscience background to 
@@ -140,6 +150,8 @@ features originating from neuroscience while using a simple and intuitive interf
 The goal of this work is to provide a Python package, NeuroTorch, offering a flexible and intuitive training pipeline 
 together with biologically-constrained neuronal dynamics. This tool will include several learning strategies highly 
 used in both ML and neuroscience to ensure that both fields can benefit from the package.
+
+
 
 
 # 6. Similar work
@@ -155,6 +167,9 @@ the prefix 'Spy' of certain layers in NeuroTorch is a reference to SpyTorch.
 * [PySNN](https://github.com/BasBuller/PySNN/) is a PyTorch extension similar to [Norse](https://github.com/norse/norse).
 
 
+
+
+
 # 7. About
 
 This package is part of a postgraduate research project realized by [Jérémie Gince](https://github.com/JeremieGince) 
@@ -164,13 +179,18 @@ the [Sentinelle Nord](https://sentinellenord.ulaval.ca/en) program of Universit�
 First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
 
 
+
+
 # 8. Important Links
   - Documentation at [https://NeuroTorch.github.io/NeuroTorch/](https://NeuroTorch.github.io/NeuroTorch/).
   - Github at [https://github.com/NeuroTorch/NeuroTorch/](https://github.com/NeuroTorch/NeuroTorch/).
 
 
+
+
 # 9. Found a bug or have a feature request?
 - [Click here to create a new issue.](https://github.com/NeuroTorch/NeuroTorch/issues/new)
+
 
 
 # 10. Thanks
@@ -178,8 +198,12 @@ First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
 - [Antoine Légaré](https://github.com/AntoineLegare) who made the awesome [logo](images/neurotorch.svg) of NeuroTorch.
 - To my dog Chewy who has been a great help during the whole development.
 
+
+
 # 11. License
 [Apache License 2.0](LICENSE)
+
+
 
 # 12. Citation
 ```
@@ -192,4 +216,4 @@ First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
 }
 ```
 
----------------------------------------------------------------------------
+

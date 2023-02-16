@@ -406,6 +406,31 @@ def vmap(f):
 	return wrapper
 
 
+def maybe_apply_softmax(x, dim: int = -1):
+	"""
+	Apply softmax to x if x is not l1 normalized.
+	
+	:Note: The input will be cast to tensor bye the transform `to_tensor`.
+	
+	:param x: The tensor to apply softmax to.
+	:param dim: The dimension to apply softmax to.
+	:return: The softmax applied tensor.
+	"""
+	from .transforms.base import to_tensor
+	from torch.distributions import constraints
+	out = to_tensor(x)
+	constraint = constraints.simplex
+	all_positive = torch.all(out >= 0)
+	dim_sum = torch.sum(out, dim=dim)
+	l1_normalized = torch.allclose(dim_sum, torch.ones_like(dim_sum), atol=1e-6)
+	# if constraint.check(out):
+	if all_positive and l1_normalized:
+	# if torch.allclose(out, out / out.sum(dim=dim, keepdim=True), atol=1e-6):
+		return out
+	else:
+		return torch.nn.functional.softmax(out, dim=dim)
+
+
 def unpack_out_hh(out):
 	"""
 	Unpack the output of a recurrent network.

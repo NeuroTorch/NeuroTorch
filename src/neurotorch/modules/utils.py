@@ -26,42 +26,6 @@ class DimensionsCat:
 		return torch.flatten(inputs, start_dim=self.start_axis, end_dim=self.end_axis)
 
 
-class ReduceSum(BaseLayer):
-	def __init__(
-			self,
-			input_size: Optional[SizeTypes] = None,
-			output_size: Optional[SizeTypes] = None,
-			name: Optional[str] = None,
-			axis: int = -1,
-			device: Optional[torch.device] = None,
-	):
-		super().__init__(
-			input_size=input_size,
-			output_size=output_size,
-			name=name,
-			device=device,
-		)
-		self.axis = axis
-
-	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
-		pass
-
-	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-		return inputs.sum(dim=self.axis), None
-
-
-class ReduceMean(BaseLayer):
-	def __init__(self, axis: int = -1):
-		super().__init__()
-		self.axis = axis
-
-	def create_empty_state(self, batch_size: int = 1) -> Tuple[torch.Tensor, ...]:
-		pass
-
-	def forward(self, inputs: torch.Tensor, state: torch.Tensor = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-		return inputs.mean(dim=self.axis), None
-
-
 
 
 

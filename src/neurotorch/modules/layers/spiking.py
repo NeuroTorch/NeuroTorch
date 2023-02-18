@@ -128,12 +128,12 @@ class LIFLayer(BaseNeuronsLayer):
 	# @inherit_docstring(bases=BaseNeuronsLayer)
 	def initialize_weights_(self):
 		super().initialize_weights_()
-		if "forward_weights" in self.kwargs:
+		if self.kwargs.get("forward_weights", None) is not None:
 			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
 			torch.nn.init.xavier_normal_(self.forward_weights)
 		
-		if "recurrent_weights" in self.kwargs and self.use_recurrent_connection:
+		if self.kwargs.get("recurrent_weights", None) is not None and self.use_recurrent_connection:
 			self.recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
 		elif self.use_recurrent_connection:
 			torch.nn.init.xavier_normal_(self.recurrent_weights)
@@ -348,12 +348,12 @@ class SpyLIFLayer(BaseNeuronsLayer):
 	def initialize_weights_(self):
 		super().initialize_weights_()
 		weight_scale = 0.2
-		if "forward_weights" in self.kwargs:
+		if self.kwargs.get("forward_weights", None) is not None:
 			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
 			torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.input_size)))
 		
-		if "recurrent_weights" in self.kwargs and self.use_recurrent_connection:
+		if self.kwargs.get("recurrent_weights", None) is not None and self.use_recurrent_connection:
 			self.recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
 		elif self.use_recurrent_connection:
 			torch.nn.init.normal_(self.recurrent_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.output_size)))
@@ -654,12 +654,12 @@ class SpyALIFLayer(SpyLIFLayer):
 	def initialize_weights_(self):
 		super().initialize_weights_()
 		weight_scale = 0.2
-		if "forward_weights" in self.kwargs:
+		if self.kwargs.get("forward_weights", None) is not None:
 			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
 			torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.input_size)))
 		
-		if "recurrent_weights" in self.kwargs and self.use_recurrent_connection:
+		if self.kwargs.get("recurrent_weights", None) is not None and self.use_recurrent_connection:
 			self.recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
 		elif self.use_recurrent_connection:
 			torch.nn.init.normal_(self.recurrent_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.output_size)))

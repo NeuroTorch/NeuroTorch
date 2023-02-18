@@ -90,7 +90,7 @@ class LILayer(BaseNeuronsLayer):
 	
 	def initialize_weights_(self):
 		super(LILayer, self).initialize_weights_()
-		if "bias_weights" in self.kwargs:
+		if self.kwargs.get("bias_weights", None) is not None:
 			self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
 		else:
 			torch.nn.init.constant_(self.bias_weights, 0.0)
@@ -241,12 +241,12 @@ class SpyLILayer(BaseNeuronsLayer):
 	def initialize_weights_(self):
 		super(SpyLILayer, self).initialize_weights_()
 		weight_scale = 0.2
-		if "forward_weights" in self.kwargs:
+		if self.kwargs.get("forward_weights", None) is not None:
 			self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
 			torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.input_size)))
 		if self.kwargs["use_bias"]:
-			if "bias_weights" in self.kwargs:
+			if self.kwargs.get("bias_weights", None) is not None:
 				self.forward_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
 			else:
 				torch.nn.init.constant_(self.bias_weights, 0.0)

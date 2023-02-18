@@ -4,7 +4,6 @@ from collections import defaultdict
 from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List, Mapping
 
 import torch
-from unstable import unstable
 
 from .learning_algorithm import LearningAlgorithm
 from ..transforms.base import to_numpy
@@ -29,7 +28,6 @@ class Eprop(TBPTT):
 	.. image:: ../../images/learning_algorithms/EpropDiagram.png
 		:width: 300
 		:align: center
-	
 	
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"

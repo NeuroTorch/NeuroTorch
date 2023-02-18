@@ -573,12 +573,12 @@ class BaseNeuronsLayer(BaseLayer):
 	
 	def initialize_weights_(self):
 		super().initialize_weights_()
-		if self.kwargs.get("forward_weights", None):
+		if self.kwargs.get("forward_weights", None) is not None:
 			self._forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
 			torch.nn.init.xavier_normal_(self._forward_weights)
 		
-		if self.kwargs.get("recurrent_weights", None) and self.use_recurrent_connection:
+		if self.kwargs.get("recurrent_weights", None) is not None and self.use_recurrent_connection:
 			self._recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
 		elif self.use_recurrent_connection:
 			torch.nn.init.xavier_normal_(self._recurrent_weights)

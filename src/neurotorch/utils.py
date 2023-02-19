@@ -9,7 +9,6 @@ import numpy as np
 import torch
 import torchvision
 from matplotlib import pyplot as plt
-from unstable import unstable
 
 from .transforms.base import to_tensor, to_numpy
 
@@ -37,7 +36,6 @@ def batchwise_temporal_decay(x: torch.Tensor, decay: float = 0.9):
 	return x
 
 
-@unstable
 def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
 	r"""
 

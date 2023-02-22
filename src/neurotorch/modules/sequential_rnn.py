@@ -1,22 +1,17 @@
 import warnings
-from collections import defaultdict, OrderedDict
-from copy import deepcopy
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
+from collections import defaultdict
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch import Tensor, nn
+from torch import Tensor
 
 from . import (
 	BaseLayer,
-	BaseModel,
-	LIFLayer,
 	LayerType,
-	LayerType2Layer,
 	SpikeFuncType,
-	SpikeFuncType2Func,
-	SpikeFunction
+	SpikeFunction,
 )
 from ..dimension import Dimension
 from ..transforms.base import ToDevice

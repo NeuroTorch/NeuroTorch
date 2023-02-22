@@ -1,10 +1,8 @@
 import warnings
-from collections import defaultdict, OrderedDict
-from copy import deepcopy
+from collections import OrderedDict
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
 from typing import OrderedDict as OrderedDictType
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
@@ -12,18 +10,15 @@ from torch import Tensor, nn
 from . import (
 	BaseLayer,
 	BaseModel,
-	LIFLayer,
 	LayerType,
 	LayerType2Layer,
 	SpikeFuncType,
-	SpikeFuncType2Func,
 	SpikeFunction
 )
 from .base import NamedModule
 from .wrappers import NamedModuleWrapper
 from ..dimension import Dimension
-from ..transforms.base import ToDevice
-from ..utils import sequence_get
+
 
 Acceptable_Spike_Func = Union[Type[SpikeFunction], SpikeFuncType]
 Acceptable_Spike_Funcs = Union[Acceptable_Spike_Func, Iterable[Acceptable_Spike_Func]]

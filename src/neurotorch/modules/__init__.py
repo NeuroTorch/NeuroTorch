@@ -33,3 +33,7 @@ from .base import (
 from .sequential_rnn import (
 	SequentialRNN,
 )
+
+from .functions import (
+	PSigmoid,
+)

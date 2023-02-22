@@ -100,6 +100,9 @@ class Eprop(TBPTT):
 							- "randn": Normal distribution with mean 0 and variance 1.
 							- "rand": Uniform distribution between 0 and 1.
 							- "unitary": Unitary matrix with normal distribution.
+		:keyword float nan: The value to use to replace the NaN values in the gradients. Defaults to 0.0.
+		:keyword float posinf: The value to use to replace the inf values in the gradients. Defaults to 1.0.
+		:keyword float neginf: The value to use to replace the -inf values in the gradients. Defaults to -1.0.
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
 		"""
@@ -145,10 +148,13 @@ class Eprop(TBPTT):
 			self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(str(self._feedbacks_gen_strategy), torch.inf)
 		)
 		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
-		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-3, "lr": 1e-5})
+		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-2, "lr": 1e-5})
+		self.nan = kwargs.get("nan", 0.0)
+		self.posinf = kwargs.get("posinf", 1.0)
+		self.neginf = kwargs.get("neginf", -1.0)
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
-		if self.save_state:
+		if self.load_state:
 			state = checkpoint.get(self.name, {})
 			opt_state_dict = state.get(self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY, None)
 			if opt_state_dict is not None:
@@ -507,7 +513,7 @@ class Eprop(TBPTT):
 		self.update_grads(errors)
 		with torch.no_grad():
 			self._layers_buffer[layer_name].clear()
-		
+	
 	def compute_learning_signals(self, errors: Dict[str, torch.Tensor]):
 		"""
 		TODO : Determine if we normalize with the number of output when computing the learning signal.
@@ -523,6 +529,7 @@ class Eprop(TBPTT):
 					f"This is an internal error. Please report this issue on GitHub."
 					f"Key {k} from {self.feedback_weights.keys()=} not found in errors of keys {errors.keys()}."
 				)
+			torch.nan_to_num_(errors[k], nan=self.nan, posinf=self.posinf, neginf=self.neginf)
 			error_mean = torch.mean(errors[k].view(-1, errors[k].shape[-1]), dim=0).view(1, -1)
 			clip_tensors_norm_(error_mean, max_norm=self.learning_signal_norm_clip_value)
 			for i, feedback in enumerate(feedbacks):
@@ -575,35 +582,47 @@ class Eprop(TBPTT):
 			for param, ls, et in zip(self.params, learning_signals, self.eligibility_traces):
 				if param.requires_grad:
 					param.grad += (ls * et.to(ls.device)).to(param.device).view(param.shape).detach()
+					torch.nan_to_num_(param.grad, nan=self.nan, posinf=self.posinf, neginf=self.neginf)
 			torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
+			# if not all([torch.isfinite(p.grad).all() for p in self.params]):
+			# 	raise ValueError(
+			# 		"Non-finite detected in hidden parameters gradients. Try to reduce the learning rate of the hidden "
+			# 		"parameters with the argument `params_lr`."
+			# 	)
 
 		with torch.no_grad():
 			for out_param, out_el in zip(self.output_params, self.output_eligibility_traces):
 				if out_param.requires_grad:
 					out_param.grad += out_el.to(out_param.device).view(out_param.shape).detach()
+					torch.nan_to_num_(out_param.grad, nan=self.nan, posinf=self.posinf, neginf=self.neginf)
 			torch.nn.utils.clip_grad_norm_(self.output_params, self.grad_norm_clip_value)
+			# if not all([torch.isfinite(p).all() for p in self.output_params]):
+			# 	raise ValueError(
+			# 		"Non-finite detected in output parameters gradients. Try to reduce the learning rate of the output "
+			# 		"parameters with the argument `output_params_lr`."
+			# 	)
 	
 	def _make_optim_step(self, **kwargs):
 		"""
 		TODO: check if we really need to zero_grad -> backward_times_steps is not necessary equal to optim_times_steps.
 		Set the gradients and the eligibility traces to zero.
 
-		:param kwargs:
-		:return:
+		:param kwargs: Additional arguments.
+		:return: None
 		"""
 		super()._make_optim_step(**kwargs)
 		with torch.no_grad():
 			zero_grad_params(self.output_params)
-		if not all([torch.isfinite(p).all() for p in self.params]):
-			raise ValueError(
-				"Non-finite detected in hidden parameters gradients. Try to reduce the learning rate of the hidden "
-				"parameters with the argument `params_lr`."
-			)
-		if not all([torch.isfinite(p).all() for p in self.output_params]):
-			raise ValueError(
-				"Non-finite detected in output parameters gradients. Try to reduce the learning rate of the output "
-				"parameters with the argument `output_params_lr`."
-			)
+		# if not all([torch.isfinite(p).all() for p in self.params]):
+		# 	raise ValueError(
+		# 		"Non-finite detected in hidden parameters. Try to reduce the learning rate of the hidden "
+		# 		"parameters with the argument `params_lr`."
+		# 	)
+		# if not all([torch.isfinite(p).all() for p in self.output_params]):
+		# 	raise ValueError(
+		# 		"Non-finite detected in output parameters. Try to reduce the learning rate of the output "
+		# 		"parameters with the argument `output_params_lr`."
+		# 	)
 
 	def on_batch_end(self, trainer, **kwargs):
 		"""

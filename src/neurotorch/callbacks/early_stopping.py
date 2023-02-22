@@ -122,3 +122,8 @@ class EarlyStoppingOnTime(BaseCallback):
 	def update_flags(self, trainer, **kwargs):
 		if self.current_seconds_count > self.delta_seconds:
 			trainer.update_state_(stop_training_flag=True)
+			
+	def extra_repr(self) -> str:
+		_repr = super().extra_repr()
+		_repr += f", delta_seconds={self.delta_seconds}"
+		return _repr

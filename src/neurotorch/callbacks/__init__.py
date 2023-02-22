@@ -9,5 +9,6 @@ from .history import (
 	TrainingHistory,
 )
 
+from . import early_stopping
 
 

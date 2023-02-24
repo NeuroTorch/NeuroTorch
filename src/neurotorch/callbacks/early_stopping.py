@@ -63,7 +63,7 @@ class EarlyStoppingThreshold(BaseCallback):
 			trainer.update_state_(stop_training_flag=True)
 			
 			
-class EarlyStoppingOnTime(BaseCallback):
+class EarlyStoppingOnTimeLimit(BaseCallback):
 	"""
 	Monitor the training process and set the stop_training_flag to True when the threshold is met.
 	"""
@@ -91,6 +91,7 @@ class EarlyStoppingOnTime(BaseCallback):
 		self.delta_seconds = delta_seconds
 		self.resume_on_load = resume_on_load
 		self.start_time = None
+		self.last_time_update = None
 		self.current_seconds_count = 0.0
 		
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
@@ -113,12 +114,14 @@ class EarlyStoppingOnTime(BaseCallback):
 	
 	def start(self, trainer, **kwargs):
 		self.start_time = time.time()
+		self.last_time_update = self.start_time
 		self.update_flags(trainer, **kwargs)
 	
 	def on_iteration_end(self, trainer, **kwargs):
-		self.current_seconds_count += time.time() - self.start_time
+		self.current_seconds_count += time.time() - self.last_time_update
 		self.update_flags(trainer, **kwargs)
-			
+		self.last_time_update = time.time()
+	
 	def update_flags(self, trainer, **kwargs):
 		if self.current_seconds_count > self.delta_seconds:
 			trainer.update_state_(stop_training_flag=True)

@@ -107,8 +107,8 @@ def train_with_params(
 	la = nt.Eprop(
 		alpha=1e-3,
 		gamma=1e-3,
-		params_lr=1e-5,
-		output_params_lr=2e-5,
+		params_lr=1e-4,
+		output_params_lr=1e-4,
 		default_optimizer_cls=torch.optim.AdamW,
 		default_optim_kwargs={"weight_decay": 1e-3, "lr": 1e-6},
 		eligibility_traces_norm_clip_value=1.0,
@@ -119,12 +119,16 @@ def train_with_params(
 	)
 	lr_scheduler = LRSchedulerOnMetric(
 		'val_p_var',
-		metric_schedule=np.linspace(kwargs.get("lr_schedule_start", 0.5), 1.0, 100),
+		metric_schedule=np.linspace(kwargs.get("lr_schedule_start", 0.3), 1.0, 100),
 		min_lr=[1e-7, 2e-7],
 		retain_progress=True,
 		priority=la.priority + 1,
 	)
-	callbacks = [la, checkpoint_manager, lr_scheduler]
+	timer = nt.callbacks.early_stopping.EarlyStoppingOnTimeLimit(
+		delta_seconds=kwargs.get("time_limit", 60.0 * 60.0),
+		resume_on_load=True
+	)
+	callbacks = [la, checkpoint_manager, lr_scheduler, timer]
 	
 	with torch.no_grad():
 		W0 = nt.to_numpy(wc_layer.forward_weights.clone())
@@ -215,7 +219,7 @@ if __name__ == '__main__':
 			"learn_tau"                     : True,
 			"use_recurrent_connection"      : False,
 		},
-		n_iterations=2000,
+		n_iterations=500,
 		device=torch.device("cpu"),
 		force_overwrite=True,
 		batch_size=1,
@@ -295,4 +299,5 @@ if __name__ == '__main__':
 		filename="data/figures/wc_eprop/animation.gif",
 		writer=None,
 	)
+
 

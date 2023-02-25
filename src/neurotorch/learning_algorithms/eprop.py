@@ -6,7 +6,7 @@ from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List, Mappi
 import torch
 
 from .learning_algorithm import LearningAlgorithm
-from ..transforms.base import to_numpy
+from ..transforms.base import to_numpy, to_tensor
 from ..learning_algorithms.tbptt import TBPTT
 from ..utils import (
 	batchwise_temporal_filter,
@@ -140,13 +140,13 @@ class Eprop(TBPTT):
 		self.alpha = kwargs.get("alpha", 0.01)
 		self._default_params_lr = kwargs.get("params_lr", 1e-5)
 		self._default_output_params_lr = kwargs.get("output_params_lr", 2e-5)
-		self.eligibility_traces_norm_clip_value = kwargs.get("eligibility_traces_norm_clip_value", torch.inf)
-		self.learning_signal_norm_clip_value = kwargs.get("learning_signal_norm_clip_value", 1.0)
-		self.grad_norm_clip_value = kwargs.get("grad_norm_clip_value", 1.0)
-		self.feedback_weights_norm_clip_value = kwargs.get(
+		self.eligibility_traces_norm_clip_value = to_tensor(kwargs.get("eligibility_traces_norm_clip_value", torch.inf))
+		self.learning_signal_norm_clip_value = to_tensor(kwargs.get("learning_signal_norm_clip_value", 1.0))
+		self.grad_norm_clip_value = to_tensor(kwargs.get("grad_norm_clip_value", 1.0))
+		self.feedback_weights_norm_clip_value = to_tensor(kwargs.get(
 			"feedback_weights_norm_clip_value",
 			self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(str(self._feedbacks_gen_strategy), torch.inf)
-		)
+		))
 		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
 		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-2, "lr": 1e-5})
 		self.nan = kwargs.get("nan", 0.0)
@@ -531,7 +531,8 @@ class Eprop(TBPTT):
 				)
 			torch.nan_to_num_(errors[k], nan=self.nan, posinf=self.posinf, neginf=self.neginf)
 			error_mean = torch.mean(errors[k].view(-1, errors[k].shape[-1]), dim=0).view(1, -1)
-			clip_tensors_norm_(error_mean, max_norm=self.learning_signal_norm_clip_value)
+			if torch.isfinite(self.learning_signal_norm_clip_value):
+				clip_tensors_norm_(error_mean, max_norm=self.learning_signal_norm_clip_value)
 			for i, feedback in enumerate(feedbacks):
 				learning_signals[i] = learning_signals[i] + torch.matmul(error_mean, feedback.to(error_mean.device))
 		return learning_signals
@@ -583,7 +584,8 @@ class Eprop(TBPTT):
 				if param.requires_grad:
 					param.grad += (ls * et.to(ls.device)).to(param.device).view(param.shape).detach()
 					torch.nan_to_num_(param.grad, nan=self.nan, posinf=self.posinf, neginf=self.neginf)
-			torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
+			if torch.isfinite(self.grad_norm_clip_value):
+				torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
 			# if not all([torch.isfinite(p.grad).all() for p in self.params]):
 			# 	raise ValueError(
 			# 		"Non-finite detected in hidden parameters gradients. Try to reduce the learning rate of the hidden "
@@ -595,7 +597,8 @@ class Eprop(TBPTT):
 				if out_param.requires_grad:
 					out_param.grad += out_el.to(out_param.device).view(out_param.shape).detach()
 					torch.nan_to_num_(out_param.grad, nan=self.nan, posinf=self.posinf, neginf=self.neginf)
-			torch.nn.utils.clip_grad_norm_(self.output_params, self.grad_norm_clip_value)
+			if torch.isfinite(self.grad_norm_clip_value):
+				torch.nn.utils.clip_grad_norm_(self.output_params, self.grad_norm_clip_value)
 			# if not all([torch.isfinite(p).all() for p in self.output_params]):
 			# 	raise ValueError(
 			# 		"Non-finite detected in output parameters gradients. Try to reduce the learning rate of the output "

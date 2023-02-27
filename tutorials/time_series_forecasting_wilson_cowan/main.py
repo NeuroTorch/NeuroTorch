@@ -12,7 +12,7 @@ from neurotorch.modules.layers import WilsonCowanLayer
 from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
 from neurotorch.visualisation.connectome import visualize_init_final_weights
 from neurotorch.visualisation.time_series_visualisation import *
-from neurotorch.visualisation.utils import mix_report
+from neurotorch.visualisation.report import mix_report
 
 
 def train_with_params(

@@ -570,30 +570,6 @@ class Trainer:
 			with torch.no_grad():
 				out = getattr(self.model, self.predict_method)(x_batch)
 		return out
-	
-	def format_pred_batch(
-			self,
-			raw_pred_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
-			y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
-	):
-		if isinstance(raw_pred_batch, (tuple, list)):
-			pred_batch = raw_pred_batch[0]
-		elif isinstance(raw_pred_batch, torch.Tensor):
-			pred_batch = raw_pred_batch
-		else:
-			raise ValueError(f"Unsupported output type: {type(raw_pred_batch)}")
-		
-		if isinstance(y_batch, dict):
-			assert isinstance(pred_batch, dict) and isinstance(y_batch, dict), \
-				"If y_batch is a dict, pred must be a dict too."
-			assert set(pred_batch.keys()) == set(y_batch.keys()), \
-				"Keys of y_batch and pred_batch must be the same."
-		else:
-			if isinstance(pred_batch, dict):
-				assert len(pred_batch) == 1, \
-					"pred_batch must have only one key if y_batch is not a dict."
-				pred_batch = pred_batch[list(pred_batch.keys())[0]]
-		return pred_batch
 
 	def apply_criterion_on_batch(
 			self,

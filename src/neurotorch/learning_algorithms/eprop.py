@@ -133,7 +133,6 @@ class Eprop(TBPTT):
 		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
 		self.output_eligibility_traces = [torch.zeros_like(p) for p in self.output_params]
 		self.learning_signals = defaultdict(list)
-		self.param_groups = []
 		self._hidden_layer_names = []
 		self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
 		self.gamma = kwargs.get("gamma", 0.01)
@@ -147,8 +146,6 @@ class Eprop(TBPTT):
 			"feedback_weights_norm_clip_value",
 			self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(str(self._feedbacks_gen_strategy), torch.inf)
 		))
-		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
-		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-2, "lr": 1e-5})
 		self.nan = kwargs.get("nan", 0.0)
 		self.posinf = kwargs.get("posinf", 1.0)
 		self.neginf = kwargs.get("neginf", -1.0)
@@ -350,12 +347,6 @@ class Eprop(TBPTT):
 			{"params": self.output_params, "lr": self._default_output_params_lr}
 		)
 		return self.param_groups
-	
-	def create_default_optimizer(self):
-		if not self.param_groups:
-			self.initialize_param_groups()
-		self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups, **self._default_optim_kwargs)
-		return self.optimizer
 
 	def eligibility_traces_zeros_(self):
 		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]

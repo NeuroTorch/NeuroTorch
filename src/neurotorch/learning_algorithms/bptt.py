@@ -3,13 +3,16 @@ from typing import Optional, Sequence, Union, Dict, Callable, List
 import torch
 
 from .learning_algorithm import LearningAlgorithm
-
+from ..utils import list_insert_replace_at
+from ..utils.formatting import format_pred_batch
 
 class BPTT(LearningAlgorithm):
 	r"""
 	Apply the backpropagation through time algorithm to the given model.
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
+	OPTIMIZER_PARAMS_GROUP_IDX = 0
+	DEFAULT_OPTIMIZER_CLS = torch.optim.AdamW
 	
 	def __init__(
 			self,
@@ -37,6 +40,7 @@ class BPTT(LearningAlgorithm):
 		"""
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
+		kwargs.setdefault("criterion", torch.nn.MSELoss())
 		super().__init__(params=params, **kwargs)
 		if params is None:
 			params = []
@@ -48,6 +52,10 @@ class BPTT(LearningAlgorithm):
 			params.extend([param for layer in layers for param in layer.parameters() if param not in params])
 		self.params: List[torch.nn.Parameter] = params
 		self.layers = layers
+		self._default_params_lr = kwargs.get("params_lr", 2e-4)
+		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
+		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-2, "lr": self._default_params_lr})
+		self.param_groups = []
 		self.optimizer = optimizer
 		self.criterion = criterion
 		
@@ -66,8 +74,24 @@ class BPTT(LearningAlgorithm):
 				}
 		return None
 
+	def initialize_param_groups(self):
+		"""
+		The learning rate are initialize. If the user has provided a learning rate for each parameter, then it is used.
+
+		:return:
+		"""
+		self.param_groups = []
+		list_insert_replace_at(
+			self.param_groups,
+			self.OPTIMIZER_PARAMS_GROUP_IDX,
+			{"params": self.params, "lr": self._default_params_lr}
+		)
+		return self.param_groups
+
 	def create_default_optimizer(self):
-		self.optimizer = torch.optim.Adam(self.params, maximize=self.kwargs.get("maximize", False))
+		if not self.param_groups:
+			self.initialize_param_groups()
+		self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups, **self._default_optim_kwargs)
 		return self.optimizer
 	
 	def start(self, trainer, **kwargs):
@@ -75,6 +99,7 @@ class BPTT(LearningAlgorithm):
 		if self.params and self.optimizer is None:
 			self.optimizer = self.create_default_optimizer()
 		elif not self.params and self.optimizer is not None:
+			self.param_groups = self.optimizer.param_groups
 			self.params.extend([
 				param
 				for i in range(len(self.optimizer.param_groups))
@@ -84,7 +109,7 @@ class BPTT(LearningAlgorithm):
 			self.params = trainer.model.parameters()
 			self.optimizer = self.create_default_optimizer()
 		
-		if self.criterion is None and trainer.criterion is not None:
+		if self.criterion is None and getattr(trainer, "criterion", None) is not None:
 			self.criterion = trainer.criterion
 	
 	def apply_criterion(self, pred_batch, y_batch, **kwargs):
@@ -121,7 +146,7 @@ class BPTT(LearningAlgorithm):
 	
 	def on_optimization_begin(self, trainer, **kwargs):
 		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+		pred_batch = format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		batch_loss = self._make_optim_step(pred_batch, y_batch)
 		trainer.update_state_(batch_loss=batch_loss)
 	
@@ -130,7 +155,7 @@ class BPTT(LearningAlgorithm):
 	
 	def on_validation_batch_begin(self, trainer, **kwargs):
 		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+		pred_batch = format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		batch_loss = self.apply_criterion(pred_batch, y_batch)
 		trainer.update_state_(batch_loss=batch_loss)
 		

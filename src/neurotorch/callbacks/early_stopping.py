@@ -128,5 +128,5 @@ class EarlyStoppingOnTimeLimit(BaseCallback):
 			
 	def extra_repr(self) -> str:
 		_repr = super().extra_repr()
-		_repr += f", delta_seconds={self.delta_seconds}"
+		_repr += f"delta_seconds={self.delta_seconds}"
 		return _repr

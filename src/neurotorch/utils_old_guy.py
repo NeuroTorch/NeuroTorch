@@ -581,3 +581,29 @@ def unitary_rn_normal_matrix(n: int, m: int, generator: Optional[torch.Generator
 	if tuple(to_numpy(unitary_rn_matrix.shape, dtype=int)) != (n, m):
 		unitary_rn_matrix = unitary_rn_matrix.T
 	return unitary_rn_matrix
+
+
+def unpack_singleton_dict(x: dict) -> Any:
+	"""
+	Unpack a dictionary with a single key and value. If the dict has more than one key, a ValueError is raised.
+	:param x:
+	:return:
+	"""
+	if len(x) > 1:
+		raise ValueError("x must have a length of zero or one.")
+	elif len(x) == 0:
+		return None
+	return x[list(x.keys())]
+
+
+def maybe_unpack_singleton_dict(x: Union[dict, Any]) -> Any:
+	"""
+	Accept a dict or any other type. If x is a dict with one key and value, the singleton is unpacked. Otherwise, x is
+	returned without being changed.
+	:param x:
+	:return:
+	"""
+	if isinstance(x, dict) and len(x) <= 1:
+		return unpack_singleton_dict(x)
+	return x
+

@@ -214,7 +214,7 @@ class TestWilsonCowanLayer(unittest.TestCase):
 			self.assertEqual(layer.forward_weights.grad.device, layer.device)
 			self.assertIsInstance(layer.mu.grad, torch.Tensor)
 			self.assertIsInstance(layer.r_sqrt.grad, torch.Tensor)
-			self.assertIsInstance(layer.tau.grad, torch.Tensor)
+			self.assertIsInstance(layer.tau_sqrt.grad, torch.Tensor)
 		else:
 			warnings.warn(
 				"No CUDA available. Skipping test_backward. Please consider running the tests on a machine with CUDA.",

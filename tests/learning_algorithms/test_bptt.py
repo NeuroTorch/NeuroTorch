@@ -3,22 +3,31 @@ import unittest
 import torch
 
 import neurotorch as nt
-from neurotorch.trainers.trainer import CurrentTrainingState
+
+from ..mocks import MockTrainer
 
 
-class MockTrainer:
-	def __init__(self, model):
-		self.model = model
-		self.current_training_state = CurrentTrainingState.get_null_state()
-		
-	def train(self, x_shape, model, callback):
-		callback.start(self)
-		x_rn = torch.rand(x_shape, device=model.device)
-		y, hh = model(x_rn)
-		batch_loss = torch.mean(y[model.get_layer().name]) + 1
-		self.current_training_state = self.current_training_state.update(batch_loss=batch_loss)
-		callback.on_optimization_begin(self)
-		callback.on_optimization_end(self)
+# class MockTrainer:
+# 	def __init__(self, model):
+# 		self.model = model
+# 		self.current_training_state = CurrentTrainingState.get_null_state()
+#
+# 	def update_state_(self, **kwargs):
+# 		self.current_training_state = self.current_training_state.update(**kwargs)
+#
+# 	def train(self, x_shape, model, callback):
+# 		callback.start(self)
+# 		x_rn = torch.rand(x_shape, device=model.device)
+# 		pred, hh = model(x_rn)
+# 		pred_tensor = nt.utils.maybe_unpack_singleton_dict(pred)
+# 		with torch.no_grad():
+# 			y = pred_tensor + 1
+# 		batch_loss = torch.mean(torch.abs(pred_tensor - y))
+# 		self.current_training_state = self.current_training_state.update(
+# 			batch_loss=batch_loss, pred_batch=pred, y_batch=y
+# 		)
+# 		callback.on_optimization_begin(self)
+# 		callback.on_optimization_end(self)
 
 
 class TestBPTT(unittest.TestCase):
@@ -30,12 +39,13 @@ class TestBPTT(unittest.TestCase):
 			],
 			device=torch.device("cpu"),
 		).build()
-		self.trainer = MockTrainer(self.network)
-		
+		self.bptt = nt.BPTT()
+		# self.trainer = MockTrainer(self.network)
+		self.trainer = MockTrainer(callbacks=self.bptt)
+
 	def test_start(self):
-		bptt = nt.BPTT()
-		bptt.start(self.trainer)
-		for b_param, t_param in zip(bptt.params, self.trainer.model.parameters()):
+		self.bptt.start(self.trainer)
+		for b_param, t_param in zip(self.bptt.params, self.trainer.model.parameters()):
 			self.assertIs(b_param, t_param)
 			
 	def test_on_optimization_begin(self):

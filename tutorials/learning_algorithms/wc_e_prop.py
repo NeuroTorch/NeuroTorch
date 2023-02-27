@@ -92,8 +92,8 @@ def train_with_params(
 		checkpoint_folder="data/tr_data/checkpoints_wc_e_prop",
 		metric="val_p_var",
 		minimise_metric=False,
-		save_freq=max(1, int(n_iterations / 10)),
-		start_save_at=max(1, int(n_iterations / 3)),
+		save_freq=max(1, int(0.1 * n_iterations)),
+		start_save_at=max(1, int(0.1 * n_iterations)),
 		save_best_only=True,
 	)
 	model = nt.SequentialRNN(
@@ -105,21 +105,21 @@ def train_with_params(
 		checkpoint_folder=checkpoint_manager.checkpoint_folder,
 	).build()
 	la = nt.Eprop(
-		alpha=1e-3,
-		gamma=1e-3,
-		params_lr=1e-4,
-		output_params_lr=1e-4,
+		alpha=0.0,
+		gamma=0.0,
+		params_lr=1e-5,
+		output_params_lr=2e-5,
 		default_optimizer_cls=torch.optim.AdamW,
-		default_optim_kwargs={"weight_decay": 1e-3, "lr": 1e-6},
-		eligibility_traces_norm_clip_value=1.0,
-		grad_norm_clip_value=1.0,
-		learning_signal_norm_clip_value=1.0,
-		feedback_weights_norm_clip_value=1.0,
+		default_optim_kwargs={"weight_decay": 0.2, "lr": 1e-6},
+		eligibility_traces_norm_clip_value=torch.inf,
+		grad_norm_clip_value=torch.inf,
+		learning_signal_norm_clip_value=torch.inf,
+		feedback_weights_norm_clip_value=torch.inf,
 		feedbacks_gen_strategy="randn",
 	)
 	lr_scheduler = LRSchedulerOnMetric(
 		'val_p_var',
-		metric_schedule=np.linspace(kwargs.get("lr_schedule_start", 0.3), 1.0, 100),
+		metric_schedule=np.linspace(kwargs.get("lr_schedule_start", 0.0), 1.0, 100),
 		min_lr=[1e-7, 2e-7],
 		retain_progress=True,
 		priority=la.priority + 1,
@@ -162,7 +162,12 @@ def train_with_params(
 	history.plot(save_path=f"data/figures/wc_eprop/tr_history.png", show=True)
 
 	model.eval()
-	model.load_checkpoint(checkpoint_manager.checkpoints_meta_path)
+	try:
+		model.load_checkpoint(checkpoint_manager.checkpoints_meta_path)
+	except:
+		model.load_checkpoint(
+			checkpoint_manager.checkpoints_meta_path, load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR
+		)
 	model.foresight_time_steps = x.shape[1] - 1
 	model.out_memory_size = model.foresight_time_steps
 	x_pred = torch.concat(
@@ -203,13 +208,13 @@ def train_with_params(
 if __name__ == '__main__':
 	res = train_with_params(
 		params={
-			# "filename": "ts_nobaselines_fish3.npy",
+			"filename": "ts_nobaselines_fish3_800t.npy",
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
-			"filename"                      : None,
-			"smoothing_sigma"               : 5.0,
-			"n_units"                       : 500,
-			"n_aux_units"                   : 500,
+			# "filename"                      : None,
+			"smoothing_sigma"               : 10.0,
+			"n_units"                       : 512,
+			"n_aux_units"                   : 512,
 			"n_time_steps"                  : -1,
 			"dataset_length"                : 1,
 			"dataset_randomize_indexes"     : False,
@@ -217,12 +222,13 @@ if __name__ == '__main__':
 			"learn_mu"                      : True,
 			"learn_r"                       : True,
 			"learn_tau"                     : True,
-			"use_recurrent_connection"      : False,
+			"use_recurrent_connection"      : True,
 		},
-		n_iterations=500,
-		device=torch.device("cpu"),
+		n_iterations=2_000,
+		device=torch.device("cuda"),
 		force_overwrite=True,
 		batch_size=1,
+		time_limit=1 * 60.0 * 60.0,
 	)
 	pprint.pprint({k: v for k, v in res.items() if isinstance(v, (int, float, str, bool))})
 	

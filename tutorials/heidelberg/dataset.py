@@ -50,6 +50,7 @@ class HeidelbergDataset(Dataset):
 			hasher: str = 'auto',
 			hash_chunk_size: int = 65535,
 			as_sparse: bool = False,
+			as_one_hot: bool = False,
 	):
 		"""
 		Constructor for the Heidelberg dataset.
@@ -61,6 +62,8 @@ class HeidelbergDataset(Dataset):
 		:param verbose: True to show progress.
 		:param hasher: The hasher to use for files validation.
 		:param hash_chunk_size: The size of the chunks to use for hashing.
+		:param as_sparse: True to return the data as sparse tensors.
+		:param as_one_hot: True to return the labels as one-hot vectors.
 		"""
 		super().__init__()
 		self.n_steps = n_steps
@@ -76,6 +79,7 @@ class HeidelbergDataset(Dataset):
 		self.target_transform = target_transform
 		self.verbose = verbose
 		self._as_sparse = as_sparse
+		self._as_one_hot = as_one_hot
 		if hasher.lower() in ['auto', 'sha256']:
 			self._hasher = hashlib.sha256()
 		elif hasher.lower() == 'md5':
@@ -123,6 +127,8 @@ class HeidelbergDataset(Dataset):
 			sparse_ts = self.transform(sparse_ts)
 		if self.target_transform is not None:
 			labels = self.target_transform(labels).long()
+			if self._as_one_hot:
+				labels = torch.nn.functional.one_hot(labels, num_classes=self.n_labels)
 		return sparse_ts, labels
 
 	def getitem_as_dense(self, index: int):
@@ -142,7 +148,9 @@ class HeidelbergDataset(Dataset):
 		if self.transform is not None:
 			time_series = self.transform(time_series)
 		if self.target_transform is not None:
-			labels = self.target_transform(labels)
+			labels = self.target_transform(labels).long()
+			if self._as_one_hot:
+				labels = torch.nn.functional.one_hot(labels, num_classes=self.n_labels)
 		return time_series, labels
 
 	def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -308,6 +316,7 @@ def get_dataloaders(
 		train_val_split_ratio: float = 0.85,
 		n_steps: int = 100,
 		as_sparse: bool = False,
+		as_one_hot: bool = False,
 		download: bool = True,
 		nb_workers: int = 0,
 		pin_memory: bool = False,
@@ -318,6 +327,7 @@ def get_dataloaders(
 	:param train_val_split_ratio: The ratio of the training set to the validation set.
 	:param n_steps: The number of time steps for the network.
 	:param as_sparse: Whether to use sparse or dense matrices.
+	:param as_one_hot: Whether to use one-hot encoding or not.
 	:param download: Whether to download the dataset.
 	:param nb_workers: The number of workers to use for the dataloaders.
 	:return: The dataloaders.
@@ -334,6 +344,7 @@ def get_dataloaders(
 		target_transform=to_tensor,
 		train=True,
 		as_sparse=as_sparse,
+		as_one_hot=as_one_hot,
 		download=download,
 		verbose=True,
 	)
@@ -343,6 +354,7 @@ def get_dataloaders(
 		target_transform=to_tensor,
 		train=False,
 		as_sparse=as_sparse,
+		as_one_hot=as_one_hot,
 		download=download,
 		verbose=True,
 	)

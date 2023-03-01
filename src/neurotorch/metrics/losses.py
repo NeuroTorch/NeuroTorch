@@ -113,3 +113,39 @@ class PVarianceLoss(torch.nn.Module):
 		if self.negative:
 			loss = -loss
 		return loss.mean(), loss.std()
+	
+	
+class NLLLoss(torch.nn.NLLLoss):
+	"""
+	Class used to compute the negative log likelihood loss.
+	
+	:math:`\\text{NLLLoss}(x, y) = -\\sum_{i=1}^n y_i \\log(x_i)`
+	
+	The difference between this class and the PyTorch NLLLoss class is that this class allows ND inputs and targets
+	by flattening the inputs to 2D and the targets to 1D. If the target is marked as one-hot encoded, then the target
+	will be converted to a 1D tensor of class indices by taking the argmax of the last dimension.
+	"""
+	def __init__(self, target_as_one_hot: bool = False, **kwargs):
+		"""
+		Constructor for the NLLLoss class.
+		
+		:param target_as_one_hot: Whether the target is one-hot encoded. Defaults to False.
+		:keyword arguments : Arguments for the PyTorch NLLLoss class. See the PyTorch documentation for more details.
+		"""
+		super(NLLLoss, self).__init__(**kwargs)
+		self.target_as_one_hot = target_as_one_hot
+	
+	def forward(self, inputs: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+		"""
+		Calculate the NLL loss.
+		
+		:param inputs: The input.
+		:param target: The target.
+		
+		:return: The NLL loss.
+		"""
+		if self.target_as_one_hot:
+			target = target.argmax(dim=-1)
+		inputs_view, target_view = inputs.view(-1, inputs.shape[-1]), target.view(-1)
+		loss = super(NLLLoss, self).forward(inputs_view, target_view)
+		return loss

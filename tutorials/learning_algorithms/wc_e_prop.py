@@ -1,10 +1,64 @@
 import pprint
+from typing import Union, Callable
 
 import neurotorch as nt
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
 from neurotorch.visualisation.connectome import visualize_init_final_weights
 from neurotorch.visualisation.time_series_visualisation import *
-from tutorials.learning_algorithms.dataset import get_dataloader
+from tutorials.learning_algorithms.dataset import get_dataloader, TimeSeriesDataset
+
+
+def foresight_time_steps_updater_decorator(
+		model: nt.SequentialRNN,
+		prediction_mth: Union[str, Callable],
+		*,
+		train_foresight_time_steps: int,
+		train_out_memory_size: int,
+		train_hh_memory_size: int,
+		val_foresight_time_steps: int,
+		val_out_memory_size: int,
+		val_hh_memory_size: int,
+) -> Tuple[Callable, Callable]:
+	"""
+	Decorator to update the model's foresight_time_steps, out_memory_size and hh_memory_size attributes
+	according to the training/validation mode.
+	
+	:param model: The model to update
+	:type model: nt.SequentialRNN
+	:param prediction_mth: The prediction method to update
+	:type prediction_mth: Union[str, Callable]
+	:param train_foresight_time_steps: The foresight_time_steps to use during training
+	:type train_foresight_time_steps: int
+	:param train_out_memory_size: The out_memory_size to use during training
+	:type train_out_memory_size: int
+	:param train_hh_memory_size: The hh_memory_size to use during training
+	:type train_hh_memory_size: int
+	:param val_foresight_time_steps: The foresight_time_steps to use during validation
+	:type val_foresight_time_steps: int
+	:param val_out_memory_size: The out_memory_size to use during validation
+	:type val_out_memory_size: int
+	:param val_hh_memory_size: The hh_memory_size to use during validation
+	:type val_hh_memory_size: int
+	
+	:return: The updated prediction method and the old prediction method
+	:rtype: Tuple[Callable, Callable]
+	"""
+	if isinstance(prediction_mth, str):
+		prediction_mth = getattr(model, prediction_mth)
+	old_pred_mth = prediction_mth
+	
+	def _pred_mth(*args, **kwargs):
+		if model.training:
+			model.foresight_time_steps = train_foresight_time_steps
+			model.out_memory_size = train_out_memory_size
+			model.hh_memory_size = train_hh_memory_size
+		else:
+			model.foresight_time_steps = val_foresight_time_steps
+			model.out_memory_size = val_out_memory_size
+			model.hh_memory_size = val_hh_memory_size
+		return old_pred_mth(*args, **kwargs)
+	return _pred_mth, old_pred_mth
+	
 
 def set_default_param(**kwargs):
 	kwargs.setdefault("filename", None)
@@ -55,10 +109,18 @@ def train_with_params(
 	dataloader = get_dataloader(
 		batch_size=kwargs.get("batch_size", 512), verbose=True, n_workers=kwargs.get("n_workers"), **params
 	)
-	dataset = dataloader.dataset
+	val_params = deepcopy(params)
+	val_params["dataset_length"] = 1
+	val_params["n_time_steps"] = -1
+	val_dataloader = get_dataloader(
+		batch_size=kwargs.get("batch_size", 512), verbose=True, n_workers=kwargs.get("n_workers"), **val_params
+	)
+	dataset: TimeSeriesDataset = dataloader.dataset
 	x = dataset.full_time_series
+	val_dataset: TimeSeriesDataset = val_dataloader.dataset
+	x_val = val_dataset.full_time_series
 	wc_layer = nt.WilsonCowanLayer(
-		x.shape[-1], params["n_aux_units"],
+		dataset.n_units, params["n_aux_units"],
 		std_weights=params["std_weights"],
 		forward_sign=params["forward_sign"],
 		dt=params["dt"],
@@ -92,8 +154,8 @@ def train_with_params(
 		checkpoint_folder="data/tr_data/checkpoints_wc_e_prop",
 		metric="val_p_var",
 		minimise_metric=False,
-		save_freq=max(1, int(n_iterations / 10)),
-		start_save_at=max(1, int(n_iterations / 3)),
+		save_freq=max(1, int(0.1 * n_iterations)),
+		start_save_at=max(1, int(0.1 * n_iterations)),
 		save_best_only=True,
 	)
 	model = nt.SequentialRNN(
@@ -104,22 +166,31 @@ def train_with_params(
 		hh_memory_size=1,
 		checkpoint_folder=checkpoint_manager.checkpoint_folder,
 	).build()
+	model.get_prediction_trace = foresight_time_steps_updater_decorator(
+		model, model.get_prediction_trace,
+		train_foresight_time_steps=dataset.n_time_steps - 1,
+		train_out_memory_size=dataset.n_time_steps - 1,
+		train_hh_memory_size=1,
+		val_foresight_time_steps=val_dataset.n_time_steps - 1,
+		val_out_memory_size=val_dataset.n_time_steps - 1,
+		val_hh_memory_size=1,
+	)[0]
 	la = nt.Eprop(
 		alpha=1e-3,
 		gamma=1e-3,
-		params_lr=1e-4,
-		output_params_lr=1e-4,
+		params_lr=1e-5,
+		output_params_lr=2e-5,
 		default_optimizer_cls=torch.optim.AdamW,
-		default_optim_kwargs={"weight_decay": 1e-3, "lr": 1e-6},
-		eligibility_traces_norm_clip_value=1.0,
-		grad_norm_clip_value=1.0,
-		learning_signal_norm_clip_value=1.0,
-		feedback_weights_norm_clip_value=1.0,
+		default_optim_kwargs={"weight_decay": 0.2, "lr": 1e-6},
+		eligibility_traces_norm_clip_value=torch.inf,
+		grad_norm_clip_value=torch.inf,
+		learning_signal_norm_clip_value=torch.inf,
+		feedback_weights_norm_clip_value=torch.inf,
 		feedbacks_gen_strategy="randn",
 	)
 	lr_scheduler = LRSchedulerOnMetric(
 		'val_p_var',
-		metric_schedule=np.linspace(kwargs.get("lr_schedule_start", 0.3), 1.0, 100),
+		metric_schedule=np.linspace(kwargs.get("lr_schedule_start", 0.0), 1.0, 100),
 		min_lr=[1e-7, 2e-7],
 		retain_progress=True,
 		priority=la.priority + 1,
@@ -153,7 +224,7 @@ def train_with_params(
 	print(f"{trainer}")
 	history = trainer.train(
 		dataloader,
-		dataloader,
+		val_dataloader,
 		n_iterations=n_iterations,
 		exec_metrics_on_train=False,
 		load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR,
@@ -162,16 +233,22 @@ def train_with_params(
 	history.plot(save_path=f"data/figures/wc_eprop/tr_history.png", show=True)
 
 	model.eval()
-	model.load_checkpoint(checkpoint_manager.checkpoints_meta_path)
-	model.foresight_time_steps = x.shape[1] - 1
+	try:
+		model.load_checkpoint(checkpoint_manager.checkpoints_meta_path)
+	except:
+		model.load_checkpoint(
+			checkpoint_manager.checkpoints_meta_path, load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR
+		)
+	model.foresight_time_steps = val_dataloader.dataset.n_times_steps - 1
 	model.out_memory_size = model.foresight_time_steps
+	model.hh_memory_size = 1
 	x_pred = torch.concat(
 		[
-			torch.unsqueeze(x[:, 0].clone(), dim=1).to(model.device),
-			model.get_prediction_trace(torch.unsqueeze(x[:, 0].clone(), dim=1))
+			torch.unsqueeze(x_val[:, 0].clone(), dim=1).to(model.device),
+			model.get_prediction_trace(torch.unsqueeze(x_val[:, 0].clone(), dim=1))
 		], dim=1
 	)
-	loss = PVarianceLoss()(x_pred.to(x.device), x)
+	loss = PVarianceLoss()(x_pred.to(x_val.device), x_val)
 	
 	out = {
 		"params"              : params,
@@ -187,7 +264,7 @@ def train_with_params(
 		"tau0"                : nt.to_numpy(tau0),
 		"tau"                 : nt.to_numpy(wc_layer.tau),
 		"x_pred"              : nt.to_numpy(torch.squeeze(x_pred)),
-		"original_time_series": dataset.full_time_series.squeeze(),
+		"original_time_series": x_val.squeeze(),
 		"force_dale_law"      : params["force_dale_law"],
 	}
 	if wc_layer.force_dale_law:
@@ -203,26 +280,27 @@ def train_with_params(
 if __name__ == '__main__':
 	res = train_with_params(
 		params={
-			# "filename": "ts_nobaselines_fish3.npy",
+			"filename": "ts_nobaselines_fish3_800t.npy",
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
-			"filename"                      : None,
-			"smoothing_sigma"               : 5.0,
-			"n_units"                       : 500,
-			"n_aux_units"                   : 500,
-			"n_time_steps"                  : -1,
-			"dataset_length"                : 1,
-			"dataset_randomize_indexes"     : False,
+			# "filename"                      : None,
+			"smoothing_sigma"               : 10.0,
+			"n_units"                       : 512,
+			"n_aux_units"                   : 512,
+			"n_time_steps"                  : 400,
+			"dataset_length"                : 512,
+			"dataset_randomize_indexes"     : True,
 			"force_dale_law"                : False,
 			"learn_mu"                      : True,
 			"learn_r"                       : True,
 			"learn_tau"                     : True,
-			"use_recurrent_connection"      : False,
+			"use_recurrent_connection"      : True,
 		},
-		n_iterations=500,
-		device=torch.device("cpu"),
+		n_iterations=1_000,
+		device=torch.device("cuda"),
 		force_overwrite=True,
-		batch_size=1,
+		batch_size=512,
+		time_limit=1 * 60.0 * 60.0,
 	)
 	pprint.pprint({k: v for k, v in res.items() if isinstance(v, (int, float, str, bool))})
 	

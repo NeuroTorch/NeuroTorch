@@ -32,26 +32,6 @@ class Linear(BaseNeuronsLayer):
 		self.kwargs.setdefault("use_bias", True)
 		self.kwargs.setdefault("activation", "identity")
 	
-	def _init_activation(self, activation: Union[torch.nn.Module, str]):
-		"""
-		Initialise the activation function.
-
-		:param activation: Activation function.
-		:type activation: Union[torch.nn.Module, str]
-		"""
-		str_to_activation = {
-			"identity": torch.nn.Identity(),
-			"relu"    : torch.nn.ReLU(),
-			"tanh"    : torch.nn.Tanh(),
-			"sigmoid" : torch.nn.Sigmoid(),
-		}
-		if isinstance(activation, str):
-			assert activation in str_to_activation.keys(), f"Activation {activation} is not implemented."
-			self.activation = str_to_activation[activation]
-		else:
-			self.activation = activation
-		return self.activation
-	
 	def extra_repr(self):
 		return f"{', bias' if self.kwargs['use_bias'] else ''}, activation:{self.activation.__class__.__name__}"
 	

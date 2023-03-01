@@ -28,6 +28,11 @@ class Eprop(TBPTT):
 	.. image:: ../../images/learning_algorithms/EpropDiagram.png
 		:width: 300
 		:align: center
+		
+	
+	Note: If this learning algorithm is used for classification, the output layer should have a log-softmax activation
+		function and the target should be a one-hot encoded tensor. Then, the loss function should be the negative log
+		likelihood loss function from :class:`nt.losses.NLLLoss` with the ``target_as_one_hot`` argument set to ``True``.
 	
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
@@ -36,18 +41,31 @@ class Eprop(TBPTT):
 	OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX = 1
 	DEFAULT_OPTIMIZER_CLS = torch.optim.AdamW
 	DEFAULT_Y_KEY = "default_key"
-	DEFAULT_FEEDBACKS_GEN_STRATEGY = "randn"
+	DEFAULT_FEEDBACKS_GEN_STRATEGY = "xavier_normal"
 	FEEDBACKS_GEN_FUNCS = {
 		"randn"  : lambda *args, **kwargs: torch.randn(*args, **kwargs),
+		"xavier_normal"  : lambda *args, **kwargs: torch.nn.init.xavier_normal_(
+			torch.empty(*args), gain=kwargs.get("gain", 1.0)
+		),
+		"kaiming_normal"  : lambda *args, **kwargs: torch.nn.init.kaiming_normal_(
+			torch.empty(*args), a=kwargs.get("a", 0.0), mode=kwargs.get("mode", "fan_in"),
+			nonlinearity=kwargs.get("nonlinearity", "leaky_relu"),
+		),
 		"rand"   : lambda *args, **kwargs: torch.rand(*args, **kwargs),
 		"ones"   : lambda *args, **kwargs: torch.ones(*args),
-		"unitary": lambda *args, **kwargs: unitary_rn_normal_matrix(*args, **kwargs)
+		"unitary": lambda *args, **kwargs: unitary_rn_normal_matrix(*args, **kwargs),
+		"orthogonal": lambda *args, **kwargs: torch.nn.init.orthogonal_(
+			torch.empty(*args), gain=kwargs.get("gain", 1.0)
+		),
 	}
 	DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE = {
 		"randn"  : 1.0,
+		"xavier_normal"  : torch.inf,
+		"kaiming_normal"  : torch.inf,
 		"rand"   : 1.0,
 		"ones"   : 1.0,
 		"unitary": torch.inf,
+		"orthogonal": torch.inf,
 	}
 	
 	def __init__(
@@ -95,9 +113,10 @@ class Eprop(TBPTT):
 						normalize the gradients of the parameters in order to help the convergence and avoid
 						overflowing. Defaults to 1.0.
 		:keyword str feedbacks_gen_strategy: The strategy to use to generate the feedbacks. Defaults to
-						Eprop.DEFAULT_FEEDBACKS_GEN_STRATEGY which is "randn". The available strategies are stored in
-						Eprop.FEEDBACKS_GEN_FUNCS which are:
+						Eprop.DEFAULT_FEEDBACKS_GEN_STRATEGY which is "xavier_normal". The available strategies are
+						stored in Eprop.FEEDBACKS_GEN_FUNCS which are:
 							- "randn": Normal distribution with mean 0 and variance 1.
+							- "xavier_normal": Xavier normal distribution.
 							- "rand": Uniform distribution between 0 and 1.
 							- "unitary": Unitary matrix with normal distribution.
 		:keyword float nan: The value to use to replace the NaN values in the gradients. Defaults to 0.0.
@@ -136,19 +155,19 @@ class Eprop(TBPTT):
 		self.param_groups = []
 		self._hidden_layer_names = []
 		self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
-		self.gamma = kwargs.get("gamma", 0.01)
-		self.alpha = kwargs.get("alpha", 0.01)
+		self.gamma = kwargs.get("gamma", 0.001)
+		self.alpha = kwargs.get("alpha", 0.001)
 		self._default_params_lr = kwargs.get("params_lr", 1e-5)
 		self._default_output_params_lr = kwargs.get("output_params_lr", 2e-5)
 		self.eligibility_traces_norm_clip_value = to_tensor(kwargs.get("eligibility_traces_norm_clip_value", torch.inf))
-		self.learning_signal_norm_clip_value = to_tensor(kwargs.get("learning_signal_norm_clip_value", 1.0))
-		self.grad_norm_clip_value = to_tensor(kwargs.get("grad_norm_clip_value", 1.0))
+		self.learning_signal_norm_clip_value = to_tensor(kwargs.get("learning_signal_norm_clip_value", torch.inf))
+		self.grad_norm_clip_value = to_tensor(kwargs.get("grad_norm_clip_value", torch.inf))
 		self.feedback_weights_norm_clip_value = to_tensor(kwargs.get(
 			"feedback_weights_norm_clip_value",
 			self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(str(self._feedbacks_gen_strategy), torch.inf)
 		))
 		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
-		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-2, "lr": 1e-5})
+		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-2, "lr": self._default_params_lr})
 		self.nan = kwargs.get("nan", 0.0)
 		self.posinf = kwargs.get("posinf", 1.0)
 		self.neginf = kwargs.get("neginf", -1.0)
@@ -206,8 +225,7 @@ class Eprop(TBPTT):
 		TODO : Possibility to initialize the feedback weights with any initialization methods
 		TODO : Non-random feedbacks must be implemented with {W_out}.T
 		Initialize the feedback weights for each params.
-		The random feedback is noted B_{ij} in Bellec's paper :cite:t:`bellec_solution_2020`
-		.
+		The random feedback is noted B_{ij} in Bellec's paper :cite:t:`bellec_solution_2020`.
 
 		:param y_batch:
 		:return:
@@ -455,7 +473,6 @@ class Eprop(TBPTT):
 	
 	def _hidden_backward_at_t(self, t: int, backward_t: int, layer_name: str):
 		"""
-		TODO : Filter with kappa must be added in order to train SNNs
 		Here, we compute the eligibility trace as seen in equation (13) from :cite:t:`bellec_solution_2020`. Please
 		note that while the notation used in this paper for the equation (13) is [dz/dW]_{local}, we have used [dy/dW]
 		in order to be coherent with our own convention.
@@ -484,10 +501,10 @@ class Eprop(TBPTT):
 		"""
 		Apply the criterion on the batch. The gradients of each parameters are then updated but are not yet optimized.
 
-		:param t:
-		:param backward_t:
-		:param layer_name:
-		:return:
+		:param t: current time step
+		:param backward_t: number of time steps to go back in time
+		:param layer_name: name of the layer
+		:return: None
 		"""
 		y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
 		pred_batch = self._get_pred_batch_from_buffer(layer_name)
@@ -546,9 +563,9 @@ class Eprop(TBPTT):
 		The errors for each output is computed then inserted in a dict for further use. This function check if the
 		y_batch and pred_batch are given as a dict or a tensor.
 
-		:param pred_batch:
-		:param y_batch:
-		:return:
+		:param pred_batch: prediction of the network
+		:param y_batch: target
+		:return: dict of errors
 		"""
 		if isinstance(y_batch, dict) or isinstance(pred_batch, dict):
 			if isinstance(y_batch, torch.Tensor):

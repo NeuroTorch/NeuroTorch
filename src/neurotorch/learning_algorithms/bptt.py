@@ -6,6 +6,7 @@ from .learning_algorithm import LearningAlgorithm
 from ..utils import list_insert_replace_at
 from ..utils.formatting import format_pred_batch
 
+
 class BPTT(LearningAlgorithm):
 	r"""
 	Apply the backpropagation through time algorithm to the given model.
@@ -58,7 +59,7 @@ class BPTT(LearningAlgorithm):
 		self.param_groups = []
 		self.optimizer = optimizer
 		self.criterion = criterion
-		
+	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
 		if self.save_state:
 			state = checkpoint.get(self.name, {})

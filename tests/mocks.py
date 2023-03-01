@@ -1,5 +1,7 @@
 from collections import defaultdict
 
+import torch
+
 import neurotorch as nt
 from neurotorch.callbacks.base_callback import CallbacksList, BaseCallback
 from neurotorch.trainers.trainer import CurrentTrainingState
@@ -42,12 +44,17 @@ class MockTrainer:
 			callbacks.append(MockHistory())
 		else:
 			self.training_history = [callback for callback in callbacks if isinstance(callback, MockHistory)][0]
-		self.callbacks = CallbacksList([self.training_history])
+		self.callbacks = CallbacksList(callbacks)
 		self.sort_flag = False
 		self.load_checkpoint_mode = None
 		self.force_overwrite = False
 		self.current_training_state = CurrentTrainingState()
-		self.model = kwargs.get("model", nt.SequentialRNN(layers=[nt.LIFLayer(10, 10)]).build())
+		self.x_shape = (1, 1, 10)
+		self.y_shape = (1, 1, 5)
+		self.model = kwargs.get(
+			"model",
+			nt.SequentialRNN(layers=[nt.Linear(self.x_shape[-1], self.y_shape[-1])]).build()
+		)
 		self.optimizer = None
 
 	@property
@@ -68,7 +75,14 @@ class MockTrainer:
 			self.callbacks.on_iteration_begin(self)
 			self.callbacks.on_train_begin(self)
 			self.callbacks.on_epoch_begin(self)
+			self.update_state_(x_batch=torch.randn(*self.x_shape), y_batch=torch.randn(*self.y_shape))
 			self.callbacks.on_batch_begin(self)
+			pred_batch = self.model(self.state.x_batch)
+			self.update_state_(pred_batch=pred_batch)
+			self.callbacks.on_optimization_begin(
+				self, x=self.state.x_batch, y=self.state.y_batch, pred=self.state.pred_batch
+			)
+			self.callbacks.on_optimization_end(self)
 			self.callbacks.on_batch_end(self)
 			self.callbacks.on_epoch_end(self)
 			self.callbacks.on_train_end(self)

@@ -159,15 +159,18 @@ class PPO(LearningAlgorithm):
 						probs=maybe_apply_softmax(last_policy_preds[k], dim=-1)
 					)
 				else:
-					policy_dist[k] = continuous_actions_distribution(policy_preds[k])
-					last_policy_dist[k] = continuous_actions_distribution(last_policy_preds[k])
+					# TODO: must get the right covariance for each continuous action, see :class:`Agent`.
+					covariance = self.agent.get_continuous_action_covariances()[self.agent.continuous_actions[0]]
+					policy_dist[k] = continuous_actions_distribution(policy_preds[k], covariance=covariance)
+					last_policy_dist[k] = continuous_actions_distribution(last_policy_preds[k], covariance=covariance)
 		elif self.agent.discrete_actions:
 			policy_dist = torch.distributions.Categorical(probs=maybe_apply_softmax(policy_preds, dim=-1))
 			last_policy_preds_smax = maybe_apply_softmax(last_policy_preds, dim=-1)
 			last_policy_dist = torch.distributions.Categorical(probs=last_policy_preds_smax)
 		else:
-			policy_dist = continuous_actions_distribution(policy_preds)
-			last_policy_dist = continuous_actions_distribution(last_policy_preds)
+			covariance = self.agent.get_continuous_action_covariances()[self.agent.continuous_actions[0]]
+			policy_dist = continuous_actions_distribution(policy_preds, covariance=covariance)
+			last_policy_dist = continuous_actions_distribution(last_policy_preds, covariance=covariance)
 		return policy_dist, last_policy_dist
 	
 	def _compute_policy_ratio(self, batch: BatchExperience, **kwargs) -> torch.Tensor:
@@ -344,6 +347,7 @@ class PPO(LearningAlgorithm):
 		loss.backward()
 		torch.nn.utils.clip_grad_norm_(self.params, self.max_grad_norm)
 		self.optimizer.step()
+		self.agent.decay_continuous_action_variances()
 		
 		return to_numpy(loss).item()
 	
@@ -463,4 +467,20 @@ class PPO(LearningAlgorithm):
 		# batch_loss = self.update_params(BatchExperience(trajectory.experiences, self.policy.device))
 		# trainer.update_state_(batch_loss=batch_loss)
 		return trajectory_metrics
+	
+	def on_pbar_update(self, trainer, **kwargs) -> dict:
+		"""
+		Called when the progress bar is updated.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		:param kwargs: Additional arguments.
+
+		:return: None
+		"""
+		repr_action_var = {
+			k: [float(f"{v:.3f}") for v in self.agent.continuous_action_variances[k].data.tolist()]
+			for k in self.agent.continuous_action_variances
+		}
+		return {"actions_var": repr_action_var}
 	

@@ -139,7 +139,7 @@ class RLAcademy(Trainer):
 		
 		:return: The copied agent.
 		"""
-		agent_copy = Agent.copy_from_agent(self.agent, requires_grad=requires_grad)
+		agent_copy = self.agent.copy(requires_grad=requires_grad)
 		agent_copy.policy.eval()
 		return agent_copy
 

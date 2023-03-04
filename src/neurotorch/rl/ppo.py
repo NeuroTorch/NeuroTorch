@@ -44,8 +44,8 @@ class PPO(LearningAlgorithm):
 		:keyword torch.nn.Module critic_criterion: The loss function to use for the critic.
 		:keyword bool advantages=returns-values: This keyword is introduced to fix a bug when using the GAE. If set to
 			True, the advantages are computed as the returns minus the values. If set to False, the advantages are
-			compute as in the PPO paper. The default value is True and it is recommended to keep it that way until the
-			bug is fixed. TODO: Fix this.
+			compute as in the PPO paper. The default value is False and it is recommended to try to set it to True
+			if the agent doesn't seem to learn.
 		:keyword float max_grad_norm: The maximum L2 norm of the gradient. Default is 0.5.
 		"""
 		kwargs.setdefault("save_state", True)
@@ -61,13 +61,13 @@ class PPO(LearningAlgorithm):
 		self.discrete_criterion = torch.nn.CrossEntropyLoss()
 		self.clip_ratio = kwargs.get("clip_ratio", 0.2)
 		self.critic_clip = kwargs.get("critic_clip", 0.2)
-		self.tau = kwargs.get("tau", None)
+		self.tau = kwargs.get("tau", 0.0)
 		self.gamma = kwargs.get("gamma", 0.99)
 		self.gae_lambda = kwargs.get("gae_lambda", 0.99)
 		self.critic_weight = kwargs.get("critic_weight", 0.5)
 		self.entropy_weight = kwargs.get("entropy_weight", 0.01)
 		self.critic_criterion = kwargs.get("critic_criterion", torch.nn.MSELoss())
-		self.adv_as_returns_values = kwargs.get("advantages=returns-values", True)
+		self.adv_as_returns_values = kwargs.get("advantages=returns-values", False)
 		self.max_grad_norm = kwargs.get("max_grad_norm", 0.5)
 	
 	@property

@@ -579,5 +579,5 @@ def continuous_actions_distribution(
 			covariance = torch.diag(std**2)
 		else:
 			covariance = to_tensor(covariance)
-		dist = torch.distributions.MultivariateNormal(actions, covariance)
+		dist = torch.distributions.MultivariateNormal(actions, covariance.to(actions.device))
 	return dist

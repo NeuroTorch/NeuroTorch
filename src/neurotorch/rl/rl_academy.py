@@ -92,7 +92,7 @@ class RLAcademy(Trainer):
 		:return:
 		"""
 		kwargs.setdefault("close_env", False)
-		kwargs.setdefault("init_epsilon", 0.01)
+		kwargs.setdefault("init_epsilon", 0.00)
 		kwargs.setdefault("epsilon_decay", 0.995)
 		kwargs.setdefault("min_epsilon", 0.0)
 		kwargs.setdefault("n_batches", None)

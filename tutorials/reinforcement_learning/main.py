@@ -20,9 +20,9 @@ from neurotorch.transforms.spikes_encoders import SpikesEncoder
 def get_env_config_desc(env_config: dict):
     desc = f"{env_config['id']}"
     if env_config["continuous"]:
-        desc += f"_continuous"
+        desc += f"-C"
     else:
-        desc += f"_discrete"
+        desc += f"-D"
     return desc
 
 
@@ -58,18 +58,13 @@ def get_agent_model(env, env_config, agent_config: dict):
     hash_id = nt.utils.hash_params(agent_config)
     env_desc = get_env_config_desc(env_config)
     if use_spiking_policy:
-        checkpoint_folder = f"data/tr_data/chkp_{env_desc}-snn_{hash_id}"
+        checkpoint_folder = f"data/chkp_{env_desc}-snn_{hash_id}"
     else:
-        checkpoint_folder = f"data/tr_data/chkp_{env_desc}-{hash_id}"
+        checkpoint_folder = f"data/chkp_{env_desc}-{hash_id}"
     
     if use_spiking_policy:
         policy = nt.SequentialRNN(
             input_transform=[
-                # SpikesEncoder(
-                #     n_steps=n_encoder_steps,
-                #     n_units=continuous_obs_shape[0],
-                #     spikes_layer_type=nt.SpyLIFLayer,
-                # )
                 nt.transforms.ConstantValuesTransform(n_steps=n_encoder_steps)
             ],
             layers=[
@@ -102,7 +97,7 @@ def get_agent_model(env, env_config, agent_config: dict):
     
     agent = Agent(
         env=env,
-        behavior_name=env_config["id"],
+        # behavior_name=env_config["id"],
         policy=policy,
         critic=nt.Sequential(
             layers=[
@@ -183,6 +178,7 @@ def train(env_config, *, agent_config: dict = None, trainer_config: dict = None,
     
     history.plot(show=True)
     
+    agent.checkpoints_meta_path = checkpoint_manager.checkpoints_meta_path
     try:
         agent.load_checkpoint(load_checkpoint_mode=nt.LoadCheckpointMode.BEST_ITR)
     except:
@@ -227,6 +223,6 @@ if __name__ == '__main__':
         agent_config={
           "use_spiking_policy": True,
         },
-        force_overwrite=True,
+        force_overwrite=False,
         use_multiprocessing=True,
     )

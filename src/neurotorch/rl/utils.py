@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Optional, Union, Sequence, Dict, Tuple, Any, List
 
 import matplotlib.pyplot as plt
+import matplotlib.animation as mpl_animation
 import numpy as np
 import gym
 import scipy
@@ -492,10 +493,7 @@ class TrajectoryRenderer:
 			self.env.unwrapped.state = x.obs
 			x.others["render"] = self.env.render()
 	
-	def render(self, **kwargs):
-		import matplotlib.pyplot as plt
-		import matplotlib.animation as animation
-		
+	def render(self, **kwargs) -> Tuple[plt.Figure, plt.Axes, mpl_animation.FuncAnimation]:
 		filename = kwargs.get("filename", None)
 		file_extension = kwargs.get("file_extension", "gif")
 		writer = kwargs.get("writer", "ffmpeg")
@@ -517,7 +515,9 @@ class TrajectoryRenderer:
 			im.set_array(self.trajectory[i].others["render"])
 			return im,
 		
-		anim = animation.FuncAnimation(fig, _animation, frames=len(self.trajectory), interval=time_interval, blit=True)
+		anim = mpl_animation.FuncAnimation(
+			fig, _animation, frames=len(self.trajectory), interval=time_interval, blit=True
+		)
 		if filename is not None:
 			os.makedirs(os.path.dirname(filename), exist_ok=True)
 			if file_extension is None:

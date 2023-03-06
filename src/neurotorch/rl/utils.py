@@ -498,6 +498,7 @@ class TrajectoryRenderer:
 		
 		filename = kwargs.get("filename", None)
 		file_extension = kwargs.get("file_extension", "mp4")
+		writer = kwargs.get("writer", "ffmpeg")
 		fps = kwargs.get("fps", 30)
 		time_interval = 1 / fps
 		
@@ -525,7 +526,7 @@ class TrajectoryRenderer:
 			assert file_extension in ["mp4", "gif"], "The extension of the file must be mp4 or gif."
 			if filename.endswith(file_extension):
 				filename = ''.join(filename.split('.')[:-1])
-			anim.save(f"{filename}.{file_extension}", writer="imagemagick", fps=fps)
+			anim.save(f"{filename}.{file_extension}", writer=writer, fps=fps)
 		if kwargs.get("show", True):
 			plt.show()
 	

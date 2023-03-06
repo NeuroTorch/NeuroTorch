@@ -14,7 +14,6 @@ from neurotorch.rl import PPO
 from neurotorch.rl.agent import Agent
 from neurotorch.rl.rl_academy import RLAcademy
 from neurotorch.rl.utils import TrajectoryRenderer, space_to_continuous_shape
-from neurotorch.transforms.spikes_encoders import SpikesEncoder
 
 
 def get_env_config_desc(env_config: dict):

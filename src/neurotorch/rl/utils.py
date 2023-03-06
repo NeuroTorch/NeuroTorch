@@ -502,7 +502,10 @@ class TrajectoryRenderer:
 		fps = kwargs.get("fps", 30)
 		time_interval = 1 / fps
 		
-		fig, ax = plt.subplots()
+		fig = kwargs.get("fig", None)
+		ax = kwargs.get("ax", None)
+		if fig is None or ax is None:
+			fig, ax = plt.subplots()
 		env_name = self.env.unwrapped.spec.id
 		title = f"Trajectory on {env_name}.\nCumulative reward: {self.trajectory.cumulative_reward:.2f}."
 		title = kwargs.get("title", title)
@@ -528,7 +531,7 @@ class TrajectoryRenderer:
 			anim.save(f"{filename}.{file_extension}", writer=writer, fps=fps)
 		if kwargs.get("show", True):
 			plt.show()
-		return anim
+		return fig, ax, anim
 	
 	def to_file(self, file_path: str, fps: int = 30, **kwargs):
 		import imageio

@@ -196,11 +196,12 @@ def train(env_config, *, agent_config: dict = None, trainer_config: dict = None,
     print(f"Cumulative rewards: {np.nanmean(cumulative_rewards):.3f} +/- {np.nanstd(cumulative_rewards):.3f}")
     best_cum_reward_fmt = f"{cumulative_rewards[best_trajectory_idx]:.3f}"
     print(f"Best trajectory: {best_trajectory_idx}, cumulative reward: {best_cum_reward_fmt}")
-    trajectory_renderer.render()
-    
-    trajectory_renderer.to_mp4(
-        f"{agent.checkpoint_folder}/figures/trajectory_{best_trajectory_idx}-"
-        f"CR{best_cum_reward_fmt.replace('.', '_')}.mp4"
+    trajectory_renderer.render(
+        filename=(
+            f"{agent.checkpoint_folder}/figures/trajectory_{best_trajectory_idx}-"
+            f"CR{best_cum_reward_fmt.replace('.', '_')}"
+        ),
+        file_extension="gif",
     )
 
 

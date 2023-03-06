@@ -221,7 +221,7 @@ class RLAcademy(Trainer):
 		if verbose is None:
 			verbose = self.verbose
 		if "env" in kwargs:
-			if self.env != kwargs["env"]:
+			if self.state.objects.get("env", None) != kwargs["env"]:
 				self.reset_agents_history_maps_meta()
 			self.update_objects_state_(env=kwargs["env"])
 		render = kwargs.get("render", self.kwargs.get("render", False))

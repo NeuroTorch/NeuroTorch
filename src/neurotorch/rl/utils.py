@@ -497,7 +497,7 @@ class TrajectoryRenderer:
 		import matplotlib.animation as animation
 		
 		filename = kwargs.get("filename", None)
-		file_extension = kwargs.get("file_extension", "mp4")
+		file_extension = kwargs.get("file_extension", "gif")
 		writer = kwargs.get("writer", "ffmpeg")
 		fps = kwargs.get("fps", 30)
 		time_interval = 1 / fps
@@ -506,14 +506,13 @@ class TrajectoryRenderer:
 		env_name = self.env.unwrapped.spec.id
 		title = f"Trajectory on {env_name}.\nCumulative reward: {self.trajectory.cumulative_reward:.2f}."
 		title = kwargs.get("title", title)
-		ax.set_title(title)
 		fig.suptitle(title, fontsize=kwargs.get("title_font_size", 16))
+		ax.axis("off")
+		im = ax.imshow(self.trajectory[0].others["render"])
 		
 		def _animation(i):
-			ax.clear()
-			ax.set_title(title)
-			ax.imshow(self.trajectory[i].others["render"])
-			return ax,
+			im.set_array(self.trajectory[i].others["render"])
+			return im,
 		
 		anim = animation.FuncAnimation(fig, _animation, frames=len(self.trajectory), interval=time_interval, blit=True)
 		if filename is not None:

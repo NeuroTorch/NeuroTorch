@@ -48,6 +48,7 @@ class Agent(torch.nn.Module):
 			action_space=agent.action_space,
 			behavior_name=agent.behavior_name,
 			policy=agent.copy_policy(requires_grad=requires_grad),
+			critic=agent.copy_critic(requires_grad=requires_grad),
 			**agent.kwargs
 		)
 	
@@ -140,6 +141,28 @@ class Agent(torch.nn.Module):
 		assert callable(self.policy_predict_method), \
 			f"Critic method '{self.critic_predict_method_name}' is not callable"
 		self.checkpoint_folder = kwargs.get("checkpoint_folder", ".")
+		
+		self.checkpoints_meta_path = kwargs.get("checkpoints_meta_path", self.get_default_checkpoints_meta_path())
+		continuous_action_mid_ranges = {
+			k: to_tensor(self.action_spec[k].high - self.action_spec[k].low) / 2
+			for k in self.continuous_actions
+		}
+		if len(continuous_action_mid_ranges) > 0:
+			continuous_action_mid_ranges_mean = torch.mean(torch.stack(list(continuous_action_mid_ranges.values())))
+		else:
+			continuous_action_mid_ranges_mean = 0.0
+		self.continuous_action_variances = torch.nn.ParameterDict(
+			{  # TODO: Make this a parameter and the keys must be the same or mapped with the output layers names
+				k: continuous_action_mid_ranges[k] * torch.ones(self.action_spec[k].shape)
+				for k in self.continuous_actions
+			}
+		)
+		self.continuous_action_variances_decay = to_tensor(kwargs.get("continuous_action_variances_decay", 1 - 1e-4))
+		self.continuous_action_variances_min = to_tensor(
+			kwargs.get(
+				"continuous_action_variances_min", 0.1 * continuous_action_mid_ranges_mean
+			)
+		)
 	
 	@property
 	def observation_spec(self) -> Dict[str, Any]:
@@ -178,6 +201,39 @@ class Agent(torch.nn.Module):
 		self.policy.to(device)
 		if self.critic is not None:
 			self.critic.to(device)
+	
+	def get_continuous_action_covariances(self):
+		return {
+			k: torch.diag(v) for k, v in self.continuous_action_variances.items()
+		}
+	
+	def decay_continuous_action_variances(self):
+		for k in self.continuous_action_variances:
+			self.continuous_action_variances[k] = torch.clamp(
+				self.continuous_action_variances[k] * self.continuous_action_variances_decay,
+				min=self.continuous_action_variances_min,
+				max=torch.inf,
+			)
+	
+	def set_continuous_action_variances_with_itr(self, itr: int):
+		for k in self.continuous_action_variances:
+			self.continuous_action_variances[k] = torch.clamp(
+				self.continuous_action_variances[k] * (self.continuous_action_variances_decay**itr),
+				min=self.continuous_action_variances_min,
+				max=torch.inf,
+			)
+	
+	def get_default_checkpoints_meta_path(self) -> str:
+		"""
+		The path to the checkpoints meta file.
+
+		:return: The path to the checkpoints meta file.
+		:rtype: str
+		"""
+		full_filename = (
+			f"{self.behavior_name}{CheckpointManager.SUFFIX_SEP}{CheckpointManager.CHECKPOINTS_META_SUFFIX}"
+		)
+		return f"{self.checkpoint_folder}/{full_filename}.json"
 			
 	def set_default_policy_kwargs(self):
 		self.policy_kwargs.setdefault("default_hidden_units", [256])
@@ -445,13 +501,17 @@ class Agent(torch.nn.Module):
 					probs = maybe_apply_softmax(actions, dim=-1)
 					return torch.distributions.Categorical(probs=probs).sample()
 				else:
-					return continuous_actions_distribution(actions).sample()
+					covariance = self.get_continuous_action_covariances()[self.continuous_actions[0]]
+					return continuous_actions_distribution(actions, covariance=covariance).sample()
 			elif isinstance(actions, dict):
 				return {
 					k: (
 						torch.distributions.Categorical(probs=maybe_apply_softmax(v, dim=-1)).sample()
 						if (k in discrete_actions or len(continuous_actions) == 0)
-						else continuous_actions_distribution(v).sample()
+						else continuous_actions_distribution(
+							# TODO: must get the right covariance for each continuous action
+							v, covariance=self.get_continuous_action_covariances()[self.continuous_actions[0]]
+						).sample()
 					)
 					for k, v in actions.items()
 				}
@@ -523,6 +583,29 @@ class Agent(torch.nn.Module):
 		
 	def hard_update(self, policy):
 		self.policy.hard_update(policy)
+	
+	def copy(self, requires_grad: Optional[bool] = None) -> "Agent":
+		"""
+		Copy the agent.
+
+		:param requires_grad: Whether to require gradients.
+		:type requires_grad: Optional[bool]
+		:return: The copied agent.
+		:rtype: Agent
+		"""
+		return self.copy_from_agent(self, requires_grad=requires_grad)
+	
+	def copy_critic(self, requires_grad: Optional[bool] = None) -> BaseModel:
+		"""
+		Copy the critic to a new instance.
+
+		:return: The copied critic.
+		"""
+		critic_copy = deepcopy(self.critic)
+		if requires_grad is not None:
+			for param in critic_copy.parameters():
+				param.requires_grad = requires_grad
+		return critic_copy
 	
 	def copy_policy(self, requires_grad: Optional[bool] = None) -> BaseModel:
 		"""

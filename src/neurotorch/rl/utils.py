@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Optional, Union, Sequence, Dict, Tuple, Any, List
 
 import matplotlib.pyplot as plt
+import matplotlib.animation as mpl_animation
 import numpy as np
 import gym
 import scipy
@@ -492,29 +493,31 @@ class TrajectoryRenderer:
 			self.env.unwrapped.state = x.obs
 			x.others["render"] = self.env.render()
 	
-	def render(self, **kwargs):
-		import matplotlib.pyplot as plt
-		import matplotlib.animation as animation
-		
+	def render(self, **kwargs) -> Tuple[plt.Figure, plt.Axes, mpl_animation.FuncAnimation]:
 		filename = kwargs.get("filename", None)
-		file_extension = kwargs.get("file_extension", "mp4")
+		file_extension = kwargs.get("file_extension", "gif")
+		writer = kwargs.get("writer", "ffmpeg")
 		fps = kwargs.get("fps", 30)
 		time_interval = 1 / fps
 		
-		fig, ax = plt.subplots()
+		fig = kwargs.get("fig", None)
+		ax = kwargs.get("ax", None)
+		if fig is None or ax is None:
+			fig, ax = plt.subplots()
 		env_name = self.env.unwrapped.spec.id
 		title = f"Trajectory on {env_name}.\nCumulative reward: {self.trajectory.cumulative_reward:.2f}."
 		title = kwargs.get("title", title)
-		ax.set_title(title)
 		fig.suptitle(title, fontsize=kwargs.get("title_font_size", 16))
+		ax.axis("off")
+		im = ax.imshow(self.trajectory[0].others["render"])
 		
 		def _animation(i):
-			ax.clear()
-			ax.set_title(title)
-			ax.imshow(self.trajectory[i].others["render"])
-			return ax,
+			im.set_array(self.trajectory[i].others["render"])
+			return im,
 		
-		anim = animation.FuncAnimation(fig, _animation, frames=len(self.trajectory), interval=time_interval, blit=True)
+		anim = mpl_animation.FuncAnimation(
+			fig, _animation, frames=len(self.trajectory), interval=time_interval, blit=True
+		)
 		if filename is not None:
 			os.makedirs(os.path.dirname(filename), exist_ok=True)
 			if file_extension is None:
@@ -525,9 +528,10 @@ class TrajectoryRenderer:
 			assert file_extension in ["mp4", "gif"], "The extension of the file must be mp4 or gif."
 			if filename.endswith(file_extension):
 				filename = ''.join(filename.split('.')[:-1])
-			anim.save(f"{filename}.{file_extension}", writer="imagemagick", fps=fps)
+			anim.save(f"{filename}.{file_extension}", writer=writer, fps=fps)
 		if kwargs.get("show", True):
 			plt.show()
+		return fig, ax, anim
 	
 	def to_file(self, file_path: str, fps: int = 30, **kwargs):
 		import imageio
@@ -579,5 +583,5 @@ def continuous_actions_distribution(
 			covariance = torch.diag(std**2)
 		else:
 			covariance = to_tensor(covariance)
-		dist = torch.distributions.MultivariateNormal(actions, covariance)
+		dist = torch.distributions.MultivariateNormal(actions, covariance.to(actions.device))
 	return dist

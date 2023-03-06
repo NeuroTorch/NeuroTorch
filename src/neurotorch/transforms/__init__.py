@@ -10,6 +10,7 @@ from .base import (
 	ReduceMax,
 	ReduceMean,
 	ReduceSum,
+	ReduceFuncTanh,
 )
 
 # from .spikes_encoders import (

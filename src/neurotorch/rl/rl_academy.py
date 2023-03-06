@@ -92,7 +92,7 @@ class RLAcademy(Trainer):
 		:return:
 		"""
 		kwargs.setdefault("close_env", False)
-		kwargs.setdefault("init_epsilon", 0.01)
+		kwargs.setdefault("init_epsilon", 0.00)
 		kwargs.setdefault("epsilon_decay", 0.995)
 		kwargs.setdefault("min_epsilon", 0.0)
 		kwargs.setdefault("n_batches", None)
@@ -139,7 +139,7 @@ class RLAcademy(Trainer):
 		
 		:return: The copied agent.
 		"""
-		agent_copy = Agent.copy_from_agent(self.agent, requires_grad=requires_grad)
+		agent_copy = self.agent.copy(requires_grad=requires_grad)
 		agent_copy.policy.eval()
 		return agent_copy
 
@@ -221,7 +221,7 @@ class RLAcademy(Trainer):
 		if verbose is None:
 			verbose = self.verbose
 		if "env" in kwargs:
-			if self.env != kwargs["env"]:
+			if self.state.objects.get("env", None) != kwargs["env"]:
 				self.reset_agents_history_maps_meta()
 			self.update_objects_state_(env=kwargs["env"])
 		render = kwargs.get("render", self.kwargs.get("render", False))

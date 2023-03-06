@@ -528,6 +528,7 @@ class TrajectoryRenderer:
 			anim.save(f"{filename}.{file_extension}", writer=writer, fps=fps)
 		if kwargs.get("show", True):
 			plt.show()
+		return anim
 	
 	def to_file(self, file_path: str, fps: int = 30, **kwargs):
 		import imageio

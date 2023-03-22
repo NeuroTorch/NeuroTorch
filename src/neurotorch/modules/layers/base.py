@@ -367,6 +367,7 @@ class BaseNeuronsLayer(BaseLayer):
 			**kwargs
 		)
 		self.sign_activation = self.kwargs.get("sign_activation", torch.nn.Tanh())
+		self.activation = self._init_activation(self.kwargs.get("activation", "identity"))
 	
 	@property
 	def forward_weights(self) -> torch.nn.Parameter:
@@ -570,6 +571,40 @@ class BaseNeuronsLayer(BaseLayer):
 				self._recurrent_weights.data = torch.sqrt(torch.abs(self._recurrent_weights.data))
 		elif self.force_dale_law and self.use_recurrent_connection:
 			torch.nn.init.xavier_normal_(self._recurrent_sign)
+	
+	def _init_activation(self, activation: Union[torch.nn.Module, str] = "identity"):
+		"""
+		Initialise the activation function.
+
+		:param activation: Activation function.
+		:type activation: Union[torch.nn.Module, str]
+		"""
+		str_to_activation = {
+			"identity": torch.nn.Identity(),
+			"relu"    : torch.nn.ReLU(),
+			"tanh"    : torch.nn.Tanh(),
+			"sigmoid" : torch.nn.Sigmoid(),
+			"softmax" : torch.nn.Softmax(dim=-1),
+			"elu"     : torch.nn.ELU(),
+			"selu"    : torch.nn.SELU(),
+			"prelu"   : torch.nn.PReLU(),
+			"leakyrelu": torch.nn.LeakyReLU(),
+			"leak_yrelu": torch.nn.LeakyReLU(),
+			"logsigmoid": torch.nn.LogSigmoid(),
+			"log_sigmoid": torch.nn.LogSigmoid(),
+			"logsoftmax": torch.nn.LogSoftmax(dim=-1),
+			"log_softmax": torch.nn.LogSoftmax(dim=-1),
+		}
+		if isinstance(activation, str):
+			if activation.lower() not in str_to_activation.keys():
+				raise ValueError(
+					f"Activation {activation} is not implemented. Please use one of the following: "
+					f"{str_to_activation.keys()} or provide a torch.nn.Module."
+				)
+			self.activation = str_to_activation[activation.lower()]
+		else:
+			self.activation = activation
+		return self.activation
 	
 	def initialize_weights_(self):
 		super().initialize_weights_()

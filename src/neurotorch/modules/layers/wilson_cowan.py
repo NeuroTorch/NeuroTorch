@@ -93,26 +93,6 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.learn_r = self.kwargs["learn_r"]
 		self.activation = self._init_activation(self.kwargs["activation"])
 	
-	def _init_activation(self, activation: Union[torch.nn.Module, str]):
-		"""
-		Initialise the activation function.
-
-		:param activation: Activation function.
-		:type activation: Union[torch.nn.Module, str]
-		"""
-		str_to_activation = {
-			"identity": torch.nn.Identity(),
-			"relu"    : torch.nn.ReLU(),
-			"tanh"    : torch.nn.Tanh(),
-			"sigmoid" : torch.nn.Sigmoid(),
-		}
-		if isinstance(activation, str):
-			assert activation in str_to_activation.keys(), f"Activation {activation} is not implemented."
-			self.activation = str_to_activation[activation]
-		else:
-			self.activation = activation
-		return self.activation
-	
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("std_weight", 1.0)
 		self.kwargs.setdefault("mu", 0.0)

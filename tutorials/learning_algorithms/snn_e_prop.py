@@ -47,7 +47,7 @@ def train_with_params(
 	)
 	dataset = dataloader.dataset
 	x = dataset.full_time_series
-	lif_layer = nt.SpyLIFLayerLPF(
+	lif_layer = nt.SpyALIFLayerLPF(
 		x.shape[-1], params["n_aux_units"],
 		dt=params["dt"],
 		hh_init=params["hh_init"],
@@ -65,7 +65,7 @@ def train_with_params(
 		)
 		layers.append(out_layer)
 	checkpoint_manager = nt.CheckpointManager(
-		checkpoint_folder="./data/tr_data/checkpoints_snn_e_prop",
+		checkpoint_folder=f"./data/tr_data/checkpoints_{lif_layer.__class__.__name__}_e_prop",
 		metric="val_p_var",
 		minimise_metric=False,
 		save_freq=max(1, int(n_iterations / 10)),
@@ -144,6 +144,7 @@ def train_with_params(
 	
 	out = {
 		"params"              : params,
+		"model"               : model,
 		"pVar"                : nt.to_numpy(loss.item()),
 		"W"                   : nt.to_numpy(lif_layer.forward_weights),
 		"sign0"               : sign0,
@@ -211,7 +212,7 @@ if __name__ == '__main__':
 	viz.plot_timeseries_comparison_report(
 		res["original_time_series"],
 		title=f"Prediction",
-		filename=f"data/figures/snn_eprop/timeseries_comparison_report.png",
+		filename=f"{res['model'].checkpoint_folder}/figures/snn_eprop/timeseries_comparison_report.png",
 		show=True,
 		dpi=600,
 	)
@@ -236,7 +237,7 @@ if __name__ == '__main__':
 			]
 		)
 	).heatmap(fig=fig, ax=axes[1], title="Predicted time series")
-	plt.savefig("data/figures/snn_eprop/heatmap.png")
+	plt.savefig(f"{res['model'].checkpoint_folder}/figures/snn_eprop/heatmap.png")
 	plt.show()
 	Visualise(
 		res["x_pred"],
@@ -251,6 +252,6 @@ if __name__ == '__main__':
 		weights=res["W"],
 		dt=0.1,
 		show=True,
-		filename="data/figures/snn_eprop/animation.gif",
+		filename=f"{res['model'].checkpoint_folder}/figures/animation.gif",
 		writer=None,
 	)

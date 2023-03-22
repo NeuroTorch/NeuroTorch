@@ -1,7 +1,7 @@
 import copy
 import warnings
 from collections import defaultdict
-from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List, Mapping
+from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List, Mapping, Any
 
 import torch
 
@@ -28,6 +28,11 @@ class Eprop(TBPTT):
 	.. image:: ../../images/learning_algorithms/EpropDiagram.png
 		:width: 300
 		:align: center
+		
+	
+	Note: If this learning algorithm is used for classification, the output layer should have a log-softmax activation
+		function and the target should be a one-hot encoded tensor. Then, the loss function should be the negative log
+		likelihood loss function from :class:`nt.losses.NLLLoss` with the ``target_as_one_hot`` argument set to ``True``.
 	
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
@@ -36,18 +41,31 @@ class Eprop(TBPTT):
 	OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX = 1
 	DEFAULT_OPTIMIZER_CLS = torch.optim.AdamW
 	DEFAULT_Y_KEY = "default_key"
-	DEFAULT_FEEDBACKS_GEN_STRATEGY = "randn"
+	DEFAULT_FEEDBACKS_GEN_STRATEGY = "xavier_normal"
 	FEEDBACKS_GEN_FUNCS = {
-		"randn"  : lambda *args, **kwargs: torch.randn(*args, **kwargs),
-		"rand"   : lambda *args, **kwargs: torch.rand(*args, **kwargs),
-		"ones"   : lambda *args, **kwargs: torch.ones(*args),
-		"unitary": lambda *args, **kwargs: unitary_rn_normal_matrix(*args, **kwargs)
+		"randn": lambda *args, **kwargs: torch.randn(*args, **kwargs),
+		"xavier_normal": lambda *args, **kwargs: torch.nn.init.xavier_normal_(
+			torch.empty(*args), gain=kwargs.get("gain", 1.0)
+		),
+		"kaiming_normal": lambda *args, **kwargs: torch.nn.init.kaiming_normal_(
+			torch.empty(*args), a=kwargs.get("a", 0.0), mode=kwargs.get("mode", "fan_in"),
+			nonlinearity=kwargs.get("nonlinearity", "leaky_relu"),
+		),
+		"rand": lambda *args, **kwargs: torch.rand(*args, **kwargs),
+		"ones": lambda *args, **kwargs: torch.ones(*args),
+		"unitary": lambda *args, **kwargs: unitary_rn_normal_matrix(*args, **kwargs),
+		"orthogonal": lambda *args, **kwargs: torch.nn.init.orthogonal_(
+			torch.empty(*args), gain=kwargs.get("gain", 1.0)
+		),
 	}
 	DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE = {
-		"randn"  : 1.0,
-		"rand"   : 1.0,
-		"ones"   : 1.0,
+		"randn": 1.0,
+		"xavier_normal": torch.inf,
+		"kaiming_normal": torch.inf,
+		"rand": 1.0,
+		"ones": 1.0,
 		"unitary": torch.inf,
+		"orthogonal": torch.inf,
 	}
 	
 	def __init__(
@@ -95,9 +113,10 @@ class Eprop(TBPTT):
 						normalize the gradients of the parameters in order to help the convergence and avoid
 						overflowing. Defaults to 1.0.
 		:keyword str feedbacks_gen_strategy: The strategy to use to generate the feedbacks. Defaults to
-						Eprop.DEFAULT_FEEDBACKS_GEN_STRATEGY which is "randn". The available strategies are stored in
-						Eprop.FEEDBACKS_GEN_FUNCS which are:
+						Eprop.DEFAULT_FEEDBACKS_GEN_STRATEGY which is "xavier_normal". The available strategies are
+						stored in Eprop.FEEDBACKS_GEN_FUNCS which are:
 							- "randn": Normal distribution with mean 0 and variance 1.
+							- "xavier_normal": Xavier normal distribution.
 							- "rand": Uniform distribution between 0 and 1.
 							- "unitary": Unitary matrix with normal distribution.
 		:keyword float nan: The value to use to replace the NaN values in the gradients. Defaults to 0.0.
@@ -105,6 +124,7 @@ class Eprop(TBPTT):
 		:keyword float neginf: The value to use to replace the -inf values in the gradients. Defaults to -1.0.
 		:keyword bool save_state: Whether to save the state of the optimizer. Defaults to True.
 		:keyword bool load_state: Whether to load the state of the optimizer. Defaults to True.
+		:keyword bool raise_non_finite_errors: Whether to raise non-finite errors when detected. Defaults to False.
 		"""
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
@@ -133,24 +153,37 @@ class Eprop(TBPTT):
 		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
 		self.output_eligibility_traces = [torch.zeros_like(p) for p in self.output_params]
 		self.learning_signals = defaultdict(list)
+		self.param_groups = []
 		self._hidden_layer_names = []
 		self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
-		self.gamma = kwargs.get("gamma", 0.01)
-		self.alpha = kwargs.get("alpha", 0.01)
+		self.gamma = kwargs.get("gamma", 0.001)
+		self.alpha = kwargs.get("alpha", 0.001)
 		self._default_params_lr = kwargs.get("params_lr", 1e-5)
 		self._default_output_params_lr = kwargs.get("output_params_lr", 2e-5)
 		self.eligibility_traces_norm_clip_value = to_tensor(kwargs.get("eligibility_traces_norm_clip_value", torch.inf))
-		self.learning_signal_norm_clip_value = to_tensor(kwargs.get("learning_signal_norm_clip_value", 1.0))
-		self.grad_norm_clip_value = to_tensor(kwargs.get("grad_norm_clip_value", 1.0))
+		self.learning_signal_norm_clip_value = to_tensor(kwargs.get("learning_signal_norm_clip_value", torch.inf))
+		self.grad_norm_clip_value = to_tensor(kwargs.get("grad_norm_clip_value", torch.inf))
 		self.feedback_weights_norm_clip_value = to_tensor(kwargs.get(
 			"feedback_weights_norm_clip_value",
 			self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(str(self._feedbacks_gen_strategy), torch.inf)
 		))
+		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
+		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-2, "lr": self._default_params_lr})
 		self.nan = kwargs.get("nan", 0.0)
 		self.posinf = kwargs.get("posinf", 1.0)
 		self.neginf = kwargs.get("neginf", -1.0)
+		self.raise_non_finite_errors = kwargs.get("raise_non_finite_errors", False)
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
+		"""
+		Load the state of the optimizer from the checkpoint.
+
+		:param trainer: The trainer object that is used for training.
+		:param checkpoint: The checkpoint dictionary.
+		:param kwargs: Additional keyword arguments.
+
+		:return: None
+		"""
 		if self.load_state:
 			state = checkpoint.get(self.name, {})
 			opt_state_dict = state.get(self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY, None)
@@ -165,6 +198,13 @@ class Eprop(TBPTT):
 				self.feedback_weights = state.get(self.CHECKPOINT_FEEDBACK_WEIGHTS_KEY, None)
 	
 	def get_checkpoint_state(self, trainer, **kwargs) -> object:
+		"""
+		Get the state of the optimizer to be saved in the checkpoint.
+
+		:param trainer: The trainer object that is used for training.
+		:param kwargs: Additional keyword arguments.
+		:return: The state of the optimizer to be saved in the checkpoint.
+		"""
 		if self.save_state:
 			state = {}
 			if self.optimizer is not None:
@@ -174,6 +214,11 @@ class Eprop(TBPTT):
 		return None
 	
 	def _get_feedback_gen_func(self):
+		"""
+		Get the feedbacks generation function.
+
+		:return:
+		"""
 		if self._feedbacks_gen_strategy is None:
 			self._feedbacks_gen_strategy = self.DEFAULT_FEEDBACKS_GEN_STRATEGY
 		if self._feedbacks_gen_strategy not in self.FEEDBACKS_GEN_FUNCS:
@@ -198,16 +243,19 @@ class Eprop(TBPTT):
 		clip_tensors_norm_(feedback_weights, max_norm=self.feedback_weights_norm_clip_value)
 		return feedback_weights
 	
-	def initialize_feedback_weights(self, y_batch: Optional[Union[Dict[str, torch.Tensor], torch.Tensor]] = None):
+	def initialize_feedback_weights(
+			self,
+			y_batch: Optional[Union[Dict[str, torch.Tensor], torch.Tensor]] = None
+	) -> Dict[str, List[torch.Tensor]]:
 		"""
-		TODO : Possibility to initialize the feedback weights with any initialization methods
 		TODO : Non-random feedbacks must be implemented with {W_out}.T
 		Initialize the feedback weights for each params.
-		The random feedback is noted B_{ij} in Bellec's paper :cite:t:`bellec_solution_2020`
-		.
+		The random feedback is noted B_{ij} in Bellec's paper :cite:t:`bellec_solution_2020`.
+		The keys of the feedback_weights dictionary are the names of the output layers.
 
-		:param y_batch:
-		:return:
+		:param y_batch: The batch of the target values.
+
+		:return: The feedback weights for each params.
 		"""
 		if y_batch is None:
 			y_batch = self.trainer.current_training_state.y_batch
@@ -223,6 +271,11 @@ class Eprop(TBPTT):
 		return self.feedback_weights
 	
 	def _initialize_original_forwards(self):
+		"""
+		Initialize the original forward functions of the layers (not decorated).
+
+		:return: None
+		"""
 		for layer in self.trainer.model.get_all_layers():
 			self._original_forwards[layer.name] = (layer, layer.forward)
 	
@@ -233,6 +286,7 @@ class Eprop(TBPTT):
 		:Note: Must be called after :meth:`initialize_output_params` and :meth:`initialize_layers`.
 		
 		:param trainer: The trainer to use.
+
 		:return: None
 		"""
 		if not self.params and self.optimizer:
@@ -256,7 +310,8 @@ class Eprop(TBPTT):
 
 		:Note: Must be called after :meth:`initialize_output_layers`.
 
-		:param trainer: The trainer object
+		:param trainer: The trainer object.
+
 		:return: None
 		"""
 		if not self.output_params and self.optimizer:
@@ -281,7 +336,7 @@ class Eprop(TBPTT):
 		:Note: Must be called before :meth:`initialize_output_params`.
 
 		:param trainer: The trainer object.
-		:return: None
+		:return: None.
 		"""
 		if not self.output_layers:
 			self.output_layers = []
@@ -306,8 +361,9 @@ class Eprop(TBPTT):
 		Initialize the layers of the optimizer. Try multiple ways to identify the output layers if those are not
 		provided by the user.
 
-		:param trainer:
-		:return:
+		:param trainer: The trainer object.
+
+		:return: None
 		"""
 		if not self.layers:
 			self.layers = []
@@ -329,11 +385,11 @@ class Eprop(TBPTT):
 				"case, one might consider using TBPTT instead of E-prop."
 			)
 
-	def initialize_param_groups(self):
+	def initialize_param_groups(self) -> List[Dict[str, Any]]:
 		"""
 		The learning rate are initialize. If the user has provided a learning rate for each parameter, then it is used.
 
-		:return:
+		:return: the param_groups.
 		"""
 		self.param_groups = []
 		list_insert_replace_at(
@@ -347,8 +403,24 @@ class Eprop(TBPTT):
 			{"params": self.output_params, "lr": self._default_output_params_lr}
 		)
 		return self.param_groups
+	
+	def create_default_optimizer(self) -> torch.optim.Optimizer:
+		"""
+		Create the default optimizer.
+
+		:return: The optimizer to use for training.
+		"""
+		if not self.param_groups:
+			self.initialize_param_groups()
+		self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups, **self._default_optim_kwargs)
+		return self.optimizer
 
 	def eligibility_traces_zeros_(self):
+		"""
+		Set the eligibility traces to zero.
+
+		:return: None
+		"""
 		self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
 		self.output_eligibility_traces = [torch.zeros_like(p) for p in self.output_params]
 
@@ -356,9 +428,10 @@ class Eprop(TBPTT):
 		"""
 		Start the training process with E-prop.
 
-		:param trainer:
-		:param kwargs:
-		:return:
+		:param trainer: The trainer object for the training process with E-prop.
+		:param kwargs: Additional arguments.
+
+		:return: None
 		"""
 		LearningAlgorithm.start(self, trainer, **kwargs)
 		self.initialize_output_layers(trainer)
@@ -384,9 +457,10 @@ class Eprop(TBPTT):
 		For each batch. Initialize the random feedback weights if not already done. Also, set the eligibility traces
 		to zero.
 
-		:param trainer:
-		:param kwargs:
-		:return:
+		:param trainer: The trainer object.
+		:param kwargs: Additional arguments.
+
+		:return: None
 		"""
 		super().on_batch_begin(trainer)
 		if trainer.model.training:
@@ -407,6 +481,8 @@ class Eprop(TBPTT):
 		decorating our forward. However, we do keep in storage the previous forward pass. This is done to ensure
 		that the forward pass is not modified permanently in any way.
 
+
+		:return: None
 		"""
 		if self.trainer.model.training:
 			if not self._forwards_decorated:
@@ -421,15 +497,16 @@ class Eprop(TBPTT):
 				layer.forward = self._decorate_forward(layer.forward, layer.name)
 			self._forwards_decorated = True
 	
-	def _decorate_hidden_forward(self, forward, layer_name: str):
+	def _decorate_hidden_forward(self, forward, layer_name: str) -> Callable:
 		"""
 		In TBPTT, we decorate forward to ensure that the backpropagation and the optimizer at t is done for the entire
 		network. In E-prop, we want to backpropagate the hidden layers locally (and not the entire network) at each
 		time step t.
 
-		:param forward:
-		:param layer_name:
-		:return:
+		:param forward: The forward method to decorate.
+		:param layer_name: The name of the layer.
+
+		:return: The decorated forward method
 		"""
 		def _forward(*args, **kwargs):
 			out = forward(*args, **kwargs)
@@ -446,15 +523,15 @@ class Eprop(TBPTT):
 	
 	def _hidden_backward_at_t(self, t: int, backward_t: int, layer_name: str):
 		"""
-		TODO : Filter with kappa must be added in order to train SNNs
 		Here, we compute the eligibility trace as seen in equation (13) from :cite:t:`bellec_solution_2020`. Please
 		note that while the notation used in this paper for the equation (13) is [dz/dW]_{local}, we have used [dy/dW]
 		in order to be coherent with our own convention.
 
-		:param t:
-		:param backward_t:
-		:param layer_name:
-		:return:
+		:param t: The current time step. For example, if we have a time series of length 100, t will be in [0, 99].
+		:param backward_t: The number of time steps to go back in time.
+		:param layer_name: The name of the layer.
+
+		:return: None
 		"""
 		pred_batch = torch.squeeze(self._get_pred_batch_from_buffer(layer_name))
 		dy_dw_locals = dy_dw_local(y=pred_batch, params=self.params, retain_graph=True, allow_unused=True)
@@ -475,10 +552,11 @@ class Eprop(TBPTT):
 		"""
 		Apply the criterion on the batch. The gradients of each parameters are then updated but are not yet optimized.
 
-		:param t:
-		:param backward_t:
-		:param layer_name:
-		:return:
+		:param t: current time step
+		:param backward_t: number of time steps to go back in time
+		:param layer_name: name of the layer
+
+		:return: None
 		"""
 		y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
 		pred_batch = self._get_pred_batch_from_buffer(layer_name)
@@ -505,13 +583,16 @@ class Eprop(TBPTT):
 		with torch.no_grad():
 			self._layers_buffer[layer_name].clear()
 	
-	def compute_learning_signals(self, errors: Dict[str, torch.Tensor]):
+	def compute_learning_signals(self, errors: Dict[str, torch.Tensor]) -> List[torch.Tensor]:
 		"""
-		TODO : Determine if we normalize with the number of output when computing the learning signal.
+		TODO : Determine if we normalize with the number of output when computing the learning signal : If multiple
+		TODO : output layers, do we sum the learning signals or do we average them ? Should we make a 'reduce' param?
+		TODO : When averaging, add factor 1/n to the learning signal. It "kind of" results in a change of learning rate.
 		The learning signals are computed using equation (28) from :cite:t:`bellec_solution_2020`.
 
-		:param errors:
-		:return:
+		:param errors: The errors to use to compute the learning signals.
+
+		:return: List of the learning signals for each parameter.
 		"""
 		learning_signals = [torch.zeros((p.shape[-1] if p.ndim > 0 else 1), device=p.device) for p in self.params]
 		for k, feedbacks in self.feedback_weights.items():
@@ -537,9 +618,10 @@ class Eprop(TBPTT):
 		The errors for each output is computed then inserted in a dict for further use. This function check if the
 		y_batch and pred_batch are given as a dict or a tensor.
 
-		:param pred_batch:
-		:param y_batch:
-		:return:
+		:param pred_batch: prediction of the network
+		:param y_batch: target
+
+		:return: dict of errors
 		"""
 		if isinstance(y_batch, dict) or isinstance(pred_batch, dict):
 			if isinstance(y_batch, torch.Tensor):
@@ -566,8 +648,9 @@ class Eprop(TBPTT):
 		The learning signal is computed. The gradients of the parameters are then updated as seen in equation (28)
 		from :cite:t:`bellec_solution_2020`.
 
-		:param errors:
-		:return:
+		:param errors: The errors to use to compute the learning signals.
+
+		:return: None
 		"""
 		learning_signals = self.compute_learning_signals(errors)
 		with torch.no_grad():
@@ -577,11 +660,13 @@ class Eprop(TBPTT):
 					torch.nan_to_num_(param.grad, nan=self.nan, posinf=self.posinf, neginf=self.neginf)
 			if torch.isfinite(self.grad_norm_clip_value):
 				torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
-			# if not all([torch.isfinite(p.grad).all() for p in self.params]):
-			# 	raise ValueError(
-			# 		"Non-finite detected in hidden parameters gradients. Try to reduce the learning rate of the hidden "
-			# 		"parameters with the argument `params_lr`."
-			# 	)
+
+			if self.raise_non_finite_errors:
+				if not all([torch.isfinite(p.grad).all() for p in self.params]):
+					raise ValueError(
+						"Non-finite detected in hidden parameters gradients. Try to reduce the learning rate of the hidden "
+						"parameters with the argument `params_lr`."
+					)
 
 		with torch.no_grad():
 			for out_param, out_el in zip(self.output_params, self.output_eligibility_traces):
@@ -590,42 +675,46 @@ class Eprop(TBPTT):
 					torch.nan_to_num_(out_param.grad, nan=self.nan, posinf=self.posinf, neginf=self.neginf)
 			if torch.isfinite(self.grad_norm_clip_value):
 				torch.nn.utils.clip_grad_norm_(self.output_params, self.grad_norm_clip_value)
-			# if not all([torch.isfinite(p).all() for p in self.output_params]):
-			# 	raise ValueError(
-			# 		"Non-finite detected in output parameters gradients. Try to reduce the learning rate of the output "
-			# 		"parameters with the argument `output_params_lr`."
-			# 	)
+
+			if self.raise_non_finite_errors:
+				if not all([torch.isfinite(p).all() for p in self.output_params]):
+					raise ValueError(
+						"Non-finite detected in output parameters gradients. Try to reduce the learning rate of the output "
+						"parameters with the argument `output_params_lr`."
+					)
 	
 	def _make_optim_step(self, **kwargs):
 		"""
-		TODO: check if we really need to zero_grad -> backward_times_steps is not necessary equal to optim_times_steps.
 		Set the gradients and the eligibility traces to zero.
 
 		:param kwargs: Additional arguments.
+
 		:return: None
 		"""
 		super()._make_optim_step(**kwargs)
 		with torch.no_grad():
 			zero_grad_params(self.output_params)
-		# if not all([torch.isfinite(p).all() for p in self.params]):
-		# 	raise ValueError(
-		# 		"Non-finite detected in hidden parameters. Try to reduce the learning rate of the hidden "
-		# 		"parameters with the argument `params_lr`."
-		# 	)
-		# if not all([torch.isfinite(p).all() for p in self.output_params]):
-		# 	raise ValueError(
-		# 		"Non-finite detected in output parameters. Try to reduce the learning rate of the output "
-		# 		"parameters with the argument `output_params_lr`."
-		# 	)
+		if self.raise_non_finite_errors:
+			if not all([torch.isfinite(p).all() for p in self.params]):
+				raise ValueError(
+					"Non-finite detected in hidden parameters. Try to reduce the learning rate of the hidden "
+					"parameters with the argument `params_lr`."
+				)
+			if not all([torch.isfinite(p).all() for p in self.output_params]):
+				raise ValueError(
+					"Non-finite detected in output parameters. Try to reduce the learning rate of the output "
+					"parameters with the argument `output_params_lr`."
+				)
 
 	def on_batch_end(self, trainer, **kwargs):
 		"""
 		Ensure that there is not any remaining gradients in the output parameters. The forward are undecorated and the
 		gradients are set to zero. The buffer are also cleared.
 
-		:param trainer:
-		:param kwargs:
-		:return:
+		:param trainer: The trainer to use for computation.
+		:param kwargs: Additional arguments.
+
+		:return: None
 		"""
 		LearningAlgorithm.on_batch_end(self, trainer)
 		if trainer.model.training:

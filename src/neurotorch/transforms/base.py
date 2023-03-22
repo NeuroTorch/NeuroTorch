@@ -1,5 +1,5 @@
 import numbers
-from typing import Any, Optional
+from typing import Any, Optional, Callable, Union, Dict
 
 import numpy as np
 import torch
@@ -139,8 +139,8 @@ class ConstantValuesTransform(torch.nn.Module):
 	def forward(self, x: Any):
 		x = to_tensor(x)
 		if self.batch_wise:
-			return x.repeat(1, self.n_steps, 1)
-		return x.repeat(self.n_steps, 1)
+			return x.unsqueeze(1).repeat(1, self.n_steps, 1)
+		return x.unsqueeze(0).repeat(self.n_steps, 1)
 
 
 class MaybeSoftmax(torch.nn.Module):
@@ -220,3 +220,40 @@ class ReduceSum(torch.nn.Module):
 	
 	def extra_repr(self) -> str:
 		return f"dim={self.dim}"
+
+
+class ReduceFuncTanh(torch.nn.Module):
+	"""
+	Applies a reduction function to the output of a recurrent layer and then applies a tanh activation.
+	"""
+	def __init__(
+			self,
+			reduce_func: Callable[
+				[Union[Dict[str, torch.Tensor], torch.Tensor]],
+				Union[Dict[str, torch.Tensor], torch.Tensor]
+			]
+	):
+		"""
+		Constructor of the ReduceFuncTanh class.
+		
+		:param reduce_func: The reduction function to apply to the output of the recurrent layer. Must take a
+			torch.Tensor or a dictionary of shape(s) (batch_size, seq_len, hidden_size) as input and return a
+			torch.Tensor or a dictionary of shape(s) (batch_size, hidden_size) as output.
+		"""
+		super().__init__()
+		self.reduce_func = reduce_func
+		self.tanh = torch.nn.Tanh()
+	
+	def forward(self, x):
+		out_reduced = self.reduce_func(x)
+		if isinstance(out_reduced, torch.Tensor):
+			out_reduced_tanh = self.tanh(out_reduced)
+		elif isinstance(out_reduced, dict):
+			out_reduced_tanh = {
+				k: self.tanh(v)
+				for k, v in out_reduced.items()
+			}
+		else:
+			raise ValueError("Inputs must be a torch.Tensor or a dictionary.")
+		return out_reduced_tanh
+

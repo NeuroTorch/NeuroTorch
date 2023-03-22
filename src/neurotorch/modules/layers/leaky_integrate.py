@@ -121,7 +121,17 @@ class LILayer(BaseNeuronsLayer):
 		# state = self._init_forward_state(state, batch_size)
 		V, = self._init_forward_state(state, batch_size, inputs=inputs)
 		next_V = self.kappa * V + torch.matmul(inputs, self.forward_weights) + self.bias_weights
-		return next_V, (next_V,)
+		return self.activation(next_V), (next_V,)
+	
+	def extra_repr(self) -> str:
+		_repr = super(LILayer, self).extra_repr()
+		_repr += f", bias={self.kwargs['use_bias']}"
+		if self.kwargs['learn_kappa']:
+			_repr += f", learn_kappa={self.kwargs['learn_kappa']}"
+		else:
+			_repr += f", kappa={self.kappa.item():.2f}"
+		_repr += f", activation={self.activation.__class__.__name__}"
+		return _repr
 
 
 # @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
@@ -278,4 +288,18 @@ class SpyLILayer(BaseNeuronsLayer):
 		V, I_syn = self._init_forward_state(state, batch_size, inputs=inputs)
 		next_I_syn = self.alpha * I_syn + torch.matmul(inputs, self.forward_weights)
 		next_V = self.beta * V + next_I_syn + self.bias_weights
-		return next_V, (next_V, next_I_syn)
+		return self.activation(next_V), (next_V, next_I_syn)
+	
+	def extra_repr(self) -> str:
+		_repr = super().extra_repr()
+		_repr += f", bias={self.kwargs['use_bias']}"
+		if self.kwargs['learn_alpha']:
+			_repr += f", learn_alpha={self.kwargs['learn_alpha']}"
+		else:
+			_repr += f", alpha={self.alpha.item():.2f}"
+		if self.kwargs['learn_beta']:
+			_repr += f", learn_beta={self.kwargs['learn_beta']}"
+		else:
+			_repr += f", beta={self.beta.item():.2f}"
+		_repr += f", activation={self.activation.__class__.__name__}"
+		return _repr

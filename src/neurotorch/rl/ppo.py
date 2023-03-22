@@ -44,8 +44,8 @@ class PPO(LearningAlgorithm):
 		:keyword torch.nn.Module critic_criterion: The loss function to use for the critic.
 		:keyword bool advantages=returns-values: This keyword is introduced to fix a bug when using the GAE. If set to
 			True, the advantages are computed as the returns minus the values. If set to False, the advantages are
-			compute as in the PPO paper. The default value is True and it is recommended to keep it that way until the
-			bug is fixed. TODO: Fix this.
+			compute as in the PPO paper. The default value is False and it is recommended to try to set it to True
+			if the agent doesn't seem to learn.
 		:keyword float max_grad_norm: The maximum L2 norm of the gradient. Default is 0.5.
 		"""
 		kwargs.setdefault("save_state", True)
@@ -61,13 +61,13 @@ class PPO(LearningAlgorithm):
 		self.discrete_criterion = torch.nn.CrossEntropyLoss()
 		self.clip_ratio = kwargs.get("clip_ratio", 0.2)
 		self.critic_clip = kwargs.get("critic_clip", 0.2)
-		self.tau = kwargs.get("tau", None)
+		self.tau = kwargs.get("tau", 0.0)
 		self.gamma = kwargs.get("gamma", 0.99)
 		self.gae_lambda = kwargs.get("gae_lambda", 0.99)
 		self.critic_weight = kwargs.get("critic_weight", 0.5)
 		self.entropy_weight = kwargs.get("entropy_weight", 0.01)
 		self.critic_criterion = kwargs.get("critic_criterion", torch.nn.MSELoss())
-		self.adv_as_returns_values = kwargs.get("advantages=returns-values", True)
+		self.adv_as_returns_values = kwargs.get("advantages=returns-values", False)
 		self.max_grad_norm = kwargs.get("max_grad_norm", 0.5)
 	
 	@property
@@ -159,15 +159,18 @@ class PPO(LearningAlgorithm):
 						probs=maybe_apply_softmax(last_policy_preds[k], dim=-1)
 					)
 				else:
-					policy_dist[k] = continuous_actions_distribution(policy_preds[k])
-					last_policy_dist[k] = continuous_actions_distribution(last_policy_preds[k])
+					# TODO: must get the right covariance for each continuous action, see :class:`Agent`.
+					covariance = self.agent.get_continuous_action_covariances()[self.agent.continuous_actions[0]]
+					policy_dist[k] = continuous_actions_distribution(policy_preds[k], covariance=covariance)
+					last_policy_dist[k] = continuous_actions_distribution(last_policy_preds[k], covariance=covariance)
 		elif self.agent.discrete_actions:
 			policy_dist = torch.distributions.Categorical(probs=maybe_apply_softmax(policy_preds, dim=-1))
 			last_policy_preds_smax = maybe_apply_softmax(last_policy_preds, dim=-1)
 			last_policy_dist = torch.distributions.Categorical(probs=last_policy_preds_smax)
 		else:
-			policy_dist = continuous_actions_distribution(policy_preds)
-			last_policy_dist = continuous_actions_distribution(last_policy_preds)
+			covariance = self.agent.get_continuous_action_covariances()[self.agent.continuous_actions[0]]
+			policy_dist = continuous_actions_distribution(policy_preds, covariance=covariance)
+			last_policy_dist = continuous_actions_distribution(last_policy_preds, covariance=covariance)
 		return policy_dist, last_policy_dist
 	
 	def _compute_policy_ratio(self, batch: BatchExperience, **kwargs) -> torch.Tensor:
@@ -344,6 +347,7 @@ class PPO(LearningAlgorithm):
 		loss.backward()
 		torch.nn.utils.clip_grad_norm_(self.params, self.max_grad_norm)
 		self.optimizer.step()
+		self.agent.decay_continuous_action_variances()
 		
 		return to_numpy(loss).item()
 	
@@ -463,4 +467,20 @@ class PPO(LearningAlgorithm):
 		# batch_loss = self.update_params(BatchExperience(trajectory.experiences, self.policy.device))
 		# trainer.update_state_(batch_loss=batch_loss)
 		return trajectory_metrics
+	
+	def on_pbar_update(self, trainer, **kwargs) -> dict:
+		"""
+		Called when the progress bar is updated.
+
+		:param trainer: The trainer.
+		:type trainer: Trainer
+		:param kwargs: Additional arguments.
+
+		:return: None
+		"""
+		repr_action_var = {
+			k: [float(f"{v:.3f}") for v in self.agent.continuous_action_variances[k].data.tolist()]
+			for k in self.agent.continuous_action_variances
+		}
+		return {"actions_var": repr_action_var}
 	

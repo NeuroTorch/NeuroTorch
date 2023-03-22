@@ -615,7 +615,7 @@ class SequentialRNN(Sequential):
 			inputs: torch.Tensor,
 			re_outputs_trace: bool = True,
 			re_hidden_states: bool = True
-	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+	) -> Union[Tuple[Any, Any], Any]:
 		"""
 		Get the raw prediction of the model which is the output of the forward pass.
 		
@@ -627,28 +627,141 @@ class SequentialRNN(Sequential):
 		:type re_hidden_states: bool
 		
 		:return: the raw prediction of the model.
+		:rtype: Union[Tuple[Any, Any], Any]
+		"""
+		outputs_trace, hidden_states = self(inputs.to(self.device))
+		if re_outputs_trace and re_hidden_states:
+			return outputs_trace, hidden_states
+		elif re_outputs_trace:
+			return outputs_trace
+		elif re_hidden_states:
+			return hidden_states
+		else:
+			return None
+	
+	def get_fmt_prediction(
+			self,
+			inputs: torch.Tensor,
+			lambda_func: Callable[[torch.Tensor], torch.Tensor] = lambda x: x[:, -1],
+			re_outputs_trace: bool = True,
+			re_hidden_states: bool = True
+	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		"""
+		Get the prediction of the model which is the output of the forward pass and apply the max operation on the
+		time dimension.
+
+		:param inputs: inputs to the network.
+		:type inputs: torch.Tensor
+		:param lambda_func: the function to apply on the output trace. Default is get the last item on the time.
+		:param re_outputs_trace: Whether to return the outputs trace. Default is True.
+		:type re_outputs_trace: bool
+		:param re_hidden_states: Whether to return the hidden states. Default is True.
+		:type re_hidden_states: bool
+
+		:return: the max prediction of the model.
 		:rtype: Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]
 		"""
 		
 		outputs_trace, hidden_states = self(inputs.to(self.device))
 		if isinstance(outputs_trace, torch.Tensor):
-			logits, _ = torch.max(outputs_trace, dim=1)
+			item = lambda_func(outputs_trace)
 		elif isinstance(outputs_trace, dict):
-			logits = {
-				k: torch.max(v, dim=1)[0]
+			item = {
+				k: lambda_func(v)
 				for k, v in outputs_trace.items()
 			}
 		else:
 			raise ValueError("outputs_trace must be a torch.Tensor or a dictionary")
-		# logits = batchwise_temporal_filter(outputs_trace, decay=0.9)
 		if re_outputs_trace and re_hidden_states:
-			return logits, outputs_trace, hidden_states
+			return item, outputs_trace, hidden_states
 		elif re_outputs_trace:
-			return logits, outputs_trace
+			return item, outputs_trace
 		elif re_hidden_states:
-			return logits, hidden_states
+			return item, hidden_states
 		else:
-			return logits
+			return item
+	
+	def get_last_prediction(
+			self,
+			inputs: torch.Tensor,
+			re_outputs_trace: bool = True,
+			re_hidden_states: bool = True
+	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		"""
+		Get the prediction of the model which is the output of the forward pass and get the last item on the
+		time dimension.
+
+		:param inputs: inputs to the network.
+		:type inputs: torch.Tensor
+		:param re_outputs_trace: Whether to return the outputs trace. Default is True.
+		:type re_outputs_trace: bool
+		:param re_hidden_states: Whether to return the hidden states. Default is True.
+		:type re_hidden_states: bool
+
+		:return: the last prediction of the model.
+		:rtype: Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]
+		"""
+		
+		return self.get_fmt_prediction(
+			inputs,
+			lambda_func=lambda x: x[:, -1],
+			re_outputs_trace=re_outputs_trace,
+			re_hidden_states=re_hidden_states
+		)
+	
+	def get_max_prediction(
+			self,
+			inputs: torch.Tensor,
+			re_outputs_trace: bool = True,
+			re_hidden_states: bool = True
+	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		"""
+		Get the prediction of the model which is the output of the forward pass and apply the max operation on the
+		time dimension.
+
+		:param inputs: inputs to the network.
+		:type inputs: torch.Tensor
+		:param re_outputs_trace: Whether to return the outputs trace. Default is True.
+		:type re_outputs_trace: bool
+		:param re_hidden_states: Whether to return the hidden states. Default is True.
+		:type re_hidden_states: bool
+
+		:return: the max prediction of the model.
+		:rtype: Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]
+		"""
+		return self.get_fmt_prediction(
+			inputs,
+			lambda_func=lambda x: torch.max(x, dim=1)[0],
+			re_outputs_trace=re_outputs_trace,
+			re_hidden_states=re_hidden_states
+		)
+	
+	def get_mean_prediction(
+			self,
+			inputs: torch.Tensor,
+			re_outputs_trace: bool = True,
+			re_hidden_states: bool = True
+	) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
+		"""
+		Get the prediction of the model which is the output of the forward pass and apply the mean operation on the
+		time dimension.
+
+		:param inputs: inputs to the network.
+		:type inputs: torch.Tensor
+		:param re_outputs_trace: Whether to return the outputs trace. Default is True.
+		:type re_outputs_trace: bool
+		:param re_hidden_states: Whether to return the hidden states. Default is True.
+		:type re_hidden_states: bool
+
+		:return: the mean prediction of the model.
+		:rtype: Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]
+		"""
+		return self.get_fmt_prediction(
+			inputs,
+			lambda_func=lambda x: torch.mean(x, dim=1),
+			re_outputs_trace=re_outputs_trace,
+			re_hidden_states=re_hidden_states
+		)
 
 	def get_prediction_proba(
 			self,
@@ -670,7 +783,7 @@ class SequentialRNN(Sequential):
 		:return: the prediction probability of the model.
 		:rtype: Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]
 		"""
-		outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
+		outs = self.get_max_prediction(inputs, re_outputs_trace, re_hidden_states)
 		if isinstance(outs, (list, tuple)):
 			m = outs[0]
 		else:
@@ -709,7 +822,7 @@ class SequentialRNN(Sequential):
 		:return: the prediction log probability of the model.
 		:rtype: Union[tuple[Tensor, Any, Any], tuple[Tensor, Any], Tensor]
 		"""
-		outs = self.get_raw_prediction(inputs, re_outputs_trace, re_hidden_states)
+		outs = self.get_max_prediction(inputs, re_outputs_trace, re_hidden_states)
 		if isinstance(outs, (list, tuple)):
 			m = outs[0]
 		else:

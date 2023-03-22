@@ -81,7 +81,9 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.mean_mu = self.kwargs["mean_mu"]
 		self.std_mu = self.kwargs["std_mu"]
 		self.learn_mu = self.kwargs["learn_mu"]
-		self.tau = torch.nn.Parameter(to_tensor(self.kwargs["tau"]).to(self.device), requires_grad=False)
+		self.tau_sqrt = torch.nn.Parameter(
+			torch.sqrt(to_tensor(self.kwargs["tau"])).to(self.device), requires_grad=False
+		)
 		self.learn_tau = self.kwargs["learn_tau"]
 		self.r_sqrt = torch.nn.Parameter(
 			torch.sqrt(to_tensor(self.kwargs["r"], dtype=torch.float32)).to(self.device), requires_grad=False
@@ -90,26 +92,6 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		self.std_r = self.kwargs["std_r"]
 		self.learn_r = self.kwargs["learn_r"]
 		self.activation = self._init_activation(self.kwargs["activation"])
-	
-	def _init_activation(self, activation: Union[torch.nn.Module, str]):
-		"""
-		Initialise the activation function.
-
-		:param activation: Activation function.
-		:type activation: Union[torch.nn.Module, str]
-		"""
-		str_to_activation = {
-			"identity": torch.nn.Identity(),
-			"relu"    : torch.nn.ReLU(),
-			"tanh"    : torch.nn.Tanh(),
-			"sigmoid" : torch.nn.Sigmoid(),
-		}
-		if isinstance(activation, str):
-			assert activation in str_to_activation.keys(), f"Activation {activation} is not implemented."
-			self.activation = str_to_activation[activation]
-		else:
-			self.activation = activation
-		return self.activation
 	
 	def _set_default_kwargs(self):
 		self.kwargs.setdefault("std_weight", 1.0)
@@ -129,7 +111,6 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 	def _assert_kwargs(self):
 		assert self.std_weight >= 0.0, "std_weight must be greater or equal to 0.0"
 		assert self.std_mu >= 0.0, "std_mu must be greater or equal to 0.0"
-		assert self.tau > 0.0, "tau must be greater than 0.0"
 		assert self.tau > self.dt, "tau must be greater than dt"
 	
 	@property
@@ -137,7 +118,22 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		"""
 		This property is used to ensure that the transition rate will never be negative if trained.
 		"""
-		return self.r_sqrt**2
+		return torch.pow(self.r_sqrt, 2)
+	
+	@r.setter
+	def r(self, value):
+		self.r_sqrt.data = torch.sqrt(torch.abs(to_tensor(value, dtype=torch.float32))).to(self.device)
+	
+	@property
+	def tau(self):
+		"""
+		This property is used to ensure that the decay constant will never be negative if trained.
+		"""
+		return torch.pow(self.tau_sqrt, 2)
+	
+	@tau.setter
+	def tau(self, value):
+		self.tau_sqrt.data = torch.sqrt(torch.abs(to_tensor(value, dtype=torch.float32))).to(self.device)
 	
 	def initialize_weights_(self):
 		"""
@@ -162,7 +158,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 			torch.nn.init.normal_(_r, mean=self.mean_r, std=self.std_r)
 			self.r_sqrt = torch.nn.Parameter(torch.sqrt(torch.abs(_r)), requires_grad=self.requires_grad)
 		if self.learn_tau:
-			self.tau = torch.nn.Parameter(self.tau, requires_grad=self.requires_grad)
+			self.tau_sqrt = torch.nn.Parameter(self.tau_sqrt, requires_grad=self.requires_grad)
 	
 	def create_empty_state(self, batch_size: int = 1, **kwargs) -> Tuple[torch.Tensor]:
 		if self.kwargs["hh_init"] == "zeros":
@@ -249,3 +245,4 @@ class WilsonCowanCURBDLayer(WilsonCowanLayer):
 		r = rec_inputs + torch.matmul(output, self.forward_weights)
 		hh = hh + self.dt * (r - hh) / self.tau
 		return output, (hh,)
+

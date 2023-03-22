@@ -81,6 +81,11 @@ TrainingState = CurrentTrainingState  # Alias
 
 
 class Trainer:
+	"""
+	Trainer class. This class is used to train a model.
+	
+	TODO: Add the possibility to pass a callable as the `predict_method`.
+	"""
 	def __init__(
 			self,
 			model: torch.nn.Module,

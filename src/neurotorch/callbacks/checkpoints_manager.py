@@ -124,6 +124,7 @@ class CheckpointManager(BaseCallback):
 			self,
 			checkpoint_folder: str = "./checkpoints",
 			*,
+			checkpoints_meta_path: Optional[str] = None,
 			meta_path_prefix: str = "network",
 			metric: str = "val_loss",
 			minimise_metric: bool = True,
@@ -138,6 +139,9 @@ class CheckpointManager(BaseCallback):
 		
 		:param checkpoint_folder: The folder to save the checkpoints to.
 		:type checkpoint_folder: str
+		:param checkpoints_meta_path: The path to the checkpoints metadata file. If None, will use the
+										`checkpoint_folder` and `meta_path_prefix` to create the path.
+		:type checkpoints_meta_path: Optional[str]
 		:param meta_path_prefix: The prefix to use for the checkpoint's metadata file.
 		:type meta_path_prefix: str
 		:param metric: The name of the metric to collect the best checkpoint on.
@@ -159,6 +163,7 @@ class CheckpointManager(BaseCallback):
 		super().__init__(**kwargs)
 		os.makedirs(checkpoint_folder, exist_ok=True)
 		self.checkpoint_folder = checkpoint_folder
+		self._checkpoints_meta_path = checkpoints_meta_path
 		self.meta_path_prefix = meta_path_prefix
 		self.verbose = verbose
 
@@ -180,10 +185,24 @@ class CheckpointManager(BaseCallback):
 		:return: The path to the checkpoints metadata file.
 		:rtype: str
 		"""
+		if self._checkpoints_meta_path is not None:
+			return self._checkpoints_meta_path
 		full_filename = (
 			f"{self.meta_path_prefix}{CheckpointManager.SUFFIX_SEP}{CheckpointManager.CHECKPOINTS_META_SUFFIX}"
 		)
 		return f"{self.checkpoint_folder}/{full_filename}.json"
+	
+	@checkpoints_meta_path.setter
+	def checkpoints_meta_path(self, value: str):
+		"""
+		Sets the path to the checkpoints metadata file.
+		
+		:param value: The path to the checkpoints metadata file.
+		:type value: str
+		
+		:return: None
+		"""
+		self._checkpoints_meta_path = value
 
 	def get_checkpoint_filename(self, itr: int = -1):
 		"""

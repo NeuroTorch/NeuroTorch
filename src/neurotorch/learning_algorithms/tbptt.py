@@ -44,7 +44,9 @@ class TBPTT(BPTT):
 		super().on_batch_begin(trainer)
 		self.trainer = trainer
 		if trainer.model.training:
-			self._data_n_time_steps = self._get_data_time_steps_from_y_batch(trainer.current_training_state.y_batch)
+			self._data_n_time_steps = self._get_data_time_steps_from_y_batch(
+				trainer.current_training_state.y_batch, trainer.current_training_state.x_batch
+			)
 			self._maybe_update_time_steps()
 			self.optimizer.zero_grad()
 			self.decorate_forwards()
@@ -61,13 +63,37 @@ class TBPTT(BPTT):
 		self._layers_buffer.clear()
 		self.optimizer.zero_grad()
 	
-	def _get_data_time_steps_from_y_batch(self, y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]]):
+	def _get_data_time_steps_from_y_batch(
+			self,
+			y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+			x_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+	) -> int:
+		"""
+		Get the number of time steps from the y_batch if it has more than 2 dimensions, otherwise from x_batch.
+		
+		:param y_batch: The y_batch from the current training state.
+		:param x_batch: The x_batch from the current training state.
+		:return: The number of time steps.
+		:rtype: int
+		:raises ValueError: If y_batch and x_batch are not both either torch.Tensor or dict.
+		"""
+		time_steps = None
 		if isinstance(y_batch, torch.Tensor):
-			return y_batch.shape[-2]
+			if len(y_batch.shape) > 2:
+				time_steps = y_batch.shape[1]
 		elif isinstance(y_batch, dict):
-			return max([y.shape[-2] for y in y_batch.values()])
+			if all([len(y.shape) > 2 for y in y_batch.values()]):
+				time_steps = max([y.shape[1] for y in y_batch.values()])
 		else:
 			raise ValueError(f"y_batch must be either a torch.Tensor or a dict, but got {type(y_batch)}")
+		if time_steps is None:
+			if isinstance(x_batch, torch.Tensor):
+				time_steps = x_batch.shape[1]
+			elif isinstance(x_batch, dict):
+				time_steps = max([x.shape[1] for x in x_batch.values()])
+			else:
+				raise ValueError(f"x_batch must be either a torch.Tensor or a dict, but got {type(x_batch)}")
+		return time_steps
 	
 	def _initialize_original_forwards(self):
 		for layer in self.output_layers.values():
@@ -131,17 +157,39 @@ class TBPTT(BPTT):
 		self._optim_counter = 0
 	
 	def _get_y_batch_slice_from_trainer(self, t_first: int, t_last: int, layer_name: str = None):
+		"""
+		Get a slice of the y_batch from the current training state given the first and last time steps. In case
+		y_batch is a dict, the slice is applied to all the values of the dict. In case y_batch is a torch.Tensor with
+		less than 3 dimensions, the y_batch is stacked along the second dimension t_last - t_first times.
+		
+		:param t_first: first time step
+		:param t_last: last time step
+		:param layer_name: if y_batch is a dict, the slice is applied to the value corresponding to this key
+		:return: a slice of the y_batch from the current training state
+		"""
 		y_batch = self.trainer.current_training_state.y_batch.clone()
 		if isinstance(y_batch, dict):
 			if layer_name is None:
 				y_batch = {
-					key: val[:, t_first:t_last]
+					key: (
+						val[:, t_first:t_last]
+						if len(val.shape) > 2
+						else torch.stack([val for _ in range(t_last - t_first)], dim=1)
+					)
 					for key, val in y_batch.items()
 				}
 			else:
-				y_batch = y_batch[layer_name][:, t_first:t_last]
+				y_batch = (
+					y_batch[layer_name][:, t_first:t_last]
+					if len(y_batch[layer_name].shape) > 2
+					else torch.stack([y_batch[layer_name] for _ in range(t_last - t_first)], dim=1)
+				)
 		else:
-			y_batch = y_batch[:, t_first:t_last]
+			y_batch = (
+				y_batch[:, t_first:t_last]
+				if len(y_batch.shape) > 2
+				else torch.stack([y_batch for _ in range(t_last - t_first)], dim=1)
+			)
 		return y_batch
 
 	def _get_pred_batch_from_buffer(self, layer_name: str):

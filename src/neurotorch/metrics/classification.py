@@ -59,10 +59,14 @@ class ClassificationMetrics(BaseMetrics):
 						_, preds = torch.max(v, -1)
 						preds = preds.cpu().numpy()
 						predictions[k].extend(preds)
+						if len(classes[k].shape) > 1:
+							classes[k] = torch.argmax(classes[k], -1).view(-1)
 						targets[k].extend(classes[k].cpu().numpy())
 				else:
 					_, preds = torch.max(outputs, -1)
 					preds = preds.cpu().numpy()
+					if len(classes.shape) > 1:
+						classes = torch.argmax(classes, -1).view(-1)
 					predictions["__all__"].extend(preds)
 					targets["__all__"].extend(classes.cpu().numpy())
 		predictions = {k: np.asarray(v) for k, v in predictions.items()}

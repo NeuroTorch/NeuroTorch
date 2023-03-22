@@ -219,7 +219,7 @@ class LRSchedulerOnMetric(BaseCallback):
 		]
 		assert len(self.lr) > 0, "No learning rate found."
 		if len(self.lr) == 1:
-			self.lr = [self.lr[0] for _ in trainer.optimizer.param_groups]
+			self.lr = [self.lr[0] for _ in self.optimizer.param_groups]
 		assert len(self.lr) == len(self.optimizer.param_groups), \
 			"The number of learning rates must match the number of parameter groups."
 		for g, lr in zip(self.optimizer.param_groups, self.lr):

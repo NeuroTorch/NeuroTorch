@@ -600,10 +600,10 @@ class TestSequentialRNN(unittest.TestCase):
 			self.assertTrue(layer.bias_weights.requires_grad)
 
 		x = torch.randn(1, 100, 10)
-		y, o, hh = model.get_raw_prediction(x)
+		y, hh = model.get_raw_prediction(x)
 		for key, value in y.items():
 			self.assertTrue(value.requires_grad)
-			self.assertEqual(value.shape, torch.Size([1, 2]))
+			self.assertEqual(value.shape, torch.Size([1, x.shape[-2], 2]))
 			value.mean().backward()
 
 		for layer in model.get_all_layers():

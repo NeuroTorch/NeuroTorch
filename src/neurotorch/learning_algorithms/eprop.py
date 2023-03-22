@@ -1,7 +1,7 @@
 import copy
 import warnings
 from collections import defaultdict
-from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List, Mapping
+from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List, Mapping, Any
 
 import torch
 

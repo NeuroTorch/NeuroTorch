@@ -1,10 +1,15 @@
-import warnings
 from collections import defaultdict
 from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple
 
 import torch
 from .bptt import BPTT
-from ..utils import list_insert_replace_at, zero_grad_params, recursive_detach, unpack_out_hh
+from ..utils import (
+	list_insert_replace_at,
+	zero_grad_params,
+	recursive_detach,
+	unpack_out_hh,
+	format_pred_batch
+)
 
 
 class TBPTT(BPTT):
@@ -198,7 +203,7 @@ class TBPTT(BPTT):
 	
 	def on_optimization_begin(self, trainer, **kwargs):
 		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+		pred_batch = format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		batch_loss = self.apply_criterion(pred_batch, y_batch)
 		trainer.update_state_(batch_loss=batch_loss)
 	

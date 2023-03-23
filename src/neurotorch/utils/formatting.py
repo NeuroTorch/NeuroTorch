@@ -2,8 +2,6 @@ from typing import Union, Dict
 
 import torch
 
-from . import maybe_unpack_singleton_dict
-
 
 def format_pred_batch(
 		raw_pred_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
@@ -18,6 +16,8 @@ def format_pred_batch(
 	:param y_batch:
 	:return:
 	"""
+	from .collections import maybe_unpack_singleton_dict
+	
 	if isinstance(raw_pred_batch, (tuple, list)):
 		pred_batch = raw_pred_batch[0]
 	elif isinstance(raw_pred_batch, (torch.Tensor, dict)):

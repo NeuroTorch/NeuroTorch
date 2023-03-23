@@ -1,7 +1,6 @@
-import copy
 import warnings
 from collections import defaultdict
-from typing import Optional, Sequence, Union, Dict, Callable, Tuple, List, Mapping, Any
+from typing import Optional, Sequence, Union, Dict, Callable, List, Mapping, Any
 
 import torch
 
@@ -9,14 +8,14 @@ from .learning_algorithm import LearningAlgorithm
 from ..transforms.base import to_numpy, to_tensor
 from ..learning_algorithms.tbptt import TBPTT
 from ..utils import (
-	batchwise_temporal_filter,
 	list_insert_replace_at,
 	zero_grad_params,
 	unpack_out_hh,
 	recursive_detach,
-	filter_parameters,
-	dy_dw_local, clip_tensors_norm_, unitary_rn_normal_matrix
+	dy_dw_local,
+	clip_tensors_norm_
 )
+from ..utils.random import unitary_rn_normal_matrix
 
 
 class Eprop(TBPTT):

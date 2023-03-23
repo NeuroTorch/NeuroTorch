@@ -1,14 +1,7 @@
-import functools
-import json
-import os
-import shutil
 import unittest
 
-import numpy as np
-import torch
-
 from neurotorch.callbacks.base_callback import BaseCallback, CallbacksList
-from util import MockTrainer, MockCallback
+from ..mocks import MockTrainer, MockCallback
 
 
 class TestBaseCallback(unittest.TestCase):

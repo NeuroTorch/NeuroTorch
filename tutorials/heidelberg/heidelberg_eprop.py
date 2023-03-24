@@ -61,11 +61,16 @@ if __name__ == '__main__':
 					]
 				),
 				output_size=n_hidden_neurons,
-				use_recurrent_connection=True,
+				use_recurrent_connection=False,
 				spike_func=HeavisideSigmoidApprox,
 				dt=dt,
 			),
-			SpyLILayer(dt=dt, output_size=dataloaders["test"].dataset.n_classes, activation="LogSoftmax"),
+			SpyLILayer(
+				dt=dt,
+				output_size=dataloaders["test"].dataset.n_classes,
+				use_bias=True,
+				activation="LogSoftmax",
+			),
 		],
 		name=f"heidelberg_network",
 		hh_memory_size=1,

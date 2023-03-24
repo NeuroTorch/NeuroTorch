@@ -33,9 +33,9 @@ class TestEprop(unittest.TestCase):
 		self.trainer.train()
 		# check if the grad of the eprop's params is zero
 		for p in self.eprop.params:
-			self.assertTrue(torch.allclose(p.grad, torch.zeros_like(p.grad)) or p.grad is None)
+			self.assertTrue(p.grad is None or torch.allclose(p.grad, torch.zeros_like(p.grad)))
 		for p in self.eprop.output_params:
-			self.assertTrue(torch.allclose(p.grad, torch.zeros_like(p.grad)) or p.grad is None)
+			self.assertTrue(p.grad is None or torch.allclose(p.grad, torch.zeros_like(p.grad)))
 		
 		
 

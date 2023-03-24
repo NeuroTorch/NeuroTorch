@@ -145,6 +145,42 @@ class TestBaseLayer(unittest.TestCase):
 		self.assertTrue(torch.isclose(layer._regularization_loss, get_tensor))
 		self.assertTrue(torch.isclose(get_tensor, layer.get_and_reset_regularization_loss()))
 		self.assertTrue(torch.isclose(layer._regularization_loss, torch.tensor(0.0)))
+	
+	def test_to(self):
+		layer = BaseLayer(10, 10, device=torch.device("cpu")).build()
+		self.assertEqual(layer.device.type, "cpu")
+		for p in layer.parameters():
+			self.assertEqual(p.device.type, "cpu")
+		
+		if torch.cuda.is_available():
+			layer.to(torch.device("cuda"))
+			self.assertEqual(layer.device.type, "cuda")
+			for p in layer.parameters():
+				self.assertEqual(p.device.type, "cuda")
+		else:
+			warnings.warn(
+				"No CUDA available. Skipping test_to. Please consider running the tests on a machine "
+				"with CUDA.",
+				UserWarning,
+			)
+			
+	def test_set_device(self):
+		layer = BaseLayer(10, 10, device=torch.device("cpu")).build()
+		self.assertEqual(layer.device.type, "cpu")
+		for p in layer.parameters():
+			self.assertEqual(p.device.type, "cpu")
+		
+		if torch.cuda.is_available():
+			layer.device = torch.device("cuda")
+			self.assertEqual(layer.device.type, "cuda")
+			for p in layer.parameters():
+				self.assertEqual(p.device.type, "cuda")
+		else:
+			warnings.warn(
+				"No CUDA available. Skipping test_set_device. Please consider running the tests on a machine "
+				"with CUDA.",
+				UserWarning,
+			)
 
 
 if __name__ == '__main__':

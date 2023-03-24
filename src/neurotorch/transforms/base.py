@@ -36,8 +36,26 @@ def to_numpy(x: Any, dtype=np.float32):
 class ToDevice(torch.nn.Module):
 	def __init__(self, device: torch.device, non_blocking: bool = True):
 		super().__init__()
-		self.device = device
+		self._device = device
 		self.non_blocking = non_blocking
+		self.to(device)
+	
+	@property
+	def device(self):
+		return self._device
+	
+	@device.setter
+	def device(self, device: torch.device):
+		self._device = device
+		self.to(device)
+	
+	def to(self, device: Optional[Union[int, torch.device]], non_blocking: Optional[bool] = None, *args, **kwargs):
+		self._device = device
+		if non_blocking is None:
+			non_blocking = self.non_blocking
+		else:
+			self.non_blocking = non_blocking
+		return super().to(device=device, non_blocking=non_blocking, *args, **kwargs)
 
 	def forward(self, x: torch.Tensor):
 		if x is None:

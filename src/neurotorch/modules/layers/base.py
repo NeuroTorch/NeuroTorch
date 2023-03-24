@@ -109,9 +109,26 @@ class BaseLayer(SizedModule):
 
 		:return: None
 		"""
-		self._device = device
 		self.to(device, non_blocking=True)
-		self._device_transform = ToDevice(device)
+	
+	def to(self, device: torch.device, non_blocking: bool = True, *args, **kwargs):
+		"""
+		Move all the parameters of the layer to the specified device.
+
+		:param device: The device to move the parameters to.
+		:type device: torch.device
+		:param non_blocking: Whether to move the parameters in a non-blocking way.
+		:type non_blocking: bool
+		:param args: Additional positional arguments.
+		:param kwargs: Additional keyword arguments.
+
+		:return: self
+		"""
+		self._device = device
+		for module in self.modules():
+			if module is not self and getattr(module, "device", device).type != device.type:
+				module.to(device, non_blocking=non_blocking)
+		return super(BaseLayer, self).to(*args, **kwargs)
 	
 	def __repr__(self):
 		_repr = f"{self.__class__.__name__}"

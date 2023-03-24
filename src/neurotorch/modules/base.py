@@ -252,11 +252,12 @@ class BaseModel(NamedModule):
 		"""
 		self.to(device, non_blocking=True)
 		
-	def to(self, device: torch.device, non_blocking: bool = True):
+	def to(self, device: torch.device, non_blocking: bool = True, *args, **kwargs):
 		self._device = device
-		self._remove_to_device_transform_()
-		self._add_to_device_transform_()
-		return super(BaseModel, self).to(device, non_blocking=non_blocking)
+		for module in self.modules():
+			if module is not self and getattr(module, "device", device).type != device.type:
+				module.to(device, non_blocking=non_blocking)
+		return super(BaseModel, self).to(device=device, non_blocking=non_blocking, *args, **kwargs)
 
 	def _make_input_transform(
 			self,

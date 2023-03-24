@@ -9,7 +9,7 @@ import torch
 
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
 from neurotorch.modules import LIFLayer, SequentialRNN
-from util import MockHistory, MockTrainer
+from ..mocks import MockHistory, MockTrainer
 
 
 def replace_none_by_nan(x):

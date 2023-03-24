@@ -96,6 +96,8 @@ from .visualisation import (
 	VisualiseUMAP,
 )
 
+from . import utils
+
 from .utils import (
 	set_seed,
 )

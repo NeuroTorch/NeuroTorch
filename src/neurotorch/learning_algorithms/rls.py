@@ -1,14 +1,14 @@
 from collections import defaultdict
-from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple
+from typing import Optional, Sequence, Union, Dict, Callable
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 
 from .learning_algorithm import LearningAlgorithm
 from ..learning_algorithms.tbptt import TBPTT
 from ..transforms.base import ToDevice
-from ..utils import compute_jacobian, list_insert_replace_at
+from ..utils import list_insert_replace_at
+from ..utils.autograd import compute_jacobian
 
 
 class RLS(TBPTT):

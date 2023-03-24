@@ -28,7 +28,7 @@ class TestBPTT(unittest.TestCase):
 		self.trainer.train()
 		# check if the grad of the bptt's params is zero
 		for p in self.bptt.params:
-			self.assertTrue(torch.allclose(p.grad, torch.zeros_like(p.grad)) or p.grad is None)
+			self.assertTrue(p.grad is None or torch.allclose(p.grad, torch.zeros_like(p.grad)))
 		
 		
 

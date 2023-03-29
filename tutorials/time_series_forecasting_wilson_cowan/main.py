@@ -209,7 +209,7 @@ if __name__ == '__main__':
 		device=torch.device("cpu"),
 		hh_init="inputs",
 		force_dale_law=False,
-		force_overwrite=False,
+		force_overwrite=True,  # set to True to start a new training. Set to False to continue training from last checkpoint
 		lr_schedule_start=0.85,
 		n_units=n_units,
 		#checkpoint_folder="data/tr_data/checkpoints_dale_fish3-800t_sig15",

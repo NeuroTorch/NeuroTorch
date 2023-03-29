@@ -258,6 +258,50 @@ class TestWilsonCowanLayer(unittest.TestCase):
 		true_output = input_ * (1 - ratio_dt_tau) + transition_rate * sigmoid * ratio_dt_tau
 		self.assertEqual(output.all(), true_output.all())
 
+	def test_get_sign_parameters_force_dale_law_true(self):
+		"""
+		Test if the force_dale_law is working correctly
+		"""
+		layer = WilsonCowanLayer(
+			input_size=60, output_size=60, force_dale_law=True, use_recurrent_connection=False
+		).build()
+
+		for param in layer.get_sign_parameters():
+			self.assertIsInstance(param, torch.nn.Parameter)
+
+	def test_get_sign_parameters_force_dale_law_true_rec(self):
+		"""
+		Test if the force_dale_law is working correctly
+		"""
+		layer = WilsonCowanLayer(
+			input_size=60, output_size=60, force_dale_law=True, use_recurrent_connection=True
+		).build()
+
+		for param in layer.get_sign_parameters():
+			self.assertIsInstance(param, torch.nn.Parameter)
+
+	def test_get_weights_parameters_force_dale_law_true(self):
+		"""
+		Test if the force_dale_law is working correctly
+		"""
+		layer = WilsonCowanLayer(
+			input_size=60, output_size=60, force_dale_law=True, use_recurrent_connection=False
+		).build()
+
+		for param in layer.get_weights_parameters():
+			self.assertIsInstance(param, torch.nn.Parameter)
+
+	def test_get_weights_parameters_force_dale_law_true_rec(self):
+		"""
+		Test if the force_dale_law is working correctly
+		"""
+		layer = WilsonCowanLayer(
+			input_size=60, output_size=60, force_dale_law=True, use_recurrent_connection=True
+		).build()
+
+		for param in layer.get_weights_parameters():
+			self.assertIsInstance(param, torch.nn.Parameter)
+
 
 if __name__ == '__main__':
 	unittest.main()

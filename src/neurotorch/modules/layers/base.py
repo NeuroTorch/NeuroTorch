@@ -489,9 +489,9 @@ class BaseNeuronsLayer(BaseLayer):
 
 		:return: The weights parameters.
 		"""
-		parameters = [self._forward_weights]
+		parameters = [self.forward_weights]
 		if self.use_recurrent_connection:
-			parameters.append(self._recurrent_weights)
+			parameters.append(self.recurrent_weights)
 		return parameters
 	
 	def get_sign_parameters(self) -> List[torch.nn.Parameter]:
@@ -502,9 +502,9 @@ class BaseNeuronsLayer(BaseLayer):
 		"""
 		parameters = []
 		if self.force_dale_law:
-			parameters.append(self._forward_sign)
+			parameters.append(self.forward_sign)
 			if self.use_recurrent_connection:
-				parameters.append(self._recurrent_sign)
+				parameters.append(self.recurrent_sign)
 		return parameters
 	
 	def create_empty_state(

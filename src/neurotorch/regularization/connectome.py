@@ -183,9 +183,9 @@ class ExecRatioTargetRegularization(BaseRegularization):
 	
 	
 	Examples::
-		
-		>>> layer = WilsonCowanLayer(10, 10, force_dale_law=True)
-		>>> m = ExecRatioTargetRegularization(params=[layer.forward_sign], Lambda=1.0, target=0.5)
+		>>> import neurotorch as nt
+		>>> layer = nt.WilsonCowanLayer(10, 10, force_dale_law=True)
+		>>> m = ExecRatioTargetRegularization(params=layer.get_sign_parameters(), Lambda=0.1, exec_target_ratio=0.9)
 		>>> loss = m()
 	"""
 	def __init__(

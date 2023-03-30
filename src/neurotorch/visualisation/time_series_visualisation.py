@@ -27,30 +27,34 @@ class Visualise:
 		4. Plot all the neuronal activity in one figure
 	Further visualisation are already added. You can visualise the time series with clustering methods. You can
 	then visualise those clustered time series in scatter/trajectory in their clustered space.
-	TODO : Add axis and optional figure to Visualise. The user can therefore create its custom figures.
 	"""
-
+	
 	@staticmethod
 	def number_axes(axes: Sequence[plt.Axes], **kwargs) -> Sequence[plt.Axes]:
 		"""
 		Number the axes.
-		
+
 		:param axes: Axes to number.
 		:type axes: Sequence[plt.Axes]
 		:param kwargs: Keyword arguments.
-		
+
 		:keyword str num_type: Type of number to display. Can be either "alpha" or "numeric".
 		:keyword int start: Number to start with.
 		:keyword float x: x position of the number in the axes coordinate (see ax.transAxes). Default is 0.0.
 		:keyword float y: y position of the number in the axes coordinate (see ax.transAxes). Default is 1.2.
 		:keyword float fontsize: Font size of the number. Default is 12.
 		:keyword str fontweight: Font weight of the number. Default is "bold".
-		
+		:keyword method: Method to use to number the axes. Available methods are "text", "title" and "set_title".
+			The "text" method will add a text to the axes. The "title" method will add the number to the existing title.
+			The "set_title" method will set the title of the axes, so the existing title will be overwritten.
+			Default is "text".
+
 		:return: The axes with the number.
 		:rtype: Sequence[plt.Axes]
 		"""
 		axes_view = np.ravel(np.asarray(axes))
-		num_type = kwargs.get("num_type", "alpha")
+		num_type = kwargs.get("num_type", "alpha").lower()
+		mth = kwargs.get("method", "text").lower()
 		start = kwargs.get("start", 0)
 		if num_type == "alpha":
 			axes_numbers = [chr(i) for i in range(97 + start, 97 + len(axes_view) + start)]
@@ -59,12 +63,28 @@ class Visualise:
 		else:
 			raise ValueError(f"Unknown num_type {num_type}.")
 		for i, ax in enumerate(axes_view):
-			ax.text(
-				kwargs.get("x", 0.0), kwargs.get("y", 1.2),
-				f"({axes_numbers[i]})",
-				transform=ax.transAxes, fontsize=kwargs.get("fontsize", 12),
-				fontweight=kwargs.get("fontweight", 'bold'), va='top'
-			)
+			if mth == "text":
+				ax.text(
+					kwargs.get("x", 0.0), kwargs.get("y", 1.2),
+					f"({axes_numbers[i]})",
+					transform=ax.transAxes, fontsize=kwargs.get("fontsize", 12),
+					fontweight=kwargs.get("fontweight", 'bold'), va='top'
+				)
+			elif mth == "title":
+				ax.set_title(
+					f"({axes_numbers[i]}) {ax.get_title()}",
+					fontsize=kwargs.get("fontsize", 12),
+					fontweight=kwargs.get("fontweight", 'bold'),
+					loc=kwargs.get("loc", "left"),
+				)
+			elif mth == "set_title":
+				ax.set_title("")
+				ax.set_title(
+					f"({axes_numbers[i]})",
+					fontsize=kwargs.get("fontsize", 12),
+					fontweight=kwargs.get("fontweight", 'bold'),
+					loc=kwargs.get("loc", "left"),
+				)
 		return axes
 
 	def __init__(

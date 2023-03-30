@@ -9,7 +9,7 @@ from neurotorch.callbacks.convergence import ConvergenceTimeGetter
 from neurotorch.callbacks.early_stopping import EarlyStoppingThreshold
 from neurotorch.callbacks.lr_schedulers import LRSchedulerOnMetric
 from neurotorch.modules.layers import WilsonCowanLayer
-from neurotorch.regularization.connectome import DaleLawL2, ExecRatioTargetRegularization
+from neurotorch.regularization.connectome import DaleLawL2, ExcRatioTargetRegularization
 from neurotorch.visualisation.connectome import visualize_init_final_weights
 from neurotorch.visualisation.time_series_visualisation import *
 from neurotorch.visualisation.report import mix_report
@@ -79,8 +79,8 @@ def train_with_params(
 	# Regularization on the connectome can be applied on one connectome or on all connectomes (or none).
 	if force_dale_law:
 		optimizer_reg = torch.optim.Adam(ws_layer.get_sign_parameters(), lr=1e-2*learning_rate)
-		regularisation = ExecRatioTargetRegularization(
-			ws_layer.get_sign_parameters(), optimizer=optimizer_reg, exec_target_ratio=0.8
+		regularisation = ExcRatioTargetRegularization(
+			ws_layer.get_sign_parameters(), optimizer=optimizer_reg, exc_target_ratio=0.8
 		)
 	else:
 		optimizer_reg = torch.optim.SGD(ws_layer.get_weights_parameters(), lr=5e-4)

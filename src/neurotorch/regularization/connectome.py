@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from typing import Optional, Union, Iterable, Dict
+from typing import Optional, Union, Iterable, Dict, List
 import pythonbasictools as pybt
 from . import BaseRegularization
 from ..transforms.base import to_numpy
@@ -170,7 +170,7 @@ class WeightsDistance(BaseRegularization):
 		return loss
 
 
-class ExecRatioTargetRegularization(BaseRegularization):
+class ExcRatioTargetRegularization(BaseRegularization):
 	r"""
 	Applies the function:
 
@@ -185,53 +185,90 @@ class ExecRatioTargetRegularization(BaseRegularization):
 	Examples::
 		>>> import neurotorch as nt
 		>>> layer = nt.WilsonCowanLayer(10, 10, force_dale_law=True)
-		>>> m = ExecRatioTargetRegularization(params=layer.get_sign_parameters(), Lambda=0.1, exec_target_ratio=0.9)
+		>>> m = ExcRatioTargetRegularization(params=layer.get_sign_parameters(), Lambda=0.1, exc_target_ratio=0.9)
 		>>> loss = m()
 	"""
 	def __init__(
 			self,
 			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
-			exec_target_ratio: float = 0.8,
+			exc_target_ratio: float = 0.8,
 			Lambda: float = 1.0,
 			**kwargs
 	):
-		super(ExecRatioTargetRegularization, self).__init__(params, Lambda, **kwargs)
-		assert 0 < exec_target_ratio < 1, "exec_target_ratio must be between 0 and 1"
-		self.exec_target_ratio = exec_target_ratio
+		"""
+		Create a new ExcRatioTargetRegularization.
+		
+		:param params: Weights matrix to regularize.
+		:type params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]]
+		:param exc_target_ratio: Target ratio of excitatory neurons. Must be between 0 and 1.
+		:type exc_target_ratio: float
+		:param Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
+		:type Lambda: float
+		
+		:keyword kwargs: kwargs of the BaseRegularization.
+		"""
+		super(ExcRatioTargetRegularization, self).__init__(params, Lambda, **kwargs)
+		assert 0 < exc_target_ratio < 1, "exec_target_ratio must be between 0 and 1"
+		self.exc_target_ratio = exc_target_ratio
 		self.sign_func = torch.nn.Softsign()
 	
 	def forward(self, *args, **kwargs) -> torch.Tensor:
 		loss_list = []
 		for param in self.params:
 			param_ratio = torch.mean(self.sign_func(param)) + 1
-			loss_list.append(torch.abs(param_ratio - 2 * self.exec_target_ratio))
+			loss_list.append(torch.abs(param_ratio - 2 * self.exc_target_ratio))
 		if len(self.params) == 0:
 			loss = torch.tensor(0.0, dtype=torch.float32, requires_grad=True)
 		else:
 			loss = torch.sum(torch.stack(loss_list))
 		return loss
 	
+	def get_params_exc_ratio(self) -> List[float]:
+		"""
+		Returns the excitatory ratio of each parameter.
+		"""
+		return [to_numpy(((torch.mean(self.sign_func(param)) + 1)/2).item()) for param in self.params]
+	
+	def get_params_inh_ratio(self) -> List[float]:
+		"""
+		Returns the inhibitory ratio of each parameter.
+		"""
+		return [to_numpy(((1 - torch.mean(self.sign_func(param)))/2).item()) for param in self.params]
+	
 	def on_pbar_update(self, trainer, **kwargs) -> dict:
 		loss = to_numpy(self().item())
-		exec_ratio = to_numpy(((torch.mean(self.sign_func(self.params[0])) + 1)/2).item())
-		return {"exec_ratio": exec_ratio, "exec_ratio_loss": loss}
+		exc_ratio = self.get_params_exc_ratio()
+		return {"exc_ratio": exc_ratio, "exc_ratio_loss": loss}
 	
 
-class InhRatioTargetRegularization(ExecRatioTargetRegularization):
+class InhRatioTargetRegularization(ExcRatioTargetRegularization):
+	"""
+	Applies the `ExcRatioTargetRegularization` with the target ratio of inhibitory neurons.
+	"""
 	def __init__(
 			self,
 			params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
 			inh_target_ratio: float = 0.2,
 			Lambda: float = 1.0,
 	):
+		"""
+		Create a new InhRatioTargetRegularization.
+		
+		:param params: Weights matrix to regularize.
+		:type params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]]
+		:param inh_target_ratio: Target ratio of inhibitory neurons. Must be between 0 and 1.
+		:type inh_target_ratio: float
+		:param Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
+		:type Lambda: float
+		"""
 		assert 0 < inh_target_ratio < 1, "inh_target_ratio must be between 0 and 1"
 		super(InhRatioTargetRegularization, self).__init__(
 			params=params,
 			Lambda=Lambda,
-			exec_target_ratio=1 - inh_target_ratio,
+			exc_target_ratio=1 - inh_target_ratio,
 		)
 	
 	def on_pbar_update(self, trainer, **kwargs) -> dict:
 		loss = to_numpy(self().item())
-		inh_ratio = to_numpy(((1 - torch.mean(self.sign_func(self.params[0])))/2).item())
+		inh_ratio = self.get_params_inh_ratio()
 		return {"inh_ratio": inh_ratio, "inh_ratio_loss": loss}

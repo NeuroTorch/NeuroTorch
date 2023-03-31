@@ -55,7 +55,11 @@ class BPTT(LearningAlgorithm):
 		self.layers = layers
 		self._default_params_lr = kwargs.get("params_lr", 2e-4)
 		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
-		self._default_optim_kwargs = kwargs.get("default_optim_kwargs", {"weight_decay": 1e-2, "lr": self._default_params_lr})
+		self._default_optim_kwargs = kwargs.get(
+			"default_optim_kwargs", {
+				"weight_decay": 1e-2, "lr": self._default_params_lr, "maximize": kwargs.get("maximize", False)
+			}
+		)
 		self.param_groups = []
 		self.optimizer = optimizer
 		self.criterion = criterion
@@ -90,6 +94,11 @@ class BPTT(LearningAlgorithm):
 		return self.param_groups
 
 	def create_default_optimizer(self):
+		"""
+		Create the default optimizer.
+
+		:return: The optimizer to use for training.
+		"""
 		if not self.param_groups:
 			self.initialize_param_groups()
 		self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups, **self._default_optim_kwargs)

@@ -116,7 +116,7 @@ class BPTT(LearningAlgorithm):
 				for param in self.optimizer.param_groups[i]["params"]
 			])
 		else:
-			self.params = trainer.model.parameters()
+			self.params = list(trainer.model.parameters())
 			self.optimizer = self.create_default_optimizer()
 		
 		if self.criterion is None and getattr(trainer, "criterion", None) is not None:

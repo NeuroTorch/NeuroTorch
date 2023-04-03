@@ -27,30 +27,34 @@ class Visualise:
 		4. Plot all the neuronal activity in one figure
 	Further visualisation are already added. You can visualise the time series with clustering methods. You can
 	then visualise those clustered time series in scatter/trajectory in their clustered space.
-	TODO : Add axis and optional figure to Visualise. The user can therefore create its custom figures.
 	"""
-
+	
 	@staticmethod
 	def number_axes(axes: Sequence[plt.Axes], **kwargs) -> Sequence[plt.Axes]:
 		"""
 		Number the axes.
-		
+
 		:param axes: Axes to number.
 		:type axes: Sequence[plt.Axes]
 		:param kwargs: Keyword arguments.
-		
+
 		:keyword str num_type: Type of number to display. Can be either "alpha" or "numeric".
 		:keyword int start: Number to start with.
 		:keyword float x: x position of the number in the axes coordinate (see ax.transAxes). Default is 0.0.
 		:keyword float y: y position of the number in the axes coordinate (see ax.transAxes). Default is 1.2.
 		:keyword float fontsize: Font size of the number. Default is 12.
 		:keyword str fontweight: Font weight of the number. Default is "bold".
-		
+		:keyword method: Method to use to number the axes. Available methods are "text", "title" and "set_title".
+			The "text" method will add a text to the axes. The "title" method will add the number to the existing title.
+			The "set_title" method will set the title of the axes, so the existing title will be overwritten.
+			Default is "text".
+
 		:return: The axes with the number.
 		:rtype: Sequence[plt.Axes]
 		"""
 		axes_view = np.ravel(np.asarray(axes))
-		num_type = kwargs.get("num_type", "alpha")
+		num_type = kwargs.get("num_type", "alpha").lower()
+		mth = kwargs.get("method", "text").lower()
 		start = kwargs.get("start", 0)
 		if num_type == "alpha":
 			axes_numbers = [chr(i) for i in range(97 + start, 97 + len(axes_view) + start)]
@@ -59,12 +63,28 @@ class Visualise:
 		else:
 			raise ValueError(f"Unknown num_type {num_type}.")
 		for i, ax in enumerate(axes_view):
-			ax.text(
-				kwargs.get("x", 0.0), kwargs.get("y", 1.2),
-				f"({axes_numbers[i]})",
-				transform=ax.transAxes, fontsize=kwargs.get("fontsize", 12),
-				fontweight=kwargs.get("fontweight", 'bold'), va='top'
-			)
+			if mth == "text":
+				ax.text(
+					kwargs.get("x", 0.0), kwargs.get("y", 1.2),
+					f"({axes_numbers[i]})",
+					transform=ax.transAxes, fontsize=kwargs.get("fontsize", 12),
+					fontweight=kwargs.get("fontweight", 'bold'), va='top'
+				)
+			elif mth == "title":
+				ax.set_title(
+					f"({axes_numbers[i]}) {ax.get_title()}",
+					fontsize=kwargs.get("fontsize", 12),
+					fontweight=kwargs.get("fontweight", 'bold'),
+					loc=kwargs.get("loc", "left"),
+				)
+			elif mth == "set_title":
+				ax.set_title("")
+				ax.set_title(
+					f"({axes_numbers[i]})",
+					fontsize=kwargs.get("fontsize", 12),
+					fontweight=kwargs.get("fontweight", 'bold'),
+					loc=kwargs.get("loc", "left"),
+				)
 		return axes
 
 	def __init__(
@@ -942,7 +962,7 @@ class VisualiseUMAP(Visualise):
 	"""
 	TODO: generalise the class to work with Size and to save the results in a file.
 	"""
-
+	
 	def __init__(
 			self,
 			timeseries: Any,
@@ -950,7 +970,9 @@ class VisualiseUMAP(Visualise):
 			apply_zscore: bool = False,
 			n_neighbors: int = 10,
 			min_dist: float = 0.5,
-			n_components: int = 2
+			n_components: int = 2,
+			umap_transform: Optional[Any] = None,
+			random_state: Optional[int] = None,
 	):
 		super().__init__(
 			timeseries=timeseries,
@@ -961,24 +983,34 @@ class VisualiseUMAP(Visualise):
 		self.min_dist = min_dist
 		self.n_components = n_components
 		self.kmeans_label = None
-		self.umap_transform = None
-		self.reduced_timeseries = self._compute_umap()
-
-	def _compute_umap(self):
+		self.umap_transform = umap_transform
+		self.random_state = random_state
+		if umap_transform is None:
+			self.umap_transform = self.compute_umap_transform()
+		self.reduced_timeseries = self.reduce_timeseries(self.timeseries)
+	
+	def compute_umap_transform(self, data: Optional[Any] = None):
 		try:
 			import umap
 		except ImportError:
-			raise ImportError("You must install umap-learn to use this class.")
+			raise ImportError("You must install umap-learn to use this class. `pip install umap-learn`")
+		if data is None:
+			data = self.timeseries
 		self.umap_transform = umap.UMAP(
 			n_neighbors=self.n_neighbors,
 			min_dist=self.min_dist,
 			n_components=self.n_components,
-			metric='euclidean'
+			metric='euclidean',
+			random_state=self.random_state,
 		)
-		self.umap_transform.fit(self.timeseries)
-		reduced_timeseries = self.umap_transform.transform(self.timeseries)
-		return reduced_timeseries
-
+		self.umap_transform.fit(data)
+		return self.umap_transform
+	
+	def reduce_timeseries(self, timeseries: Any):
+		if self.umap_transform is None:
+			self.compute_umap_transform()
+		return self.umap_transform.transform(timeseries)
+	
 	def with_kmeans(self, n_clusters: int = 13, random_state: int = 0):
 		"""
 		Apply K-means clustering to the PCA space as coloring.
@@ -989,7 +1021,7 @@ class VisualiseUMAP(Visualise):
 		kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(self.reduced_timeseries)
 		self.kmeans_label = kmeans.labels_
 		return self
-
+	
 	def scatter_umap(self, UMAPs: Tuple[int, ...] = (1, 2), color_sample: bool = False):
 		"""
 		Plot the scatter plot of the UMAP space in 2D or 3D.
@@ -1008,13 +1040,15 @@ class VisualiseUMAP(Visualise):
 			color = self.kmeans_label
 		if color_sample:
 			color = range(self.num_sample)
-
+		
 		if dimension == 2:
 			plt.title("Two-dimensional UMAP embedding")
 			plt.xlabel(f"UMAP {UMAPs[0]}")
 			plt.ylabel(f"UMAP {UMAPs[1]}")
-			plt.scatter(self.reduced_timeseries[:, UMAPs[0] - 1], self.reduced_timeseries[:, UMAPs[1] - 1],
-						c=color, cmap="RdBu_r")
+			plt.scatter(
+				self.reduced_timeseries[:, UMAPs[0] - 1], self.reduced_timeseries[:, UMAPs[1] - 1],
+				c=color, cmap="RdBu_r"
+				)
 			if self.kmeans_label is not None or color_sample:
 				plt.colorbar()
 		if dimension == 3:
@@ -1031,13 +1065,11 @@ class VisualiseUMAP(Visualise):
 				c=color, cmap="RdBu_r"
 			)
 		plt.show()
-
+	
 	def trajectory_umap(
 			self,
-			target: Optional = None,
+			target: Optional[Visualise] = None,
 			UMAPs: Tuple = (1, 2),
-			degree: int = 5,
-			condition: float = 5,
 			reduction: int = 1,
 			traces: str = "all",
 			fig: Optional[plt.Figure] = None,
@@ -1048,12 +1080,16 @@ class VisualiseUMAP(Visualise):
 	):
 		"""
 		Plot the trajectory of the UMAP space in 2D.
+		TODO: clean up the code
+		
+		:param target: Visualise object to plot the trajectory with.
 		:param UMAPs: List of UMAPs to plot. Always a list of length 2.
-		:param with_smooth: Whether to smooth the trajectory or not.
-		:param degree: Degree of the polynomial used for smoothing.
-		:param condition: Smoothing condition.
 		:param reduction: Number by which we divide the number of samples.
 		:param traces: Which traces to plot. Can be "all", "UMAP_space" or "UMAP_wrt_time".
+		:param fig: Figure to plot on.
+		:param axes: Axes to plot on.
+		:param filename: Filename to save the figure to.
+		:param show: Whether to show the figure.
 		"""
 		assert (fig is None and axes is None) or (fig is not None and axes is not None)
 		assert traces in ["all", "UMAP_space", "UMAP_wrt_time"]
@@ -1062,13 +1098,13 @@ class VisualiseUMAP(Visualise):
 		if target is not None:
 			assert isinstance(target, Visualise)
 			target_reduced = self.umap_transform.transform(target.timeseries)
-
+		
 		n_plot = 3 if (traces == "all") else 1
 		if fig is None or axes is None:
 			fig, axes = plt.subplots(n_plot, 1, figsize=kwargs.get("figsize", (16, 8)))
 		else:
-			assert len(axes) == n_plot, f"axes must have length {n_plot}"
-
+			assert np.asarray(axes).size == n_plot, f"axes must have length {n_plot}"
+		
 		if traces == "all" or traces == "UMAP_space":
 			axes[0].set_title("Trajectory in the UMAP space")
 			axes[0].set_xlabel(f"UMAP {UMAPs[0]}")
@@ -1087,20 +1123,31 @@ class VisualiseUMAP(Visualise):
 				c="tab:blue"
 			)
 			bbox = dict(boxstyle="round", fc="0.8")
-			axes[0].plot(self.reduced_timeseries[0, UMAPs[0] - 1], self.reduced_timeseries[0, UMAPs[1] - 1], marker="o", color="black")
-			axes[0].annotate(r"$t_0$", (self.reduced_timeseries[0, UMAPs[0] - 1], self.reduced_timeseries[0, UMAPs[1] - 1]+2), bbox=bbox)
-			axes[0].annotate(r"$t_f$",
-							 (self.reduced_timeseries[-1, UMAPs[0] - 1], self.reduced_timeseries[-1, UMAPs[1] - 1] - 3.7),
-							 bbox=bbox)
-
-			axes[0].plot(self.reduced_timeseries[-1, UMAPs[0] - 1],self.reduced_timeseries[-1, UMAPs[1] - 1], marker="o", color="black")
+			axes[0].plot(
+				self.reduced_timeseries[0, UMAPs[0] - 1], self.reduced_timeseries[0, UMAPs[1] - 1], marker="o",
+				color="black"
+				)
+			axes[0].annotate(
+				r"$t_0$", (self.reduced_timeseries[0, UMAPs[0] - 1], self.reduced_timeseries[0, UMAPs[1] - 1] + 2),
+				bbox=bbox
+				)
+			axes[0].annotate(
+				r"$t_f$",
+				(self.reduced_timeseries[-1, UMAPs[0] - 1], self.reduced_timeseries[-1, UMAPs[1] - 1] - 3.7),
+				bbox=bbox
+				)
+			
+			axes[0].plot(
+				self.reduced_timeseries[-1, UMAPs[0] - 1], self.reduced_timeseries[-1, UMAPs[1] - 1], marker="o",
+				color="black"
+				)
 			if "box_aspect" in kwargs:
 				axes[0].set_box_aspect(kwargs["box_aspect"])
 			axes[0].legend()
 			axes[0].set_xlabel(f"UMAP {UMAPs[0]}")
 			axes[0].set_ylabel(f"UMAP {UMAPs[1]}")
 			axes[0].set_title("Trajectory in the UMAP space")
-
+		
 		if traces == "UMAP_wrt_time":
 			axes[0].set_title("Trajectory in the UMAP space with respect to time")
 			axes[0].set_xlabel("Time")
@@ -1120,15 +1167,18 @@ class VisualiseUMAP(Visualise):
 			axes[0].set_xlabel("Time [-]")
 			axes[0].set_ylabel(f"UMAP {UMAPs[0]}")
 			if target is not None:
-				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[0] - 1],
-									   target_reduced[::reduction, UMAPs[0] - 1])
+				pVar = PVarianceLoss()(
+					self.reduced_timeseries[::reduction, UMAPs[0] - 1],
+					target_reduced[::reduction, UMAPs[0] - 1]
+					)
 				axes[0].set_title(
-					f"Trajectory in the UMAP space with respect to time (pVar={to_numpy(pVar).item():.4f})")
+					f"Trajectory in the UMAP space with respect to time (pVar={to_numpy(pVar).item():.4f})"
+				)
 			else:
 				axes[0].set_title("Trajectory in the UMAP space with respect to time")
 			if "box_aspect" in kwargs:
 				axes[0].set_box_aspect(kwargs["box_aspect"])
-
+		
 		if traces == "all":
 			axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
 			axes[n_plot - 2].set_xlabel("Time")
@@ -1148,15 +1198,18 @@ class VisualiseUMAP(Visualise):
 			axes[n_plot - 2].set_xlabel("Time [-]")
 			axes[n_plot - 2].set_ylabel(f"UMAP {UMAPs[0]}")
 			if target is not None:
-				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[0] - 1],
-									   target_reduced[::reduction, UMAPs[0] - 1])
+				pVar = PVarianceLoss()(
+					self.reduced_timeseries[::reduction, UMAPs[0] - 1],
+					target_reduced[::reduction, UMAPs[0] - 1]
+					)
 				axes[n_plot - 2].set_title(
-					f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})")
+					f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})"
+				)
 			else:
 				axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
 			if "box_aspect" in kwargs:
 				axes[n_plot - 2].set_box_aspect(kwargs["box_aspect"])
-
+			
 			axes[n_plot - 1].set_title("Trajectory in the UMAP space with respect to time")
 			axes[n_plot - 1].set_xlabel("Time")
 			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[1]}")
@@ -1175,15 +1228,18 @@ class VisualiseUMAP(Visualise):
 			axes[n_plot - 1].set_xlabel("Time [-]")
 			axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[1]}")
 			if target is not None:
-				pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, UMAPs[1] - 1],
-									   target_reduced[::reduction, UMAPs[1] - 1])
+				pVar = PVarianceLoss()(
+					self.reduced_timeseries[::reduction, UMAPs[1] - 1],
+					target_reduced[::reduction, UMAPs[1] - 1]
+					)
 				axes[n_plot - 1].set_title(
-					f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})")
+					f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})"
+				)
 			else:
 				axes[n_plot - 1].set_title("Trajectory in the UMAP space with respect to time")
 			if "box_aspect" in kwargs:
 				axes[n_plot - 1].set_box_aspect(kwargs["box_aspect"])
-
+		
 		fig.tight_layout()
 		if filename is not None:
 			os.makedirs(os.path.dirname(filename), exist_ok=True)

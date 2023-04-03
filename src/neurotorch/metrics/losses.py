@@ -149,3 +149,25 @@ class NLLLoss(torch.nn.NLLLoss):
 		inputs_view, target_view = inputs.view(-1, inputs.shape[-1]), target.view(-1)
 		loss = super(NLLLoss, self).forward(inputs_view, target_view)
 		return loss
+
+
+class SMSEloss(torch.nn.Module):
+	def __init__(self, reduction: str = "mean", **kwargs):
+		super().__init__()
+		assert reduction in ['mean', 'feature', 'none'], 'Reduction must be one of "mean", "feature", or "none".'
+		self.reduction = reduction
+		self.epsilon = kwargs.get("epsilon", 1e-5)
+
+	def forward(self, inputs: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+		x, y = to_tensor(inputs), to_tensor(target)
+		if self.reduction == 'feature':
+			x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(-1, y.shape[-1])
+		else:
+			x_reshape, y_reshape = x, y
+		mse_loss = torch.nn.functional.mse_loss(x, y, reduction=self.reduction)
+		if self.reduction == 'feature':
+			mse_loss = mse_loss.mean(dim=0)
+			var = y_reshape.var(dim=0)
+		else:
+			var = y_reshape.var()
+		return mse_loss / (var + self.epsilon)

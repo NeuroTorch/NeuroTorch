@@ -118,7 +118,6 @@ class LILayer(BaseNeuronsLayer):
 	):
 		assert inputs.ndim == 2
 		batch_size, nb_features = inputs.shape
-		# state = self._init_forward_state(state, batch_size)
 		V, = self._init_forward_state(state, batch_size, inputs=inputs)
 		next_V = self.kappa * V + torch.matmul(inputs, self.forward_weights) + self.bias_weights
 		return self.activation(next_V), (next_V,)

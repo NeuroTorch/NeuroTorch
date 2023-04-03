@@ -133,10 +133,10 @@ class Eprop(TBPTT):
 		super().__init__(
 			params=params,
 			layers=layers,
+			output_layers=output_layers,
 			**kwargs
 		)
 		self.output_params = output_params or []
-		self.output_layers = output_layers
 		self._feedbacks_gen_strategy = kwargs.get("feedbacks_gen_strategy", self.DEFAULT_FEEDBACKS_GEN_STRATEGY).lower()
 		if self._feedbacks_gen_strategy not in self.FEEDBACKS_GEN_FUNCS:
 			raise NotImplementedError(
@@ -153,7 +153,6 @@ class Eprop(TBPTT):
 		self.output_eligibility_traces = [torch.zeros_like(p) for p in self.output_params]
 		self.learning_signals = defaultdict(list)
 		self.param_groups = []
-		self._hidden_layer_names = []
 		self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
 		self.gamma = kwargs.get("gamma", 0.001)
 		self.alpha = kwargs.get("alpha", 0.001)
@@ -266,15 +265,6 @@ class Eprop(TBPTT):
 			] for k, y_batch_item in y_batch.items()
 		}
 		return self.feedback_weights
-	
-	def _initialize_original_forwards(self):
-		"""
-		Initialize the original forward functions of the layers (not decorated).
-
-		:return: None
-		"""
-		for layer in self.trainer.model.get_all_layers():
-			self._original_forwards[layer.name] = (layer, layer.forward)
 	
 	def initialize_params(self, trainer=None):
 		"""

@@ -1,5 +1,6 @@
+import warnings
 from collections import defaultdict
-from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple
+from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple, Mapping
 
 import torch
 from .bptt import BPTT
@@ -7,6 +8,7 @@ from ..utils import (
 	list_insert_replace_at,
 	zero_grad_params,
 	recursive_detach,
+	recursive_detach_,
 	unpack_out_hh,
 	format_pred_batch
 )
@@ -18,6 +20,7 @@ class TBPTT(BPTT):
 			*,
 			params: Optional[Sequence[torch.nn.Parameter]] = None,
 			layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
+			output_layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
 			optimizer: Optional[torch.optim.Optimizer] = None,
 			criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
 			backward_time_steps: Optional[int] = None,
@@ -25,7 +28,8 @@ class TBPTT(BPTT):
 			**kwargs
 	):
 		super(TBPTT, self).__init__(params=params, layers=layers, optimizer=optimizer, criterion=criterion, **kwargs)
-		self.output_layers = None
+		self.output_layers = output_layers
+		self._hidden_layer_names = []
 		self._original_forwards = {}  # {layer_name: (layer, layer.forward)}
 		self._auto_set_backward_time_steps = backward_time_steps is None
 		self.backward_time_steps = backward_time_steps
@@ -39,12 +43,64 @@ class TBPTT(BPTT):
 		self._layers_buffer = defaultdict(list)
 		self._forwards_decorated = False
 		self._optim_counter = 0
+		
+	def initialize_output_layers(self, trainer):
+		"""
+		Initialize the output layers of the optimizer. Try multiple ways to identify the output layers if those are not
+		provided by the user.
+
+		:Note: Must be called before :meth:`initialize_output_params`.
+
+		:param trainer: The trainer object.
+		:return: None.
+		"""
+		if not self.output_layers:
+			self.output_layers = []
+			possible_attrs = ["output_layers", "output_layer"]
+			for attr in possible_attrs:
+				obj = getattr(trainer.model, attr, [])
+				if isinstance(obj, (Sequence, torch.nn.ModuleList)):
+					obj = list(obj)
+				elif isinstance(obj, (Mapping, torch.nn.ModuleDict)):
+					obj = list(obj.values())
+				elif isinstance(obj, torch.nn.Module):
+					obj = [obj]
+				self.output_layers += list(obj)
+
+		if not self.output_layers:
+			raise ValueError("Could not find output layers. Please provide them manually.")
+
+	def initialize_layers(self, trainer):
+		"""
+		Initialize the layers of the optimizer. Try multiple ways to identify the output layers if those are not
+		provided by the user.
+
+		:param trainer: The trainer object.
+
+		:return: None
+		"""
+		if not self.layers:
+			self.layers = []
+			possible_attrs = ["input_layers", "input_layer", "hidden_layers", "hidden_layer"]
+			for attr in possible_attrs:
+				if hasattr(trainer.model, attr):
+					obj = getattr(trainer.model, attr, [])
+					if isinstance(obj, (Sequence, torch.nn.ModuleList)):
+						obj = list(obj)
+					elif isinstance(obj, (Mapping, torch.nn.ModuleDict)):
+						obj = list(obj.values())
+					elif isinstance(obj, torch.nn.Module):
+						obj = [obj]
+					self.layers += list(obj)
+		if not self.layers:
+			warnings.warn("No hidden layers found. Please provide them manually if you have any.")
 	
 	def start(self, trainer, **kwargs):
 		super().start(trainer)
-		self.output_layers: torch.nn.ModuleDict = trainer.model.output_layers
+		self.initialize_output_layers(trainer)
+		self.initialize_layers(trainer)
 		self._initialize_original_forwards()
-		
+	
 	def on_batch_begin(self, trainer, **kwargs):
 		super().on_batch_begin(trainer)
 		self.trainer = trainer
@@ -101,14 +157,25 @@ class TBPTT(BPTT):
 		return time_steps
 	
 	def _initialize_original_forwards(self):
-		for layer in self.output_layers.values():
+		"""
+		Initialize the original forward functions of the layers (not decorated).
+
+		:return: None
+		"""
+		for layer in self.trainer.model.get_all_layers():
 			self._original_forwards[layer.name] = (layer, layer.forward)
 	
 	def decorate_forwards(self):
 		if self.trainer.model.training:
 			if not self._forwards_decorated:
 				self._initialize_original_forwards()
-			for layer in self.output_layers.values():
+			self._hidden_layer_names.clear()
+			
+			for layer in self.layers:
+				layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
+				self._hidden_layer_names.append(layer.name)
+			
+			for layer in self.output_layers:
 				layer.forward = self._decorate_forward(layer.forward, layer.name)
 			self._forwards_decorated = True
 	
@@ -126,6 +193,25 @@ class TBPTT(BPTT):
 		# 	raise NotImplementedError("backward_time_steps != optim_time_steps is not implemented yet")
 		if self.backward_time_steps > self.optim_time_steps:
 			raise NotImplementedError("backward_time_steps must be lower or equal to optim_time_steps.")
+		
+	def _decorate_hidden_forward(self, forward, layer_name: str) -> Callable:
+		"""
+		Decorate the forward method of a layer to detach the hidden state.
+
+		:param forward: The forward method to decorate.
+		:param layer_name: The name of the layer.
+
+		:return: The decorated forward method
+		"""
+		def _forward(*args, **kwargs):
+			out = forward(*args, **kwargs)
+			t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
+			if t is None:
+				return out
+			out_tensor, hh = unpack_out_hh(out)
+			hh = recursive_detach_(hh)
+			return out
+		return _forward
 	
 	def _decorate_forward(self, forward, layer_name: str):
 		def _forward(*args, **kwargs):

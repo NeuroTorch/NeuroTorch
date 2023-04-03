@@ -160,14 +160,10 @@ class Eprop(TBPTT):
 		self._default_output_params_lr = kwargs.get("output_params_lr", 2e-5)
 		self.eligibility_traces_norm_clip_value = to_tensor(kwargs.get("eligibility_traces_norm_clip_value", torch.inf))
 		self.learning_signal_norm_clip_value = to_tensor(kwargs.get("learning_signal_norm_clip_value", torch.inf))
-		self.grad_norm_clip_value = to_tensor(kwargs.get("grad_norm_clip_value", torch.inf))
 		self.feedback_weights_norm_clip_value = to_tensor(kwargs.get(
 			"feedback_weights_norm_clip_value",
 			self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(str(self._feedbacks_gen_strategy), torch.inf)
 		))
-		self.nan = kwargs.get("nan", 0.0)
-		self.posinf = kwargs.get("posinf", 1.0)
-		self.neginf = kwargs.get("neginf", -1.0)
 		self.raise_non_finite_errors = kwargs.get("raise_non_finite_errors", False)
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):

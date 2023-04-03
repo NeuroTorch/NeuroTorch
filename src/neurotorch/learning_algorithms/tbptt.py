@@ -4,6 +4,7 @@ from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple, Mappi
 
 import torch
 from .bptt import BPTT
+from ..transforms.base import to_tensor
 from ..utils import (
 	list_insert_replace_at,
 	zero_grad_params,
@@ -43,7 +44,13 @@ class TBPTT(BPTT):
 		self._layers_buffer = defaultdict(list)
 		self._forwards_decorated = False
 		self._optim_counter = 0
-		
+		self._grads = []
+		self.alpha = kwargs.get("alpha", 0.001)
+		self.grad_norm_clip_value = to_tensor(kwargs.get("grad_norm_clip_value", torch.inf))
+		self.nan = kwargs.get("nan", 0.0)
+		self.posinf = kwargs.get("posinf", 1.0)
+		self.neginf = kwargs.get("neginf", -1.0)
+	
 	def initialize_output_layers(self, trainer):
 		"""
 		Initialize the output layers of the optimizer. Try multiple ways to identify the output layers if those are not
@@ -94,6 +101,9 @@ class TBPTT(BPTT):
 					self.layers += list(obj)
 		if not self.layers:
 			warnings.warn("No hidden layers found. Please provide them manually if you have any.")
+			
+	def _grads_zeros_(self):
+		self._grads = [torch.zeros_like(p) for p in self.params]
 	
 	def start(self, trainer, **kwargs):
 		super().start(trainer)
@@ -110,6 +120,7 @@ class TBPTT(BPTT):
 			)
 			self._maybe_update_time_steps()
 			self.optimizer.zero_grad()
+			self._grads_zeros_()
 			self.decorate_forwards()
 	
 	def on_batch_end(self, trainer, **kwargs):
@@ -123,6 +134,7 @@ class TBPTT(BPTT):
 		self.undecorate_forwards()
 		self._layers_buffer.clear()
 		self.optimizer.zero_grad()
+		self._grads_zeros_()
 	
 	def _get_data_time_steps_from_y_batch(
 			self,
@@ -239,7 +251,25 @@ class TBPTT(BPTT):
 				f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
 			)
 		batch_loss.backward()
+		with torch.no_grad():
+			self._grads = [
+				self.alpha * g + torch.nan_to_num(
+					p.grad.to(g.device),
+					nan=0.0,
+					neginf=-self.grad_norm_clip_value,
+					posinf=self.grad_norm_clip_value,
+				)
+				for g, p in zip(self._grads, self.params)
+			]
+			self._apply_grads()
+			if torch.isfinite(self.grad_norm_clip_value):
+				torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
 		self._layers_buffer[layer_name].clear()
+	
+	def _apply_grads(self):
+		with torch.no_grad():
+			for p, g in zip(self.params, self._grads):
+				p.grad = g.to(p.device)
 		
 	def _make_optim_step(self, **kwargs):
 		self.optimizer.step()

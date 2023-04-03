@@ -11,7 +11,8 @@ from ..utils import (
 	recursive_detach,
 	recursive_detach_,
 	unpack_out_hh,
-	format_pred_batch
+	format_pred_batch,
+	dy_dw_local,
 )
 
 
@@ -250,26 +251,27 @@ class TBPTT(BPTT):
 			raise ValueError(
 				f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
 			)
-		batch_loss.backward()
+		# batch_loss.backward()
+		output_grads = dy_dw_local(torch.mean(batch_loss), self.params, retain_graph=True, allow_unused=True)
 		with torch.no_grad():
 			self._grads = [
 				self.alpha * g + torch.nan_to_num(
-					p.grad.to(g.device),
+					dy_dw.to(g.device),
 					nan=0.0,
 					neginf=-self.grad_norm_clip_value,
 					posinf=self.grad_norm_clip_value,
 				)
-				for g, p in zip(self._grads, self.params)
+				for g, dy_dw in zip(self._grads, output_grads)
 			]
 			self._apply_grads()
-			if torch.isfinite(self.grad_norm_clip_value):
-				torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
 		self._layers_buffer[layer_name].clear()
 	
 	def _apply_grads(self):
 		with torch.no_grad():
 			for p, g in zip(self.params, self._grads):
 				p.grad = g.to(p.device)
+		if torch.isfinite(self.grad_norm_clip_value):
+			torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
 		
 	def _make_optim_step(self, **kwargs):
 		self.optimizer.step()

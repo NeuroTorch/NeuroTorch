@@ -155,6 +155,24 @@ def recursive_detach(tensors: Union[torch.Tensor, Tuple[torch.Tensor], List[torc
 		out = tuple([recursive_detach(o) for o in tensors])
 	elif isinstance(tensors, list):
 		out = [recursive_detach(o) for o in tensors]
-	else:
+	elif isinstance(tensors, dict):
+		out = {k: recursive_detach(v) for k, v in tensors.items()}
+	elif isinstance(tensors, torch.Tensor):
 		out = tensors.detach()
+	else:
+		out = tensors
+	return out
+
+
+def recursive_detach_(tensors: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]]):
+	if isinstance(tensors, tuple):
+		out = tuple([recursive_detach_(o) for o in tensors])
+	elif isinstance(tensors, list):
+		out = [recursive_detach_(o) for o in tensors]
+	elif isinstance(tensors, dict):
+		out = {k: recursive_detach_(v) for k, v in tensors.items()}
+	elif isinstance(tensors, torch.Tensor):
+		out = tensors.detach_()
+	else:
+		out = tensors
 	return out

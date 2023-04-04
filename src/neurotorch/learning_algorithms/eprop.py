@@ -130,6 +130,7 @@ class Eprop(TBPTT):
 		kwargs.setdefault("backward_time_steps", 1)
 		kwargs.setdefault("optim_time_steps", 1)
 		kwargs.setdefault("criterion", torch.nn.MSELoss())
+		kwargs.setdefault("alpha", 0.001)
 		super().__init__(
 			params=params,
 			layers=layers,
@@ -155,7 +156,6 @@ class Eprop(TBPTT):
 		self.param_groups = []
 		self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
 		self.gamma = kwargs.get("gamma", 0.001)
-		self.alpha = kwargs.get("alpha", 0.001)
 		self._default_params_lr = kwargs.get("params_lr", 1e-5)
 		self._default_output_params_lr = kwargs.get("output_params_lr", 2e-5)
 		self.eligibility_traces_norm_clip_value = to_tensor(kwargs.get("eligibility_traces_norm_clip_value", torch.inf))

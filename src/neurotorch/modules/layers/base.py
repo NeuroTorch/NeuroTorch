@@ -8,7 +8,7 @@ from torch import nn
 from ..base import SizedModule
 from ...dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 from ...transforms import to_tensor, ToDevice
-from ...utils import format_pseudo_rn_seed
+from ...utils import format_pseudo_rn_seed, recursive_detach
 
 
 class BaseLayer(SizedModule):
@@ -193,7 +193,7 @@ class BaseLayer(SizedModule):
 				if e is None:
 					state[i] = empty_state[i]
 			state = tuple(state)
-		return state
+		return recursive_detach(state)
 	
 	def infer_sizes_from_inputs(self, inputs: torch.Tensor):
 		"""

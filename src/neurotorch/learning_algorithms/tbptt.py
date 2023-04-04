@@ -2,6 +2,7 @@ import warnings
 from collections import defaultdict
 from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple, Mapping
 
+import numpy as np
 import torch
 from .bptt import BPTT
 from ..transforms.base import to_tensor
@@ -17,6 +18,9 @@ from ..utils import (
 
 
 class TBPTT(BPTT):
+	"""
+	Truncated Backpropagation Through Time (TBPTT) algorithm.
+	"""
 	def __init__(
 			self,
 			*,
@@ -29,6 +33,43 @@ class TBPTT(BPTT):
 			optim_time_steps: Optional[int] = None,
 			**kwargs
 	):
+		"""
+		Constructor for TBPTT class.
+		
+		:param params: The parameters to optimize. If None, the parameters of the model's trainer will be used.
+		:type params: Optional[Sequence[torch.nn.Parameter]]
+		:param layers: The layers to apply the TBPTT algorithm to. If None, the layers of the model's trainer will be used.
+		:type layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]]
+		:param output_layers: The layers to use as output layers. If None, the output layers of the model's trainer will be used.
+		:type output_layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]]
+		:param optimizer: The optimizer to use.
+		:type optimizer: Optional[torch.optim.Optimizer]
+		:param criterion: The criterion to use.
+		:type criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]]
+		:param backward_time_steps: The number of time steps to use for the backward pass.
+		:type backward_time_steps: Optional[int]
+		:param optim_time_steps: The number of time steps to use for the optimizer step.
+		:type optim_time_steps: Optional[int]
+		:param kwargs: Additional keyword arguments.
+		
+		:keyword float auto_backward_time_steps_ratio: The ratio of the number of time steps to use for the backward pass.
+								Defaults to 0.1.
+		:keyword float auto_optim_time_steps_ratio: The ratio of the number of time steps to use for the optimizer step.
+								Defaults to 0.1.
+		:keyword float alpha: The alpha value to use for the exponential moving average of the gradients.
+		:keyword float grad_norm_clip_value: The value to clip the gradients norm to. This parameter is used to
+						normalize the gradients of the parameters in order to help the convergence and avoid
+						overflowing. Defaults to 1.0.
+		:keyword float nan: The value to use to replace the NaN values in the gradients. Defaults to 0.0.
+		:keyword float posinf: The value to use to replace the inf values in the gradients. Defaults to 1.0.
+		:keyword float neginf: The value to use to replace the -inf values in the gradients. Defaults to -1.0.
+		
+		:raises AssertionError: If auto_backward_time_steps_ratio is not between 0 and 1.
+		:raises AssertionError: If auto_optim_time_steps_ratio is not between 0 and 1.
+		
+		.. seealso::
+			:py:meth:`neurotorch.learning_algorithms.bptt.BPTT.__init__`
+		"""
 		super(TBPTT, self).__init__(params=params, layers=layers, optimizer=optimizer, criterion=criterion, **kwargs)
 		self.output_layers = output_layers
 		self._hidden_layer_names = []
@@ -46,7 +87,7 @@ class TBPTT(BPTT):
 		self._forwards_decorated = False
 		self._optim_counter = 0
 		self._grads = []
-		self.alpha = kwargs.get("alpha", 0.001)
+		self.alpha = kwargs.get("alpha", 0.0)
 		self.grad_norm_clip_value = to_tensor(kwargs.get("grad_norm_clip_value", torch.inf))
 		self.nan = kwargs.get("nan", 0.0)
 		self.posinf = kwargs.get("posinf", 1.0)
@@ -222,8 +263,7 @@ class TBPTT(BPTT):
 			if t is None:
 				return out
 			out_tensor, hh = unpack_out_hh(out)
-			hh = recursive_detach_(hh)
-			return out
+			return out_tensor, recursive_detach(hh)
 		return _forward
 	
 	def _decorate_forward(self, forward, layer_name: str):
@@ -251,7 +291,16 @@ class TBPTT(BPTT):
 			raise ValueError(
 				f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
 			)
-		# batch_loss.backward()
+		
+		if np.isclose(self.alpha, 0.0):
+			batch_loss.backward()
+		else:
+			self._compute_decay_grads_(batch_loss)
+			self._apply_grads()
+		self._clip_grads()
+		self._layers_buffer[layer_name].clear()
+		
+	def _compute_decay_grads_(self, batch_loss):
 		output_grads = dy_dw_local(torch.mean(batch_loss), self.params, retain_graph=True, allow_unused=True)
 		with torch.no_grad():
 			self._grads = [
@@ -263,13 +312,13 @@ class TBPTT(BPTT):
 				)
 				for g, dy_dw in zip(self._grads, output_grads)
 			]
-			self._apply_grads()
-		self._layers_buffer[layer_name].clear()
 	
 	def _apply_grads(self):
 		with torch.no_grad():
 			for p, g in zip(self.params, self._grads):
 				p.grad = g.to(p.device)
+	
+	def _clip_grads(self):
 		if torch.isfinite(self.grad_norm_clip_value):
 			torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
 		
@@ -332,4 +381,11 @@ class TBPTT(BPTT):
 	def close(self, trainer, **kwargs):
 		self.undecorate_forwards()
 		super(TBPTT, self).close(trainer)
+		
+	def extra_repr(self) -> str:
+		_repr = f"backward_time_steps: {self.backward_time_steps}, "
+		_repr += f"optim_time_steps: {self.optim_time_steps}, "
+		_repr += f"alpha: {self.alpha}, "
+		_repr += f"grad_norm_clip_value: {self.grad_norm_clip_value}"
+		return _repr
 

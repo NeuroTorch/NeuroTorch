@@ -189,6 +189,8 @@ class EarlyStoppingOnStagnation(BaseCallback):
 		super().__init__(**kwargs)
 		self.metric = metric
 		self.patience = patience
+		if patience < 2:
+			raise ValueError("The patience must be at least 2.")
 		self.tol = tol
 		self.start_with_history = start_with_history
 		self._memory = []

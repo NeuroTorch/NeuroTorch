@@ -215,6 +215,6 @@ class EarlyStoppingOnStagnation(BaseCallback):
 			trainer.update_state_(stop_training_flag=True)
 	
 	def extra_repr(self) -> str:
-		return f"metric: {self.metric}, patience={self.patience}, threshold={self.tol}"
+		return f"metric: {self.metric}, patience={self.patience}, tol={self.tol}"
 
 

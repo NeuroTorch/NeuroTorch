@@ -145,7 +145,7 @@ class TrainingHistory(BaseCallback):
 		"""
 		if key is None:
 			key = list(self.keys())[0]
-		if key in self:
+		if key in self and len(self[key]) > 0:
 			return np.nanmin(self[key])
 		return default
 
@@ -182,7 +182,7 @@ class TrainingHistory(BaseCallback):
 		"""
 		if key is None:
 			key = list(self.keys())[0]
-		if key in self:
+		if key in self and len(self[key]) > 0:
 			return np.nanmax(self[key])
 		return default
 
@@ -220,6 +220,20 @@ class TrainingHistory(BaseCallback):
 		if idx >= len(self):
 			raise ValueError("Index out of bounds")
 		return {k: v[idx] for k, v in self.items()}
+	
+	def get(self, key, default=None):
+		"""
+		Get the values of the given key.
+		
+		:param key: The key to get the values of.
+		:type key: str
+		:param default: The default value to return if the key is not in the container.
+		:type default: Any
+		
+		:return: The values of the given key.
+		:rtype: List[float]
+		"""
+		return self._container.get(key, default)
 
 	def create_plot(self, **kwargs) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
 		"""

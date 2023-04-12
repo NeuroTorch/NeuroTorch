@@ -606,7 +606,7 @@ class BaseNeuronsLayer(BaseLayer):
 			"selu"    : torch.nn.SELU(),
 			"prelu"   : torch.nn.PReLU(),
 			"leakyrelu": torch.nn.LeakyReLU(),
-			"leak_yrelu": torch.nn.LeakyReLU(),
+			"leaky_relu": torch.nn.LeakyReLU(),
 			"logsigmoid": torch.nn.LogSigmoid(),
 			"log_sigmoid": torch.nn.LogSigmoid(),
 			"logsoftmax": torch.nn.LogSoftmax(dim=-1),

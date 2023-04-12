@@ -141,7 +141,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		"""
 		super().initialize_weights_()
 		if self.kwargs.get("forward_weights", None) is not None:
-			self.forward_weights = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+			self._forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
 			torch.nn.init.normal_(self._forward_weights, mean=0.0, std=self.std_weight)
 		

@@ -220,7 +220,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		transition_rate = (1 - hh * self.r)
 		activation = self.activation(rec_inputs + torch.matmul(inputs, self.forward_weights) - self.mu)
 		output = hh * (1 - ratio_dt_tau) + transition_rate * activation * ratio_dt_tau
-		return output, (output,)
+		return output, (torch.clone(output),)
 
 
 class WilsonCowanCURBDLayer(WilsonCowanLayer):

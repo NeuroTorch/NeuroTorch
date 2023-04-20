@@ -176,17 +176,17 @@ def train_with_params(
 		val_hh_memory_size=1,
 	)[0]
 	la = nt.Eprop(
-		alpha=1e-3,
-		gamma=1e-3,
-		params_lr=1e-5,
-		output_params_lr=2e-5,
-		default_optimizer_cls=torch.optim.AdamW,
-		default_optim_kwargs={"weight_decay": 0.2, "lr": 1e-6},
-		eligibility_traces_norm_clip_value=torch.inf,
-		grad_norm_clip_value=torch.inf,
-		learning_signal_norm_clip_value=torch.inf,
-		feedback_weights_norm_clip_value=torch.inf,
-		feedbacks_gen_strategy="randn",
+		# alpha=1e-3,
+		# gamma=1e-3,
+		# params_lr=1e-5,
+		# output_params_lr=2e-5,
+		# default_optimizer_cls=torch.optim.AdamW,
+		# default_optim_kwargs={"weight_decay": 0.2, "lr": 1e-6},
+		# eligibility_traces_norm_clip_value=torch.inf,
+		grad_norm_clip_value=1.0,
+		# learning_signal_norm_clip_value=torch.inf,
+		# feedback_weights_norm_clip_value=torch.inf,
+		# feedbacks_gen_strategy="randn",
 	)
 	lr_scheduler = LRSchedulerOnMetric(
 		'val_p_var',
@@ -280,10 +280,10 @@ def train_with_params(
 if __name__ == '__main__':
 	res = train_with_params(
 		params={
-			"filename": "ts_nobaselines_fish3_800t.npy",
+			# "filename": "ts_nobaselines_fish3_800t.npy",
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
-			# "filename"                      : None,
+			"filename"                      : None,
 			"smoothing_sigma"               : 10.0,
 			"n_units"                       : 512,
 			"n_aux_units"                   : 512,

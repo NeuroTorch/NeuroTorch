@@ -8,7 +8,7 @@ from torch import nn
 from ..base import SizedModule
 from ...dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 from ...transforms import to_tensor, ToDevice
-from ...utils import format_pseudo_rn_seed
+from ...utils import format_pseudo_rn_seed, recursive_detach
 
 
 class BaseLayer(SizedModule):
@@ -193,7 +193,7 @@ class BaseLayer(SizedModule):
 				if e is None:
 					state[i] = empty_state[i]
 			state = tuple(state)
-		return state
+		return recursive_detach(state)
 	
 	def infer_sizes_from_inputs(self, inputs: torch.Tensor):
 		"""
@@ -405,7 +405,7 @@ class BaseNeuronsLayer(BaseLayer):
 		:param value: The forward weights.
 		"""
 		if not isinstance(value, torch.nn.Parameter):
-			value = torch.nn.Parameter(value, requires_grad=self.requires_grad)
+			value = torch.nn.Parameter(to_tensor(value), requires_grad=self.requires_grad)
 		self._forward_weights = value
 	
 	@property
@@ -427,7 +427,7 @@ class BaseNeuronsLayer(BaseLayer):
 		:param value: The recurrent weights.
 		"""
 		if not isinstance(value, torch.nn.Parameter):
-			value = torch.nn.Parameter(value, requires_grad=self.requires_grad)
+			value = torch.nn.Parameter(to_tensor(value), requires_grad=self.requires_grad)
 		self._recurrent_weights = value
 	
 	@property
@@ -482,6 +482,38 @@ class BaseNeuronsLayer(BaseLayer):
 		if not isinstance(value, torch.nn.Parameter):
 			value = torch.nn.Parameter(value, requires_grad=self.force_dale_law)
 		self._recurrent_sign = value
+	
+	def get_forward_weights_data(self) -> torch.Tensor:
+		"""
+		Get the forward weights data.
+
+		:return: The forward weights data.
+		"""
+		return self._forward_weights.data
+	
+	def set_forward_weights_data(self, data: torch.Tensor):
+		"""
+		Set the forward weights data.
+
+		:param data: The forward weights data.
+		"""
+		self._forward_weights.data = to_tensor(data).to(self.device)
+	
+	def get_recurrent_weights_data(self) -> torch.Tensor:
+		"""
+		Get the recurrent weights data.
+
+		:return: The recurrent weights data.
+		"""
+		return self._recurrent_weights.data
+	
+	def set_recurrent_weights_data(self, data: torch.Tensor):
+		"""
+		Set the recurrent weights data.
+
+		:param data: The recurrent weights data.
+		"""
+		self._recurrent_weights.data = to_tensor(data).to(self.device)
 	
 	def get_weights_parameters(self) -> List[torch.nn.Parameter]:
 		"""
@@ -606,7 +638,7 @@ class BaseNeuronsLayer(BaseLayer):
 			"selu"    : torch.nn.SELU(),
 			"prelu"   : torch.nn.PReLU(),
 			"leakyrelu": torch.nn.LeakyReLU(),
-			"leak_yrelu": torch.nn.LeakyReLU(),
+			"leaky_relu": torch.nn.LeakyReLU(),
 			"logsigmoid": torch.nn.LogSigmoid(),
 			"log_sigmoid": torch.nn.LogSigmoid(),
 			"logsoftmax": torch.nn.LogSoftmax(dim=-1),

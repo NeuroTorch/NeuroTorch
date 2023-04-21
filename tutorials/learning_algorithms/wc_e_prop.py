@@ -116,6 +116,9 @@ def train_with_params(
 		batch_size=kwargs.get("batch_size", 512), verbose=True, n_workers=kwargs.get("n_workers"), **val_params
 	)
 	dataset: TimeSeriesDataset = dataloader.dataset
+	params = dataset.set_params_from_self(params)
+	if params["n_aux_units"] < 0:
+		params["n_aux_units"] = params["n_units"]
 	x = dataset.full_time_series
 	val_dataset: TimeSeriesDataset = val_dataloader.dataset
 	x_val = val_dataset.full_time_series
@@ -176,22 +179,22 @@ def train_with_params(
 		val_hh_memory_size=1,
 	)[0]
 	la = nt.Eprop(
-		alpha=1e-3,
-		gamma=1e-3,
-		params_lr=1e-5,
-		output_params_lr=2e-5,
-		default_optimizer_cls=torch.optim.AdamW,
-		default_optim_kwargs={"weight_decay": 0.2, "lr": 1e-6},
-		eligibility_traces_norm_clip_value=torch.inf,
-		grad_norm_clip_value=torch.inf,
-		learning_signal_norm_clip_value=torch.inf,
-		feedback_weights_norm_clip_value=torch.inf,
-		feedbacks_gen_strategy="randn",
+		alpha=0.0,
+		gamma=0.0,
+		params_lr=1e-4,
+		output_params_lr=2e-4,
+		# default_optimizer_cls=torch.optim.AdamW,
+		# default_optim_kwargs={"weight_decay": 0.2, "lr": 1e-6},
+		# eligibility_traces_norm_clip_value=torch.inf,
+		grad_norm_clip_value=1.0,
+		# learning_signal_norm_clip_value=torch.inf,
+		# feedback_weights_norm_clip_value=torch.inf,
+		# feedbacks_gen_strategy="randn",
 	)
 	lr_scheduler = LRSchedulerOnMetric(
 		'val_p_var',
 		metric_schedule=np.linspace(kwargs.get("lr_schedule_start", 0.0), 1.0, 100),
-		min_lr=[1e-7, 2e-7],
+		min_lr=[1e-6, 2e-6],
 		retain_progress=True,
 		priority=la.priority + 1,
 	)
@@ -239,7 +242,7 @@ def train_with_params(
 		model.load_checkpoint(
 			checkpoint_manager.checkpoints_meta_path, load_checkpoint_mode=nt.LoadCheckpointMode.LAST_ITR
 		)
-	model.foresight_time_steps = val_dataloader.dataset.n_times_steps - 1
+	model.foresight_time_steps = val_dataloader.dataset.n_time_steps - 1
 	model.out_memory_size = model.foresight_time_steps
 	model.hh_memory_size = 1
 	x_pred = torch.concat(
@@ -280,17 +283,18 @@ def train_with_params(
 if __name__ == '__main__':
 	res = train_with_params(
 		params={
-			"filename": "ts_nobaselines_fish3_800t.npy",
+			# "filename": "ts_nobaselines_fish3_800t.npy",
 			# "filename": "corrected_data.npy",
 			# "filename": "curbd_Adata.npy",
+			"filename"                      : "Stimulus_data_2022_02_23_fish3_1.npy",
 			# "filename"                      : None,
 			"smoothing_sigma"               : 10.0,
-			"n_units"                       : 512,
-			"n_aux_units"                   : 512,
-			"n_time_steps"                  : 500,
-			"dataset_length"                : 1,
+			"n_units"                       : -1,
+			# "n_aux_units"                   : 512,
+			# "n_time_steps"                  : 500,
+			# "dataset_length"                : 1,
 			"dataset_randomize_indexes"     : False,
-			"force_dale_law"                : False,
+			"force_dale_law"                : True,
 			"learn_mu"                      : True,
 			"learn_r"                       : True,
 			"learn_tau"                     : True,
@@ -300,7 +304,7 @@ if __name__ == '__main__':
 		device=torch.device("cuda"),
 		force_overwrite=True,
 		batch_size=512,
-		time_limit=1 * 60.0 * 60.0,
+		time_limit=1.0 * 60.0 * 60.0,
 	)
 	pprint.pprint({k: v for k, v in res.items() if isinstance(v, (int, float, str, bool))})
 	

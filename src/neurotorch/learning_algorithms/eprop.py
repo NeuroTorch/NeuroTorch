@@ -130,13 +130,14 @@ class Eprop(TBPTT):
 		kwargs.setdefault("backward_time_steps", 1)
 		kwargs.setdefault("optim_time_steps", 1)
 		kwargs.setdefault("criterion", torch.nn.MSELoss())
+		kwargs.setdefault("alpha", 0.001)
 		super().__init__(
 			params=params,
 			layers=layers,
+			output_layers=output_layers,
 			**kwargs
 		)
 		self.output_params = output_params or []
-		self.output_layers = output_layers
 		self._feedbacks_gen_strategy = kwargs.get("feedbacks_gen_strategy", self.DEFAULT_FEEDBACKS_GEN_STRATEGY).lower()
 		if self._feedbacks_gen_strategy not in self.FEEDBACKS_GEN_FUNCS:
 			raise NotImplementedError(
@@ -153,22 +154,16 @@ class Eprop(TBPTT):
 		self.output_eligibility_traces = [torch.zeros_like(p) for p in self.output_params]
 		self.learning_signals = defaultdict(list)
 		self.param_groups = []
-		self._hidden_layer_names = []
 		self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
 		self.gamma = kwargs.get("gamma", 0.001)
-		self.alpha = kwargs.get("alpha", 0.001)
 		self._default_params_lr = kwargs.get("params_lr", 1e-5)
 		self._default_output_params_lr = kwargs.get("output_params_lr", 2e-5)
 		self.eligibility_traces_norm_clip_value = to_tensor(kwargs.get("eligibility_traces_norm_clip_value", torch.inf))
 		self.learning_signal_norm_clip_value = to_tensor(kwargs.get("learning_signal_norm_clip_value", torch.inf))
-		self.grad_norm_clip_value = to_tensor(kwargs.get("grad_norm_clip_value", torch.inf))
 		self.feedback_weights_norm_clip_value = to_tensor(kwargs.get(
 			"feedback_weights_norm_clip_value",
 			self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(str(self._feedbacks_gen_strategy), torch.inf)
 		))
-		self.nan = kwargs.get("nan", 0.0)
-		self.posinf = kwargs.get("posinf", 1.0)
-		self.neginf = kwargs.get("neginf", -1.0)
 		self.raise_non_finite_errors = kwargs.get("raise_non_finite_errors", False)
 	
 	def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
@@ -266,15 +261,6 @@ class Eprop(TBPTT):
 			] for k, y_batch_item in y_batch.items()
 		}
 		return self.feedback_weights
-	
-	def _initialize_original_forwards(self):
-		"""
-		Initialize the original forward functions of the layers (not decorated).
-
-		:return: None
-		"""
-		for layer in self.trainer.model.get_all_layers():
-			self._original_forwards[layer.name] = (layer, layer.forward)
 	
 	def initialize_params(self, trainer=None):
 		"""

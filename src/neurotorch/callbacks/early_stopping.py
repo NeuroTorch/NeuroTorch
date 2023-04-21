@@ -130,3 +130,93 @@ class EarlyStoppingOnTimeLimit(BaseCallback):
 		_repr = super().extra_repr()
 		_repr += f"delta_seconds={self.delta_seconds}"
 		return _repr
+
+
+class EarlyStoppingOnNaN(BaseCallback):
+	"""
+	Monitor the training process and set the stop_training_flag to True when the metric is NaN.
+	"""
+	DEFAULT_PRIORITY = BaseCallback.DEFAULT_LOW_PRIORITY
+	
+	def __init__(self, metric: str, **kwargs):
+		"""
+		Constructor for EarlyStoppingOnNaN class.
+		
+		:param metric: Name of the metric to monitor.
+		:type metric: str
+		:param kwargs: The keyword arguments to pass to the BaseCallback.
+		"""
+		super().__init__(**kwargs)
+		self.metric = metric
+	
+	def on_iteration_end(self, trainer, **kwargs):
+		if np.any(np.isnan(trainer.state.itr_metrics.get(self.metric, 0.0))):
+			trainer.update_state_(stop_training_flag=True)
+	
+	def extra_repr(self) -> str:
+		return f"metric: {self.metric}"
+
+
+class EarlyStoppingOnStagnation(BaseCallback):
+	"""
+	Monitor the training process and set the stop_training_flag to True when the metric stagnates.
+	The metric is considered to stagnate when the mean of the absolute difference between the last
+	`patience` iterations is less than `tol`.
+	"""
+	DEFAULT_PRIORITY = BaseCallback.DEFAULT_LOW_PRIORITY
+	
+	def __init__(
+			self,
+			metric: str,
+			patience: int = 10,
+			tol: float = 1e-4,
+			start_with_history: bool = True,
+			**kwargs
+	):
+		"""
+		Constructor for EarlyStoppingOnStagnation class.
+		
+		:param metric: Name of the metric to monitor.
+		:type metric: str
+		:param patience: Number of iterations to wait before stopping the training.
+		:type patience: int
+		:param tol: The tolerance for the metric.
+		:type tol: float
+		:param start_with_history: Whether to start the monitor with the history of the metric.
+		:type start_with_history: bool
+		:param kwargs: The keyword arguments to pass to the BaseCallback.
+		"""
+		super().__init__(**kwargs)
+		self.metric = metric
+		self.patience = patience
+		if patience < 2:
+			raise ValueError("The patience must be at least 2.")
+		self.tol = tol
+		self.start_with_history = start_with_history
+		self._memory = []
+	
+	def get_value(self):
+		if len(self._memory) < 2:
+			return np.inf
+		return np.mean(np.abs(np.diff(np.asarray(self._memory))))
+	
+	def start(self, trainer, **kwargs):
+		self._memory = []
+		if not self.start_with_history:
+			return
+		history = trainer.training_history
+		if history is not None:
+			self._memory = history[self.metric][-self.patience:]
+	
+	def on_iteration_end(self, trainer, **kwargs):
+		self._memory.append(trainer.state.itr_metrics.get(self.metric, 0.0))
+		if len(self._memory) < self.patience:
+			return
+		self._memory.pop(0)
+		if self.get_value() < self.tol:
+			trainer.update_state_(stop_training_flag=True)
+	
+	def extra_repr(self) -> str:
+		return f"metric: {self.metric}, patience={self.patience}, tol={self.tol}"
+
+

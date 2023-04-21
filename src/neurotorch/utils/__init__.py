@@ -10,6 +10,7 @@ from .autograd import (
 	filter_parameters,
 	get_contributing_params,
 	recursive_detach,
+	recursive_detach_,
 )
 from .formatting import (
 	format_pred_batch,

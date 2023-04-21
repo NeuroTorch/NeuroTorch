@@ -141,7 +141,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		"""
 		super().initialize_weights_()
 		if self.kwargs.get("forward_weights", None) is not None:
-			self.forward_weights = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+			self._forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
 		else:
 			torch.nn.init.normal_(self._forward_weights, mean=0.0, std=self.std_weight)
 		
@@ -220,7 +220,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 		transition_rate = (1 - hh * self.r)
 		activation = self.activation(rec_inputs + torch.matmul(inputs, self.forward_weights) - self.mu)
 		output = hh * (1 - ratio_dt_tau) + transition_rate * activation * ratio_dt_tau
-		return output, (output,)
+		return output, (torch.clone(output),)
 
 
 class WilsonCowanCURBDLayer(WilsonCowanLayer):

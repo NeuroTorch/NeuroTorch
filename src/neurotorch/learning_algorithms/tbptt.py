@@ -1,31 +1,78 @@
+import warnings
 from collections import defaultdict
-from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple
+from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple, Mapping
 
+import numpy as np
 import torch
 from .bptt import BPTT
+from ..transforms.base import to_tensor
 from ..utils import (
 	list_insert_replace_at,
 	zero_grad_params,
 	recursive_detach,
+	recursive_detach_,
 	unpack_out_hh,
-	format_pred_batch
+	format_pred_batch,
+	dy_dw_local,
 )
 
 
 class TBPTT(BPTT):
+	"""
+	Truncated Backpropagation Through Time (TBPTT) algorithm.
+	"""
 	def __init__(
 			self,
 			*,
 			params: Optional[Sequence[torch.nn.Parameter]] = None,
 			layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
+			output_layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
 			optimizer: Optional[torch.optim.Optimizer] = None,
 			criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
 			backward_time_steps: Optional[int] = None,
 			optim_time_steps: Optional[int] = None,
 			**kwargs
 	):
+		"""
+		Constructor for TBPTT class.
+		
+		:param params: The parameters to optimize. If None, the parameters of the model's trainer will be used.
+		:type params: Optional[Sequence[torch.nn.Parameter]]
+		:param layers: The layers to apply the TBPTT algorithm to. If None, the layers of the model's trainer will be used.
+		:type layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]]
+		:param output_layers: The layers to use as output layers. If None, the output layers of the model's trainer will be used.
+		:type output_layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]]
+		:param optimizer: The optimizer to use.
+		:type optimizer: Optional[torch.optim.Optimizer]
+		:param criterion: The criterion to use.
+		:type criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]]
+		:param backward_time_steps: The number of time steps to use for the backward pass.
+		:type backward_time_steps: Optional[int]
+		:param optim_time_steps: The number of time steps to use for the optimizer step.
+		:type optim_time_steps: Optional[int]
+		:param kwargs: Additional keyword arguments.
+		
+		:keyword float auto_backward_time_steps_ratio: The ratio of the number of time steps to use for the backward pass.
+								Defaults to 0.1.
+		:keyword float auto_optim_time_steps_ratio: The ratio of the number of time steps to use for the optimizer step.
+								Defaults to 0.1.
+		:keyword float alpha: The alpha value to use for the exponential moving average of the gradients.
+		:keyword float grad_norm_clip_value: The value to clip the gradients norm to. This parameter is used to
+						normalize the gradients of the parameters in order to help the convergence and avoid
+						overflowing. Defaults to 1.0.
+		:keyword float nan: The value to use to replace the NaN values in the gradients. Defaults to 0.0.
+		:keyword float posinf: The value to use to replace the inf values in the gradients. Defaults to 1.0.
+		:keyword float neginf: The value to use to replace the -inf values in the gradients. Defaults to -1.0.
+		
+		:raises AssertionError: If auto_backward_time_steps_ratio is not between 0 and 1.
+		:raises AssertionError: If auto_optim_time_steps_ratio is not between 0 and 1.
+		
+		.. seealso::
+			:py:meth:`neurotorch.learning_algorithms.bptt.BPTT.__init__`
+		"""
 		super(TBPTT, self).__init__(params=params, layers=layers, optimizer=optimizer, criterion=criterion, **kwargs)
-		self.output_layers = None
+		self.output_layers = output_layers
+		self._hidden_layer_names = []
 		self._original_forwards = {}  # {layer_name: (layer, layer.forward)}
 		self._auto_set_backward_time_steps = backward_time_steps is None
 		self.backward_time_steps = backward_time_steps
@@ -39,12 +86,73 @@ class TBPTT(BPTT):
 		self._layers_buffer = defaultdict(list)
 		self._forwards_decorated = False
 		self._optim_counter = 0
+		self._grads = []
+		self.alpha = kwargs.get("alpha", 0.0)
+		self.grad_norm_clip_value = to_tensor(kwargs.get("grad_norm_clip_value", torch.inf))
+		self.nan = kwargs.get("nan", 0.0)
+		self.posinf = kwargs.get("posinf", 1.0)
+		self.neginf = kwargs.get("neginf", -1.0)
+	
+	def initialize_output_layers(self, trainer):
+		"""
+		Initialize the output layers of the optimizer. Try multiple ways to identify the output layers if those are not
+		provided by the user.
+
+		:Note: Must be called before :meth:`initialize_output_params`.
+
+		:param trainer: The trainer object.
+		:return: None.
+		"""
+		if not self.output_layers:
+			self.output_layers = []
+			possible_attrs = ["output_layers", "output_layer"]
+			for attr in possible_attrs:
+				obj = getattr(trainer.model, attr, [])
+				if isinstance(obj, (Sequence, torch.nn.ModuleList)):
+					obj = list(obj)
+				elif isinstance(obj, (Mapping, torch.nn.ModuleDict)):
+					obj = list(obj.values())
+				elif isinstance(obj, torch.nn.Module):
+					obj = [obj]
+				self.output_layers += list(obj)
+
+		if not self.output_layers:
+			raise ValueError("Could not find output layers. Please provide them manually.")
+
+	def initialize_layers(self, trainer):
+		"""
+		Initialize the layers of the optimizer. Try multiple ways to identify the output layers if those are not
+		provided by the user.
+
+		:param trainer: The trainer object.
+
+		:return: None
+		"""
+		if not self.layers:
+			self.layers = []
+			possible_attrs = ["input_layers", "input_layer", "hidden_layers", "hidden_layer"]
+			for attr in possible_attrs:
+				if hasattr(trainer.model, attr):
+					obj = getattr(trainer.model, attr, [])
+					if isinstance(obj, (Sequence, torch.nn.ModuleList)):
+						obj = list(obj)
+					elif isinstance(obj, (Mapping, torch.nn.ModuleDict)):
+						obj = list(obj.values())
+					elif isinstance(obj, torch.nn.Module):
+						obj = [obj]
+					self.layers += list(obj)
+		if not self.layers:
+			warnings.warn("No hidden layers found. Please provide them manually if you have any.")
+			
+	def _grads_zeros_(self):
+		self._grads = [torch.zeros_like(p) for p in self.params]
 	
 	def start(self, trainer, **kwargs):
 		super().start(trainer)
-		self.output_layers: torch.nn.ModuleDict = trainer.model.output_layers
+		self.initialize_output_layers(trainer)
+		self.initialize_layers(trainer)
 		self._initialize_original_forwards()
-		
+	
 	def on_batch_begin(self, trainer, **kwargs):
 		super().on_batch_begin(trainer)
 		self.trainer = trainer
@@ -54,6 +162,7 @@ class TBPTT(BPTT):
 			)
 			self._maybe_update_time_steps()
 			self.optimizer.zero_grad()
+			self._grads_zeros_()
 			self.decorate_forwards()
 	
 	def on_batch_end(self, trainer, **kwargs):
@@ -67,6 +176,7 @@ class TBPTT(BPTT):
 		self.undecorate_forwards()
 		self._layers_buffer.clear()
 		self.optimizer.zero_grad()
+		self._grads_zeros_()
 	
 	def _get_data_time_steps_from_y_batch(
 			self,
@@ -101,14 +211,25 @@ class TBPTT(BPTT):
 		return time_steps
 	
 	def _initialize_original_forwards(self):
-		for layer in self.output_layers.values():
+		"""
+		Initialize the original forward functions of the layers (not decorated).
+
+		:return: None
+		"""
+		for layer in self.trainer.model.get_all_layers():
 			self._original_forwards[layer.name] = (layer, layer.forward)
 	
 	def decorate_forwards(self):
 		if self.trainer.model.training:
 			if not self._forwards_decorated:
 				self._initialize_original_forwards()
-			for layer in self.output_layers.values():
+			self._hidden_layer_names.clear()
+			
+			for layer in self.layers:
+				layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
+				self._hidden_layer_names.append(layer.name)
+			
+			for layer in self.output_layers:
 				layer.forward = self._decorate_forward(layer.forward, layer.name)
 			self._forwards_decorated = True
 	
@@ -126,6 +247,24 @@ class TBPTT(BPTT):
 		# 	raise NotImplementedError("backward_time_steps != optim_time_steps is not implemented yet")
 		if self.backward_time_steps > self.optim_time_steps:
 			raise NotImplementedError("backward_time_steps must be lower or equal to optim_time_steps.")
+		
+	def _decorate_hidden_forward(self, forward, layer_name: str) -> Callable:
+		"""
+		Decorate the forward method of a layer to detach the hidden state.
+
+		:param forward: The forward method to decorate.
+		:param layer_name: The name of the layer.
+
+		:return: The decorated forward method
+		"""
+		def _forward(*args, **kwargs):
+			out = forward(*args, **kwargs)
+			t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
+			if t is None:
+				return out
+			out_tensor, hh = unpack_out_hh(out)
+			return out_tensor, recursive_detach(hh)
+		return _forward
 	
 	def _decorate_forward(self, forward, layer_name: str):
 		def _forward(*args, **kwargs):
@@ -152,8 +291,36 @@ class TBPTT(BPTT):
 			raise ValueError(
 				f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
 			)
-		batch_loss.backward()
+		
+		if np.isclose(self.alpha, 0.0):
+			batch_loss.backward()
+		else:
+			self._compute_decay_grads_(batch_loss)
+			self._apply_grads()
+		self._clip_grads()
 		self._layers_buffer[layer_name].clear()
+		
+	def _compute_decay_grads_(self, batch_loss):
+		output_grads = dy_dw_local(torch.mean(batch_loss), self.params, retain_graph=True, allow_unused=True)
+		with torch.no_grad():
+			self._grads = [
+				self.alpha * g + torch.nan_to_num(
+					dy_dw.to(g.device),
+					nan=0.0,
+					neginf=-self.grad_norm_clip_value,
+					posinf=self.grad_norm_clip_value,
+				)
+				for g, dy_dw in zip(self._grads, output_grads)
+			]
+	
+	def _apply_grads(self):
+		with torch.no_grad():
+			for p, g in zip(self.params, self._grads):
+				p.grad = g.to(p.device)
+	
+	def _clip_grads(self):
+		if torch.isfinite(self.grad_norm_clip_value):
+			torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
 		
 	def _make_optim_step(self, **kwargs):
 		self.optimizer.step()
@@ -214,4 +381,11 @@ class TBPTT(BPTT):
 	def close(self, trainer, **kwargs):
 		self.undecorate_forwards()
 		super(TBPTT, self).close(trainer)
+		
+	def extra_repr(self) -> str:
+		_repr = f"backward_time_steps: {self.backward_time_steps}, "
+		_repr += f"optim_time_steps: {self.optim_time_steps}, "
+		_repr += f"alpha: {self.alpha}, "
+		_repr += f"grad_norm_clip_value: {self.grad_norm_clip_value}"
+		return _repr
 

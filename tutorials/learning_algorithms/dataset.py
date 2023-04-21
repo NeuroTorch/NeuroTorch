@@ -14,6 +14,7 @@ class TimeSeriesDataset(Dataset):
 	ROOT_FOLDER = "data/ts/"
 	FILE_ID_NAME = {
 		"SampleZebrafishData_PaulDeKoninckLab_2020-12-16.npy": "1-3jgAZiNU__NxxhXub7ezAJUqDMFpMCO",
+		"Stimulus_data_2022_02_23_fish3_1.npy": "19DnsoI_z4IAWGSLP-32JR4rEMMBMp2Gf",
 	}
 	
 	def __init__(
@@ -169,6 +170,14 @@ class TimeSeriesDataset(Dataset):
 	@property
 	def original_series(self):
 		return nt.to_tensor(self.original_time_series, dtype=torch.float32)
+	
+	def set_params_from_self(self, kwargs: dict):
+		kwargs["n_units"] = self.n_units
+		kwargs["n_time_steps"] = self.n_time_steps
+		kwargs["smoothing_sigma"] = self.sigma
+		kwargs["dataset_length"] = self.dataset_length
+		kwargs["filename"] = self.filename
+		return kwargs
 
 
 def get_dataloader(

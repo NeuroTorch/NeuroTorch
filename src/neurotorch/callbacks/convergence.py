@@ -63,8 +63,13 @@ class ConvergenceTimeGetter(BaseCallback):
 			else:
 				self.threshold_met = trainer.current_training_state.itr_metrics[self.metric] > self.threshold
 			if self.threshold_met:
-				self.time_convergence = time.time() - self.start_time
-				self.itr_convergence = trainer.current_training_state.iteration
+				self.save_on(trainer, **kwargs)
+	
+	def save_on(self, trainer, **kwargs):
+		self.time_convergence = time.time() - self.start_time
+		self.itr_convergence = trainer.current_training_state.iteration
+		for cm in trainer.checkpoint_managers:
+			cm.save_on(trainer)
 	
 	def __repr__(self):
 		repr_str = f"ConvergenceTimeGetter("

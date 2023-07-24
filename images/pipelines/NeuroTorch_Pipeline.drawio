@@ -1,4 +1,4 @@
-<mxfile host="Electron" modified="2023-04-06T15:27:10.539Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.1.2 Chrome/106.0.5249.199 Electron/21.4.3 Safari/537.36" etag="A7LPbiMAafB2If6fZBbr" version="21.1.2" type="device" pages="3">
+<mxfile host="Electron" modified="2023-07-10T22:27:18.052Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.1.2 Chrome/106.0.5249.199 Electron/21.4.3 Safari/537.36" etag="NTVj_8PQAyUQzGEdtMZm" version="21.1.2" type="device" pages="3">
   <diagram name="Page-1" id="b520641d-4fe3-3701-9064-5fc419738815">
     <mxGraphModel dx="1418" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" background="none" math="0" shadow="0">
       <root>
@@ -226,14 +226,6 @@
         <mxCell id="tTc3O2X10x4qtcz7pTFb-16" value="Others" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontSize=14;" parent="tTc3O2X10x4qtcz7pTFb-13" vertex="1">
           <mxGeometry y="90" width="140" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="Znk27Lfk0t_KvFUfoBKF-5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;startArrow=none;startFill=0;endArrow=classic;endFill=1;fillColor=#000000;fontSize=14;" parent="1" source="tTc3O2X10x4qtcz7pTFb-18" target="tTc3O2X10x4qtcz7pTFb-27" edge="1">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="530" y="513" />
-              <mxPoint x="530" y="148" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
         <mxCell id="tTc3O2X10x4qtcz7pTFb-18" value="Metrics values" style="html=1;rounded=0;shadow=0;comic=0;labelBackgroundColor=none;strokeWidth=2;fontFamily=Verdana;fontSize=14;align=center;shape=mxgraph.ios7ui.horLines;" parent="1" vertex="1">
           <mxGeometry x="360" y="488" width="120" height="50" as="geometry" />
         </mxCell>
@@ -315,6 +307,22 @@
         </mxCell>
         <mxCell id="zXF7lxklZjTQ7j0zazYA-1" value="Data" style="shape=datastore;whiteSpace=wrap;html=1;rounded=1;strokeColor=#000000;strokeWidth=2;fontSize=14;fillColor=none;" parent="1" vertex="1">
           <mxGeometry x="230" y="140" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="lkkxQp-TK6zirFIXuGRH-3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;startArrow=none;startFill=0;endArrow=classic;endFill=1;fillColor=#000000;fontSize=14;exitX=0.483;exitY=1.08;exitDx=0;exitDy=0;exitPerimeter=0;" edge="1" parent="1" source="tTc3O2X10x4qtcz7pTFb-18" target="tTc3O2X10x4qtcz7pTFb-27">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="418" y="560" />
+              <mxPoint x="540" y="560" />
+              <mxPoint x="540" y="148" />
+            </Array>
+            <mxPoint x="690" y="402" as="sourcePoint" />
+            <mxPoint x="204" y="404" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lkkxQp-TK6zirFIXuGRH-4" value="&amp;nbsp;Do n_epochs times" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=14;rotation=0;labelBackgroundColor=default;" vertex="1" connectable="0" parent="lkkxQp-TK6zirFIXuGRH-3">
+          <mxGeometry x="-0.0644" relative="1" as="geometry">
+            <mxPoint x="-60" y="138" as="offset" />
+          </mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>

@@ -236,17 +236,15 @@ class SpyLILayer(BaseNeuronsLayer):
 		self.kwargs.setdefault("use_bias", False)
 	
 	def build(self) -> 'SpyLILayer':
+		super(SpyLILayer, self).build()
 		if self.kwargs["use_bias"]:
-			self.bias_weights = nn.Parameter(
+			self.bias_weights = torch.nn.Parameter(
 				torch.empty((int(self.output_size),), device=self._device),
 				requires_grad=self.requires_grad,
 			)
-		else:
-			self.bias_weights = torch.tensor(0.0, dtype=torch.float32, device=self._device)
-		super(SpyLILayer, self).build()
 		self.initialize_weights_()
 		return self
-	
+
 	def initialize_weights_(self):
 		super(SpyLILayer, self).initialize_weights_()
 		weight_scale = 0.2
@@ -256,7 +254,7 @@ class SpyLILayer(BaseNeuronsLayer):
 			torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.input_size)))
 		if self.kwargs["use_bias"]:
 			if self.kwargs.get("bias_weights", None) is not None:
-				self.forward_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
+				self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
 			else:
 				torch.nn.init.constant_(self.bias_weights, 0.0)
 	
@@ -286,7 +284,10 @@ class SpyLILayer(BaseNeuronsLayer):
 		batch_size, nb_features = inputs.shape
 		V, I_syn = self._init_forward_state(state, batch_size, inputs=inputs)
 		next_I_syn = self.alpha * I_syn + torch.matmul(inputs, self.forward_weights)
-		next_V = self.beta * V + next_I_syn + self.bias_weights
+		if self.bias_weights is not None:
+			next_V = self.beta * V + next_I_syn + self.bias_weights
+		else:
+			next_V = self.beta * V + next_I_syn
 		return self.activation(next_V), (next_V, next_I_syn)
 	
 	def extra_repr(self) -> str:

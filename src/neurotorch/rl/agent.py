@@ -651,6 +651,12 @@ class Agent(torch.nn.Module):
 		self.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
 		return checkpoint
 
+	def to(self, *args, **kwargs):
+		self.policy.to(*args, **kwargs)
+		if self.critic is not None:
+			self.critic.to(*args, **kwargs)
+		return self
+
 
 
 

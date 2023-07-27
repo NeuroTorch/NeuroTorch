@@ -350,7 +350,7 @@ class PPO(LearningAlgorithm):
 		self.agent.decay_continuous_action_variances()
 		
 		return to_numpy(loss).item()
-	
+
 	def _batch_obs(self, batch: List[Experience]):
 		as_dict = isinstance(batch[0].obs, dict)
 		if as_dict:
@@ -376,9 +376,9 @@ class PPO(LearningAlgorithm):
 		adv_mean, adv_std = np.mean(advantages), np.std(advantages)
 		advantages = (advantages - adv_mean) / (adv_std + 1e-8)
 		return advantages
-	
+
 	def _compute_values(self, trajectory):
-		obs_as_tensor = self._batch_obs(trajectory.experiences)
+		obs_as_tensor = BatchExperience(trajectory).obs
 		values = self.agent.get_values(obs_as_tensor, as_numpy=True, re_as_dict=False).reshape(-1)
 		return values
 	

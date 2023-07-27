@@ -1,5 +1,5 @@
 """
-This tutorial is a work in progress. It will be completed in the version 0.0.1 of NeuroTorch. Stay tuned!
+This tutorial is a work in progress. It will be completed in a future version of NeuroTorch. Stay tuned!
 """
 import os
 
@@ -67,7 +67,7 @@ def get_agent_model(env, env_config, agent_config: dict):
                 nt.transforms.ConstantValuesTransform(n_steps=n_encoder_steps)
             ],
             layers=[
-                nt.SpyLIFLayerLPF(
+                nt.ALIFLayer(
                     continuous_obs_shape[0], n_hidden_units, use_recurrent_connection=False
                 ),
                 nt.SpyLILayer(n_hidden_units, continuous_action_shape[0]),

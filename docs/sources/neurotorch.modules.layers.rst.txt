@@ -1,0 +1,61 @@
+neurotorch.modules.layers package
+=================================
+
+Submodules
+----------
+
+neurotorch.modules.layers.base module
+-------------------------------------
+
+.. automodule:: neurotorch.modules.layers.base
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.modules.layers.classical module
+------------------------------------------
+
+.. automodule:: neurotorch.modules.layers.classical
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.modules.layers.leaky\_integrate module
+-------------------------------------------------
+
+.. automodule:: neurotorch.modules.layers.leaky_integrate
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.modules.layers.spiking module
+----------------------------------------
+
+.. automodule:: neurotorch.modules.layers.spiking
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.modules.layers.spiking\_lpf module
+---------------------------------------------
+
+.. automodule:: neurotorch.modules.layers.spiking_lpf
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.modules.layers.wilson\_cowan module
+----------------------------------------------
+
+.. automodule:: neurotorch.modules.layers.wilson_cowan
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: neurotorch.modules.layers
+   :members:
+   :undoc-members:
+   :show-inheritance:

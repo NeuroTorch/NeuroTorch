@@ -7,7 +7,6 @@ import numpy as np
 import torch
 from queue import PriorityQueue
 
-from .utils import get_item_from_batch
 from ..transforms.base import to_tensor, ToDevice, to_numpy
 
 
@@ -517,6 +516,8 @@ class AgentsHistoryMaps:
 
         :return: The terminated trajectories.
         """
+        from .utils import get_item_from_batch
+
         actions = deepcopy(to_numpy(actions))
         observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(to_numpy(next_observations))
         rewards, terminals = deepcopy(to_numpy(rewards)), deepcopy(to_numpy(terminals))

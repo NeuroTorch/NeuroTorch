@@ -13,10 +13,7 @@ from ..modules.base import BaseModel
 from ..modules.sequential import Sequential
 from ..utils import maybe_apply_softmax, unpack_out_hh
 
-try:
-	from ..modules.layers import Linear
-except ImportError:
-	from .utils import Linear
+from ..modules.layers import Linear
 from .utils import (
 	obs_sequence_to_batch,
 	space_to_spec,

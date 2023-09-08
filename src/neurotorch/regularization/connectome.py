@@ -210,7 +210,7 @@ class ExcRatioTargetRegularization(BaseRegularization):
 		super(ExcRatioTargetRegularization, self).__init__(params, Lambda, **kwargs)
 		assert 0 < exc_target_ratio < 1, "exec_target_ratio must be between 0 and 1"
 		self.exc_target_ratio = exc_target_ratio
-		self.sign_func = torch.nn.Softsign()
+		self.sign_func = kwargs.get("sign_func", torch.nn.Softsign())
 	
 	def forward(self, *args, **kwargs) -> torch.Tensor:
 		loss_list = []
@@ -272,3 +272,5 @@ class InhRatioTargetRegularization(ExcRatioTargetRegularization):
 		loss = to_numpy(self().item())
 		inh_ratio = self.get_params_inh_ratio()
 		return {"inh_ratio": inh_ratio, "inh_ratio_loss": loss}
+
+

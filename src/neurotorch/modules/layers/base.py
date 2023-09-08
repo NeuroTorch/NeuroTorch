@@ -8,7 +8,7 @@ from torch import nn
 from ..base import SizedModule
 from ...dimension import Dimension, DimensionProperty, DimensionsLike, SizeTypes
 from ...transforms import to_tensor, ToDevice
-from ...utils import format_pseudo_rn_seed, recursive_detach
+from ...utils import format_pseudo_rn_seed, recursive_detach, ConnectivityConvention
 
 
 class BaseLayer(SizedModule):
@@ -193,7 +193,7 @@ class BaseLayer(SizedModule):
 				if e is None:
 					state[i] = empty_state[i]
 			state = tuple(state)
-		return recursive_detach(state)
+		return state
 	
 	def infer_sizes_from_inputs(self, inputs: torch.Tensor):
 		"""
@@ -376,6 +376,9 @@ class BaseNeuronsLayer(BaseLayer):
 		self._recurrent_sign = None
 		self.rec_mask = None
 		self._force_dale_law = kwargs.get("force_dale_law", False)
+		self._connectivity_convention = ConnectivityConvention.from_other(
+			kwargs.get("connectivity_convention", ConnectivityConvention.ItoJ)
+		)
 		super().__init__(
 			input_size=input_size,
 			output_size=output_size,
@@ -482,6 +485,15 @@ class BaseNeuronsLayer(BaseLayer):
 		if not isinstance(value, torch.nn.Parameter):
 			value = torch.nn.Parameter(value, requires_grad=self.force_dale_law)
 		self._recurrent_sign = value
+
+	@property
+	def connectivity_convention(self) -> ConnectivityConvention:
+		"""
+		Get the connectivity convention.
+
+		:return: The connectivity convention.
+		"""
+		return self._connectivity_convention
 	
 	def get_forward_weights_data(self) -> torch.Tensor:
 		"""

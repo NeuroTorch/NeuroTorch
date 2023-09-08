@@ -54,10 +54,13 @@ class BPTT(LearningAlgorithm):
 		self.params: List[torch.nn.Parameter] = params
 		self.layers = layers
 		self._default_params_lr = kwargs.get("params_lr", 2e-4)
+		self._default_weight_decay = kwargs.get("weight_decay", 1e-2)
 		self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
 		self._default_optim_kwargs = kwargs.get(
 			"default_optim_kwargs", {
-				"weight_decay": 1e-2, "lr": self._default_params_lr, "maximize": kwargs.get("maximize", False)
+				"weight_decay": self._default_weight_decay,
+				"lr": self._default_params_lr,
+				"maximize": kwargs.get("maximize", False),
 			}
 		)
 		self.param_groups = []

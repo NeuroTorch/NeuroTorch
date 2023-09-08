@@ -7,8 +7,8 @@ import torch.nn.functional as F
 from .learning_algorithm import LearningAlgorithm
 from ..learning_algorithms.tbptt import TBPTT
 from ..transforms.base import ToDevice
-from ..utils import list_insert_replace_at
-from ..utils.autograd import compute_jacobian
+from ..utils import list_insert_replace_at, ConnectivityConvention, unpack_out_hh, format_pred_batch
+from ..utils.autograd import compute_jacobian, filter_parameters, recursive_detach
 
 
 class RLS(TBPTT):
@@ -35,6 +35,27 @@ class RLS(TBPTT):
 	"""
 	CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
 	CHECKPOINT_P_STATES_DICT_KEY: str = "P_list"
+
+	@staticmethod
+	def curbd_step_method(
+			inv_corr: torch.Tensor,
+			post_activation: torch.Tensor,
+			error: torch.Tensor,
+			connectivity_convention: ConnectivityConvention = ConnectivityConvention.ItoJ,
+			**kwargs
+	):
+		phi = torch.mean(post_activation.view(-1, post_activation.shape[-1]), dim=0).view(-1, 1)  # [f_out, 1]
+		k = torch.matmul(inv_corr, phi)  # [f_out, f_out] @ [f_out, 1] -> [f_out, 1]
+		rPr = torch.matmul(phi.T, k)  # [1, f_out] @ [f_out, 1] -> [1]
+		c = 1.0 / (1.0 + rPr)  # [1]
+		delta_inv_corr = c * torch.matmul(k, k.T)  # [f_out, 1] @ [1, f_out] -> [f_out, f_out]
+		if connectivity_convention == ConnectivityConvention.ItoJ:
+			delta_weights = c * torch.outer(k.view(-1), error.view(-1))  # [f_out, 1] @ [1, f_out] -> [N_in, N_out]
+		elif connectivity_convention == ConnectivityConvention.JtoI:
+			delta_weights = c * torch.outer(error.view(-1), k.view(-1))  # [f_out, 1] @ [1, f_out] -> [N_in, N_out]
+		else:
+			raise ValueError(f"Invalid connectivity convention: {connectivity_convention}")
+		return delta_weights, delta_inv_corr
 	
 	def __init__(
 			self,
@@ -69,6 +90,7 @@ class RLS(TBPTT):
 		kwargs.setdefault("auto_backward_time_steps_ratio", 0)
 		kwargs.setdefault("save_state", True)
 		kwargs.setdefault("load_state", True)
+		kwargs.setdefault("weight_decay", 0.0)
 		super().__init__(
 			params=params,
 			layers=layers,
@@ -133,16 +155,12 @@ class RLS(TBPTT):
 			t = kwargs.get("t", None)
 			if t is None:
 				return out
-			out_tensor = self._get_out_tensor(out)
-			if t == 0:  # Hotfix for the first time step  TODO: fix this
-				ready = bool(self._layers_buffer[layer_name])
-			else:
-				ready = True
+			out_tensor, hh = unpack_out_hh(out)
 			list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
-			if len(self._layers_buffer[layer_name]) == self.backward_time_steps and ready:
+			if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
 				self._backward_at_t(t, self.backward_time_steps, layer_name)
 				if self.strategy in ["grad", "jacobian", "scaled_jacobian"]:
-					out = self._detach_out(out)
+					out = recursive_detach(out)
 			return out
 		return _forward
 	
@@ -198,38 +216,19 @@ class RLS(TBPTT):
 		self.P_list = [self.to_cpu_transform(p) for p in self.P_list]
 	
 	def start(self, trainer, **kwargs):
-		LearningAlgorithm.start(self, trainer, **kwargs)
-		if self.params and self.optimizer is None:
-			self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0))
-		elif not self.params and self.optimizer is not None:
-			self.params.extend(
-				[
-					param
-					for i in range(len(self.optimizer.param_groups))
-					for param in self.optimizer.param_groups[i]["params"]
-				]
-			)
-		else:
-			self.params = list(trainer.model.parameters())
-			self.optimizer = torch.optim.SGD(self.params, lr=self.kwargs.get("lr", 1.0))
-		
-		if self.criterion is None and trainer.criterion is not None:
-			self.criterion = trainer.criterion
-			
-		# filter params to get only the ones that require gradients
-		self.params = [param for param in self.params if param.requires_grad]
-		
+		super().start(trainer, **kwargs)
 		if self._device is None:
 			self._device = trainer.model.device
 		self.to_device_transform = ToDevice(device=self._device)
-		self.output_layers: torch.nn.ModuleDict = trainer.model.output_layers
-		self._initialize_original_forwards()
+		self.params = filter_parameters(self.params, requires_grad=True)
 	
 	def on_batch_begin(self, trainer, **kwargs):
 		LearningAlgorithm.on_batch_begin(self, trainer, **kwargs)
 		self.trainer = trainer
 		if self._is_recurrent:
-			self._data_n_time_steps = self._get_data_time_steps_from_y_batch(trainer.current_training_state.y_batch)
+			self._data_n_time_steps = self._get_data_time_steps_from_y_batch(
+				trainer.current_training_state.y_batch, trainer.current_training_state.x_batch
+			)
 			self._maybe_update_time_steps()
 			self.decorate_forwards()
 	
@@ -241,7 +240,7 @@ class RLS(TBPTT):
 	def on_optimization_begin(self, trainer, **kwargs):
 		x_batch = trainer.current_training_state.x_batch
 		y_batch = trainer.current_training_state.y_batch
-		pred_batch = trainer.format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+		pred_batch = format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
 		
 		if self._is_recurrent:
 			for layer_name in self._layers_buffer:
@@ -546,7 +545,10 @@ class RLS(TBPTT):
 		:param y_batch: targets of the layer
 
 		"""
-		model_device = self.trainer.model.device
+		if getattr(self.trainer, "model", None) is None:
+			model_device = pred_batch.device
+		else:
+			model_device = self.trainer.model.device
 		assert isinstance(x_batch, torch.Tensor), "x_batch must be a torch.Tensor"
 		assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
 		assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
@@ -572,23 +574,35 @@ class RLS(TBPTT):
 						f"For targets of shape [B, f_out], the second dimension of the parameters must be f_out, "
 						f"got {p.shape[1]} instead of {y_batch_view.shape[-1]}."
 					)
+		assert len(self.params) == 1, "This method support the optimization of only one recurrent matrix."
+		assert len(self.P_list) == len(self.params), "The number of parameters and P matrices must be equal."
 		self.P_list = self.to_device_transform(self.P_list)
 		self.params = self.to_device_transform(self.params)
 		
 		epsilon = error.mean(dim=0).view(1, -1)  # [1, f_out]
-		phi = pred_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_out]
-		K_list = [torch.matmul(P, phi.T) for P in self.P_list]  # [f_out, f_out] @ [f_out, 1] -> [f_out, 1]
-		h_list = [1.0 / (self.Lambda + self.kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_out] @ [f_out, 1] -> [1]
-		
-		for p, K, h in zip(self.params, K_list, h_list):
-			p.grad = h * torch.outer(K.view(-1), epsilon.view(-1))  # [f_out, 1] @ [1, f_out] -> [N_in, N_out]
+
+		cubd_objs = [
+			self.curbd_step_method(P, pred_batch_view, epsilon)
+			for P in self.P_list
+		]
+		for i, (p, (delta_weights, delta_inv_corr)) in enumerate(zip(self.params, cubd_objs)):
+			p.grad = delta_weights
+			self.P_list[i] = self.Lambda * self.P_list[i] - self.kappa * delta_inv_corr
+
+		# phi = pred_batch_view.mean(dim=0).view(1, -1).detach().clone()  # [1, f_out]
+		# K_list = [torch.matmul(P, phi.T) for P in self.P_list]  # [f_out, f_out] @ [f_out, 1] -> [f_out, 1]
+		# h_list = [1.0 / (self.Lambda + self.kappa * torch.matmul(phi, K)).item() for K in K_list]  # [1, f_out] @ [f_out, 1] -> [1]
+		#
+		# for p, K, h in zip(self.params, K_list, h_list):
+		# 	p.grad = h * torch.outer(K.view(-1), epsilon.view(-1))  # [f_out, 1] @ [1, f_out] -> [N_in, N_out]
 		
 		self.optimizer.step()
-		self.P_list = [
-			self.Lambda * P - h * self.kappa * torch.matmul(K, K.T)
-			for P, h, K in zip(self.P_list, h_list, K_list)
-		]  # [f_in, 1] @ [1, f_in] -> [f_in, f_in]
+		# self.P_list = [
+		# 	self.Lambda * P - h * self.kappa * torch.matmul(K, K.T)
+		# 	for P, h, K in zip(self.P_list, h_list, K_list)
+		# ]  # [f_in, 1] @ [1, f_in] -> [f_in, f_in]
 		
 		self._put_on_cpu()
-		self.trainer.model.to(model_device, non_blocking=True)
+		if getattr(self.trainer, "model", None) is not None:
+			self.trainer.model.to(model_device, non_blocking=True)
 

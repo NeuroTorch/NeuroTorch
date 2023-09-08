@@ -226,23 +226,41 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 class WilsonCowanCURBDLayer(WilsonCowanLayer):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-	
+
+	def create_empty_state(self, batch_size: int = 1, **kwargs) -> Tuple[torch.Tensor, ...]:
+		if self.kwargs["hh_init"].lower() == "given":
+			assert "h0" in self.kwargs, "h0 must be provided as a tuple of tensors when hh_init is 'given'."
+			h0 = self.kwargs["h0"]
+			assert isinstance(h0, (tuple, list)), "h0 must be a tuple of tensors."
+			state = [to_tensor(h0_, dtype=torch.float32).to(self.device) for h0_ in h0]
+		else:
+			state = super().create_empty_state(batch_size, **kwargs)
+		return tuple(state)
+
 	def forward(
 			self,
 			inputs: torch.Tensor,
 			state: Optional[Tuple[torch.Tensor, ...]] = None,
 			**kwargs
-	) -> Tuple[torch.Tensor, Tuple[torch.Tensor]]:
+	) -> Tuple[torch.Tensor, Tuple[torch.Tensor, ...]]:
 		batch_size, nb_features = inputs.shape
-		hh, = self._init_forward_state(state, batch_size, inputs=inputs)
-		output = self.activation(hh)
-		
+
+		out_shape = tuple(inputs.shape[:-1]) + (self.forward_weights.shape[-1],)  # [*, f_out]
+		inputs_view = inputs.view(-1, inputs.shape[-1])  # [*, f_in] -> [B, f_in]
+
+		hh, = self._init_forward_state(state, batch_size, inputs=inputs_view, **kwargs)  # [B, f_out]
+		post_activation = self.activation(hh)  # [B, f_out]
+
 		if self.use_recurrent_connection:
-			rec_inputs = torch.matmul(hh, torch.mul(self.recurrent_weights, self.rec_mask))
+			# [B, f_out] @ [f_out, f_out] -> [B, f_out]
+			rec_inputs = torch.matmul(post_activation, torch.mul(self.recurrent_weights, self.rec_mask))
 		else:
 			rec_inputs = 0.0
-		
-		r = rec_inputs + torch.matmul(output, self.forward_weights)
-		hh = hh + self.dt * (r - hh) / self.tau
-		return output, (hh,)
+
+		# [B, f_in] @ [f_in, f_out] -> [B, f_out]
+		weighted_current = torch.matmul(inputs_view, self.forward_weights)
+		jr = (rec_inputs + weighted_current)  # [B, f_out]
+		next_hh = hh + self.dt * (-hh + jr) / self.tau  # [B, f_out]
+		output = post_activation.view(out_shape)  # [B, f_out] -> [*, f_out]
+		return output, (next_hh,)
 

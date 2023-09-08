@@ -11,95 +11,95 @@ __version__ = "0.0.1-beta3"
 
 
 from .dimension import (
-	Dimension,
-	DimensionProperty,
-	Size,
-	DimensionLike,
-	DimensionsLike,
+    Dimension,
+    DimensionProperty,
+    Size,
+    DimensionLike,
+    DimensionsLike,
 )
 
 from .modules.sequential import (
-	Sequential,
+    Sequential,
 )
 
 from .modules.sequential_rnn import (
-	SequentialRNN,
+    SequentialRNN,
 )
 
 from .modules.layers import (
-	LayerType,
-	Linear,
-	LILayer,
-	LIFLayer,
-	SpyLILayer,
-	SpyLIFLayer,
-	SpyALIFLayer,
-	ALIFLayer,
-	SpyLIFLayerLPF,
-	SpyALIFLayerLPF,
-	LIFLayerLPF,
-	ALIFLayerLPF,
-	WilsonCowanLayer,
-	WilsonCowanCURBDLayer,
+    LayerType,
+    Linear,
+    LILayer,
+    LIFLayer,
+    SpyLILayer,
+    SpyLIFLayer,
+    SpyALIFLayer,
+    ALIFLayer,
+    SpyLIFLayerLPF,
+    SpyALIFLayerLPF,
+    LIFLayerLPF,
+    ALIFLayerLPF,
+    WilsonCowanLayer,
+    WilsonCowanCURBDLayer,
 )
 
 from .regularization import (
-	RegularizationList,
-	L1,
-	L2,
+    RegularizationList,
+    L1,
+    L2,
 )
 
 from .regularization.connectome import (
-	DaleLaw,
-	DaleLawL2,
+    DaleLaw,
+    DaleLawL2,
 )
 
 from .trainers import (
-	Trainer,
-	ClassificationTrainer,
-	RegressionTrainer,
-	TrainingState,
+    Trainer,
+    ClassificationTrainer,
+    RegressionTrainer,
+    TrainingState,
 )
 
 from .transforms import (
-	to_tensor,
-	to_numpy,
-	IdentityTransform,
-	ToDevice,
-	ToTensor,
+    to_tensor,
+    to_numpy,
+    IdentityTransform,
+    ToDevice,
+    ToTensor,
 )
 
 
 from .metrics import (
-	losses,
+    losses,
 )
 
 from .callbacks import (
-	TrainingHistory,
-	LoadCheckpointMode,
-	CheckpointManager,
+    TrainingHistory,
+    LoadCheckpointMode,
+    CheckpointManager,
 )
 
 from . import init
 
 from .learning_algorithms import (
-	BPTT,
-	TBPTT,
-	Eprop,
-	RLS,
+    BPTT,
+    TBPTT,
+    Eprop,
+    RLS,
 )
 
 from .visualisation import (
-	Visualise,
-	VisualiseKMeans,
-	VisualisePCA,
-	VisualiseUMAP,
+    Visualise,
+    VisualiseKMeans,
+    VisualisePCA,
+    VisualiseUMAP,
 )
 
 from . import utils
 
 from .utils import (
-	set_seed,
+    set_seed,
 )
 
 import warnings

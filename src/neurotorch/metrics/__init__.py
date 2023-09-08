@@ -4,6 +4,6 @@ from .regression import RegressionMetrics
 
 
 from .losses import (
-	PVarianceLoss,
-	NLLLoss,
+    PVarianceLoss,
+    NLLLoss,
 )

@@ -21,37 +21,37 @@ from neurotorch import Dimension, DimensionProperty, Size
 
 
 class TestDimension(unittest.TestCase):
-	def test_default_constructor(self):
-		dim = Dimension()
-		self.assertIs(dim.size, None)
-		self.assertEqual(dim.dtype, DimensionProperty.NONE)
-		self.assertEqual(dim.name, dim.dtype.name)
+    def test_default_constructor(self):
+        dim = Dimension()
+        self.assertIs(dim.size, None)
+        self.assertEqual(dim.dtype, DimensionProperty.NONE)
+        self.assertEqual(dim.name, dim.dtype.name)
 
-	def test_constructor(self):
-		dim = Dimension(10)
-		self.assertEqual(dim.size, 10)
-		self.assertEqual(dim.dtype, DimensionProperty.NONE)
-		self.assertEqual(dim.name, dim.dtype.name)
+    def test_constructor(self):
+        dim = Dimension(10)
+        self.assertEqual(dim.size, 10)
+        self.assertEqual(dim.dtype, DimensionProperty.NONE)
+        self.assertEqual(dim.name, dim.dtype.name)
 
-		dim = Dimension(10, DimensionProperty.NONE)
-		self.assertEqual(dim.size, 10)
-		self.assertEqual(dim.dtype, DimensionProperty.NONE)
-		self.assertEqual(dim.name, dim.dtype.name)
+        dim = Dimension(10, DimensionProperty.NONE)
+        self.assertEqual(dim.size, 10)
+        self.assertEqual(dim.dtype, DimensionProperty.NONE)
+        self.assertEqual(dim.name, dim.dtype.name)
 
-		dim = Dimension(10, DimensionProperty.TIME)
-		self.assertEqual(dim.size, 10)
-		self.assertEqual(dim.dtype, DimensionProperty.TIME)
-		self.assertEqual(dim.name, dim.dtype.name)
+        dim = Dimension(10, DimensionProperty.TIME)
+        self.assertEqual(dim.size, 10)
+        self.assertEqual(dim.dtype, DimensionProperty.TIME)
+        self.assertEqual(dim.name, dim.dtype.name)
 
-		dim = Dimension(10, DimensionProperty.SPATIAL)
-		self.assertEqual(dim.size, 10)
-		self.assertEqual(dim.dtype, DimensionProperty.SPATIAL)
-		self.assertEqual(dim.name, dim.dtype.name)
+        dim = Dimension(10, DimensionProperty.SPATIAL)
+        self.assertEqual(dim.size, 10)
+        self.assertEqual(dim.dtype, DimensionProperty.SPATIAL)
+        self.assertEqual(dim.name, dim.dtype.name)
 
-		dim = Dimension(10, DimensionProperty.SPATIAL)
-		self.assertEqual(dim.size, 10)
-		self.assertEqual(dim.dtype, DimensionProperty.SPATIAL)
-		self.assertEqual(dim.name, dim.dtype.name)
+        dim = Dimension(10, DimensionProperty.SPATIAL)
+        self.assertEqual(dim.size, 10)
+        self.assertEqual(dim.dtype, DimensionProperty.SPATIAL)
+        self.assertEqual(dim.name, dim.dtype.name)
 
 
 

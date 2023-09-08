@@ -157,8 +157,12 @@ class ConstantValuesTransform(torch.nn.Module):
 	def forward(self, x: Any):
 		x = to_tensor(x)
 		if self.batch_wise:
-			return x.unsqueeze(1).repeat(1, self.n_steps, 1)
-		return x.unsqueeze(0).repeat(self.n_steps, 1)
+			if x.ndim < 3:
+				x = x.unsqueeze(1)
+			return x.repeat(1, self.n_steps, 1)
+		if x.ndim < 2:
+			x = x.unsqueeze(0)
+		return x.repeat(self.n_steps, 1)
 
 
 class MaybeSoftmax(torch.nn.Module):

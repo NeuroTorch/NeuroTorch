@@ -30,7 +30,7 @@ class BaseRegularization(torch.nn.Module, BaseCallback):
 		:param Lambda: The weight of the regularization. In other words, the coefficient that multiplies the loss.
 		:type Lambda: float
 		"""
-		super().__init__(**kwargs)
+		super().__init__()
 		BaseCallback.__init__(self, **kwargs)
 		if isinstance(params, dict):
 			self.params = list(params.values())

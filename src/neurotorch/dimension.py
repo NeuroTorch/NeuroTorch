@@ -130,9 +130,7 @@ class Size:
         ]
 
     def __str__(self) -> str:
-        _str = "Size["
-        for i, dim in enumerate(self.dimensions):
-            _str += f"{i}:" + str(dim) + ", "
+        _str = "Size[" + ", ".join([f"{i}:" + str(dim) for i, dim in enumerate(self.dimensions)])
         return _str[:-2] + "]"
 
     def __repr__(self) -> str:

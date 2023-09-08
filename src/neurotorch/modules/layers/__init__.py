@@ -8,6 +8,7 @@ from .base import (
 
 from .classical import (
 	Linear,
+	LinearRNN,
 )
 
 from .spiking import (

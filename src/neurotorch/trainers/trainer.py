@@ -15,6 +15,7 @@ from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 from ..modules import BaseModel
 from ..regularization import BaseRegularization, RegularizationList
+from ..utils.collections import unpack_x_hh_y
 
 
 class CurrentTrainingState(NamedTuple):
@@ -28,6 +29,7 @@ class CurrentTrainingState(NamedTuple):
         - **epoch** (int): The current epoch.
         - **batch** (int): The current batch.
         - **x_batch** (Any): The current input batch.
+        - **hh_batch** (Any): The current hidden state batch.
         - **y_batch** (Any): The current target batch.
         - **pred_batch** (Any): The current prediction.
         - **batch_loss** (float): The current loss.
@@ -48,6 +50,7 @@ class CurrentTrainingState(NamedTuple):
     epoch_loss: Optional[Any] = None
     batch: Optional[int] = None
     x_batch: Optional[Any] = None
+    hh_batch: Optional[Any] = None
     y_batch: Optional[Any] = None
     pred_batch: Optional[Any] = None
     batch_loss: Optional[Any] = None
@@ -533,9 +536,10 @@ class Trainer:
     ) -> float:
         self.callbacks.on_epoch_begin(self)
         batch_losses = []
-        for i, (x_batch, y_batch) in enumerate(dataloader):
+        for i, entries in enumerate(dataloader):
+            x_batch, hh_batch, y_batch = unpack_x_hh_y(entries)
             self.update_state_(batch=i)
-            batch_losses.append(to_numpy(self._exec_batch(x_batch, y_batch)))
+            batch_losses.append(to_numpy(self._exec_batch(x_batch, hh_batch, y_batch)))
         mean_loss = np.mean(batch_losses)
         self.callbacks.on_epoch_end(self)
         return mean_loss
@@ -543,19 +547,21 @@ class Trainer:
     def _exec_batch(
             self,
             x_batch,
+            hh_batch,
             y_batch,
     ):
         x_batch = self.x_transform(self._batch_to_dense(self._batch_to_device(x_batch)))
+        hh_batch = self.x_transform(self._batch_to_dense(self._batch_to_device(hh_batch)))
         y_batch = self.y_transform(self._batch_to_dense(self._batch_to_device(y_batch)))
-        self.update_state_(x_batch=x_batch, y_batch=y_batch)
+        self.update_state_(x_batch=x_batch, hh_batch=hh_batch, y_batch=y_batch)
         self.callbacks.on_batch_begin(self)
-        pred_batch = self.get_pred_batch(x_batch)
+        pred_batch = self.get_pred_batch(x_batch, hh_batch)
         self.update_state_(pred_batch=pred_batch)
         if self.model.training:
-            self.callbacks.on_optimization_begin(self, x=x_batch, y=y_batch, pred=pred_batch)
+            self.callbacks.on_optimization_begin(self, x=x_batch, hh_batch=hh_batch, y=y_batch, pred=pred_batch)
             self.callbacks.on_optimization_end(self)
         else:
-            self.callbacks.on_validation_batch_begin(self, x=x_batch, y=y_batch, pred=pred_batch)
+            self.callbacks.on_validation_batch_begin(self, x=x_batch, hh_batch=hh_batch, y=y_batch, pred=pred_batch)
             self.callbacks.on_validation_batch_end(self)
         self.callbacks.on_batch_end(self)
         batch_loss = self.current_training_state.batch_loss
@@ -568,12 +574,27 @@ class Trainer:
     def get_pred_batch(
             self,
             x_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+            hh_batch: Optional[Any] = None,
+            *args,
+            **kwargs
     ):
+        """
+        Get the prediction of the model on the given batch.
+
+        :param x_batch: The input batch.
+        :type x_batch: Union[torch.Tensor, Dict[str, torch.Tensor]]
+        :param hh_batch: The hidden state batch.
+        :type hh_batch: Optional[Any]
+        :param args: Additional arguments to pass to the model.
+        :param kwargs: Additional keyword arguments to pass to the model.
+        """
+        if hh_batch is not None:
+            args = (hh_batch, *args)
         if self.model.training:
-            out = getattr(self.model, self.predict_method)(x_batch)
+            out = getattr(self.model, self.predict_method)(x_batch, *args, **kwargs)
         else:
             with torch.no_grad():
-                out = getattr(self.model, self.predict_method)(x_batch)
+                out = getattr(self.model, self.predict_method)(x_batch, *args, **kwargs)
         return out
 
     def apply_criterion_on_batch(
@@ -627,6 +648,6 @@ class Trainer:
         repr_ += f"\n\tcallbacks={self.callbacks}"
         repr_ += f")@{self.device}"
         return repr_
-		
+
 
 

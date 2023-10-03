@@ -551,7 +551,8 @@ class Trainer:
             y_batch,
     ):
         x_batch = self.x_transform(self._batch_to_dense(self._batch_to_device(x_batch)))
-        hh_batch = self.x_transform(self._batch_to_dense(self._batch_to_device(hh_batch)))
+        if hh_batch is not None:
+            hh_batch = self.x_transform(self._batch_to_dense(self._batch_to_device(hh_batch)))
         y_batch = self.y_transform(self._batch_to_dense(self._batch_to_device(y_batch)))
         self.update_state_(x_batch=x_batch, hh_batch=hh_batch, y_batch=y_batch)
         self.callbacks.on_batch_begin(self)

@@ -288,9 +288,14 @@ class TBPTT(BPTT):
         pred_batch = self._get_pred_batch_from_buffer(layer_name)
         batch_loss = self.apply_criterion(pred_batch, y_batch)
         if batch_loss.grad_fn is None:
-            raise ValueError(
+            # raise ValueError(
+            #     f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
+            # )
+            warnings.warn(
                 f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
             )
+            self._layers_buffer[layer_name].clear()
+            return
 
         if np.isclose(self.alpha, 0.0):
             batch_loss.backward()

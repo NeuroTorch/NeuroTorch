@@ -490,6 +490,70 @@ class BaseNeuronsLayer(BaseLayer):
         """
         return self._connectivity_convention
 
+    def get_forward_weights_parameter(self) -> torch.nn.Parameter:
+        """
+        Get the forward weights parameter.
+
+        :return: The forward weights parameter.
+        """
+        return self._forward_weights
+
+    def set_forward_weights_parameter(self, parameter: torch.nn.Parameter):
+        """
+        Set the forward weights parameter.
+
+        :param parameter: The forward weights parameter.
+        """
+        self._forward_weights = parameter
+
+    def get_recurrent_weights_parameter(self) -> torch.nn.Parameter:
+        """
+        Get the recurrent weights parameter.
+
+        :return: The recurrent weights parameter.
+        """
+        return self._recurrent_weights
+
+    def set_recurrent_weights_parameter(self, parameter: torch.nn.Parameter):
+        """
+        Set the recurrent weights parameter.
+
+        :param parameter: The recurrent weights parameter.
+        """
+        self._recurrent_weights = parameter
+
+    def get_forward_sign_parameter(self) -> torch.nn.Parameter:
+        """
+        Get the forward sign parameter.
+
+        :return: The forward sign parameter.
+        """
+        return self._forward_sign
+
+    def set_forward_sign_parameter(self, parameter: torch.nn.Parameter):
+        """
+        Set the forward sign parameter.
+
+        :param parameter: The forward sign parameter.
+        """
+        self._forward_sign = parameter
+
+    def get_recurrent_sign_parameter(self) -> torch.nn.Parameter:
+        """
+        Get the recurrent sign parameter.
+
+        :return: The recurrent sign parameter.
+        """
+        return self._recurrent_sign
+
+    def set_recurrent_sign_parameter(self, parameter: torch.nn.Parameter):
+        """
+        Set the recurrent sign parameter.
+
+        :param parameter: The recurrent sign parameter.
+        """
+        self._recurrent_sign = parameter
+
     def get_forward_weights_data(self) -> torch.Tensor:
         """
         Get the forward weights data.
@@ -739,7 +803,11 @@ class BaseNeuronsLayer(BaseLayer):
         if self.use_recurrent_connection:
             _repr += "<"
         _repr += f"->{int(self.output_size)}"
-        _repr += f"{self.extra_repr()})"
+        _repr += f"{self.extra_repr()}"
+        _repr += f", activation:{self.activation}"
+        if self.force_dale_law:
+            _repr += f", sign_activation:{self.sign_activation}"
+        _repr += ")"
         if self.freeze_weights:
             _repr += "[frozen]"
         _repr += f"@{self.device}"

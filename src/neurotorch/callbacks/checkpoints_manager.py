@@ -158,6 +158,9 @@ class CheckpointManager(BaseCallback):
         :param verbose: Whether to print out the trace of the checkpoint manager.
         :type verbose: bool
         :param kwargs: The keyword arguments to pass to the BaseCallback.
+
+        :keyword: **show_best_metric_on_p_bar** (bool): Whether to show the best metric on the progress bar.
+            Default: `save_best_only`.
         """
         kwargs.setdefault("save_state", False)
         super().__init__(**kwargs)
@@ -176,6 +179,7 @@ class CheckpointManager(BaseCallback):
         self.start_save_at = start_save_at
         self.curr_best_metric = np.inf if self.minimise_metric else -np.inf
         self.curr_checkpoint = None
+        self.show_best_metric_on_p_bar = kwargs.get("show_best_metric_on_p_bar", self.save_best_only)
 
     @property
     def checkpoints_meta_path(self) -> str:
@@ -406,14 +410,15 @@ class CheckpointManager(BaseCallback):
         if self.start_save_at > trainer.current_training_state.iteration:
             return
 
-        if self.save_freq > 0 and trainer.current_training_state.iteration % self.save_freq == 0:
-            if self.save_best_only:
-                if self._check_is_best(trainer):
-                    self.save_on(trainer)
-            else:
+        if self.save_best_only:
+            if self._check_is_best(trainer):
                 self.save_on(trainer)
+            return
+
+        if self.save_freq > 0 and trainer.current_training_state.iteration % self.save_freq == 0:
+            return self.save_on(trainer)
         if trainer.current_training_state.iteration >= trainer.state.n_iterations - 1:
-            self.save_on(trainer)
+            return self.save_on(trainer)
 
     def _check_is_best(self, trainer) -> Optional[bool]:
         if trainer.current_training_state.itr_metrics is None:
@@ -444,3 +449,17 @@ class CheckpointManager(BaseCallback):
         extra_repr += f", save_freq={self.save_freq}"
         extra_repr += f", save_best_only={self.save_best_only}"
         return extra_repr
+
+    def on_pbar_update(self, trainer, **kwargs) -> dict:
+        """
+        Called when the progress bar is updated. Adds the current best metric to the progress bar.
+
+        :param trainer: The trainer.
+        :type trainer: Trainer
+
+        :return: The dictionary to add to the progress bar.
+        :rtype: dict
+        """
+        if self.show_best_metric_on_p_bar:
+            return {f"best_{self.metric}": self.curr_best_metric}
+        return {}

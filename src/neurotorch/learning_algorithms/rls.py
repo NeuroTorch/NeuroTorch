@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Optional, Sequence, Union, Dict, Callable
+from typing import Optional, Sequence, Union, Dict, Callable, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -43,7 +43,7 @@ class RLS(TBPTT):
             error: torch.Tensor,
             connectivity_convention: ConnectivityConvention = ConnectivityConvention.ItoJ,
             **kwargs
-    ):
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         phi = torch.mean(post_activation.view(-1, post_activation.shape[-1]), dim=0).view(-1, 1)  # [f_out, 1]
         k = torch.matmul(inv_corr, phi)  # [f_out, f_out] @ [f_out, 1] -> [f_out, 1]
         rPr = torch.matmul(phi.T, k)  # [1, f_out] @ [f_out, 1] -> [1]
@@ -286,7 +286,10 @@ class RLS(TBPTT):
         :param y_batch: targets of the layer
 
         """
-        model_device = self.trainer.model.device
+        if getattr(self.trainer, "model", None) is None:
+            model_device = pred_batch.device
+        else:
+            model_device = self.trainer.model.device
         assert isinstance(x_batch, torch.Tensor), "x_batch must be a torch.Tensor"
         assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
         assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
@@ -318,7 +321,8 @@ class RLS(TBPTT):
         ]  # [f_out, f_out] - [f_out, ell] @ [ell, ell] @ [ell, f_out] -> [f_out, f_out]
 
         self._put_on_cpu()
-        self.trainer.model.to(model_device, non_blocking=True)
+        if getattr(self.trainer, "model", None) is not None:
+            self.trainer.model.to(model_device, non_blocking=True)
 
     def jacobian_mth_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
         """
@@ -348,7 +352,10 @@ class RLS(TBPTT):
         :param y_batch: targets of the layer
 
         """
-        model_device = self.trainer.model.device
+        if getattr(self.trainer, "model", None) is None:
+            model_device = pred_batch.device
+        else:
+            model_device = self.trainer.model.device
         assert isinstance(x_batch, torch.Tensor), "x_batch must be a torch.Tensor"
         assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
         assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
@@ -379,7 +386,8 @@ class RLS(TBPTT):
         ]  # [f_out, f_out] - [f_out, L] @ [L, f_out] -> [f_out, f_out]
 
         self._put_on_cpu()
-        self.trainer.model.to(model_device, non_blocking=True)
+        if getattr(self.trainer, "model", None) is not None:
+            self.trainer.model.to(model_device, non_blocking=True)
 
     def grad_mth_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
         """
@@ -408,13 +416,19 @@ class RLS(TBPTT):
         :param y_batch: targets of the layer
 
         """
-        model_device = self.trainer.model.device
+        if getattr(self.trainer, "model", None) is None:
+            model_device = pred_batch.device
+        else:
+            model_device = self.trainer.model.device
         assert isinstance(x_batch, torch.Tensor), "x_batch must be a torch.Tensor"
         assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
         assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
         self.optimizer.zero_grad()
 
         mse_loss = F.mse_loss(pred_batch, y_batch)
+        if mse_loss.grad_fn is None:
+            # TODO: add a check if it is always the case and if so, warn the user.
+            return
         mse_loss.backward()
 
         x_batch_view = x_batch.view(-1, x_batch.shape[-1])  # [B, f_in]
@@ -449,7 +463,8 @@ class RLS(TBPTT):
         ]  # [f_in, 1] @ [1, f_in] -> [f_in, f_in]
 
         self._put_on_cpu()
-        self.trainer.model.to(model_device, non_blocking=True)
+        if getattr(self.trainer, "model", None) is not None:
+            self.trainer.model.to(model_device, non_blocking=True)
 
     def inputs_mth_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
         """
@@ -475,15 +490,18 @@ class RLS(TBPTT):
         :param y_batch: targets of the layer
 
         """
-        model_device = self.trainer.model.device
+        if getattr(self.trainer, "model", None) is None:
+            model_device = pred_batch.device
+        else:
+            model_device = self.trainer.model.device
         assert isinstance(x_batch, torch.Tensor), "x_batch must be a torch.Tensor"
         assert isinstance(pred_batch, torch.Tensor), "pred_batch must be a torch.Tensor"
         assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
         self.optimizer.zero_grad()
 
-        x_batch_view = x_batch.view(-1, x_batch.shape[-1])  # [B, f_in]
-        pred_batch_view = pred_batch.view(-1, pred_batch.shape[-1])  # [B, f_out]
-        y_batch_view = y_batch.view(-1, y_batch.shape[-1])  # [B, f_out]
+        x_batch_view = x_batch.view(-1, x_batch.shape[-1]).detach()  # [B, f_in]
+        pred_batch_view = pred_batch.view(-1, pred_batch.shape[-1]).detach()  # [B, f_out]
+        y_batch_view = y_batch.view(-1, y_batch.shape[-1]).detach()  # [B, f_out]
         error = self.to_device_transform(pred_batch_view - y_batch_view)  # [B, f_out]
 
         if self.P_list is None:
@@ -519,7 +537,8 @@ class RLS(TBPTT):
         ]  # [f_in, 1] @ [1, f_in] -> [f_in, f_in]
 
         self._put_on_cpu()
-        self.trainer.model.to(model_device, non_blocking=True)
+        if getattr(self.trainer, "model", None) is not None:
+            self.trainer.model.to(model_device, non_blocking=True)
 
     def outputs_mth_step(self, x_batch: torch.Tensor, pred_batch: torch.Tensor, y_batch: torch.Tensor):
         """
@@ -554,9 +573,9 @@ class RLS(TBPTT):
         assert isinstance(y_batch, torch.Tensor), "y_batch must be a torch.Tensor"
         self.optimizer.zero_grad()
 
-        x_batch_view = x_batch.view(-1, x_batch.shape[-1])  # [B, f_in]
-        pred_batch_view = pred_batch.view(-1, pred_batch.shape[-1])  # [B, f_out]
-        y_batch_view = y_batch.view(-1, y_batch.shape[-1])  # [B, f_out]
+        x_batch_view = x_batch.view(-1, x_batch.shape[-1]).detach()  # [B, f_in]
+        pred_batch_view = pred_batch.view(-1, pred_batch.shape[-1]).detach()  # [B, f_out]
+        y_batch_view = y_batch.view(-1, y_batch.shape[-1]).detach()  # [B, f_out]
         error = self.to_device_transform(pred_batch_view - y_batch_view)  # [B, f_out]
 
         if self.P_list is None:

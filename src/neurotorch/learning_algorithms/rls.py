@@ -8,7 +8,7 @@ from .learning_algorithm import LearningAlgorithm
 from ..learning_algorithms.tbptt import TBPTT
 from ..transforms.base import ToDevice
 from ..utils import list_insert_replace_at, ConnectivityConvention, unpack_out_hh, format_pred_batch
-from ..utils.autograd import compute_jacobian, filter_parameters, recursive_detach
+from ..utils.autograd import compute_jacobian, filter_parameters, recursive_detach, recursive_detach_
 
 
 class RLS(TBPTT):
@@ -163,6 +163,19 @@ class RLS(TBPTT):
                     out = recursive_detach(out)
             return out
         return _forward
+
+    def _output_hook(self, module, args, kwargs, output) -> None:
+        t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
+        if t is None:
+            return
+
+        layer_name = module.name
+        out_tensor, hh = unpack_out_hh(output)
+        list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
+        if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
+            self._backward_at_t(t, self.backward_time_steps, layer_name)
+            if self.strategy in ["grad", "jacobian", "scaled_jacobian"]:
+                output = recursive_detach_(output)
 
     def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
         if self._last_layers_buffer[layer_name]:

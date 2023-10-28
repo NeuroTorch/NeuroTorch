@@ -424,10 +424,11 @@ class CheckpointManager(BaseCallback):
         if trainer.current_training_state.itr_metrics is None:
             return None
 
+        itr_metric = trainer.current_training_state.itr_metrics.get(self.metric, self.curr_best_metric)
         if self.minimise_metric:
-            is_best = trainer.current_training_state.itr_metrics[self.metric] < self.curr_best_metric
+            is_best = itr_metric < self.curr_best_metric
         else:
-            is_best = trainer.current_training_state.itr_metrics[self.metric] > self.curr_best_metric
+            is_best = itr_metric > self.curr_best_metric
         return is_best
 
     def close(self, trainer, **kwargs):

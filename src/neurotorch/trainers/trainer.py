@@ -431,6 +431,7 @@ class Trainer:
             unit="itr",
             leave=p_bar_leave
         )
+        self.update_objects_state_(p_bar=p_bar)
         for i in self._iterations_generator(p_bar):
             self.update_state_(iteration=i)
             self.callbacks.on_iteration_begin(self)

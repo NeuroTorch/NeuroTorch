@@ -25,7 +25,7 @@ Moreover, NeuroTorch is modular so you can adapt it to your needs relatively qui
 because more is coming!
 
 
-### Current Version (v0.0.1-beta3)
+### Current Version
 
 What can be done with NeuroTorch in the current version? 
 - Image classification with spiking networks.
@@ -37,10 +37,10 @@ What can be done with NeuroTorch in the current version?
 - Truncated-Backpropagation-Through-Time (TBPTT).
 - Learning Algorithm: [Eligibility-Propagation](https://doi.org/10.1038/s41467-020-17236-y).
 - Anything you are able to do using the modules already created.
+- Reinforcement Learning.
 
 
 ### Next Versions
-- Reinforcement Learning.
 - Learning Algorithm: RLS (Recursive Least Squares).
 
 

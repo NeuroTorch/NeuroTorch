@@ -109,7 +109,9 @@ class BPTT(LearningAlgorithm):
 
     def start(self, trainer, **kwargs):
         super().start(trainer)
-        if self.params and self.optimizer is None:
+        if self.params and self.optimizer:
+            pass
+        elif self.params and self.optimizer is None:
             self.optimizer = self.create_default_optimizer()
         elif not self.params and self.optimizer is not None:
             self.param_groups = self.optimizer.param_groups

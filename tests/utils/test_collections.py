@@ -25,4 +25,3 @@ class TestCollections(unittest.TestCase):
             get_meta_str([{"b": 2, "a": 1}, {1: 2, 3: 4}, 5, 6, 7, CustomObject()]),
             "a-1_b-2_1-2_3-4_5_6_7_my_repr"
         )
-	

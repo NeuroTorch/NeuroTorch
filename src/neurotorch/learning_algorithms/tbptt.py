@@ -4,6 +4,8 @@ from typing import Optional, Sequence, Union, Dict, Callable, List, Tuple, Mappi
 
 import numpy as np
 import torch
+from torch.utils.hooks import RemovableHandle
+
 from .bptt import BPTT
 from ..transforms.base import to_tensor
 from ..utils import (
@@ -92,6 +94,8 @@ class TBPTT(BPTT):
         self.nan = kwargs.get("nan", 0.0)
         self.posinf = kwargs.get("posinf", 1.0)
         self.neginf = kwargs.get("neginf", -1.0)
+        self.forwards_hooks: List[RemovableHandle] = []
+        self._use_hooks = kwargs.get("use_hooks", False)
 
     def initialize_output_layers(self, trainer):
         """
@@ -226,16 +230,27 @@ class TBPTT(BPTT):
             self._hidden_layer_names.clear()
 
             for layer in self.layers:
-                layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
                 self._hidden_layer_names.append(layer.name)
+                if self._use_hooks:
+                    hook = layer.register_forward_hook(self._hidden_hook, with_kwargs=True)
+                    self.forwards_hooks.append(hook)
+                else:
+                    layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
 
             for layer in self.output_layers:
-                layer.forward = self._decorate_forward(layer.forward, layer.name)
+                if self._use_hooks:
+                    hook = layer.register_forward_hook(self._output_hook, with_kwargs=True)
+                    self.forwards_hooks.append(hook)
+                else:
+                    layer.forward = self._decorate_forward(layer.forward, layer.name)
             self._forwards_decorated = True
 
     def undecorate_forwards(self):
         for name, (layer, original_forward) in self._original_forwards.items():
             layer.forward = original_forward
+        for hook in self.forwards_hooks:
+            hook.remove()
+        self.forwards_hooks.clear()
         self._forwards_decorated = False
 
     def _maybe_update_time_steps(self):
@@ -283,14 +298,44 @@ class TBPTT(BPTT):
             return out
         return _forward
 
+    def _hidden_hook(self, module, args, kwargs, output) -> None:
+        t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
+        if t is None:
+            return
+
+        out_tensor, hh = unpack_out_hh(output)
+        hh = recursive_detach_(hh)
+        return
+
+    def _output_hook(self, module, args, kwargs, output) -> None:
+        t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
+        if t is None:
+            return
+
+        layer_name = module.name
+        out_tensor, hh = unpack_out_hh(output)
+        list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
+        self._optim_counter += 1
+        if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
+            self._backward_at_t(t, self.backward_time_steps, layer_name)
+            output = recursive_detach_(output)
+        if self._optim_counter >= self.optim_time_steps:
+            self._make_optim_step()
+        return
+
     def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
         y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
         pred_batch = self._get_pred_batch_from_buffer(layer_name)
         batch_loss = self.apply_criterion(pred_batch, y_batch)
         if batch_loss.grad_fn is None:
-            raise ValueError(
+            # raise ValueError(
+            #     f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
+            # )
+            warnings.warn(
                 f"batch_loss.grad_fn is None. This is probably an internal error. Please report this issue on GitHub."
             )
+            self._layers_buffer[layer_name].clear()
+            return
 
         if np.isclose(self.alpha, 0.0):
             batch_loss.backward()

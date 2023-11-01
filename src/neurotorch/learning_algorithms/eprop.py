@@ -13,7 +13,8 @@ from ..utils import (
     unpack_out_hh,
     recursive_detach,
     dy_dw_local,
-    clip_tensors_norm_
+    clip_tensors_norm_,
+    recursive_detach_
 )
 from ..utils.random import unitary_rn_normal_matrix
 
@@ -462,11 +463,19 @@ class Eprop(TBPTT):
             self._hidden_layer_names.clear()
 
             for layer in self.layers:
-                layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
                 self._hidden_layer_names.append(layer.name)
+                if self._use_hooks:
+                    hook = layer.register_forward_hook(self._hidden_hook, with_kwargs=True)
+                    self.forwards_hooks.append(hook)
+                else:
+                    layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
 
             for layer in self.output_layers:
-                layer.forward = self._decorate_forward(layer.forward, layer.name)
+                if self._use_hooks:
+                    hook = layer.register_forward_hook(self._output_hook, with_kwargs=True)
+                    self.forwards_hooks.append(hook)
+                else:
+                    layer.forward = self._decorate_forward(layer.forward, layer.name)
             self._forwards_decorated = True
 
     def _decorate_hidden_forward(self, forward, layer_name: str) -> Callable:
@@ -492,6 +501,24 @@ class Eprop(TBPTT):
                 out = recursive_detach(out)
             return out
         return _forward
+
+    def _hidden_hook(self, module, args, kwargs, output) -> None:
+        r"""
+        In TBPTT, we decorate forward to ensure that the backpropagation and the optimizer at t is done for the entire
+        network. In E-prop, we want to backpropagate the hidden layers locally (and not the entire network) at each
+        time step t.
+        """
+        t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
+        if t is None:
+            return
+
+        layer_name = module.name
+        out_tensor, hh = unpack_out_hh(output)
+        list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
+        if len(self._layers_buffer[layer_name]) >= self.backward_time_steps:
+            self._hidden_backward_at_t(t, self.backward_time_steps, layer_name)
+            output = recursive_detach_(output)
+        return
 
     def _hidden_backward_at_t(self, t: int, backward_t: int, layer_name: str):
         """

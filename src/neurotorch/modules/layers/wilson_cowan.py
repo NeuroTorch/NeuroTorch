@@ -184,7 +184,7 @@ class WilsonCowanLayer(BaseNeuronsLayer):
             assert kwargs["inputs"].shape == (batch_size, int(self.output_size))
             state = (kwargs["inputs"].clone(),)
         else:
-            raise ValueError("Hidden state init method not known. Please use 'zeros', 'inputs' or 'random'")
+            state = super().create_empty_state(batch_size, **kwargs)
         return tuple(state)
 
     def forward(

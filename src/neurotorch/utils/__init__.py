@@ -34,6 +34,7 @@ from .collections import (
     sequence_get,
     list_insert_replace_at,
     unpack_out_hh,
+    unpack_tuple,
     unpack_singleton_dict,
     maybe_unpack_singleton_dict,
     mapping_update_recursively,

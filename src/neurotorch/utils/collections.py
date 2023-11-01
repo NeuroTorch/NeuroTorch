@@ -1,7 +1,7 @@
 import collections.abc
 import hashlib
 import pickle
-from typing import Callable, Dict, List, Any, Union, Sequence
+from typing import Callable, Dict, List, Any, Union, Sequence, Type, Tuple
 
 import torch
 
@@ -185,6 +185,107 @@ def unpack_out_hh(out):
         out_tensor = out
 
     return out_tensor, hh
+
+
+def unpack_x_hh_y(__input) -> Tuple[Any, Any, Any]:
+    """
+    Unpack the input, hidden state and target of a recurrent network.
+
+    :param __input: The input to unpack.
+
+    :return: The input of the recurrent network with the hidden state and the target.
+                If there is no hidden state, consider it as None.
+    """
+    x, hh, y = None, None, None
+    if isinstance(__input, (tuple, list)):
+        if len(__input) == 3:
+            x, hh, y = __input
+        elif len(__input) == 2:
+            x, y = __input
+        elif len(__input) > 3:
+            x, *hh, y = __input
+        elif len(__input) == 1:
+            x = __input[0]
+    else:
+        x = __input
+
+    return x, hh, y
+
+
+def unpack_tuple(
+        x: Any,
+        expected_length: int,
+        fill_value: Any = None,
+        fill_method: str = "middle",
+        aggregate_method: str = "middle",
+        aggregate_type: Type = tuple,
+) -> tuple:
+    """
+    Unpack a tuple of a specific length. If the tuple has a different length, one of the following
+    output is returned:
+        - If the input 'x' has the expected length, the input 'x' unpacked is returned.
+        - If the input 'x' has a length lower than the expected length, the input 'x' unpacked is
+            returned with 'fill_value' appended to it using the 'fill_method'.
+        - If the input 'x' has a length greater than the expected length, the input 'x' unpacked is
+            returned with the elements packed together using the 'aggregate_method'.
+
+    :param x: The tuple to unpack.
+    :type x: Any
+    :param expected_length: The expected length of the tuple.
+    :type expected_length: int
+    :param fill_value: The value to fill the tuple with if the length of the tuple is lower than the
+        expected length. Default is None.
+    :type fill_value: Any
+    :param fill_method: The method to use to fill the tuple with 'fill_value's if the length of the tuple is lower than
+        the expected length. Must be in ["left", "right", "middle"]. Default is "middle".
+    :type fill_method: str
+    :param aggregate_method: The method to use to aggregate the tuple if the length of the tuple is
+        greater than the expected length. Must be in ["left", "right", "middle"]. Default is "middle".
+    :type aggregate_method: str
+    :param aggregate_type: The type of the aggregated items if the length of the tuple is greater than the
+        expected length. Generally one of [tuple, list]. Default is tuple.
+
+    :return: The unpacked tuple.
+    :rtype: tuple
+
+    TODO: Optimize this function.
+    """
+    output = [fill_value for _ in range(expected_length)]
+    x_length = len(x)
+    if x_length == expected_length:
+        output = tuple(x)
+    elif x_length < expected_length:
+        if fill_method == "left":
+            output[-x_length:] = list(x)
+        elif fill_method == "right":
+            output[:x_length] = list(x)
+        elif fill_method == "middle":
+            indexes = list(range(expected_length))
+            n_fill = expected_length - x_length
+            idx_start_fill = int(x_length / 2)
+            idx_end_fill = idx_start_fill + n_fill - 1
+            x_indexes = list(set(indexes) - set(range(idx_start_fill, idx_end_fill + 1)))
+            for i, idx in enumerate(x_indexes):
+                output[idx] = x[i]
+        else:
+            raise ValueError(f"fill_method must be in ['left', 'right', 'middle']. Got {fill_method}.")
+    elif x_length > expected_length:
+        n_aggregate = x_length - expected_length + 1
+        if aggregate_method == "left":
+            output = [aggregate_type(x[:n_aggregate])] + list(x[n_aggregate:])
+        elif aggregate_method == "right":
+            output = list(x[:-n_aggregate]) + [aggregate_type(x[-n_aggregate:])]
+        elif aggregate_method == "middle":
+            idx_start_aggregate = int(n_aggregate / 2)
+            idx_end_aggregate = idx_start_aggregate + n_aggregate
+            output = (
+                    list(x[:idx_start_aggregate])
+                    + [aggregate_type(x[idx_start_aggregate:idx_end_aggregate])]
+                    + list(x[idx_end_aggregate:])
+            )
+        else:
+            raise ValueError(f"aggregate_method must be in ['left', 'right', 'middle']. Got {aggregate_method}.")
+    return tuple(output)
 
 
 def unpack_singleton_dict(x: dict) -> Any:

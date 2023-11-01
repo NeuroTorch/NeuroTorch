@@ -40,8 +40,6 @@ class BaseLayer(SizedModule):
         :type output_size: Optional[SizeTypes]
         :param name: The name of the layer.
         :type name: Optional[str]
-        :param learning_type: The learning type of the layer. Deprecated use freeze_weights instead.
-        :type learning_type: LearningType
         :param device: The device of the layer. Defaults to the current available device.
         :type device: Optional[torch.device]
         :param kwargs: Additional keyword arguments.
@@ -136,7 +134,6 @@ class BaseLayer(SizedModule):
             _repr += f"<{self.name}>"
         _repr += f"({int(self.input_size)}->{int(self.output_size)}"
         _repr += f"{self.extra_repr()})"
-        _repr += f"[{self.learning_type}]"
         _repr += f"@{self.device}"
         return _repr
 
@@ -345,8 +342,6 @@ class BaseNeuronsLayer(BaseLayer):
         :param use_rec_eye_mask: Whether to use a recurrent eye mask. Default is False. This mask will be used to
             mask to zero the diagonal of the recurrent connection matrix.
         :type use_rec_eye_mask: bool
-        :param learning_type: The learning type of the layer. Default is BPTT.
-        :type learning_type: LearningType
         :param dt: The time step of the layer. Default is 1e-3.
         :type dt: float
         :param kwargs: Other keyword arguments.
@@ -495,6 +490,70 @@ class BaseNeuronsLayer(BaseLayer):
         """
         return self._connectivity_convention
 
+    def get_forward_weights_parameter(self) -> torch.nn.Parameter:
+        """
+        Get the forward weights parameter.
+
+        :return: The forward weights parameter.
+        """
+        return self._forward_weights
+
+    def set_forward_weights_parameter(self, parameter: torch.nn.Parameter):
+        """
+        Set the forward weights parameter.
+
+        :param parameter: The forward weights parameter.
+        """
+        self._forward_weights = parameter
+
+    def get_recurrent_weights_parameter(self) -> torch.nn.Parameter:
+        """
+        Get the recurrent weights parameter.
+
+        :return: The recurrent weights parameter.
+        """
+        return self._recurrent_weights
+
+    def set_recurrent_weights_parameter(self, parameter: torch.nn.Parameter):
+        """
+        Set the recurrent weights parameter.
+
+        :param parameter: The recurrent weights parameter.
+        """
+        self._recurrent_weights = parameter
+
+    def get_forward_sign_parameter(self) -> torch.nn.Parameter:
+        """
+        Get the forward sign parameter.
+
+        :return: The forward sign parameter.
+        """
+        return self._forward_sign
+
+    def set_forward_sign_parameter(self, parameter: torch.nn.Parameter):
+        """
+        Set the forward sign parameter.
+
+        :param parameter: The forward sign parameter.
+        """
+        self._forward_sign = parameter
+
+    def get_recurrent_sign_parameter(self) -> torch.nn.Parameter:
+        """
+        Get the recurrent sign parameter.
+
+        :return: The recurrent sign parameter.
+        """
+        return self._recurrent_sign
+
+    def set_recurrent_sign_parameter(self, parameter: torch.nn.Parameter):
+        """
+        Set the recurrent sign parameter.
+
+        :param parameter: The recurrent sign parameter.
+        """
+        self._recurrent_sign = parameter
+
     def get_forward_weights_data(self) -> torch.Tensor:
         """
         Get the forward weights data.
@@ -585,8 +644,13 @@ class BaseNeuronsLayer(BaseLayer):
             assert "inputs" in kwargs, "inputs must be provided to initialize the state"
             assert kwargs["inputs"].shape == (batch_size, int(self.output_size))
             state = [kwargs["inputs"].clone() for _ in range(n_hh)]
+        elif self.kwargs["hh_init"].lower() == "given":
+            assert "h0" in self.kwargs, "h0 must be provided as a tuple of tensors when hh_init is 'given'."
+            h0 = self.kwargs["h0"]
+            assert isinstance(h0, (tuple, list)), "h0 must be a tuple of tensors."
+            state = [to_tensor(h0_, dtype=torch.float32).to(self.device) for h0_ in h0]
         else:
-            raise ValueError("Hidden state init method not known. Please use 'zeros', 'inputs' or 'random'")
+            raise ValueError("Hidden state init method not known. Please use 'zeros', 'inputs', 'random' or 'given'.")
         return tuple(state)
 
     def forward(
@@ -739,7 +803,11 @@ class BaseNeuronsLayer(BaseLayer):
         if self.use_recurrent_connection:
             _repr += "<"
         _repr += f"->{int(self.output_size)}"
-        _repr += f"{self.extra_repr()})"
+        _repr += f"{self.extra_repr()}"
+        _repr += f", activation:{self.activation}"
+        if self.force_dale_law:
+            _repr += f", sign_activation:{self.sign_activation}"
+        _repr += ")"
         if self.freeze_weights:
             _repr += "[frozen]"
         _repr += f"@{self.device}"

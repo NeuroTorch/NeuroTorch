@@ -32,7 +32,7 @@ class TrainingHistory(BaseCallback):
     def __init__(
             self,
             container: Dict[str, List[float]] = None,
-            default_value=np.NAN,
+            default_value=np.nan,
             **kwargs
     ):
         """

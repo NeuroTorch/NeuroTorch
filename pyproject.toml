@@ -19,7 +19,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "NeuroTorch"
-dynamic = ["version", ]
+dynamic = ["version", "readme"]
 description = "NeuroTorch: A PyTorch-based framework for deep learning in neuroscience"
 authors = [
   { name="Jérémie Gince", email="gincejeremie@gmail.com" },

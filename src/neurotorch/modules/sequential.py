@@ -410,7 +410,10 @@ class Sequential(BaseModel):
             inputs = {k: inputs for k in keys}
         else:
             if set(inputs.keys()) != set(keys):
-                raise ValueError("inputs must have the same keys as the input layers")
+                raise ValueError(
+                    f"inputs must have the same keys as the input layers. "
+                    f"Got {inputs.keys()} instead of {keys}"
+                )
         return inputs
 
     def build_layers(self):

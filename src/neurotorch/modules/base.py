@@ -106,7 +106,7 @@ class SizedModule(NamedModule):
                         "Size must be a single dimension or a list of 2 dimensions with a Time one "
                         "if `filter_time` is True."
                     )
-            assert isinstance(size, (int, Dimension)), "Size must be an int or Dimension."
+            assert isinstance(size, (int, Dimension)), f"Size must be an int or Dimension. Got {type(size)}."
             size = Dimension.from_int_or_dimension(size)
         return size
 

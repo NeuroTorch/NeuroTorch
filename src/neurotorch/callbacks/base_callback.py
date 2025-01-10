@@ -340,13 +340,14 @@ class BaseCallback:
 
     def on_pbar_update(self, trainer, **kwargs) -> dict:
         """
-        Called when the progress bar is updated.
+        Called when the progress bar is updated. This is used to update the progress bar with additional information.
 
         :param trainer: The trainer.
         :type trainer: Trainer
         :param kwargs: Additional arguments.
 
-        :return: None
+        :return: A dictionary containing the information to update the progress bar.
+        :rtype: dict
         """
         return {}
 
@@ -746,13 +747,14 @@ class CallbacksList:
 
     def on_pbar_update(self, trainer, **kwargs) -> dict:
         """
-        Called when the progress bar is updated.
+        Called when the progress bar is updated. This is used to update the progress bar with additional information.
 
         :param trainer: The trainer.
         :type trainer: Trainer
         :param kwargs: Additional arguments.
 
-        :return: None
+        :return: A dictionary containing the information to update the progress bar.
+        :rtype: dict
         """
         re_dict = {}
         for callback in self.callbacks:

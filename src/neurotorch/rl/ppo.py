@@ -513,7 +513,7 @@ class PPO(LearningAlgorithm):
         assert all(
             "advantage" in x for x in batch.others
         ), "All experiences in the batch must have an advantage."
-        advantages = to_tensor([x["advantage"] for x in batch.others]).to(
+        advantages = torch.tensor([to_tensor(x["advantage"]) for x in batch.others]).to(
             self.policy.device
         )
         return advantages
@@ -535,7 +535,7 @@ class PPO(LearningAlgorithm):
         assert all(
             "return" in x for x in batch.others
         ), "All experiences in the batch must have a return."
-        returns = to_tensor([x["return"] for x in batch.others]).to(self.policy.device)
+        returns = torch.tensor([to_tensor(x["return"]) for x in batch.others]).to(self.policy.device)
         return returns
 
     def get_actions_from_batch(self, batch: BatchExperience) -> torch.Tensor:

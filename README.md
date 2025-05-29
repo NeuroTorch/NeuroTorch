@@ -8,7 +8,6 @@
 ![Tests Workflow](https://github.com/NeuroTorch/NeuroTorch/actions/workflows/tests.yml/badge.svg)
 ![Dist Workflow](https://github.com/NeuroTorch/NeuroTorch/actions/workflows/build_dist.yml/badge.svg)
 ![Doc Workflow](https://github.com/NeuroTorch/NeuroTorch/actions/workflows/docs.yml/badge.svg)
-![Publish Workflow](https://github.com/NeuroTorch/NeuroTorch/actions/workflows/publish.yml/badge.svg)
 
 
 

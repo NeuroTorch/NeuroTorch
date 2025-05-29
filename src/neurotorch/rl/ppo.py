@@ -535,7 +535,9 @@ class PPO(LearningAlgorithm):
         assert all(
             "return" in x for x in batch.others
         ), "All experiences in the batch must have a return."
-        returns = torch.tensor([to_tensor(x["return"]) for x in batch.others]).to(self.policy.device)
+        returns = torch.tensor([to_tensor(x["return"]) for x in batch.others]).to(
+            self.policy.device
+        )
         return returns
 
     def get_actions_from_batch(self, batch: BatchExperience) -> torch.Tensor:

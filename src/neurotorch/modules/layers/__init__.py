@@ -47,7 +47,7 @@ class LayerType(enum.Enum):
     SpyALIF = 6
 
     @classmethod
-    def from_str(cls, name: str) -> Optional['LayerType']:
+    def from_str(cls, name: str) -> Optional["LayerType"]:
         """
         Get the LayerType from a string.
 

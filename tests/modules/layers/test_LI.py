@@ -14,7 +14,7 @@ class TestLILayer(unittest.TestCase):
             output_size=5,
             name="test",
             dt=0.1,
-            device=torch.device('cpu'),
+            device=torch.device("cpu"),
         )
         self.assertEqual(layer.use_recurrent_connection, False)
         self.assertIs(layer.recurrent_weights, None)
@@ -22,7 +22,7 @@ class TestLILayer(unittest.TestCase):
         self.assertEqual(int(layer.output_size), 5)
         self.assertEqual(layer.name, "test")
         self.assertEqual(layer.dt, 0.1)
-        self.assertEqual(layer.device, torch.device('cpu'))
+        self.assertEqual(layer.device, torch.device("cpu"))
 
         if torch.cuda.is_available():
             layer = LILayer(
@@ -30,7 +30,7 @@ class TestLILayer(unittest.TestCase):
                 output_size=10,
                 name="test",
                 dt=0.01,
-                device=torch.device('cuda'),
+                device=torch.device("cuda"),
             )
             self.assertEqual(layer.use_recurrent_connection, False)
             self.assertIs(layer.recurrent_weights, None)
@@ -38,7 +38,7 @@ class TestLILayer(unittest.TestCase):
             self.assertEqual(int(layer.output_size), 10)
             self.assertEqual(layer.name, "test")
             self.assertEqual(layer.dt, 0.01)
-            self.assertEqual(layer.device, torch.device('cuda'))
+            self.assertEqual(layer.device, torch.device("cuda"))
         else:
             warnings.warn(
                 "No CUDA available. Skipping test_constructor. Please consider running the tests on a machine with CUDA.",
@@ -51,10 +51,10 @@ class TestLILayer(unittest.TestCase):
             output_size=2,
             name="test",
             dt=0.1,
-            device=torch.device('cpu'),
+            device=torch.device("cpu"),
         )
         x = torch.randn(1, 5)
-        y, (hh, ) = layer(x)
+        y, (hh,) = layer(x)
         self.assertEqual(y.shape, torch.Size([1, 2]))
         self.assertEqual(hh.shape, torch.Size([1, 2]))
         self.assertTrue(torch.allclose(y, hh))
@@ -65,7 +65,7 @@ class TestLILayer(unittest.TestCase):
             output_size=2,
             name="test",
             dt=1,
-            device=torch.device('cpu'),
+            device=torch.device("cpu"),
         )
         self.assertIs(layer.bias_weights, None)
         layer.build()
@@ -80,7 +80,7 @@ class TestLILayer(unittest.TestCase):
             output_size=2,
             name="test",
             dt=1,
-            device=torch.device('cpu'),
+            device=torch.device("cpu"),
             tau_out=1,
         )
         self.assertIs(layer.bias_weights, None)
@@ -95,7 +95,7 @@ class TestLILayer(unittest.TestCase):
             output_size=2,
             name="test",
             dt=1,
-            device=torch.device('cpu'),
+            device=torch.device("cpu"),
             tau_out=1,
             use_bias=False,
         )
@@ -114,7 +114,7 @@ class TestLILayer(unittest.TestCase):
             output_size=2,
             name="test",
             dt=1,
-            device=torch.device('cpu'),
+            device=torch.device("cpu"),
         )
         self.assertIs(layer.bias_weights, None)
         self.assertIs(layer.recurrent_weights, None)
@@ -130,7 +130,7 @@ class TestLILayer(unittest.TestCase):
             output_size=2,
             name="test",
             dt=1,
-            device=torch.device('cpu'),
+            device=torch.device("cpu"),
             use_bias=False,
         )
         self.assertIs(layer.bias_weights, None)
@@ -148,7 +148,7 @@ class TestLILayer(unittest.TestCase):
             name="test",
             dt=1,
             freeze_weights=True,
-            device=torch.device('cpu'),
+            device=torch.device("cpu"),
         )
         self.assertIs(layer.bias_weights, None)
         self.assertIs(layer.recurrent_weights, None)
@@ -165,7 +165,7 @@ class TestLILayer(unittest.TestCase):
         """
         layer = LILayer(input_size=3, output_size=3)
         input_ = torch.rand(1, 3, device="cpu")
-        y, (hh, ) = layer(input_)
+        y, (hh,) = layer(input_)
         self.assertIsInstance(y, torch.Tensor)
         self.assertEqual(y.shape, torch.Size([1, 3]))
         self.assertEqual(y.device.type, layer.device.type)
@@ -176,7 +176,9 @@ class TestLILayer(unittest.TestCase):
         self.assertEqual(layer.bias_weights.device.type, layer.device.type)
 
         if torch.cuda.is_available():
-            layer = LILayer(input_size=3, output_size=3, device=torch.device(type="cuda", index=0))
+            layer = LILayer(
+                input_size=3, output_size=3, device=torch.device(type="cuda", index=0)
+            )
             input_ = torch.rand(1, 3, device="cpu")
             y, (hh,) = layer(input_)
             self.assertIsInstance(y, torch.Tensor)
@@ -221,12 +223,19 @@ class TestLILayer(unittest.TestCase):
         self.assertEqual(layer.bias_weights.grad.device, layer.device)
 
         if torch.cuda.is_available():
-            layer = LILayer(input_size=3, output_size=3, device=torch.device(type="cuda", index=0), use_bias=False)
+            layer = LILayer(
+                input_size=3,
+                output_size=3,
+                device=torch.device(type="cuda", index=0),
+                use_bias=False,
+            )
             input_ = torch.rand(1, 3)
             output = layer(input_)[0]
             output.mean().backward()
             self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
-            self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
+            self.assertEqual(
+                layer.forward_weights.grad.shape, layer.forward_weights.shape
+            )
             self.assertEqual(layer.forward_weights.grad.device, layer.device)
             self.assertIs(layer.bias_weights.grad, None)
         else:

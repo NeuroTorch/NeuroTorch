@@ -14,6 +14,7 @@ class RMSELoss(torch.nn.Module):
         - **criterion** (nn.MSELoss): The MSE loss.
 
     """
+
     def __init__(self):
         """
         Constructor for the RMSELoss class.
@@ -49,7 +50,8 @@ class PVarianceLoss(torch.nn.Module):
             the input.
 
     """
-    def __init__(self, negative: bool = False, reduction: str = 'mean', **kwargs):
+
+    def __init__(self, negative: bool = False, reduction: str = "mean", **kwargs):
         """
         Constructor for the PVarianceLoss class.
 
@@ -62,12 +64,14 @@ class PVarianceLoss(torch.nn.Module):
         :keyword arguments : epsilon: The epsilon value to use to prevent division by zero. Defaults to 1e-5.
         """
         super(PVarianceLoss, self).__init__()
-        assert reduction in ['mean', 'feature', 'none'], 'Reduction must be one of "mean", "feature", or "none".'
+        assert reduction in [
+            "mean",
+            "feature",
+            "none",
+        ], 'Reduction must be one of "mean", "feature", or "none".'
         self.reduction = reduction
-        mse_reduction = 'mean' if reduction == 'mean' else 'none'
-        self.criterion = nn.MSELoss(
-            reduction=mse_reduction
-        )
+        mse_reduction = "mean" if reduction == "mean" else "none"
+        self.criterion = nn.MSELoss(reduction=mse_reduction)
         self.negative = negative
         self.epsilon = kwargs.get("epsilon", 1e-5)
 
@@ -81,12 +85,14 @@ class PVarianceLoss(torch.nn.Module):
         :return: The P-Variance loss.
         """
         x, y = to_tensor(x), to_tensor(y)
-        if self.reduction == 'feature':
-            x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(-1, y.shape[-1])
+        if self.reduction == "feature":
+            x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(
+                -1, y.shape[-1]
+            )
         else:
             x_reshape, y_reshape = x, y
         mse_loss = self.criterion(x_reshape, y_reshape)
-        if self.reduction == 'feature':
+        if self.reduction == "feature":
             mse_loss = mse_loss.mean(dim=0)
             var = y_reshape.var(dim=0)
         else:
@@ -107,7 +113,7 @@ class PVarianceLoss(torch.nn.Module):
         """
         x, y = to_tensor(x), to_tensor(y)
         x_reshape, y_reshape = x.reshape(x.shape[0], -1), y.reshape(y.shape[0], -1)
-        mse_loss = torch.mean((x_reshape - y_reshape)**2, dim=-1)
+        mse_loss = torch.mean((x_reshape - y_reshape) ** 2, dim=-1)
         var = y_reshape.var(dim=-1)
         loss = 1 - (mse_loss / (var + self.epsilon))
         if self.negative:
@@ -125,6 +131,7 @@ class NLLLoss(torch.nn.NLLLoss):
     by flattening the inputs to 2D and the targets to 1D. If the target is marked as one-hot encoded, then the target
     will be converted to a 1D tensor of class indices by taking the argmax of the last dimension.
     """
+
     def __init__(self, target_as_one_hot: bool = False, **kwargs):
         """
         Constructor for the NLLLoss class.
@@ -154,18 +161,24 @@ class NLLLoss(torch.nn.NLLLoss):
 class SMSEloss(torch.nn.Module):
     def __init__(self, reduction: str = "mean", **kwargs):
         super().__init__()
-        assert reduction in ['mean', 'feature', 'none'], 'Reduction must be one of "mean", "feature", or "none".'
+        assert reduction in [
+            "mean",
+            "feature",
+            "none",
+        ], 'Reduction must be one of "mean", "feature", or "none".'
         self.reduction = reduction
         self.epsilon = kwargs.get("epsilon", 1e-5)
 
     def forward(self, inputs: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         x, y = to_tensor(inputs), to_tensor(target)
-        if self.reduction == 'feature':
-            x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(-1, y.shape[-1])
+        if self.reduction == "feature":
+            x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(
+                -1, y.shape[-1]
+            )
         else:
             x_reshape, y_reshape = x, y
         mse_loss = torch.nn.functional.mse_loss(x, y, reduction=self.reduction)
-        if self.reduction == 'feature':
+        if self.reduction == "feature":
             mse_loss = mse_loss.mean(dim=0)
             var = y_reshape.var(dim=0)
         else:

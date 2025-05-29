@@ -1,8 +1,8 @@
-<div style="text-align:center"><img src="images/neurotorch.svg" width="40%" /></div>
+<p align="center"><img src="images/neurotorch.svg" width="40%" /></p>
 
 
 [![Star on GitHub](https://img.shields.io/github/stars/NeuroTorch/NeuroTorch.svg?style=social)](https://github.com/NeuroTorch/NeuroTorch/stargazers)
-[![Python 3.6](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-390/)
+[![Python 3.6](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-310/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 ![Tests Workflow](https://github.com/NeuroTorch/NeuroTorch/actions/workflows/tests.yml/badge.svg)
@@ -213,12 +213,13 @@ First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
 
 # 12. Citation
 ```
-@misc{Gince2022,
-  title={NeuroTorch: A Python library for machine learning and neuroscience.},
-  author={Jérémie Gince},
-  year={2022},
-  publisher={Université Laval},
-  url={https://github.com/NeuroTorch},
+@article{gince2024neurotorch,
+  title={NeuroTorch: A Python library for neuroscience-oriented machine learning},
+  author={Gince, J{\'e}r{\'e}mie and Drouin, Anthony and Desrosiers, Patrick and Hardy, Simon V},
+  journal={bioRxiv},
+  pages={2024--12},
+  year={2024},
+  publisher={Cold Spring Harbor Laboratory}
 }
 ```
 

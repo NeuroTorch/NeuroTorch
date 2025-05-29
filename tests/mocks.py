@@ -43,7 +43,9 @@ class MockTrainer:
             self.training_history = MockHistory()
             callbacks.append(MockHistory())
         else:
-            self.training_history = [callback for callback in callbacks if isinstance(callback, MockHistory)][0]
+            self.training_history = [
+                callback for callback in callbacks if isinstance(callback, MockHistory)
+            ][0]
         self.callbacks = CallbacksList(callbacks)
         self.sort_flag = False
         self.load_checkpoint_mode = None
@@ -53,7 +55,9 @@ class MockTrainer:
         self.y_shape = (1, 1, 5)
         self.model = kwargs.get(
             "model",
-            nt.SequentialRNN(layers=[nt.Linear(self.x_shape[-1], self.y_shape[-1])]).build()
+            nt.SequentialRNN(
+                layers=[nt.Linear(self.x_shape[-1], self.y_shape[-1])]
+            ).build(),
         )
         self.optimizer = None
 
@@ -71,16 +75,23 @@ class MockTrainer:
         self.callbacks.start(self)
         self.callbacks.load_checkpoint_state(self, {})
         for i in range(n_iterations):
-            self.current_training_state = self.current_training_state.update(iteration=i)
+            self.current_training_state = self.current_training_state.update(
+                iteration=i
+            )
             self.callbacks.on_iteration_begin(self)
             self.callbacks.on_train_begin(self)
             self.callbacks.on_epoch_begin(self)
-            self.update_state_(x_batch=torch.randn(*self.x_shape), y_batch=torch.randn(*self.y_shape))
+            self.update_state_(
+                x_batch=torch.randn(*self.x_shape), y_batch=torch.randn(*self.y_shape)
+            )
             self.callbacks.on_batch_begin(self)
             pred_batch = self.model(self.state.x_batch)
             self.update_state_(pred_batch=pred_batch)
             self.callbacks.on_optimization_begin(
-                self, x=self.state.x_batch, y=self.state.y_batch, pred=self.state.pred_batch
+                self,
+                x=self.state.x_batch,
+                y=self.state.y_batch,
+                pred=self.state.pred_batch,
             )
             self.callbacks.on_optimization_end(self)
             self.callbacks.on_batch_end(self)
@@ -92,7 +103,9 @@ class MockTrainer:
             self.callbacks.on_batch_end(self)
             self.callbacks.on_epoch_end(self)
             self.callbacks.on_validation_end(self)
-            self.current_training_state = self.current_training_state.update(itr_metrics={})
+            self.current_training_state = self.current_training_state.update(
+                itr_metrics={}
+            )
             self.callbacks.on_iteration_end(self)
         self.callbacks.close(self)
 
@@ -106,44 +119,44 @@ class MockCallback(BaseCallback):
         self.call_mthds_counter = defaultdict(int)
 
     def start(self, trainer):
-        self.call_mthds_counter['start'] += 1
+        self.call_mthds_counter["start"] += 1
 
     def on_iteration_begin(self, trainer):
-        self.call_mthds_counter['on_iteration_begin'] += 1
+        self.call_mthds_counter["on_iteration_begin"] += 1
 
     def on_train_begin(self, trainer):
-        self.call_mthds_counter['on_train_begin'] += 1
+        self.call_mthds_counter["on_train_begin"] += 1
 
     def on_epoch_begin(self, trainer):
-        self.call_mthds_counter['on_epoch_begin'] += 1
+        self.call_mthds_counter["on_epoch_begin"] += 1
 
     def on_batch_begin(self, trainer):
-        self.call_mthds_counter['on_batch_begin'] += 1
+        self.call_mthds_counter["on_batch_begin"] += 1
 
     def on_batch_end(self, trainer):
-        self.call_mthds_counter['on_batch_end'] += 1
+        self.call_mthds_counter["on_batch_end"] += 1
 
     def on_epoch_end(self, trainer):
-        self.call_mthds_counter['on_epoch_end'] += 1
+        self.call_mthds_counter["on_epoch_end"] += 1
 
     def on_train_end(self, trainer):
-        self.call_mthds_counter['on_train_end'] += 1
+        self.call_mthds_counter["on_train_end"] += 1
 
     def on_validation_begin(self, trainer):
-        self.call_mthds_counter['on_validation_begin'] += 1
+        self.call_mthds_counter["on_validation_begin"] += 1
 
     def on_validation_end(self, trainer):
-        self.call_mthds_counter['on_validation_end'] += 1
+        self.call_mthds_counter["on_validation_end"] += 1
 
     def on_iteration_end(self, trainer):
-        self.call_mthds_counter['on_iteration_end'] += 1
+        self.call_mthds_counter["on_iteration_end"] += 1
 
     def close(self, trainer):
-        self.call_mthds_counter['close'] += 1
+        self.call_mthds_counter["close"] += 1
 
     def load_checkpoint_state(self, trainer, state):
-        self.call_mthds_counter['load_checkpoint_state'] += 1
+        self.call_mthds_counter["load_checkpoint_state"] += 1
 
     def save_checkpoint_state(self, trainer):
-        self.call_mthds_counter['save_checkpoint_state'] += 1
+        self.call_mthds_counter["save_checkpoint_state"] += 1
         return {}

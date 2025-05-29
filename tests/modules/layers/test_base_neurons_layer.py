@@ -27,7 +27,7 @@ class TestBaseNeuronLayer(unittest.TestCase):
             use_rec_eye_mask=False,
             freeze_weights=True,
             dt=1,
-            device="cpu"
+            device="cpu",
         )
         self.assertEqual(layer.input_size, 10)
         self.assertEqual(layer.output_size, 20)
@@ -53,7 +53,9 @@ class TestBaseNeuronLayer(unittest.TestCase):
         2. recurrent_weights
         3. recurrent_eye_mask
         """
-        layer = BaseNeuronsLayer(100, 200, device="cpu", use_recurrent_connection=True, use_rec_eye_mask=True)
+        layer = BaseNeuronsLayer(
+            100, 200, device="cpu", use_recurrent_connection=True, use_rec_eye_mask=True
+        )
         self.assertEqual(layer.forward_weights, None)
         layer.build()
         self.assertIsInstance(layer.forward_weights, torch.Tensor)
@@ -63,12 +65,20 @@ class TestBaseNeuronLayer(unittest.TestCase):
         self.assertEqual(layer.forward_weights.device.type, "cpu")
         self.assertIsInstance(layer.rec_mask, torch.Tensor)
         self.assertEqual(layer.rec_mask.device.type, "cpu")
-        self.assertTrue(torch.isclose(torch.diag(layer.rec_mask, 0).sum(), torch.tensor(0.0)))
+        self.assertTrue(
+            torch.isclose(torch.diag(layer.rec_mask, 0).sum(), torch.tensor(0.0))
+        )
         self.assertIsInstance(layer.recurrent_weights, torch.Tensor)
         self.assertEqual(layer.recurrent_weights.device.type, "cpu")
         self.assertEqual(layer.recurrent_weights.requires_grad, True)
 
-        layer = BaseNeuronsLayer(100, 200, use_rec_eye_mask=False, use_recurrent_connection=False, device="cpu")
+        layer = BaseNeuronsLayer(
+            100,
+            200,
+            use_rec_eye_mask=False,
+            use_recurrent_connection=False,
+            device="cpu",
+        )
         layer.build()
         self.assertIsInstance(layer.forward_weights, torch.Tensor)
         self.assertEqual(layer.forward_weights.shape, (100, 200))
@@ -79,7 +89,13 @@ class TestBaseNeuronLayer(unittest.TestCase):
         self.assertEqual(layer.recurrent_weights, None)
 
         if torch.cuda.is_available():
-            layer = BaseNeuronsLayer(100, 200, use_rec_eye_mask=False, use_recurrent_connection=True, device="cuda")
+            layer = BaseNeuronsLayer(
+                100,
+                200,
+                use_rec_eye_mask=False,
+                use_recurrent_connection=True,
+                device="cuda",
+            )
             layer.build()
             self.assertIsInstance(layer.forward_weights, torch.Tensor)
             self.assertEqual(layer.forward_weights.shape, (100, 200))
@@ -95,9 +111,9 @@ class TestBaseNeuronLayer(unittest.TestCase):
             warnings.warn(
                 "No CUDA available. Skipping test_build."
                 "Please consider running the tests on a machine with CUDA.",
-                UserWarning
+                UserWarning,
             )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

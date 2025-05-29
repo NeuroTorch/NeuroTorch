@@ -11,18 +11,23 @@ class BPTT(LearningAlgorithm):
     r"""
     Apply the backpropagation through time algorithm to the given model.
     """
+
     CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
     OPTIMIZER_PARAMS_GROUP_IDX = 0
     DEFAULT_OPTIMIZER_CLS = torch.optim.AdamW
 
     def __init__(
-            self,
-            *,
-            params: Optional[Sequence[torch.nn.Parameter]] = None,
-            layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
-            optimizer: Optional[torch.optim.Optimizer] = None,
-            criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
-            **kwargs
+        self,
+        *,
+        params: Optional[Sequence[torch.nn.Parameter]] = None,
+        layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+        criterion: Optional[
+            Union[
+                Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable
+            ]
+        ] = None,
+        **kwargs,
     ):
         """
         Constructor for BPTT class.
@@ -50,18 +55,28 @@ class BPTT(LearningAlgorithm):
         if layers is not None:
             if isinstance(layers, torch.nn.Module):
                 layers = [layers]
-            params.extend([param for layer in layers for param in layer.parameters() if param not in params])
+            params.extend(
+                [
+                    param
+                    for layer in layers
+                    for param in layer.parameters()
+                    if param not in params
+                ]
+            )
         self.params: List[torch.nn.Parameter] = params
         self.layers = layers
         self._default_params_lr = kwargs.get("params_lr", 2e-4)
         self._default_weight_decay = kwargs.get("weight_decay", 1e-2)
-        self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
+        self.DEFAULT_OPTIMIZER_CLS = kwargs.get(
+            "default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS
+        )
         self._default_optim_kwargs = kwargs.get(
-            "default_optim_kwargs", {
+            "default_optim_kwargs",
+            {
                 "weight_decay": self._default_weight_decay,
                 "lr": self._default_params_lr,
                 "maximize": kwargs.get("maximize", False),
-            }
+            },
         )
         self.param_groups = []
         self.optimizer = optimizer
@@ -92,7 +107,7 @@ class BPTT(LearningAlgorithm):
         list_insert_replace_at(
             self.param_groups,
             self.OPTIMIZER_PARAMS_GROUP_IDX,
-            {"params": self.params, "lr": self._default_params_lr}
+            {"params": self.params, "lr": self._default_params_lr},
         )
         return self.param_groups
 
@@ -104,7 +119,9 @@ class BPTT(LearningAlgorithm):
         """
         if not self.param_groups:
             self.initialize_param_groups()
-        self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups, **self._default_optim_kwargs)
+        self.optimizer = self.DEFAULT_OPTIMIZER_CLS(
+            self.param_groups, **self._default_optim_kwargs
+        )
         return self.optimizer
 
     def start(self, trainer, **kwargs):
@@ -115,11 +132,13 @@ class BPTT(LearningAlgorithm):
             self.optimizer = self.create_default_optimizer()
         elif not self.params and self.optimizer is not None:
             self.param_groups = self.optimizer.param_groups
-            self.params.extend([
-                param
-                for i in range(len(self.optimizer.param_groups))
-                for param in self.optimizer.param_groups[i]["params"]
-            ])
+            self.params.extend(
+                [
+                    param
+                    for i in range(len(self.optimizer.param_groups))
+                    for param in self.optimizer.param_groups[i]["params"]
+                ]
+            )
         else:
             self.params = list(trainer.model.parameters())
             self.optimizer = self.create_default_optimizer()
@@ -140,12 +159,15 @@ class BPTT(LearningAlgorithm):
                 y_batch = {k: y_batch for k in criterion}
             if isinstance(pred_batch, torch.Tensor):
                 pred_batch = {k: pred_batch for k in criterion}
-            assert isinstance(pred_batch, dict) and isinstance(y_batch, dict), \
-                "If criterion is a dict, pred, y_batch and pred must be a dict too."
-            batch_loss = sum([
-                criterion[k](pred_batch[k], y_batch[k].to(pred_batch[k].device))
-                for k in criterion
-            ])
+            assert isinstance(pred_batch, dict) and isinstance(
+                y_batch, dict
+            ), "If criterion is a dict, pred, y_batch and pred must be a dict too."
+            batch_loss = sum(
+                [
+                    criterion[k](pred_batch[k], y_batch[k].to(pred_batch[k].device))
+                    for k in criterion
+                ]
+            )
         else:
             if isinstance(pred_batch, dict) and len(pred_batch) == 1:
                 pred_batch = pred_batch[list(pred_batch.keys())[0]]
@@ -161,7 +183,9 @@ class BPTT(LearningAlgorithm):
 
     def on_optimization_begin(self, trainer, **kwargs):
         y_batch = trainer.current_training_state.y_batch
-        pred_batch = format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+        pred_batch = format_pred_batch(
+            trainer.current_training_state.pred_batch, y_batch
+        )
         batch_loss = self._make_optim_step(pred_batch, y_batch)
         trainer.update_state_(batch_loss=batch_loss)
 
@@ -170,10 +194,11 @@ class BPTT(LearningAlgorithm):
 
     def on_validation_batch_begin(self, trainer, **kwargs):
         y_batch = trainer.current_training_state.y_batch
-        pred_batch = format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+        pred_batch = format_pred_batch(
+            trainer.current_training_state.pred_batch, y_batch
+        )
         batch_loss = self.apply_criterion(pred_batch, y_batch)
         trainer.update_state_(batch_loss=batch_loss)
 
     def extra_repr(self) -> str:
         return f"optimizer={self.optimizer}, criterion={self.criterion}"
-

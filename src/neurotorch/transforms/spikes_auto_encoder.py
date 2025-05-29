@@ -15,13 +15,13 @@ class SpikesAutoEncoder(BaseModel):
         return SpyLIFLayer
 
     def __init__(
-            self,
-            n_units: int,
-            n_encoder_steps: int,
-            encoder_type: Optional[Type[Union[LIFLayer, SpyLIFLayer, ALIFLayer]]] = None,
-            spikes_encoder: Optional[torch.nn.Module] = None,
-            spikes_decoder: Optional[torch.nn.Module] = None,
-            **kwargs
+        self,
+        n_units: int,
+        n_encoder_steps: int,
+        encoder_type: Optional[Type[Union[LIFLayer, SpyLIFLayer, ALIFLayer]]] = None,
+        spikes_encoder: Optional[torch.nn.Module] = None,
+        spikes_decoder: Optional[torch.nn.Module] = None,
+        **kwargs,
     ):
         if encoder_type is not None and spikes_encoder is not None:
             raise ValueError(
@@ -65,7 +65,7 @@ class SpikesAutoEncoder(BaseModel):
             learn_kernel=True,
             activation=torch.nn.Hardtanh(
                 min_val=self.kwargs.get("hard_tanh.min_val", 0.0),
-                max_val=self.kwargs.get("hard_tanh.max_val", 1.0)
+                max_val=self.kwargs.get("hard_tanh.max_val", 1.0),
             ),
         )
 
@@ -80,16 +80,12 @@ class SpikesAutoEncoder(BaseModel):
         return self.decode(self.encode(x))
 
     def get_prediction_trace(
-            self, inputs: Union[Dict[str, Any], torch.Tensor],
-            **kwargs
+        self, inputs: Union[Dict[str, Any], torch.Tensor], **kwargs
     ) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
         raise NotImplementedError()
 
     def get_raw_prediction(
-            self,
-            inputs: torch.Tensor,
-            *args,
-            **kwargs
+        self, inputs: torch.Tensor, *args, **kwargs
     ) -> Union[Tuple[Any, Any, Any], Tuple[Any, Any], Any]:
         return self.forward(inputs)
 
@@ -103,15 +99,7 @@ class SpikesAutoEncoder(BaseModel):
         regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         for layer in [self.spikes_encoder, self.spikes_decoder]:
             if hasattr(layer, "get_and_reset_regularization_loss") and callable(
-                    layer.get_and_reset_regularization_loss
+                layer.get_and_reset_regularization_loss
             ):
                 regularization_loss += layer.get_and_reset_regularization_loss()
         return regularization_loss
-
-
-
-
-
-
-
-

@@ -23,11 +23,11 @@ class SizedModuleWrapper(SizedModule):
     """
 
     def __init__(
-            self,
-            module: torch.nn.Module,
-            input_size: Optional[int] = None,
-            output_size: Optional[int] = None,
-            name: Optional[str] = None
+        self,
+        module: torch.nn.Module,
+        input_size: Optional[int] = None,
+        output_size: Optional[int] = None,
+        name: Optional[str] = None,
     ):
         super().__init__(input_size=input_size, output_size=output_size, name=name)
         self.module = module

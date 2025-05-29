@@ -92,15 +92,15 @@ class SpyLIFLayerLPF(SpyLIFLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            use_recurrent_connection: bool = True,
-            use_rec_eye_mask: bool = False,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        use_recurrent_connection: bool = True,
+        use_rec_eye_mask: bool = False,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         """
         Constructor for the SpyLIFLayerLPF layer.
@@ -143,7 +143,7 @@ class SpyLIFLayerLPF(SpyLIFLayer):
             use_rec_eye_mask=use_rec_eye_mask,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
         self.lpf_alpha = self.kwargs["lpf_alpha"]
 
@@ -152,9 +152,7 @@ class SpyLIFLayerLPF(SpyLIFLayer):
         self.kwargs.setdefault("lpf_alpha", np.exp(-self.dt / self.kwargs["tau_mem"]))
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
@@ -167,23 +165,28 @@ class SpyLIFLayerLPF(SpyLIFLayer):
         :return: The current state.
         """
         kwargs["n_hh"] = 3
-        V, I, Z = super(SpyLIFLayerLPF, self).create_empty_state(batch_size=batch_size, **kwargs)
+        V, I, Z = super(SpyLIFLayerLPF, self).create_empty_state(
+            batch_size=batch_size, **kwargs
+        )
         Z_filtered = Z.clone()
         kwargs["n_hh"] = 4
         return tuple([V, I, Z_filtered, Z])
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
-        assert inputs.ndim == 2, f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
+        assert (
+            inputs.ndim == 2
+        ), f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
         batch_size, nb_features = inputs.shape
-        V, I_syn, z_filtered, Z = self._init_forward_state(state, batch_size, inputs=inputs)
+        V, I_syn, z_filtered, Z = self._init_forward_state(
+            state, batch_size, inputs=inputs
+        )
         input_current = torch.matmul(inputs, self.forward_weights)
         if self.use_recurrent_connection:
-            rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_current = torch.matmul(
+                Z, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_current = 0.0
         next_I_syn = self.alpha * I_syn + input_current + rec_current
@@ -266,15 +269,15 @@ class LIFLayerLPF(LIFLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            use_recurrent_connection: bool = True,
-            use_rec_eye_mask: bool = False,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        use_recurrent_connection: bool = True,
+        use_rec_eye_mask: bool = False,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         """
         Constructor for the LIFLayerLPF layer.
@@ -295,7 +298,7 @@ class LIFLayerLPF(LIFLayer):
             use_rec_eye_mask=use_rec_eye_mask,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
         self.lpf_alpha = self.kwargs["lpf_alpha"]
 
@@ -304,9 +307,7 @@ class LIFLayerLPF(LIFLayer):
         self.kwargs.setdefault("lpf_alpha", np.exp(-self.dt / self.kwargs["tau_mem"]))
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
@@ -324,17 +325,16 @@ class LIFLayerLPF(LIFLayer):
         return tuple([V, Z_filtered, Z])
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
         assert inputs.ndim == 2
         batch_size, nb_features = inputs.shape
         V, z_filtered, Z = self._init_forward_state(state, batch_size, inputs=inputs)
         input_current = torch.matmul(inputs, self.forward_weights)
         if self.use_recurrent_connection:
-            rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_current = torch.matmul(
+                Z, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_current = 0.0
         next_V = (self.alpha * V + input_current + rec_current) * (1.0 - Z.detach())
@@ -464,16 +464,17 @@ class SpyALIFLayerLPF(SpyALIFLayer):
         - :attr:`rho`: The decay factor of the adaptation variable (:math:`\\rho`).
         - :attr:`lpf_alpha` (float): Decay constant of the low pass filter over time (equation :eq:`lpf`).
     """
+
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            use_recurrent_connection: bool = True,
-            use_rec_eye_mask: bool = False,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        use_recurrent_connection: bool = True,
+        use_rec_eye_mask: bool = False,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         """
         Constructor for the SpyALIFLayerLPF layer.
@@ -515,7 +516,7 @@ class SpyALIFLayerLPF(SpyALIFLayer):
             use_rec_eye_mask=use_rec_eye_mask,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
         self.lpf_alpha = self.kwargs["lpf_alpha"]
 
@@ -524,9 +525,7 @@ class SpyALIFLayerLPF(SpyALIFLayer):
         self.kwargs.setdefault("lpf_alpha", np.exp(-self.dt / self.kwargs["tau_mem"]))
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
@@ -546,24 +545,29 @@ class SpyALIFLayerLPF(SpyALIFLayer):
         return tuple([V, I_syn, a, Z_filtered, Z])
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
-        assert inputs.ndim == 2, f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
+        assert (
+            inputs.ndim == 2
+        ), f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
         batch_size, nb_features = inputs.shape
-        V, I_syn, a, z_filtered, Z = self._init_forward_state(state, batch_size, inputs=inputs)
+        V, I_syn, a, z_filtered, Z = self._init_forward_state(
+            state, batch_size, inputs=inputs
+        )
         input_current = torch.matmul(inputs, self.forward_weights)
         if self.use_recurrent_connection:
-            rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_current = torch.matmul(
+                Z, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_current = 0.0
         next_I_syn = self.alpha * I_syn + input_current + rec_current
         next_V = (self.beta * V + next_I_syn) * (1.0 - Z.detach())
         next_a = self.rho * a + Z  # a^{t+1} = \rho * a_j^t + z_j^t
         A = self.threshold + self.kappa * next_a  # A_j^t = v_{th} + \kappa * a_j^t
-        next_Z = self.spike_func.apply(next_V, A, self.gamma)  # z_j^t = H(v_j^t - A_j^t)
+        next_Z = self.spike_func.apply(
+            next_V, A, self.gamma
+        )  # z_j^t = H(v_j^t - A_j^t)
         next_z_filtered = self.lpf_alpha * z_filtered + next_Z
         return next_z_filtered, (next_V, next_I_syn, next_a, next_z_filtered, next_Z)
 
@@ -635,15 +639,15 @@ class ALIFLayerLPF(ALIFLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            use_recurrent_connection: bool = True,
-            use_rec_eye_mask: bool = False,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        use_recurrent_connection: bool = True,
+        use_rec_eye_mask: bool = False,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         """
         Constructor for the ALIFLayerLPF layer.
@@ -659,7 +663,7 @@ class ALIFLayerLPF(ALIFLayer):
             use_rec_eye_mask=use_rec_eye_mask,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
         self.lpf_alpha = self.kwargs["lpf_alpha"]
 
@@ -668,9 +672,7 @@ class ALIFLayerLPF(ALIFLayer):
         self.kwargs.setdefault("lpf_alpha", np.exp(-self.dt / self.kwargs["tau_mem"]))
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
@@ -689,24 +691,25 @@ class ALIFLayerLPF(ALIFLayer):
         return tuple([V, a, Z_filtered, Z])
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
         assert inputs.ndim == 2
         batch_size, nb_features = inputs.shape
         V, a, z_filtered, Z = self._init_forward_state(state, batch_size, inputs=inputs)
         input_current = torch.matmul(inputs, self.forward_weights)
         if self.use_recurrent_connection:
-            rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_current = torch.matmul(
+                Z, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_current = 0.0
         # v_j^{t+1} = \alpha * v_j^t + \sum_i W_{ji}*z_i^t + \sum_i W_{ji}^{in}x_i^{t+1} - z_j^t * v_{th}
         next_V = (self.alpha * V + input_current + rec_current) * (1.0 - Z.detach())
         next_a = self.rho * a + Z  # a^{t+1} = \rho * a_j^t + z_j^t
         A = self.threshold + self.beta * next_a  # A_j^t = v_{th} + \beta * a_j^t
-        next_Z = self.spike_func.apply(next_V, A, self.gamma)  # z_j^t = H(v_j^t - A_j^t)
+        next_Z = self.spike_func.apply(
+            next_V, A, self.gamma
+        )  # z_j^t = H(v_j^t - A_j^t)
         next_z_filtered = self.lpf_alpha * z_filtered + next_Z
         return next_z_filtered, (next_V, next_a, next_z_filtered, next_Z)
 
@@ -714,4 +717,3 @@ class ALIFLayerLPF(ALIFLayer):
         _repr = super().extra_repr()
         _repr += f", lpf_alpha={self.lpf_alpha:.2f}"
         return _repr
-

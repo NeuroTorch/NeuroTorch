@@ -3,7 +3,10 @@ import warnings
 
 import torch
 
-from neurotorch.utils import batchwise_temporal_filter, batchwise_temporal_recursive_filter
+from neurotorch.utils import (
+    batchwise_temporal_filter,
+    batchwise_temporal_recursive_filter,
+)
 
 
 class TestUtils(unittest.TestCase):
@@ -12,7 +15,9 @@ class TestUtils(unittest.TestCase):
         def conv_filter(x, decay):
             batch_size, time_steps, *_ = x.shape
             assert time_steps >= 1
-            weighs = torch.tensor([decay ** t for t in range(time_steps)], dtype=torch.float32)
+            weighs = torch.tensor(
+                [decay**t for t in range(time_steps)], dtype=torch.float32
+            )
             y = torch.nn.functional.conv1d(x, weighs.unsqueeze(0).unsqueeze(0))
             return y
 
@@ -24,5 +29,5 @@ class TestUtils(unittest.TestCase):
         test_passed = torch.allclose(y, target)
         if not test_passed:
             warnings.warn("batchwise_temporal_filter is not implemented correctly.")
+
     # self.assertTrue(test_passed, f"{torch.cat([x, y, target, ], dim=-1)}")
-	

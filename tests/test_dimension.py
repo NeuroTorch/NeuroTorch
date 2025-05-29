@@ -1,4 +1,5 @@
 import unittest
+
 # import pytest
 from neurotorch import Dimension, DimensionProperty, Size
 
@@ -52,6 +53,3 @@ class TestDimension(unittest.TestCase):
         self.assertEqual(dim.size, 10)
         self.assertEqual(dim.dtype, DimensionProperty.SPATIAL)
         self.assertEqual(dim.name, dim.dtype.name)
-
-
-

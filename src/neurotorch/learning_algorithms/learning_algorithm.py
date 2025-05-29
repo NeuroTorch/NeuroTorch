@@ -9,10 +9,7 @@ class LearningAlgorithm(BaseCallback):
     DEFAULT_PRIORITY = BaseCallback.DEFAULT_MEDIUM_PRIORITY
 
     def __init__(
-            self,
-            *,
-            params: Optional[Sequence[torch.nn.Parameter]] = None,
-            **kwargs
+        self, *, params: Optional[Sequence[torch.nn.Parameter]] = None, **kwargs
     ):
         """
         Constructor for LearningAlgorithm class.
@@ -27,6 +24,3 @@ class LearningAlgorithm(BaseCallback):
         else:
             params = list(params)
         self.params: List[torch.nn.Parameter] = params
-
-
-

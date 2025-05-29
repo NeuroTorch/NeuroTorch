@@ -28,7 +28,9 @@ from .utils import (
 
 class Agent(torch.nn.Module):
     @staticmethod
-    def copy_from_agent(agent: "Agent", requires_grad: Optional[bool] = None) -> "Agent":
+    def copy_from_agent(
+        agent: "Agent", requires_grad: Optional[bool] = None
+    ) -> "Agent":
         """
         Copy the agent.
 
@@ -46,23 +48,23 @@ class Agent(torch.nn.Module):
             behavior_name=agent.behavior_name,
             policy=agent.copy_policy(requires_grad=requires_grad),
             critic=agent.copy_critic(requires_grad=requires_grad),
-            **agent.kwargs
+            **agent.kwargs,
         )
 
     def __init__(
-            self,
-            *,
-            env: Optional[gym.Env] = None,
-            observation_space: Optional[gym.spaces.Space] = None,
-            action_space: Optional[gym.spaces.Space] = None,
-            behavior_name: Optional[str] = None,
-            policy: Optional[BaseModel] = None,
-            policy_predict_method: str = "__call__",
-            policy_kwargs: Optional[Dict[str, Any]] = None,
-            critic: Optional[BaseModel] = None,
-            critic_predict_method: str = "__call__",
-            critic_kwargs: Optional[Dict[str, Any]] = None,
-            **kwargs
+        self,
+        *,
+        env: Optional[gym.Env] = None,
+        observation_space: Optional[gym.spaces.Space] = None,
+        action_space: Optional[gym.spaces.Space] = None,
+        behavior_name: Optional[str] = None,
+        policy: Optional[BaseModel] = None,
+        policy_predict_method: str = "__call__",
+        policy_kwargs: Optional[Dict[str, Any]] = None,
+        critic: Optional[BaseModel] = None,
+        critic_predict_method: str = "__call__",
+        critic_kwargs: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ):
         """
         Constructor for BaseAgent class.
@@ -123,41 +125,57 @@ class Agent(torch.nn.Module):
         if self.policy is None:
             self.policy = self._create_default_policy()
         self.policy_predict_method_name = policy_predict_method
-        assert hasattr(self.policy, self.policy_predict_method_name), \
-            f"Policy does not have method '{self.policy_predict_method_name}'"
-        self.policy_predict_method = getattr(self.policy, self.policy_predict_method_name)
-        assert callable(self.policy_predict_method), \
-            f"Policy method '{self.policy_predict_method_name}' is not callable"
+        assert hasattr(
+            self.policy, self.policy_predict_method_name
+        ), f"Policy does not have method '{self.policy_predict_method_name}'"
+        self.policy_predict_method = getattr(
+            self.policy, self.policy_predict_method_name
+        )
+        assert callable(
+            self.policy_predict_method
+        ), f"Policy method '{self.policy_predict_method_name}' is not callable"
         self.critic = critic
         if self.critic is None:
             self.critic = self._create_default_critic()
         self.critic_predict_method_name = critic_predict_method
-        assert hasattr(self.critic, self.critic_predict_method_name), \
-            f"Critic does not have method '{self.critic_predict_method_name}'"
-        self.critic_predict_method = getattr(self.critic, self.critic_predict_method_name)
-        assert callable(self.policy_predict_method), \
-            f"Critic method '{self.critic_predict_method_name}' is not callable"
+        assert hasattr(
+            self.critic, self.critic_predict_method_name
+        ), f"Critic does not have method '{self.critic_predict_method_name}'"
+        self.critic_predict_method = getattr(
+            self.critic, self.critic_predict_method_name
+        )
+        assert callable(
+            self.policy_predict_method
+        ), f"Critic method '{self.critic_predict_method_name}' is not callable"
         self.checkpoint_folder = kwargs.get("checkpoint_folder", ".")
 
-        self.checkpoints_meta_path = kwargs.get("checkpoints_meta_path", self.get_default_checkpoints_meta_path())
+        self.checkpoints_meta_path = kwargs.get(
+            "checkpoints_meta_path", self.get_default_checkpoints_meta_path()
+        )
         continuous_action_mid_ranges = {
             k: to_tensor(self.action_spec[k].high - self.action_spec[k].low) / 2
             for k in self.continuous_actions
         }
         if len(continuous_action_mid_ranges) > 0:
-            continuous_action_mid_ranges_mean = torch.mean(torch.stack(list(continuous_action_mid_ranges.values())))
+            continuous_action_mid_ranges_mean = torch.mean(
+                torch.stack(list(continuous_action_mid_ranges.values()))
+            )
         else:
             continuous_action_mid_ranges_mean = 0.0
         self.continuous_action_variances = torch.nn.ParameterDict(
             {  # TODO: Make this a parameter and the keys must be the same or mapped with the output layers names
-                k: continuous_action_mid_ranges[k] * torch.ones(self.action_spec[k].shape)
+                k: continuous_action_mid_ranges[k]
+                * torch.ones(self.action_spec[k].shape)
                 for k in self.continuous_actions
             }
         )
-        self.continuous_action_variances_decay = to_tensor(kwargs.get("continuous_action_variances_decay", 1 - 1e-4))
+        self.continuous_action_variances_decay = to_tensor(
+            kwargs.get("continuous_action_variances_decay", 1 - 1e-4)
+        )
         self.continuous_action_variances_min = to_tensor(
             kwargs.get(
-                "continuous_action_variances_min", 0.1 * continuous_action_mid_ranges_mean
+                "continuous_action_variances_min",
+                0.1 * continuous_action_mid_ranges_mean,
             )
         )
 
@@ -171,11 +189,17 @@ class Agent(torch.nn.Module):
 
     @property
     def discrete_actions(self) -> List[str]:
-        return [k for k, v in self.action_spec.items() if isinstance(v, gym.spaces.Discrete)]
+        return [
+            k for k, v in self.action_spec.items() if isinstance(v, gym.spaces.Discrete)
+        ]
 
     @property
     def continuous_actions(self) -> List[str]:
-        return [k for k, v in self.action_spec.items() if not isinstance(v, gym.spaces.Discrete)]
+        return [
+            k
+            for k, v in self.action_spec.items()
+            if not isinstance(v, gym.spaces.Discrete)
+        ]
 
     @property
     def device(self) -> torch.device:
@@ -200,25 +224,25 @@ class Agent(torch.nn.Module):
             self.critic.to(device)
 
     def get_continuous_action_covariances(self):
-        return {
-            k: torch.diag(v) for k, v in self.continuous_action_variances.items()
-        }
+        return {k: torch.diag(v) for k, v in self.continuous_action_variances.items()}
 
     def decay_continuous_action_variances(self):
         for k in self.continuous_action_variances:
             self.continuous_action_variances[k] = torch.clamp(
-                self.continuous_action_variances[k] * self.continuous_action_variances_decay,
+                self.continuous_action_variances[k]
+                * self.continuous_action_variances_decay,
                 min=self.continuous_action_variances_min,
                 max=torch.inf,
-                )
+            )
 
     def set_continuous_action_variances_with_itr(self, itr: int):
         for k in self.continuous_action_variances:
             self.continuous_action_variances[k] = torch.clamp(
-                self.continuous_action_variances[k] * (self.continuous_action_variances_decay**itr),
+                self.continuous_action_variances[k]
+                * (self.continuous_action_variances_decay**itr),
                 min=self.continuous_action_variances_min,
                 max=torch.inf,
-                )
+            )
 
     def get_default_checkpoints_meta_path(self) -> str:
         """
@@ -227,16 +251,18 @@ class Agent(torch.nn.Module):
         :return: The path to the checkpoints meta file.
         :rtype: str
         """
-        full_filename = (
-            f"{self.behavior_name}{CheckpointManager.SUFFIX_SEP}{CheckpointManager.CHECKPOINTS_META_SUFFIX}"
-        )
+        full_filename = f"{self.behavior_name}{CheckpointManager.SUFFIX_SEP}{CheckpointManager.CHECKPOINTS_META_SUFFIX}"
         return f"{self.checkpoint_folder}/{full_filename}.json"
 
     def set_default_policy_kwargs(self):
         self.policy_kwargs.setdefault("default_hidden_units", [256])
         if isinstance(self.policy_kwargs["default_hidden_units"], int):
-            self.policy_kwargs["default_hidden_units"] = [self.policy_kwargs["default_hidden_units"]]
-        assert len(self.policy_kwargs["default_hidden_units"]) > 0, "Must have at least one hidden unit."
+            self.policy_kwargs["default_hidden_units"] = [
+                self.policy_kwargs["default_hidden_units"]
+            ]
+        assert (
+            len(self.policy_kwargs["default_hidden_units"]) > 0
+        ), "Must have at least one hidden unit."
         self.policy_kwargs.setdefault("default_activation", "ReLu")
         self.policy_kwargs.setdefault("default_output_activation", "Identity")
         self.policy_kwargs.setdefault("default_dropout", 0.1)
@@ -244,8 +270,12 @@ class Agent(torch.nn.Module):
     def set_default_critic_kwargs(self):
         self.critic_kwargs.setdefault("default_hidden_units", [256])
         if isinstance(self.critic_kwargs["default_hidden_units"], int):
-            self.critic_kwargs["default_hidden_units"] = [self.critic_kwargs["default_hidden_units"]]
-        assert len(self.critic_kwargs["default_hidden_units"]) > 0, "Must have at least one hidden unit."
+            self.critic_kwargs["default_hidden_units"] = [
+                self.critic_kwargs["default_hidden_units"]
+            ]
+        assert (
+            len(self.critic_kwargs["default_hidden_units"]) > 0
+        ), "Must have at least one hidden unit."
         self.critic_kwargs.setdefault("default_activation", "ReLu")
         self.critic_kwargs.setdefault("default_output_activation", "Identity")
         self.critic_kwargs.setdefault("default_n_values", 1)
@@ -260,43 +290,50 @@ class Agent(torch.nn.Module):
         """
         hidden_block = [torch.nn.Dropout(p=self.policy_kwargs["default_dropout"])]
         for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1):
-            hidden_block.extend([
-                Linear(
-                    input_size=self.policy_kwargs["default_hidden_units"][i],
-                    output_size=self.policy_kwargs["default_hidden_units"][i + 1],
-                    activation=self.policy_kwargs["default_activation"]
-                ),
-                # torch.nn.Linear(
-                # 	in_features=self.policy_kwargs["default_hidden_units"][i],
-                # 	out_features=self.policy_kwargs["default_hidden_units"][i + 1]
-                # ),
-                # torch.nn.PReLU(),  # TODO: for Debugging
-                torch.nn.Dropout(p=self.policy_kwargs["default_dropout"]),
-            ])
-        default_policy = Sequential(layers=[
-            {
-                f"in_{k}": Linear(
-                    input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-                    output_size=self.policy_kwargs["default_hidden_units"][0],
-                    activation=self.policy_kwargs["default_activation"]
-                )
-                # k: torch.nn.Linear(
-                # 	in_features=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-                # 	out_features=self.policy_kwargs["default_hidden_units"][0]
-                # )
-                for k, v in self.observation_spec.items()
-            },
-            *hidden_block,
-            {
-                f"out_{k}": Linear(
-                    input_size=self.policy_kwargs["default_hidden_units"][-1],
-                    output_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-                    activation=self.policy_kwargs["default_output_activation"]
-                )
-                for k, v in self.action_spec.items()
-            }
-        ],
-            **self.policy_kwargs
+            hidden_block.extend(
+                [
+                    Linear(
+                        input_size=self.policy_kwargs["default_hidden_units"][i],
+                        output_size=self.policy_kwargs["default_hidden_units"][i + 1],
+                        activation=self.policy_kwargs["default_activation"],
+                    ),
+                    # torch.nn.Linear(
+                    # 	in_features=self.policy_kwargs["default_hidden_units"][i],
+                    # 	out_features=self.policy_kwargs["default_hidden_units"][i + 1]
+                    # ),
+                    # torch.nn.PReLU(),  # TODO: for Debugging
+                    torch.nn.Dropout(p=self.policy_kwargs["default_dropout"]),
+                ]
+            )
+        default_policy = Sequential(
+            layers=[
+                {
+                    f"in_{k}": Linear(
+                        input_size=int(
+                            space_to_continuous_shape(v, flatten_spaces=True)[0]
+                        ),
+                        output_size=self.policy_kwargs["default_hidden_units"][0],
+                        activation=self.policy_kwargs["default_activation"],
+                    )
+                    # k: torch.nn.Linear(
+                    # 	in_features=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
+                    # 	out_features=self.policy_kwargs["default_hidden_units"][0]
+                    # )
+                    for k, v in self.observation_spec.items()
+                },
+                *hidden_block,
+                {
+                    f"out_{k}": Linear(
+                        input_size=self.policy_kwargs["default_hidden_units"][-1],
+                        output_size=int(
+                            space_to_continuous_shape(v, flatten_spaces=True)[0]
+                        ),
+                        activation=self.policy_kwargs["default_output_activation"],
+                    )
+                    for k, v in self.action_spec.items()
+                },
+            ],
+            **self.policy_kwargs,
         ).build()
         return default_policy
 
@@ -309,31 +346,36 @@ class Agent(torch.nn.Module):
         """
         hidden_block = [torch.nn.Dropout(p=self.critic_kwargs["default_dropout"])]
         for i in range(len(self.policy_kwargs["default_hidden_units"]) - 1):
-            hidden_block.extend([
-                Linear(
-                    input_size=self.critic_kwargs["default_hidden_units"][i],
-                    output_size=self.critic_kwargs["default_hidden_units"][i + 1],
-                    activation=self.critic_kwargs["default_activation"]
-                ),
-                torch.nn.Dropout(p=self.critic_kwargs["default_dropout"]),
-            ])
-        default_policy = Sequential(layers=[
-            {
-                f"in_{k}": Linear(
-                    input_size=int(space_to_continuous_shape(v, flatten_spaces=True)[0]),
-                    output_size=self.critic_kwargs["default_hidden_units"][0],
-                    activation=self.critic_kwargs["default_activation"]
-                )
-                for k, v in self.observation_spec.items()
-            },
-            *hidden_block,
-            Linear(
-                input_size=self.critic_kwargs["default_hidden_units"][-1],
-                output_size=self.critic_kwargs["default_n_values"],
-                activation=self.critic_kwargs["default_output_activation"]
+            hidden_block.extend(
+                [
+                    Linear(
+                        input_size=self.critic_kwargs["default_hidden_units"][i],
+                        output_size=self.critic_kwargs["default_hidden_units"][i + 1],
+                        activation=self.critic_kwargs["default_activation"],
+                    ),
+                    torch.nn.Dropout(p=self.critic_kwargs["default_dropout"]),
+                ]
             )
-        ],
-            **self.critic_kwargs
+        default_policy = Sequential(
+            layers=[
+                {
+                    f"in_{k}": Linear(
+                        input_size=int(
+                            space_to_continuous_shape(v, flatten_spaces=True)[0]
+                        ),
+                        output_size=self.critic_kwargs["default_hidden_units"][0],
+                        activation=self.critic_kwargs["default_activation"],
+                    )
+                    for k, v in self.observation_spec.items()
+                },
+                *hidden_block,
+                Linear(
+                    input_size=self.critic_kwargs["default_hidden_units"][-1],
+                    output_size=self.critic_kwargs["default_n_values"],
+                    activation=self.critic_kwargs["default_output_activation"],
+                ),
+            ],
+            **self.critic_kwargs,
         ).build()
         return default_policy
 
@@ -346,9 +388,11 @@ class Agent(torch.nn.Module):
         return self.policy_predict_method(*args, **kwargs)
 
     def get_actions(
-            self,
-            obs: Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]],
-            **kwargs
+        self,
+        obs: Union[
+            np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]
+        ],
+        **kwargs,
     ) -> Any:
         """
         Get the actions for the given observations.
@@ -364,12 +408,16 @@ class Agent(torch.nn.Module):
         :return: The actions.
         """
         self.env = kwargs.get("env", self.env)
-        re_as_dict = kwargs.get("re_as_dict", isinstance(obs, dict) or isinstance(obs[0], dict))
+        re_as_dict = kwargs.get(
+            "re_as_dict", isinstance(obs, dict) or isinstance(obs[0], dict)
+        )
         re_formats = kwargs.get("re_format", "index").split(",")
         as_numpy = kwargs.get("as_numpy", True)
 
         obs_as_tensor = to_tensor(obs)
-        out_actions, _ = unpack_out_hh(self.policy_predict_method(obs_as_tensor, **kwargs))
+        out_actions, _ = unpack_out_hh(
+            self.policy_predict_method(obs_as_tensor, **kwargs)
+        )
         re_actions_list = [
             self.format_batch_discrete_actions(out_actions, re_format=re_format)
             for re_format in re_formats
@@ -379,7 +427,9 @@ class Agent(torch.nn.Module):
         for i, re_actions in enumerate(re_actions_list):
             if not re_as_dict and isinstance(re_actions, dict):
                 if not len(re_actions) == 1:
-                    raise ValueError("Cannot unpack actions from dict because it has not a length of 1.")
+                    raise ValueError(
+                        "Cannot unpack actions from dict because it has not a length of 1."
+                    )
                 re_actions_list[i] = re_actions[list(re_actions.keys())[0]]
             elif re_as_dict and not isinstance(re_actions, dict):
                 keys = self.discrete_actions + self.continuous_actions
@@ -389,10 +439,10 @@ class Agent(torch.nn.Module):
         return re_actions_list
 
     def format_batch_discrete_actions(
-            self,
-            actions: Union[torch.Tensor, Dict[str, torch.Tensor]],
-            re_format: str = "logits",
-            **kwargs
+        self,
+        actions: Union[torch.Tensor, Dict[str, torch.Tensor]],
+        re_format: str = "logits",
+        **kwargs,
     ) -> Union[torch.Tensor, Dict[str, torch.Tensor]]:
         """
         Format the batch of actions. If actions is a dict, then it is assumed that the keys are the action names and the
@@ -413,44 +463,75 @@ class Agent(torch.nn.Module):
             return actions
         elif re_format.lower() == "probs":
             if isinstance(actions, torch.Tensor):
-                return torch.softmax(actions, dim=-1) if len(discrete_actions) >= 1 else actions
+                return (
+                    torch.softmax(actions, dim=-1)
+                    if len(discrete_actions) >= 1
+                    else actions
+                )
             elif isinstance(actions, dict):
-                return {k: (
-                    torch.softmax(v, dim=-1) if (k in discrete_actions or len(continuous_actions) == 0) else v
-                ) for k, v in actions.items()}
+                return {
+                    k: (
+                        torch.softmax(v, dim=-1)
+                        if (k in discrete_actions or len(continuous_actions) == 0)
+                        else v
+                    )
+                    for k, v in actions.items()
+                }
             else:
                 raise ValueError(f"Cannot format actions of type {type(actions)}.")
         elif re_format.lower() == "log_probs":
             if isinstance(actions, torch.Tensor):
-                return torch.log_softmax(actions, dim=-1) if len(discrete_actions) >= 1 else actions
+                return (
+                    torch.log_softmax(actions, dim=-1)
+                    if len(discrete_actions) >= 1
+                    else actions
+                )
             elif isinstance(actions, dict):
-                return {k: (
-                    torch.log_softmax(v, dim=-1)
-                    if (k in discrete_actions or len(continuous_actions) == 0) else v
-                ) for k, v in actions.items()}
+                return {
+                    k: (
+                        torch.log_softmax(v, dim=-1)
+                        if (k in discrete_actions or len(continuous_actions) == 0)
+                        else v
+                    )
+                    for k, v in actions.items()
+                }
             else:
                 raise ValueError(f"Cannot format actions of type {type(actions)}.")
         elif re_format.lower() in ["index", "indices", "argmax", "imax", "amax"]:
             if isinstance(actions, torch.Tensor):
-                return torch.argmax(actions, dim=-1).long() if len(discrete_actions) >= 1 else actions
+                return (
+                    torch.argmax(actions, dim=-1).long()
+                    if len(discrete_actions) >= 1
+                    else actions
+                )
             elif isinstance(actions, dict):
-                return {k: (
-                    torch.argmax(v, dim=-1).long()
-                    if (k in discrete_actions or len(continuous_actions) == 0) else v
-                ) for k, v in actions.items()}
+                return {
+                    k: (
+                        torch.argmax(v, dim=-1).long()
+                        if (k in discrete_actions or len(continuous_actions) == 0)
+                        else v
+                    )
+                    for k, v in actions.items()
+                }
             else:
                 raise ValueError(f"Cannot format actions of type {type(actions)}.")
         elif re_format.lower() == "one_hot":
             if isinstance(actions, torch.Tensor):
                 return (
-                    torch.nn.functional.one_hot(torch.argmax(actions, dim=-1), num_classes=actions.shape[-1])
-                    if len(discrete_actions) >= 1 else actions
+                    torch.nn.functional.one_hot(
+                        torch.argmax(actions, dim=-1), num_classes=actions.shape[-1]
+                    )
+                    if len(discrete_actions) >= 1
+                    else actions
                 )
             elif isinstance(actions, dict):
                 return {
                     k: (
-                        torch.nn.functional.one_hot(torch.argmax(v, dim=-1), num_classes=v.shape[-1])
-                        if (k in discrete_actions or len(continuous_actions) == 0) else v
+                        torch.nn.functional.one_hot(
+                            torch.argmax(v, dim=-1), num_classes=v.shape[-1]
+                        )
+                        if (k in discrete_actions or len(continuous_actions) == 0)
+                        else v
                     )
                     for k, v in actions.items()
                 }
@@ -458,22 +539,35 @@ class Agent(torch.nn.Module):
                 raise ValueError(f"Cannot format actions of type {type(actions)}.")
         elif re_format.lower() == "max":
             if isinstance(actions, torch.Tensor):
-                return torch.max(actions, dim=-1).values if len(discrete_actions) >= 1 else actions
+                return (
+                    torch.max(actions, dim=-1).values
+                    if len(discrete_actions) >= 1
+                    else actions
+                )
             elif isinstance(actions, dict):
-                return {k: (
-                    torch.max(v, dim=-1).values
-                    if (k in discrete_actions or len(continuous_actions) == 0) else v
-                ) for k, v in actions.items()}
+                return {
+                    k: (
+                        torch.max(v, dim=-1).values
+                        if (k in discrete_actions or len(continuous_actions) == 0)
+                        else v
+                    )
+                    for k, v in actions.items()
+                }
             else:
                 raise ValueError(f"Cannot format actions of type {type(actions)}.")
         elif re_format.lower() == "smax":
             if isinstance(actions, torch.Tensor):
-                return torch.softmax(actions, dim=-1).max(dim=-1).values if len(discrete_actions) >= 1 else actions
+                return (
+                    torch.softmax(actions, dim=-1).max(dim=-1).values
+                    if len(discrete_actions) >= 1
+                    else actions
+                )
             elif isinstance(actions, dict):
                 return {
                     k: (
                         torch.softmax(v, dim=-1).max(dim=-1).values
-                        if (k in discrete_actions or len(continuous_actions) == 0) else v
+                        if (k in discrete_actions or len(continuous_actions) == 0)
+                        else v
                     )
                     for k, v in actions.items()
                 }
@@ -481,12 +575,17 @@ class Agent(torch.nn.Module):
                 raise ValueError(f"Cannot format actions of type {type(actions)}.")
         elif re_format.lower() == "log_smax":
             if isinstance(actions, torch.Tensor):
-                return torch.log_softmax(actions, dim=-1).max(dim=-1).values if len(discrete_actions) >= 1 else actions
+                return (
+                    torch.log_softmax(actions, dim=-1).max(dim=-1).values
+                    if len(discrete_actions) >= 1
+                    else actions
+                )
             elif isinstance(actions, dict):
                 return {
                     k: (
                         torch.log_softmax(v, dim=-1).max(dim=-1).values
-                        if (k in discrete_actions or len(continuous_actions) == 0) else v
+                        if (k in discrete_actions or len(continuous_actions) == 0)
+                        else v
                     )
                     for k, v in actions.items()
                 }
@@ -498,16 +597,25 @@ class Agent(torch.nn.Module):
                     probs = maybe_apply_softmax(actions, dim=-1)
                     return torch.distributions.Categorical(probs=probs).sample()
                 else:
-                    covariance = self.get_continuous_action_covariances()[self.continuous_actions[0]]
-                    return continuous_actions_distribution(actions, covariance=covariance).sample()
+                    covariance = self.get_continuous_action_covariances()[
+                        self.continuous_actions[0]
+                    ]
+                    return continuous_actions_distribution(
+                        actions, covariance=covariance
+                    ).sample()
             elif isinstance(actions, dict):
                 return {
                     k: (
-                        torch.distributions.Categorical(probs=maybe_apply_softmax(v, dim=-1)).sample()
+                        torch.distributions.Categorical(
+                            probs=maybe_apply_softmax(v, dim=-1)
+                        ).sample()
                         if (k in discrete_actions or len(continuous_actions) == 0)
                         else continuous_actions_distribution(
                             # TODO: must get the right covariance for each continuous action
-                            v, covariance=self.get_continuous_action_covariances()[self.continuous_actions[0]]
+                            v,
+                            covariance=self.get_continuous_action_covariances()[
+                                self.continuous_actions[0]
+                            ],
                         ).sample()
                     )
                     for k, v in actions.items()
@@ -522,7 +630,9 @@ class Agent(torch.nn.Module):
         as_sequence = kwargs.get("as_sequence", False)
         re_formats = kwargs.get("re_format", "index").split(",")
         as_numpy = kwargs.get("as_numpy", True)
-        assert not (as_batch and as_sequence), "Cannot return actions as both batch and sequence."
+        assert not (
+            as_batch and as_sequence
+        ), "Cannot return actions as both batch and sequence."
         as_single = not (as_batch or as_sequence)
         self.env = kwargs.get("env", self.env)
         if self.env:
@@ -532,7 +642,10 @@ class Agent(torch.nn.Module):
         if as_single and n_samples == 1:
             out_actions = sample_action_space(action_space, re_format="one_hot")
         else:
-            out_actions = [sample_action_space(action_space, re_format="one_hot") for _ in range(n_samples)]
+            out_actions = [
+                sample_action_space(action_space, re_format="one_hot")
+                for _ in range(n_samples)
+            ]
             if as_batch:
                 out_actions = obs_sequence_to_batch(out_actions)
         re_actions_list = [
@@ -554,7 +667,9 @@ class Agent(torch.nn.Module):
         :return: The values.
         """
         self.env = kwargs.get("env", self.env)
-        re_as_dict = kwargs.get("re_as_dict", isinstance(obs, dict) or isinstance(obs[0], dict))
+        re_as_dict = kwargs.get(
+            "re_as_dict", isinstance(obs, dict) or isinstance(obs[0], dict)
+        )
         as_numpy = kwargs.get("as_numpy", True)
         obs_as_tensor = to_tensor(obs)
         values, _ = unpack_out_hh(self.critic_predict_method(obs_as_tensor))
@@ -567,10 +682,12 @@ class Agent(torch.nn.Module):
     def __str__(self):
         n_tab = 2
         policy_repr = str(self.policy)
-        tab_policy_repr = "\t" + policy_repr.replace("\n", "\n"+("\t"*n_tab))
+        tab_policy_repr = "\t" + policy_repr.replace("\n", "\n" + ("\t" * n_tab))
         critic_repr = str(self.critic)
-        tab_critic_repr = "\t" + critic_repr.replace("\n", "\n"+("\t"*n_tab))
-        agent_repr = f"Agent<{self.behavior_name}>:\n\t[Policy](\n{tab_policy_repr}\t\n)\n"
+        tab_critic_repr = "\t" + critic_repr.replace("\n", "\n" + ("\t" * n_tab))
+        agent_repr = (
+            f"Agent<{self.behavior_name}>:\n\t[Policy](\n{tab_policy_repr}\t\n)\n"
+        )
         if self.critic:
             agent_repr += f"\t[Critic](\n{tab_critic_repr}\t\n)\n"
         return agent_repr
@@ -617,10 +734,10 @@ class Agent(torch.nn.Module):
         return policy_copy
 
     def load_checkpoint(
-            self,
-            checkpoints_meta_path: Optional[str] = None,
-            load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR,
-            verbose: bool = True
+        self,
+        checkpoints_meta_path: Optional[str] = None,
+        load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR,
+        verbose: bool = True,
     ) -> dict:
         """
         Load the checkpoint from the checkpoints_meta_path. If the checkpoints_meta_path is None, the default
@@ -640,12 +757,18 @@ class Agent(torch.nn.Module):
             checkpoints_meta_path = self.checkpoints_meta_path
         with open(checkpoints_meta_path, "r+") as jsonFile:
             info: dict = json.load(jsonFile)
-        save_name = CheckpointManager.get_save_name_from_checkpoints(info, load_checkpoint_mode)
+        save_name = CheckpointManager.get_save_name_from_checkpoints(
+            info, load_checkpoint_mode
+        )
         checkpoint_path = f"{self.checkpoint_folder}/{save_name}"
         if verbose:
             logging.info(f"Loading checkpoint from {checkpoint_path}")
-        checkpoint = torch.load(checkpoint_path, map_location=self.device)
-        self.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
+        checkpoint = torch.load(
+            checkpoint_path, map_location=self.device, weights_only=False
+        )
+        self.load_state_dict(
+            checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True
+        )
         return checkpoint
 
     def to(self, *args, **kwargs):
@@ -653,11 +776,3 @@ class Agent(torch.nn.Module):
         if self.critic is not None:
             self.critic.to(*args, **kwargs)
         return self
-
-
-
-
-
-
-
-

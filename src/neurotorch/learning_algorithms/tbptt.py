@@ -23,17 +23,24 @@ class TBPTT(BPTT):
     """
     Truncated Backpropagation Through Time (TBPTT) algorithm.
     """
+
     def __init__(
-            self,
-            *,
-            params: Optional[Sequence[torch.nn.Parameter]] = None,
-            layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
-            output_layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
-            optimizer: Optional[torch.optim.Optimizer] = None,
-            criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
-            backward_time_steps: Optional[int] = None,
-            optim_time_steps: Optional[int] = None,
-            **kwargs
+        self,
+        *,
+        params: Optional[Sequence[torch.nn.Parameter]] = None,
+        layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
+        output_layers: Optional[
+            Union[Sequence[torch.nn.Module], torch.nn.Module]
+        ] = None,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+        criterion: Optional[
+            Union[
+                Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable
+            ]
+        ] = None,
+        backward_time_steps: Optional[int] = None,
+        optim_time_steps: Optional[int] = None,
+        **kwargs,
     ):
         """
         Constructor for TBPTT class.
@@ -72,25 +79,41 @@ class TBPTT(BPTT):
         .. seealso::
             :py:meth:`neurotorch.learning_algorithms.bptt.BPTT.__init__`
         """
-        super(TBPTT, self).__init__(params=params, layers=layers, optimizer=optimizer, criterion=criterion, **kwargs)
+        super(TBPTT, self).__init__(
+            params=params,
+            layers=layers,
+            optimizer=optimizer,
+            criterion=criterion,
+            **kwargs,
+        )
         self.output_layers = output_layers
         self._hidden_layer_names = []
         self._original_forwards = {}  # {layer_name: (layer, layer.forward)}
         self._auto_set_backward_time_steps = backward_time_steps is None
         self.backward_time_steps = backward_time_steps
-        self._auto_backward_time_steps_ratio = kwargs.get("auto_backward_time_steps_ratio", 0.1)
-        assert 0 <= self._auto_backward_time_steps_ratio <= 1, "auto_backward_time_steps_ratio must be between 0 and 1"
+        self._auto_backward_time_steps_ratio = kwargs.get(
+            "auto_backward_time_steps_ratio", 0.1
+        )
+        assert (
+            0 <= self._auto_backward_time_steps_ratio <= 1
+        ), "auto_backward_time_steps_ratio must be between 0 and 1"
         self._auto_set_optim_time_steps = optim_time_steps is None
         self.optim_time_steps = optim_time_steps
-        self._auto_optim_time_steps_ratio = kwargs.get("auto_optim_time_steps_ratio", self._auto_backward_time_steps_ratio)
-        assert 0 <= self._auto_optim_time_steps_ratio <= 1, "auto_optim_time_steps_ratio must be between 0 and 1"
+        self._auto_optim_time_steps_ratio = kwargs.get(
+            "auto_optim_time_steps_ratio", self._auto_backward_time_steps_ratio
+        )
+        assert (
+            0 <= self._auto_optim_time_steps_ratio <= 1
+        ), "auto_optim_time_steps_ratio must be between 0 and 1"
         self._data_n_time_steps = 0
         self._layers_buffer = defaultdict(list)
         self._forwards_decorated = False
         self._optim_counter = 0
         self._grads = []
         self.alpha = kwargs.get("alpha", 0.0)
-        self.grad_norm_clip_value = to_tensor(kwargs.get("grad_norm_clip_value", torch.inf))
+        self.grad_norm_clip_value = to_tensor(
+            kwargs.get("grad_norm_clip_value", torch.inf)
+        )
         self.nan = kwargs.get("nan", 0.0)
         self.posinf = kwargs.get("posinf", 1.0)
         self.neginf = kwargs.get("neginf", -1.0)
@@ -121,7 +144,9 @@ class TBPTT(BPTT):
                 self.output_layers += list(obj)
 
         if not self.output_layers:
-            raise ValueError("Could not find output layers. Please provide them manually.")
+            raise ValueError(
+                "Could not find output layers. Please provide them manually."
+            )
 
     def initialize_layers(self, trainer):
         """
@@ -134,7 +159,12 @@ class TBPTT(BPTT):
         """
         if not self.layers:
             self.layers = []
-            possible_attrs = ["input_layers", "input_layer", "hidden_layers", "hidden_layer"]
+            possible_attrs = [
+                "input_layers",
+                "input_layer",
+                "hidden_layers",
+                "hidden_layer",
+            ]
             for attr in possible_attrs:
                 if hasattr(trainer.model, attr):
                     obj = getattr(trainer.model, attr, [])
@@ -146,7 +176,9 @@ class TBPTT(BPTT):
                         obj = [obj]
                     self.layers += list(obj)
         if not self.layers:
-            warnings.warn("No hidden layers found. Please provide them manually if you have any.")
+            warnings.warn(
+                "No hidden layers found. Please provide them manually if you have any."
+            )
 
     def _grads_zeros_(self):
         self._grads = [torch.zeros_like(p) for p in self.params]
@@ -162,7 +194,8 @@ class TBPTT(BPTT):
         self.trainer = trainer
         if trainer.model.training:
             self._data_n_time_steps = self._get_data_time_steps_from_y_batch(
-                trainer.current_training_state.y_batch, trainer.current_training_state.x_batch
+                trainer.current_training_state.y_batch,
+                trainer.current_training_state.x_batch,
             )
             self._maybe_update_time_steps()
             self.optimizer.zero_grad()
@@ -175,7 +208,9 @@ class TBPTT(BPTT):
             for layer_name in self._layers_buffer:
                 backward_t = len(self._layers_buffer[layer_name])
                 if backward_t > 0:
-                    self._backward_at_t(self._data_n_time_steps - 1, backward_t, layer_name)
+                    self._backward_at_t(
+                        self._data_n_time_steps - 1, backward_t, layer_name
+                    )
                     self.optimizer.step()
         self.undecorate_forwards()
         self._layers_buffer.clear()
@@ -183,9 +218,9 @@ class TBPTT(BPTT):
         self._grads_zeros_()
 
     def _get_data_time_steps_from_y_batch(
-            self,
-            y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
-            x_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+        self,
+        y_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
+        x_batch: Union[torch.Tensor, Dict[str, torch.Tensor]],
     ) -> int:
         """
         Get the number of time steps from the y_batch if it has more than 2 dimensions, otherwise from x_batch.
@@ -204,14 +239,18 @@ class TBPTT(BPTT):
             if all([len(y.shape) > 2 for y in y_batch.values()]):
                 time_steps = max([y.shape[1] for y in y_batch.values()])
         else:
-            raise ValueError(f"y_batch must be either a torch.Tensor or a dict, but got {type(y_batch)}")
+            raise ValueError(
+                f"y_batch must be either a torch.Tensor or a dict, but got {type(y_batch)}"
+            )
         if time_steps is None:
             if isinstance(x_batch, torch.Tensor):
                 time_steps = x_batch.shape[1]
             elif isinstance(x_batch, dict):
                 time_steps = max([x.shape[1] for x in x_batch.values()])
             else:
-                raise ValueError(f"x_batch must be either a torch.Tensor or a dict, but got {type(x_batch)}")
+                raise ValueError(
+                    f"x_batch must be either a torch.Tensor or a dict, but got {type(x_batch)}"
+                )
         return time_steps
 
     def _initialize_original_forwards(self):
@@ -232,14 +271,20 @@ class TBPTT(BPTT):
             for layer in self.layers:
                 self._hidden_layer_names.append(layer.name)
                 if self._use_hooks:
-                    hook = layer.register_forward_hook(self._hidden_hook, with_kwargs=True)
+                    hook = layer.register_forward_hook(
+                        self._hidden_hook, with_kwargs=True
+                    )
                     self.forwards_hooks.append(hook)
                 else:
-                    layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
+                    layer.forward = self._decorate_hidden_forward(
+                        layer.forward, layer.name
+                    )
 
             for layer in self.output_layers:
                 if self._use_hooks:
-                    hook = layer.register_forward_hook(self._output_hook, with_kwargs=True)
+                    hook = layer.register_forward_hook(
+                        self._output_hook, with_kwargs=True
+                    )
                     self.forwards_hooks.append(hook)
                 else:
                     layer.forward = self._decorate_forward(layer.forward, layer.name)
@@ -255,13 +300,19 @@ class TBPTT(BPTT):
 
     def _maybe_update_time_steps(self):
         if self._auto_set_backward_time_steps:
-            self.backward_time_steps = max(1, int(self._auto_backward_time_steps_ratio * self._data_n_time_steps))
+            self.backward_time_steps = max(
+                1, int(self._auto_backward_time_steps_ratio * self._data_n_time_steps)
+            )
         if self._auto_set_optim_time_steps:
-            self.optim_time_steps = max(1, int(self._auto_optim_time_steps_ratio * self._data_n_time_steps))
+            self.optim_time_steps = max(
+                1, int(self._auto_optim_time_steps_ratio * self._data_n_time_steps)
+            )
         # if self.backward_time_steps != self.optim_time_steps:
         # 	raise NotImplementedError("backward_time_steps != optim_time_steps is not implemented yet")
         if self.backward_time_steps > self.optim_time_steps:
-            raise NotImplementedError("backward_time_steps must be lower or equal to optim_time_steps.")
+            raise NotImplementedError(
+                "backward_time_steps must be lower or equal to optim_time_steps."
+            )
 
     def _decorate_hidden_forward(self, forward, layer_name: str) -> Callable:
         """
@@ -272,6 +323,7 @@ class TBPTT(BPTT):
 
         :return: The decorated forward method
         """
+
         def _forward(*args, **kwargs):
             out = forward(*args, **kwargs)
             t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
@@ -279,6 +331,7 @@ class TBPTT(BPTT):
                 return out
             out_tensor, hh = unpack_out_hh(out)
             return out_tensor, recursive_detach(hh)
+
         return _forward
 
     def _decorate_forward(self, forward, layer_name: str):
@@ -288,7 +341,11 @@ class TBPTT(BPTT):
             if t is None:
                 return out
             out_tensor, hh = unpack_out_hh(out)
-            list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
+            list_insert_replace_at(
+                self._layers_buffer[layer_name],
+                t % self.backward_time_steps,
+                out_tensor,
+            )
             self._optim_counter += 1
             if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
                 self._backward_at_t(t, self.backward_time_steps, layer_name)
@@ -296,6 +353,7 @@ class TBPTT(BPTT):
             if self._optim_counter >= self.optim_time_steps:
                 self._make_optim_step()
             return out
+
         return _forward
 
     def _hidden_hook(self, module, args, kwargs, output) -> None:
@@ -314,7 +372,9 @@ class TBPTT(BPTT):
 
         layer_name = module.name
         out_tensor, hh = unpack_out_hh(output)
-        list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
+        list_insert_replace_at(
+            self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor
+        )
         self._optim_counter += 1
         if len(self._layers_buffer[layer_name]) == self.backward_time_steps:
             self._backward_at_t(t, self.backward_time_steps, layer_name)
@@ -324,7 +384,9 @@ class TBPTT(BPTT):
         return
 
     def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
-        y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
+        y_batch = self._get_y_batch_slice_from_trainer(
+            (t + 1) - backward_t, t + 1, layer_name
+        )
         pred_batch = self._get_pred_batch_from_buffer(layer_name)
         batch_loss = self.apply_criterion(pred_batch, y_batch)
         if batch_loss.grad_fn is None:
@@ -346,10 +408,13 @@ class TBPTT(BPTT):
         self._layers_buffer[layer_name].clear()
 
     def _compute_decay_grads_(self, batch_loss):
-        output_grads = dy_dw_local(torch.mean(batch_loss), self.params, retain_graph=True, allow_unused=True)
+        output_grads = dy_dw_local(
+            torch.mean(batch_loss), self.params, retain_graph=True, allow_unused=True
+        )
         with torch.no_grad():
             self._grads = [
-                self.alpha * g + torch.nan_to_num(
+                self.alpha * g
+                + torch.nan_to_num(
                     dy_dw.to(g.device),
                     nan=0.0,
                     neginf=-self.grad_norm_clip_value,
@@ -373,7 +438,9 @@ class TBPTT(BPTT):
         zero_grad_params(self.params)
         self._optim_counter = 0
 
-    def _get_y_batch_slice_from_trainer(self, t_first: int, t_last: int, layer_name: str = None):
+    def _get_y_batch_slice_from_trainer(
+        self, t_first: int, t_last: int, layer_name: str = None
+    ):
         """
         Get a slice of the y_batch from the current training state given the first and last time steps. In case
         y_batch is a dict, the slice is applied to all the values of the dict. In case y_batch is a torch.Tensor with
@@ -399,7 +466,9 @@ class TBPTT(BPTT):
                 y_batch = (
                     y_batch[layer_name][:, t_first:t_last]
                     if len(y_batch[layer_name].shape) > 2
-                    else torch.stack([y_batch[layer_name] for _ in range(t_last - t_first)], dim=1)
+                    else torch.stack(
+                        [y_batch[layer_name] for _ in range(t_last - t_first)], dim=1
+                    )
                 )
         else:
             y_batch = (
@@ -415,7 +484,9 @@ class TBPTT(BPTT):
 
     def on_optimization_begin(self, trainer, **kwargs):
         y_batch = trainer.current_training_state.y_batch
-        pred_batch = format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
+        pred_batch = format_pred_batch(
+            trainer.current_training_state.pred_batch, y_batch
+        )
         batch_loss = self.apply_criterion(pred_batch, y_batch)
         trainer.update_state_(batch_loss=batch_loss)
 
@@ -433,4 +504,3 @@ class TBPTT(BPTT):
         _repr += f"alpha: {self.alpha}, "
         _repr += f"grad_norm_clip_value: {self.grad_norm_clip_value}"
         return _repr
-

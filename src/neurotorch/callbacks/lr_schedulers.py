@@ -19,16 +19,17 @@ class LinearLRScheduler(BaseCallback):
         - **lr** (float): The current learning rate.
         - **lr_decay** (float): The learning rate decay per step.
     """
+
     DEFAULT_LR_START = 1e-3
     DEFAULT_MIN_LR = 1e-12
 
     def __init__(
-            self,
-            lr_start: Union[float, Sequence[float]],
-            lr_end: Union[float, Sequence[float]],
-            n_steps: int,
-            optimizer: Optional[torch.optim.Optimizer] = None,
-            **kwargs
+        self,
+        lr_start: Union[float, Sequence[float]],
+        lr_end: Union[float, Sequence[float]],
+        n_steps: int,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+        **kwargs,
     ):
         """
         Construcor for the LinearLRScheduler class.
@@ -52,11 +53,12 @@ class LinearLRScheduler(BaseCallback):
             for _lr_start, _lr_end in zip(self.lr_start, self.lr_end)
         ]
         self.optimizer = optimizer
-        self.log_lr_to_history = kwargs.get('log_lr_to_history', True)
+        self.log_lr_to_history = kwargs.get("log_lr_to_history", True)
 
     def _init_lr_decay(self):
-        assert len(self.lr_start) == len(self.lr_end), \
-            "The number of learning rates must match the number of minimum learning rates."
+        assert len(self.lr_start) == len(
+            self.lr_end
+        ), "The number of learning rates must match the number of minimum learning rates."
         for i, (_lr_start, _min_lr) in enumerate(zip(self.lr_start, self.lr_end)):
             _decay = (self.lr_start[i] - self.lr_end[i]) / self.n_steps
             if len(self.lr_decay) <= i:
@@ -76,11 +78,11 @@ class LinearLRScheduler(BaseCallback):
         if self.optimizer is None:
             learning_algorithms = trainer.learning_algorithms
             for la in learning_algorithms:
-                if isinstance(la, LearningAlgorithm) and hasattr(la, 'optimizer'):
+                if isinstance(la, LearningAlgorithm) and hasattr(la, "optimizer"):
                     self.optimizer = la.optimizer
                     break
             if self.optimizer is None:
-                raise ValueError('No optimizer found in the callbacks of the trainer.')
+                raise ValueError("No optimizer found in the callbacks of the trainer.")
         for i, g in enumerate(self.optimizer.param_groups):
             if len(self.lr_start) <= i:
                 self.lr_start.append(g.get("lr", self.DEFAULT_LR_START))
@@ -105,7 +107,9 @@ class LinearLRScheduler(BaseCallback):
         :return: None
         """
         if self.log_lr_to_history:
-            trainer.update_itr_metrics_state_(**{f'lr_{i}': _lr for i, _lr in enumerate(self.lr)})
+            trainer.update_itr_metrics_state_(
+                **{f"lr_{i}": _lr for i, _lr in enumerate(self.lr)}
+            )
         step = trainer.current_training_state.iteration
         self.lr = [
             max(_lr_start - step * self.lr_decay, _lr_end)
@@ -114,10 +118,11 @@ class LinearLRScheduler(BaseCallback):
         assert len(self.lr) > 0, "No learning rate found."
         if len(self.lr) == 1:
             self.lr = [self.lr[0] for _ in self.optimizer.param_groups]
-        assert len(self.lr) == len(self.optimizer.param_groups), \
-            "The number of learning rates must match the number of parameter groups."
+        assert len(self.lr) == len(
+            self.optimizer.param_groups
+        ), "The number of learning rates must match the number of parameter groups."
         for g, lr in zip(self.optimizer.param_groups, self.lr):
-            g['lr'] = lr
+            g["lr"] = lr
 
     def extra_repr(self) -> str:
         return f"lr_start={self.lr_start}, lr_end={self.lr_end}, n_steps={self.n_steps}"
@@ -141,21 +146,22 @@ class LRSchedulerOnMetric(BaseCallback):
         the next value of the schedule. If False, the current step will increase or decrease depending on the metric.
         - **step** (int): The current step of the scheduler.
     """
+
     DEFAULT_LR_START = 1e-3
     DEFAULT_MIN_LR = 1e-12
 
     def __init__(
-            self,
-            metric: str,
-            metric_schedule: Iterable[float],
-            *,
-            minimize_metric: Optional[bool] = None,
-            lr_decay: Optional[Union[float, Sequence[float]]] = None,
-            min_lr: Optional[Union[float, Sequence[float]]] = None,
-            lr_start: Optional[Union[float, Sequence[float]]] = None,
-            retain_progress: bool = True,
-            optimizer: Optional[torch.optim.Optimizer] = None,
-            **kwargs
+        self,
+        metric: str,
+        metric_schedule: Iterable[float],
+        *,
+        minimize_metric: Optional[bool] = None,
+        lr_decay: Optional[Union[float, Sequence[float]]] = None,
+        min_lr: Optional[Union[float, Sequence[float]]] = None,
+        lr_start: Optional[Union[float, Sequence[float]]] = None,
+        retain_progress: bool = True,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+        **kwargs,
     ):
         """
         Initialize the scheduler with the given metric and metric schedule.
@@ -198,7 +204,7 @@ class LRSchedulerOnMetric(BaseCallback):
         self.retain_progress = retain_progress
         self.step = 0
         self.optimizer = optimizer
-        self.log_lr_to_history = kwargs.get('log_lr_to_history', True)
+        self.log_lr_to_history = kwargs.get("log_lr_to_history", True)
 
     def on_iteration_end(self, trainer, **kwargs):
         """
@@ -211,26 +217,31 @@ class LRSchedulerOnMetric(BaseCallback):
         """
         last_metric = trainer.training_history[self.metric][-1]
         if self.log_lr_to_history:
-            trainer.update_itr_metrics_state_(**{f'lr_{i}': _lr for i, _lr in enumerate(self.lr)})
+            trainer.update_itr_metrics_state_(
+                **{f"lr_{i}": _lr for i, _lr in enumerate(self.lr)}
+            )
         self.step = self.update_step(last_metric)
         self.lr = [
             max(_lr_start - self.step * _lr_decay, _min_lr)
-            for _lr_start, _lr_decay, _min_lr in zip(self.lr_start, self.lr_decay, self.min_lr)
+            for _lr_start, _lr_decay, _min_lr in zip(
+                self.lr_start, self.lr_decay, self.min_lr
+            )
         ]
         assert len(self.lr) > 0, "No learning rate found."
         if len(self.lr) == 1:
             self.lr = [self.lr[0] for _ in self.optimizer.param_groups]
-        assert len(self.lr) == len(self.optimizer.param_groups), \
-            "The number of learning rates must match the number of parameter groups."
+        assert len(self.lr) == len(
+            self.optimizer.param_groups
+        ), "The number of learning rates must match the number of parameter groups."
         for g, lr in zip(self.optimizer.param_groups, self.lr):
-            g['lr'] = lr
+            g["lr"] = lr
 
     def _check_schedule_ascending_or_descending(self):
         sig_diff = np.sign(np.diff(self.metric_schedule))
         all_positive = np.all(sig_diff >= 0)
         all_negative = np.all(sig_diff <= 0)
         if not (all_positive or all_negative):
-            raise ValueError('The metric schedule must be ascending or descending.')
+            raise ValueError("The metric schedule must be ascending or descending.")
         if all_positive:
             self.metric_schedule = np.concatenate(([-np.inf], self.metric_schedule))
         if all_negative:
@@ -241,8 +252,9 @@ class LRSchedulerOnMetric(BaseCallback):
             self.minimize_metric = np.mean(np.diff(self.metric_schedule) <= 0) > 0.5
 
     def _init_lr_decay(self):
-        assert len(self.lr_start) == len(self.min_lr), \
-            "The number of learning rates must match the number of minimum learning rates."
+        assert len(self.lr_start) == len(
+            self.min_lr
+        ), "The number of learning rates must match the number of minimum learning rates."
         for i, (_lr_start, _min_lr) in enumerate(zip(self.lr_start, self.min_lr)):
             _decay = (self.lr_start[i] - self.min_lr[i]) / len(self.metric_schedule)
             if len(self.lr_decay) <= i:
@@ -262,9 +274,13 @@ class LRSchedulerOnMetric(BaseCallback):
         """
         last_index = len(self.metric_schedule) - 1
         if self.minimize_metric:
-            next_step = last_index - np.argmax((last_metric <= self.metric_schedule)[::-1])
+            next_step = last_index - np.argmax(
+                (last_metric <= self.metric_schedule)[::-1]
+            )
         else:
-            next_step = last_index - np.argmax((last_metric >= self.metric_schedule)[::-1])
+            next_step = last_index - np.argmax(
+                (last_metric >= self.metric_schedule)[::-1]
+            )
         if self.retain_progress:
             next_step = max(self.step, next_step)
         self.step = next_step
@@ -282,11 +298,11 @@ class LRSchedulerOnMetric(BaseCallback):
         if self.optimizer is None:
             learning_algorithms = trainer.learning_algorithms
             for la in learning_algorithms:
-                if isinstance(la, LearningAlgorithm) and hasattr(la, 'optimizer'):
+                if isinstance(la, LearningAlgorithm) and hasattr(la, "optimizer"):
                     self.optimizer = la.optimizer
                     break
             if self.optimizer is None:
-                raise ValueError('No optimizer found in the callbacks of the trainer.')
+                raise ValueError("No optimizer found in the callbacks of the trainer.")
         for i, g in enumerate(self.optimizer.param_groups):
             if len(self.lr_start) <= i:
                 self.lr_start.append(g.get("lr", self.DEFAULT_LR_START))

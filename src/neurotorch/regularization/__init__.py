@@ -15,12 +15,13 @@ class BaseRegularization(torch.nn.Module, BaseCallback):
         - :attr:`Lambda` (float): The weight of the regularization. In other words, the coefficient that multiplies the loss.
 
     """
+
     def __init__(
-            self,
-            params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
-            Lambda: float = 1.0,
-            optimizer: Optional[torch.optim.Optimizer] = None,
-            **kwargs
+        self,
+        params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+        Lambda: float = 1.0,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+        **kwargs,
     ):
         """
         Constructor of the BaseRegularization class.
@@ -82,11 +83,12 @@ class RegularizationList(BaseRegularization):
     :Attributes:
         - :attr:`regularizations` (Iterable[BaseRegularization]): The regularizations to apply.
     """
+
     def __init__(
-            self,
-            regularizations: Optional[Iterable[BaseRegularization]] = None,
-            optimizer: Optional[torch.optim.Optimizer] = None,
-            **kwargs
+        self,
+        regularizations: Optional[Iterable[BaseRegularization]] = None,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+        **kwargs,
     ):
         """
         Constructor of the RegularizationList class.
@@ -99,10 +101,7 @@ class RegularizationList(BaseRegularization):
         for regularization in self.regularizations:
             _params.extend(regularization.params)
         super(RegularizationList, self).__init__(
-            params=_params,
-            Lambda=1.0,
-            optimizer=optimizer,
-            **kwargs
+            params=_params, Lambda=1.0, optimizer=optimizer, **kwargs
         )
         self.regularizations = regularizations if regularizations is not None else []
 
@@ -123,7 +122,9 @@ class RegularizationList(BaseRegularization):
         """
         if len(self.regularizations) == 0:
             return torch.tensor(0)
-        loss = sum([regularization(*args, **kwargs) for regularization in self.regularizations])
+        loss = sum(
+            [regularization(*args, **kwargs) for regularization in self.regularizations]
+        )
         return loss
 
 
@@ -137,12 +138,13 @@ class Lp(BaseRegularization):
 
     :Note: 0D parameters are not regularized.
     """
+
     def __init__(
-            self,
-            params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
-            Lambda: float = 1.0,
-            p: int = 1,
-            **kwargs
+        self,
+        params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+        Lambda: float = 1.0,
+        p: int = 1,
+        **kwargs,
     ):
         """
         Constructor of the L1 class.
@@ -182,11 +184,12 @@ class L1(Lp):
     """
     Regularization that applies L1 norm.
     """
+
     def __init__(
-            self,
-            params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
-            Lambda: float = 1.0,
-            **kwargs
+        self,
+        params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+        Lambda: float = 1.0,
+        **kwargs,
     ):
         """
         Constructor of the L1 class.
@@ -204,11 +207,12 @@ class L2(Lp):
     """
     Regularization that applies L2 norm.
     """
+
     def __init__(
-            self,
-            params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
-            Lambda: float = 1.0,
-            **kwargs
+        self,
+        params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+        Lambda: float = 1.0,
+        **kwargs,
     ):
         """
         Constructor of the L2 class.
@@ -219,5 +223,3 @@ class L2(Lp):
         :type Lambda: float
         """
         super(L2, self).__init__(params, Lambda, p=2, **kwargs)
-
-

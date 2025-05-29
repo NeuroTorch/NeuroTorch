@@ -1,4 +1,3 @@
-
 from .base import (
     to_tensor,
     to_numpy,
@@ -19,6 +18,3 @@ from .base import (
 # 	SpyLIFLayer,
 # 	ALIFEncoder,
 # )
-
-
-

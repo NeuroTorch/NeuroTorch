@@ -9,13 +9,13 @@ from ..modules.layers import LIFLayer, SpyLIFLayer, ALIFLayer
 
 class SpikesEncoder(torch.nn.Module):
     def __init__(
-            self,
-            n_steps: int,
-            n_units: int,
-            spikes_layer_type: Type[Union[LIFLayer, SpyLIFLayer, ALIFLayer]],
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        n_steps: int,
+        n_units: int,
+        spikes_layer_type: Type[Union[LIFLayer, SpyLIFLayer, ALIFLayer]],
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         """
         Constructor for the SpikesEncoder class.
@@ -38,18 +38,21 @@ class SpikesEncoder(torch.nn.Module):
         self.const_transform = ConstantValuesTransform(n_steps, batch_wise=True)
         self.spikes_layer_type = spikes_layer_type
         self.dt = dt
-        kwargs.setdefault('forward_weights', torch.eye(n_units))
-        kwargs.setdefault('use_recurrent_connection', False)
-        kwargs.setdefault('name', 'encoder')
-        kwargs.setdefault('freeze_weights', False)
+        kwargs.setdefault("forward_weights", torch.eye(n_units))
+        kwargs.setdefault("use_recurrent_connection", False)
+        kwargs.setdefault("name", "encoder")
+        kwargs.setdefault("freeze_weights", False)
 
-        assert "dt" not in kwargs, \
-            "dt cannot be specified since it must be the given dt"
-        assert "device" not in kwargs, \
-            "device cannot be specified since it must be the given device"
+        assert (
+            "dt" not in kwargs
+        ), "dt cannot be specified since it must be the given dt"
+        assert (
+            "device" not in kwargs
+        ), "device cannot be specified since it must be the given device"
 
         self.spikes_layer = self.spikes_layer_type(
-            n_units, n_units,
+            n_units,
+            n_units,
             dt=dt,
             device=device,
             **kwargs,
@@ -79,9 +82,11 @@ class SpikesEncoder(torch.nn.Module):
 
         :return: the regularization loss.
         """
-        regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.spikes_layer.device)
+        regularization_loss = torch.tensor(
+            0.0, dtype=torch.float32, device=self.spikes_layer.device
+        )
         if hasattr(self.spikes_layer, "get_and_reset_regularization_loss") and callable(
-                self.spikes_layer.get_and_reset_regularization_loss
+            self.spikes_layer.get_and_reset_regularization_loss
         ):
             regularization_loss += self.spikes_layer.get_and_reset_regularization_loss()
         return regularization_loss
@@ -89,49 +94,62 @@ class SpikesEncoder(torch.nn.Module):
 
 class LIFEncoder(SpikesEncoder):
     def __init__(
-            self,
-            n_steps: int,
-            n_units: int,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            spikes_layer_kwargs: Optional[dict] = None,
+        self,
+        n_steps: int,
+        n_units: int,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        spikes_layer_kwargs: Optional[dict] = None,
     ):
         if spikes_layer_kwargs is None:
             spikes_layer_kwargs = {}
         super().__init__(
-            n_steps, n_units, LIFLayer, dt, device, **spikes_layer_kwargs,
+            n_steps,
+            n_units,
+            LIFLayer,
+            dt,
+            device,
+            **spikes_layer_kwargs,
         )
 
 
 class SpyLIFEncoder(SpikesEncoder):
     def __init__(
-            self,
-            n_steps: int,
-            n_units: int,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            spikes_layer_kwargs: Optional[dict] = None,
+        self,
+        n_steps: int,
+        n_units: int,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        spikes_layer_kwargs: Optional[dict] = None,
     ):
         if spikes_layer_kwargs is None:
             spikes_layer_kwargs = {}
         super().__init__(
-            n_steps, n_units, SpyLIFLayer, dt, device, **spikes_layer_kwargs,
+            n_steps,
+            n_units,
+            SpyLIFLayer,
+            dt,
+            device,
+            **spikes_layer_kwargs,
         )
 
 
 class ALIFEncoder(SpikesEncoder):
     def __init__(
-            self,
-            n_steps: int,
-            n_units: int,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            spikes_layer_kwargs: Optional[dict] = None,
+        self,
+        n_steps: int,
+        n_units: int,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        spikes_layer_kwargs: Optional[dict] = None,
     ):
         if spikes_layer_kwargs is None:
             spikes_layer_kwargs = {}
         super().__init__(
-            n_steps, n_units, ALIFLayer, dt, device, **spikes_layer_kwargs,
+            n_steps,
+            n_units,
+            ALIFLayer,
+            dt,
+            device,
+            **spikes_layer_kwargs,
         )
-
-

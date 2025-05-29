@@ -2,12 +2,15 @@
 NeuroTorch: A Python library for machine learning and neuroscience.
 """
 
+import importlib_metadata
+
 __author__ = "Jérémie Gince"
 __email__ = "gincejeremie@gmail.com"
 __copyright__ = "Copyright 2022, Jérémie Gince"
 __license__ = "Apache 2.0"
 __url__ = "https://github.com/NeuroTorch/NeuroTorch"
-__version__ = "0.0.1-beta5"
+__package__ = "neurotorch"
+__version__ = importlib_metadata.version(__package__)
 
 
 from .dimension import (

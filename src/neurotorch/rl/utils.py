@@ -24,7 +24,9 @@ class TrainingHistoriesMap:
 
     def __init__(self, curriculum: Optional[Curriculum] = None):
         self.curriculum = curriculum
-        self.histories = defaultdict(TrainingHistory, **{TrainingHistoriesMap.REPORT_KEY: TrainingHistory()})
+        self.histories = defaultdict(
+            TrainingHistory, **{TrainingHistoriesMap.REPORT_KEY: TrainingHistory()}
+        )
 
     @property
     def report_history(self) -> TrainingHistory:
@@ -44,54 +46,79 @@ class TrainingHistoriesMap:
     def append(self, key, value):
         self.histories[TrainingHistoriesMap.REPORT_KEY].append(key, value)
         if self.curriculum is not None:
-            return self.histories[self.curriculum.current_lesson.name].append(key, value)
+            return self.histories[self.curriculum.current_lesson.name].append(
+                key, value
+            )
 
     @staticmethod
     def _set_default_plot_kwargs(kwargs: dict):
-        kwargs.setdefault('fontsize', 16)
-        kwargs.setdefault('linewidth', 3)
-        kwargs.setdefault('figsize', (16, 12))
-        kwargs.setdefault('dpi', 300)
+        kwargs.setdefault("fontsize", 16)
+        kwargs.setdefault("linewidth", 3)
+        kwargs.setdefault("figsize", (16, 12))
+        kwargs.setdefault("dpi", 300)
         return kwargs
 
-    def plot(self, save_path=None, show=False, lesson_idx: Optional[Union[int, str]] = None, **kwargs):
+    def plot(
+        self,
+        save_path=None,
+        show=False,
+        lesson_idx: Optional[Union[int, str]] = None,
+        **kwargs,
+    ):
         kwargs = self._set_default_plot_kwargs(kwargs)
         if self.curriculum is None:
             assert lesson_idx is None, "lesson_idx must be None if curriculum is None"
-            return self.plot_history(TrainingHistoriesMap.REPORT_KEY, save_path, show, **kwargs)
+            return self.plot_history(
+                TrainingHistoriesMap.REPORT_KEY, save_path, show, **kwargs
+            )
         if lesson_idx is None:
-            self.plot_history(TrainingHistoriesMap.REPORT_KEY, save_path, show, **kwargs)
+            self.plot_history(
+                TrainingHistoriesMap.REPORT_KEY, save_path, show, **kwargs
+            )
         else:
-            self.plot_history(self.curriculum[lesson_idx].name, save_path, show, **kwargs)
+            self.plot_history(
+                self.curriculum[lesson_idx].name, save_path, show, **kwargs
+            )
 
-    def plot_history(
-            self,
-            history_name: str,
-            save_path=None,
-            show=False,
-            **kwargs
-    ):
+    def plot_history(self, history_name: str, save_path=None, show=False, **kwargs):
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         history = self.histories[history_name]
-        if self.curriculum is not None and history_name != TrainingHistoriesMap.REPORT_KEY:
+        if (
+            self.curriculum is not None
+            and history_name != TrainingHistoriesMap.REPORT_KEY
+        ):
             lessons = [self.curriculum[history_name]]
             lessons_start_itr = [0]
-        elif self.curriculum is not None and history_name == TrainingHistoriesMap.REPORT_KEY:
+        elif (
+            self.curriculum is not None
+            and history_name == TrainingHistoriesMap.REPORT_KEY
+        ):
             lessons = self.curriculum.lessons
-            lessons_lengths = {k: [len(self.histories[lesson.name][k]) for lesson in lessons] for k in history._container}
-            lessons_start_itr = {k: np.cumsum(lessons_lengths[k]) for k in history.keys()}
+            lessons_lengths = {
+                k: [len(self.histories[lesson.name][k]) for lesson in lessons]
+                for k in history._container
+            }
+            lessons_start_itr = {
+                k: np.cumsum(lessons_lengths[k]) for k in history.keys()
+            }
         else:
             lessons = []
             lessons_start_itr = []
 
         kwargs = self._set_default_plot_kwargs(kwargs)
-        loss_metrics = [k for k in history.keys() if 'loss' in k.lower()]
-        rewards_metrics = [k for k in history.keys() if 'reward' in k.lower()]
-        other_metrics = [k for k in history.keys() if k not in loss_metrics and k not in rewards_metrics]
+        loss_metrics = [k for k in history.keys() if "loss" in k.lower()]
+        rewards_metrics = [k for k in history.keys() if "reward" in k.lower()]
+        other_metrics = [
+            k
+            for k in history.keys()
+            if k not in loss_metrics and k not in rewards_metrics
+        ]
         n_metrics = 2 + len(other_metrics)
         n_cols = int(np.sqrt(n_metrics))
         n_rows = int(n_metrics / n_cols)
-        fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=kwargs["figsize"], sharex='all')
+        fig, axes = plt.subplots(
+            nrows=n_rows, ncols=n_cols, figsize=kwargs["figsize"], sharex="all"
+        )
         if axes.ndim == 1:
             axes = np.expand_dims(axes, axis=-1)
         for row_i in range(n_rows):
@@ -100,28 +127,39 @@ class TrainingHistoriesMap:
                 ravel_index = row_i * n_cols + col_i
                 if ravel_index == 0:
                     for k in loss_metrics:
-                        ax.plot(history[k], label=k, linewidth=kwargs['linewidth'])
+                        ax.plot(history[k], label=k, linewidth=kwargs["linewidth"])
                     ax.set_ylabel("Loss [-]", fontsize=kwargs["fontsize"])
                     ax.legend(fontsize=kwargs["fontsize"])
                 elif ravel_index == 1:
                     for k in rewards_metrics:
-                        ax.plot(history[k], label=k, linewidth=kwargs['linewidth'])
+                        ax.plot(history[k], label=k, linewidth=kwargs["linewidth"])
                         for lesson_idx, lesson in enumerate(lessons):
                             if lesson.completion_criteria.measure == k:
                                 ax.plot(
-                                    lesson.completion_criteria.threshold*np.ones(len(history[k])), 'k--',
-                                    label=f"{k} threshold", linewidth=kwargs['linewidth']
+                                    lesson.completion_criteria.threshold
+                                    * np.ones(len(history[k])),
+                                    "k--",
+                                    label=f"{k} threshold",
+                                    linewidth=kwargs["linewidth"],
                                 )
-                            if history_name == TrainingHistoriesMap.REPORT_KEY and lesson.is_completed:
+                            if (
+                                history_name == TrainingHistoriesMap.REPORT_KEY
+                                and lesson.is_completed
+                            ):
                                 ax.axvline(
-                                    lessons_start_itr[k][lesson_idx], ymin=np.min(history[k]), ymax=np.max(history[k]),
-                                    color='r', linestyle='--', linewidth=kwargs['linewidth'], label=f"lesson start"
+                                    lessons_start_itr[k][lesson_idx],
+                                    ymin=np.min(history[k]),
+                                    ymax=np.max(history[k]),
+                                    color="r",
+                                    linestyle="--",
+                                    linewidth=kwargs["linewidth"],
+                                    label=f"lesson start",
                                 )
                     ax.set_ylabel("Rewards [-]", fontsize=kwargs["fontsize"])
                     ax.legend(fontsize=kwargs["fontsize"])
                 else:
                     k = other_metrics[ravel_index - 1]
-                    ax.plot(history[k], label=k, linewidth=kwargs['linewidth'])
+                    ax.plot(history[k], label=k, linewidth=kwargs["linewidth"])
                     ax.legend(fontsize=kwargs["fontsize"])
                 if row_i == n_rows - 1:
                     ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
@@ -135,7 +173,7 @@ class TrainingHistoriesMap:
 
 def space_to_spec(space: gym.spaces.Space) -> Dict[str, gym.spaces.Space]:
     spec = {}
-    if hasattr(space, 'spaces'):
+    if hasattr(space, "spaces"):
         for k, v in space.spaces.items():
             spec[k] = space_to_spec(v)
     else:
@@ -144,26 +182,27 @@ def space_to_spec(space: gym.spaces.Space) -> Dict[str, gym.spaces.Space]:
 
 
 def space_to_continuous_shape(
-        space: gym.spaces.Space,
-        flatten_spaces=False
+    space: gym.spaces.Space, flatten_spaces=False
 ) -> Union[Tuple[int, ...], Dict[str, Tuple[int, ...]]]:
-    if hasattr(space, 'spaces'):
+    if hasattr(space, "spaces"):
         shapes = {}
         for k, v in space.spaces.items():
             shapes[k] = space_to_continuous_shape(v)
         return shapes
     else:
-        if isinstance(space, (gym.spaces.Discrete, )):
-            return (space.n, )
+        if isinstance(space, (gym.spaces.Discrete,)):
+            return (space.n,)
         else:
             shape = space.shape
             if flatten_spaces:
-                shape = (np.prod(shape), )
+                shape = (np.prod(shape),)
             return shape
 
 
 def obs_sequence_to_batch(
-        obs: Sequence[Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]]
+    obs: Sequence[
+        Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]
+    ],
 ) -> Union[torch.Tensor, Dict[str, torch.Tensor]]:
     """
     Convert a sequence of observations to a batch of observations.
@@ -182,9 +221,10 @@ def obs_sequence_to_batch(
 
 
 def obs_batch_to_sequence(
-        obs: Union[torch.Tensor, Dict[str, torch.Tensor]],
-        as_numpy: bool = False
-) -> Sequence[Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]]:
+    obs: Union[torch.Tensor, Dict[str, torch.Tensor]], as_numpy: bool = False
+) -> Sequence[
+    Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]
+]:
     """
     Convert a batch of observations to a sequence of observations.
 
@@ -199,19 +239,22 @@ def obs_batch_to_sequence(
     if as_numpy:
         obs = to_numpy(obs)
     if isinstance(obs, dict):
-        return [{k: obs[k][i] for k in obs.keys()} for i in range(obs[list(obs.keys())[0]].shape[0])]
+        return [
+            {k: obs[k][i] for k in obs.keys()}
+            for i in range(obs[list(obs.keys())[0]].shape[0])
+        ]
     else:
         return [obs[i] for i in range(obs.shape[0])]
 
 
 class Linear(BaseNeuronsLayer):
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         super().__init__(
             input_size=input_size,
@@ -219,7 +262,7 @@ class Linear(BaseNeuronsLayer):
             name=name,
             use_recurrent_connection=False,
             device=device,
-            **kwargs
+            **kwargs,
         )
         self.bias_weights = None
         self.activation = self._init_activation(self.kwargs["activation"])
@@ -236,27 +279,31 @@ class Linear(BaseNeuronsLayer):
         """
         str_to_activation = {
             "identity": torch.nn.Identity(),
-            "relu"    : torch.nn.ReLU(),
-            "tanh"    : torch.nn.Tanh(),
-            "sigmoid" : torch.nn.Sigmoid(),
-            "softmax" : torch.nn.Softmax(dim=-1),
+            "relu": torch.nn.ReLU(),
+            "tanh": torch.nn.Tanh(),
+            "sigmoid": torch.nn.Sigmoid(),
+            "softmax": torch.nn.Softmax(dim=-1),
         }
         if isinstance(activation, str):
             activation = activation.lower()
-            assert activation in str_to_activation.keys(), f"Activation {activation} is not implemented."
+            assert (
+                activation in str_to_activation.keys()
+            ), f"Activation {activation} is not implemented."
             self.activation = str_to_activation[activation]
         else:
             self.activation = activation
         return self.activation
 
-    def build(self) -> 'Linear':
+    def build(self) -> "Linear":
         if self.kwargs["use_bias"]:
             self.bias_weights = torch.nn.Parameter(
                 torch.empty((int(self.output_size),), device=self.device),
                 requires_grad=self.requires_grad,
             )
         else:
-            self.bias_weights = torch.zeros((int(self.output_size),), dtype=torch.float32, device=self.device)
+            self.bias_weights = torch.zeros(
+                (int(self.output_size),), dtype=torch.float32, device=self.device
+            )
         super().build()
         self.initialize_weights_()
         return self
@@ -265,25 +312,22 @@ class Linear(BaseNeuronsLayer):
         super().initialize_weights_()
         torch.nn.init.kaiming_uniform_(self._forward_weights.data, a=np.sqrt(5))
         if "bias_weights" in self.kwargs:
-            self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
+            self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(
+                self.device
+            )
         else:
             # torch.nn.init.constant_(self.bias_weights, 0.0)
             bound = 1 / np.sqrt(int(self.input_size))
             torch.nn.init.uniform_(self.bias_weights, -bound, bound)
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         kwargs.setdefault("n_hh", 0)
         return super().create_empty_state(batch_size=batch_size, **kwargs)
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
         # assert inputs.ndim == 2
         # batch_size, nb_features = inputs.shape
@@ -293,8 +337,7 @@ class Linear(BaseNeuronsLayer):
 
 
 def env_batch_step(
-        env: gym.Env,
-        actions: Any
+    env: gym.Env, actions: Any
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Step the environment in batch mode.
@@ -315,7 +358,9 @@ def env_batch_step(
         observations, rewards, dones, truncateds, info = env.step(actions_as_numpy)
         infos = [info for _ in range(env.num_envs)]
     else:
-        actions_as_single = actions_as_numpy[0] if actions_as_numpy.ndim > 0 else actions_as_numpy
+        actions_as_single = (
+            actions_as_numpy[0] if actions_as_numpy.ndim > 0 else actions_as_numpy
+        )
         observation, reward, done, truncated, info = env.step(actions_as_single)
         observations = batch_dict_of_items(observation)
         rewards = np.array([reward])
@@ -323,7 +368,6 @@ def env_batch_step(
         truncateds = np.array([truncated])
         infos = np.array([info])
     return observations, rewards, dones, truncateds, infos
-
 
 
 def env_batch_reset(env: gym.Env) -> Tuple[np.ndarray, np.ndarray]:
@@ -406,7 +450,9 @@ def sample_action_space(action_space: gym.spaces.Space, re_format: str = "raw"):
     :return: The sampled action.
     :rtype: Any
     """
-    if isinstance(action_space, (gym.spaces.Discrete, gym.spaces.MultiDiscrete, gym.spaces.Box)):
+    if isinstance(
+        action_space, (gym.spaces.Discrete, gym.spaces.MultiDiscrete, gym.spaces.Box)
+    ):
         action = action_space.sample()
     else:
         raise NotImplementedError(f"Action space {action_space} is not implemented.")
@@ -418,7 +464,9 @@ def sample_action_space(action_space: gym.spaces.Space, re_format: str = "raw"):
         elif isinstance(action_space, gym.spaces.MultiDiscrete):
             return np.stack([np.eye(n)[a] for n, a in zip(action_space.nvec, action)])
         else:
-            raise NotImplementedError(f"Action space {action_space} is not implemented.")
+            raise NotImplementedError(
+                f"Action space {action_space} is not implemented."
+            )
     else:
         raise NotImplementedError(f"Format {re_format} is not implemented.")
 
@@ -426,6 +474,7 @@ def sample_action_space(action_space: gym.spaces.Space, re_format: str = "raw"):
 def discounted_cumulative_sums(x, discount, axis=-1, **kwargs):
     # Discounted cumulative sums of vectors for computing rewards-to-go and advantage estimates
     from scipy.signal import lfilter
+
     conv = lfilter([1], [1, float(-discount)], x[::-1], axis=axis)[::-1]
     return conv
 
@@ -465,12 +514,7 @@ def format_numpy_actions(actions, env: gym.Env):
 
 
 class TrajectoryRenderer:
-    def __init__(
-            self,
-            trajectory: Trajectory,
-            env: Optional[gym.Env] = None,
-            **kwargs
-    ):
+    def __init__(self, trajectory: Trajectory, env: Optional[gym.Env] = None, **kwargs):
         self.trajectory = trajectory
         self.env = env
         if self.check_simulate_is_needed():
@@ -494,7 +538,9 @@ class TrajectoryRenderer:
             self.env.unwrapped.state = x.obs
             x.others["render"] = self.env.render()
 
-    def render(self, **kwargs) -> Tuple[plt.Figure, plt.Axes, mpl_animation.FuncAnimation]:
+    def render(
+        self, **kwargs
+    ) -> Tuple[plt.Figure, plt.Axes, mpl_animation.FuncAnimation]:
         filename = kwargs.get("filename", None)
         file_extension = kwargs.get("file_extension", "gif")
         writer = kwargs.get("writer", "ffmpeg")
@@ -514,21 +560,28 @@ class TrajectoryRenderer:
 
         def _animation(i):
             im.set_array(self.trajectory[i].others["render"])
-            return im,
+            return (im,)
 
         anim = mpl_animation.FuncAnimation(
-            fig, _animation, frames=len(self.trajectory), interval=time_interval, blit=True
+            fig,
+            _animation,
+            frames=len(self.trajectory),
+            interval=time_interval,
+            blit=True,
         )
         if filename is not None:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             if file_extension is None:
-                if '.' in filename:
-                    file_extension = filename.split('.')[-1]
+                if "." in filename:
+                    file_extension = filename.split(".")[-1]
                 else:
-                    file_extension = 'gif'
-            assert file_extension in ["mp4", "gif"], "The extension of the file must be mp4 or gif."
+                    file_extension = "gif"
+            assert file_extension in [
+                "mp4",
+                "gif",
+            ], "The extension of the file must be mp4 or gif."
             if filename.endswith(file_extension):
-                filename = ''.join(filename.split('.')[:-1])
+                filename = "".join(filename.split(".")[:-1])
             anim.save(f"{filename}.{file_extension}", writer=writer, fps=fps)
         if kwargs.get("show", True):
             plt.show()
@@ -558,8 +611,8 @@ class TrajectoryRenderer:
 
 
 def continuous_actions_distribution(
-        actions: Union[Dict, torch.Tensor, np.ndarray],
-        covariance: Optional[Union[Dict, torch.Tensor, np.ndarray]] = None
+    actions: Union[Dict, torch.Tensor, np.ndarray],
+    covariance: Optional[Union[Dict, torch.Tensor, np.ndarray]] = None,
 ) -> Union[Dict, torch.distributions.Distribution]:
     """
     Creates a continuous action distribution from the actions and the covariance.
@@ -574,7 +627,9 @@ def continuous_actions_distribution(
     """
     if isinstance(actions, dict):
         dist = {
-            k: continuous_actions_distribution(actions[k], covariance[k] if covariance is not None else None)
+            k: continuous_actions_distribution(
+                actions[k], covariance[k] if covariance is not None else None
+            )
             for k in actions
         }
     else:
@@ -584,7 +639,9 @@ def continuous_actions_distribution(
             covariance = torch.diag(std**2)
         else:
             covariance = to_tensor(covariance)
-        dist = torch.distributions.MultivariateNormal(actions, covariance.to(actions.device))
+        dist = torch.distributions.MultivariateNormal(
+            actions, covariance.to(actions.device)
+        )
     return dist
 
 

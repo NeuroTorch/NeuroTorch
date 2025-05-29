@@ -19,12 +19,15 @@ def set_seed(seed: int):
     """
     import random
     import torch
+
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
 
 
-def unitary_rn_normal_matrix(n: int, m: int, generator: Optional[torch.Generator] = None) -> torch.Tensor:
+def unitary_rn_normal_matrix(
+    n: int, m: int, generator: Optional[torch.Generator] = None
+) -> torch.Tensor:
     max_dim, min_dim = max(n, m), min(n, m)
 
     # rn_matrix = torch.randn((n, m), generator=generator)
@@ -65,11 +68,8 @@ def format_pseudo_rn_seed(seed: Optional[int] = None) -> int:
     :rtype: int
     """
     import random
+
     if seed is None:
         seed = int(time.time()) + random.randint(0, np.iinfo(int).max)
     assert isinstance(seed, int), "Seed must be an integer."
     return seed
-
-
-
-

@@ -213,12 +213,13 @@ First Research Excellence Fund, and (3) [NSERC](https://www.nserc-crsng.gc.ca).
 
 # 12. Citation
 ```
-@misc{Gince2022,
-  title={NeuroTorch: A Python library for machine learning and neuroscience.},
-  author={Jérémie Gince},
-  year={2022},
-  publisher={Université Laval},
-  url={https://github.com/NeuroTorch},
+@article{gince2024neurotorch,
+  title={NeuroTorch: A Python library for neuroscience-oriented machine learning},
+  author={Gince, J{\'e}r{\'e}mie and Drouin, Anthony and Desrosiers, Patrick and Hardy, Simon V},
+  journal={bioRxiv},
+  pages={2024--12},
+  year={2024},
+  publisher={Cold Spring Harbor Laboratory}
 }
 ```
 

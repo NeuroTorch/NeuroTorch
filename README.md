@@ -1,8 +1,8 @@
-<div style="text-align:center"><img src="images/neurotorch.svg" width="40%" /></div>
+<p align="center"><img src="images/neurotorch.svg" width="40%" /></p>
 
 
 [![Star on GitHub](https://img.shields.io/github/stars/NeuroTorch/NeuroTorch.svg?style=social)](https://github.com/NeuroTorch/NeuroTorch/stargazers)
-[![Python 3.6](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-390/)
+[![Python 3.6](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-310/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 ![Tests Workflow](https://github.com/NeuroTorch/NeuroTorch/actions/workflows/tests.yml/badge.svg)

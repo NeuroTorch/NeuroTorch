@@ -12,26 +12,23 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.9
+    - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
-        python-version: "3.9"
+        python-version: "3.10"
 
     - name: Install dependencies
       run: |
+        python -m venv ./venv
+        . ./venv/bin/activate
         python -m pip install --upgrade pip
-        pip install flake8
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install -U sphinx
-        pip install sphinx_rtd_theme
-        pip install sphinx-theme
-        pip install groundwork-sphinx-theme
-        pip install karma_sphinx_theme
-        pip install sphinx-mdinclude
-        pip install sphinxcontrib-bibtex
+        pip install wheel build
+        pip install poetry
+        poetry install --with=docs --no-interaction --no-ansi
 
     - name: Build the sphinx docs
       run: |
+        . ./venv/bin/activate
         sphinx-apidoc -f -o ./sphinx/source ./src/neurotorch
         make -C sphinx clean
         python sphinx/clean_html_files.py
@@ -45,6 +42,7 @@ jobs:
 
     - name: Copy build files to docs folder
       run: |
+        . ./venv/bin/activate
         cp -a sphinx/build/html/. docs/
         python sphinx/make_html_files_list.py
         rm -rf sphinx/build
@@ -63,4 +61,3 @@ jobs:
         branch: gh-pages
         force: true
         directory: docs
-

@@ -5,9 +5,9 @@ name: Tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "*" ]
 
 permissions:
   contents: read
@@ -19,24 +19,36 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.9
+    - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
-        python-version: "3.9"
+        python-version: "3.10"
     - name: Install dependencies
       run: |
+        python -m venv ./venv
+        . ./venv/bin/activate
         python -m pip install --upgrade pip
-        pip install flake8 pytest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    - name: Lint with flake8
+        pip install poetry
+        poetry install --with=dev --no-interaction --no-ansi
+    - name: Test Linting
       run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
+        . ./venv/bin/activate
+        black src --check --diff
+        black tests --check --diff
+    - name: Test Typing
       run: |
-        pytest
+        . ./venv/bin/activate
+        mypy src
+        mypy tests
+    - name: Test Notebooks
+      run: |
+        . ./venv/bin/activate
+        pytest --nbmake tutorials --nbmake-timeout=600  # 10 minutes timeout
+
+    - name: Test Unittests with pytest
+      run: |
+        . ./venv/bin/activate
+        pytest tests
 
   Run-tests-on-Windows:
     name: Run tests on Windows-latest
@@ -44,47 +56,18 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.9
+    - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
-        python-version: "3.9"
+        python-version: "3.10"
     - name: Install dependencies
       run: |
+        python -m venv ./venv
+        . ./venv/Scripts/activate
         python -m pip install --upgrade pip
-        pip install flake8 pytest
-        pip install -r requirements.txt
-        pip install git+https://github.com/JeremieGince/PythonBasicTools
-    - name: Lint with flake8
+        pip install poetry
+        poetry install --with=dev --no-interaction --no-ansi
+    - name: Test Unittests with pytest
       run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
-      run: |
-        pytest 
-
-#   Run-tests-on-Self-Host:
-#     name: Run tests on self-host
-#     runs-on: self-hosted
-
-#     steps:
-#       - uses: actions/checkout@v3
-#       - name: Set up Python 3.9
-#         uses: actions/setup-python@v3
-#         with:
-#           python-version: "3.9.7"
-#       - name: Install dependencies
-#         run: |
-#           python -m pip install --upgrade pip
-#           pip install flake8 pytest
-#           pip install -r requirements.txt
-#       - name: Lint with flake8
-#         run: |
-#           # stop the build if there are Python syntax errors or undefined names
-#           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-#           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-#           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-#       - name: Test with pytest
-#         run: |
-#           pytest
+        . ./venv/Scripts/activate
+        pytest tests

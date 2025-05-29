@@ -44,6 +44,7 @@ jobs:
     - name: Test Notebooks
       run: |
         . ./venv/bin/activate
+        poetry install --with=tutorials
         pytest --nbmake tutorials --nbmake-timeout=600  # 10 minutes timeout
 
     - name: Test Unittests with pytest

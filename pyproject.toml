@@ -94,6 +94,13 @@ karma-sphinx-theme = "^0.0.8"
 sphinx-mdinclude = "^0.6.2"
 
 
+
+[tool.poetry.group.tutorials.dependencies]
+gym = {extras = ["box2d"], version = "^0.26.2"}
+norse = "^1.1.0"
+h5py = "^3.13.0"
+box2d = "^2.3.10"
+
 [[tool.mypy.overrides]]
 module = [
     "pythonbasictools",

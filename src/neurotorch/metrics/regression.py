@@ -29,13 +29,16 @@ class RegressionMetrics(BaseMetrics):
 
     @staticmethod
     def compute_y_true_y_pred(
-            model: BaseModel,
-            dataloader: DataLoader,
-            device: Optional[torch.device] = None,
-            verbose: bool = False,
-            desc: Optional[str] = None,
-            p_bar_position: int = 0,
-    ) -> Union[Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]], Tuple[np.ndarray, np.ndarray]]:
+        model: BaseModel,
+        dataloader: DataLoader,
+        device: Optional[torch.device] = None,
+        verbose: bool = False,
+        desc: Optional[str] = None,
+        p_bar_position: int = 0,
+    ) -> Union[
+        Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]],
+        Tuple[np.ndarray, np.ndarray],
+    ]:
         if device is not None:
             model.to(device)
         model.eval()
@@ -43,8 +46,11 @@ class RegressionMetrics(BaseMetrics):
         targets = defaultdict(list)
         with torch.no_grad():
             for i, (x, y_true) in tqdm(
-                    enumerate(dataloader), total=len(dataloader),
-                    desc=desc, disable=not verbose, position=p_bar_position,
+                enumerate(dataloader),
+                total=len(dataloader),
+                desc=desc,
+                disable=not verbose,
+                position=p_bar_position,
             ):
                 x = x.to(model.device)
                 y_true = y_true.to(model.device)
@@ -61,137 +67,178 @@ class RegressionMetrics(BaseMetrics):
         predictions = {k: np.asarray(v) for k, v in predictions.items()}
         targets = {k: np.asarray(v) for k, v in targets.items()}
         if len(targets) == 1:
-            return targets[list(targets.keys())[0]], predictions[list(predictions.keys())[0]]
+            return (
+                targets[list(targets.keys())[0]],
+                predictions[list(predictions.keys())[0]],
+            )
         return targets, predictions
 
     @staticmethod
     def mean_absolute_error(
-            model: Optional[BaseModel] = None,
-            dataloader: Optional[DataLoader] = None,
-            y_true: Optional[np.ndarray] = None,
-            y_pred: Optional[np.ndarray] = None,
-            device: Optional[torch.device] = None,
-            verbose: bool = False,
-            desc: Optional[str] = None,
-            p_bar_position: int = 0,
+        model: Optional[BaseModel] = None,
+        dataloader: Optional[DataLoader] = None,
+        y_true: Optional[np.ndarray] = None,
+        y_pred: Optional[np.ndarray] = None,
+        device: Optional[torch.device] = None,
+        verbose: bool = False,
+        desc: Optional[str] = None,
+        p_bar_position: int = 0,
     ) -> Union[float, Dict[str, float]]:
         if y_true is None:
             assert y_pred is None
-            assert model is not None, "Either model or y_pred and y_true must be supplied."
-            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
+            assert (
+                model is not None
+            ), "Either model or y_pred and y_true must be supplied."
+            assert (
+                dataloader is not None
+            ), "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
-                model=model, dataloader=dataloader, device=device,
-                verbose=verbose, desc=desc, p_bar_position=p_bar_position
+                model=model,
+                dataloader=dataloader,
+                device=device,
+                verbose=verbose,
+                desc=desc,
+                p_bar_position=p_bar_position,
             )
 
         if isinstance(y_true, dict):
-            return {k: sk_metrics.mean_absolute_error(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
+            return {
+                k: sk_metrics.mean_absolute_error(
+                    y_true[k].flatten(), y_pred[k].flatten()
+                )
+                for k in y_true
+            }
         return sk_metrics.mean_absolute_error(y_true.flatten(), y_pred.flatten())
 
     @staticmethod
     def mean_squared_error(
-            model: Optional[BaseModel] = None,
-            dataloader: Optional[DataLoader] = None,
-            y_true: Optional[np.ndarray] = None,
-            y_pred: Optional[np.ndarray] = None,
-            device: Optional[torch.device] = None,
-            verbose: bool = False,
-            desc: Optional[str] = None,
-            p_bar_position: int = 0,
+        model: Optional[BaseModel] = None,
+        dataloader: Optional[DataLoader] = None,
+        y_true: Optional[np.ndarray] = None,
+        y_pred: Optional[np.ndarray] = None,
+        device: Optional[torch.device] = None,
+        verbose: bool = False,
+        desc: Optional[str] = None,
+        p_bar_position: int = 0,
     ) -> Union[float, Dict[str, float]]:
         if y_true is None:
             assert y_pred is None
-            assert model is not None, "Either model or y_pred and y_true must be supplied."
-            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
+            assert (
+                model is not None
+            ), "Either model or y_pred and y_true must be supplied."
+            assert (
+                dataloader is not None
+            ), "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
 
         if isinstance(y_true, dict):
-            return {k: sk_metrics.mean_squared_error(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
+            return {
+                k: sk_metrics.mean_squared_error(
+                    y_true[k].flatten(), y_pred[k].flatten()
+                )
+                for k in y_true
+            }
         return sk_metrics.mean_squared_error(y_true.flatten(), y_pred.flatten())
 
     @staticmethod
     def r2(
-            model: Optional[BaseModel] = None,
-            dataloader: Optional[DataLoader] = None,
-            y_true: Optional[np.ndarray] = None,
-            y_pred: Optional[np.ndarray] = None,
-            device: Optional[torch.device] = None,
-            verbose: bool = False,
-            desc: Optional[str] = None,
-            p_bar_position: int = 0,
+        model: Optional[BaseModel] = None,
+        dataloader: Optional[DataLoader] = None,
+        y_true: Optional[np.ndarray] = None,
+        y_pred: Optional[np.ndarray] = None,
+        device: Optional[torch.device] = None,
+        verbose: bool = False,
+        desc: Optional[str] = None,
+        p_bar_position: int = 0,
     ) -> Union[float, Dict[str, float]]:
         if y_true is None:
             assert y_pred is None
-            assert model is not None, "Either model or y_pred and y_true must be supplied."
-            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
+            assert (
+                model is not None
+            ), "Either model or y_pred and y_true must be supplied."
+            assert (
+                dataloader is not None
+            ), "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
 
         if isinstance(y_true, dict):
-            return {k: sk_metrics.r2_score(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
+            return {
+                k: sk_metrics.r2_score(y_true[k].flatten(), y_pred[k].flatten())
+                for k in y_true
+            }
         return sk_metrics.r2_score(y_true.flatten(), y_pred.flatten())
 
     @staticmethod
     def d2_tweedie(
-            model: Optional[BaseModel] = None,
-            dataloader: Optional[DataLoader] = None,
-            y_true: Optional[np.ndarray] = None,
-            y_pred: Optional[np.ndarray] = None,
-            device: Optional[torch.device] = None,
-            verbose: bool = False,
-            desc: Optional[str] = None,
-            p_bar_position: int = 0,
+        model: Optional[BaseModel] = None,
+        dataloader: Optional[DataLoader] = None,
+        y_true: Optional[np.ndarray] = None,
+        y_pred: Optional[np.ndarray] = None,
+        device: Optional[torch.device] = None,
+        verbose: bool = False,
+        desc: Optional[str] = None,
+        p_bar_position: int = 0,
     ) -> Union[float, Dict[str, float]]:
         if y_true is None:
             assert y_pred is None
-            assert model is not None, "Either model or y_pred and y_true must be supplied."
-            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
+            assert (
+                model is not None
+            ), "Either model or y_pred and y_true must be supplied."
+            assert (
+                dataloader is not None
+            ), "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
 
         if isinstance(y_true, dict):
-            return {k: sk_metrics.d2_tweedie_score(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
+            return {
+                k: sk_metrics.d2_tweedie_score(y_true[k].flatten(), y_pred[k].flatten())
+                for k in y_true
+            }
         return sk_metrics.d2_tweedie_score(y_true.flatten(), y_pred.flatten())
 
     @staticmethod
     def compute_p_var(
-            y_true,
-            y_pred,
-            device: Optional[torch.device] = None,
-            reduction: str = 'mean',
+        y_true,
+        y_pred,
+        device: Optional[torch.device] = None,
+        reduction: str = "mean",
     ) -> torch.Tensor:
         y_true, y_pred = to_tensor(y_true), to_tensor(y_pred)
         if device is None:
             device = y_pred.device
         y_true, y_pred = y_true.to(device), y_pred.to(device)
         dims = list(range(y_pred.ndim))[1:]
-        mse = torch.mean(mse_loss(y_pred, y_true, reduction='none'), dim=dims)
+        mse = torch.mean(mse_loss(y_pred, y_true, reduction="none"), dim=dims)
         var = torch.var(y_true, dim=dims)
         p_var_values = 1 - (mse / (var + RegressionMetrics.EPSILON))
-        if reduction.lower() == 'none':
+        if reduction.lower() == "none":
             p_var_value = p_var_values
-        elif reduction.lower() == 'mean':
+        elif reduction.lower() == "mean":
             p_var_value = torch.mean(p_var_values)
-        elif reduction.lower() == 'sum':
+        elif reduction.lower() == "sum":
             p_var_value = torch.sum(p_var_values)
         else:
-            raise ValueError(f"Reduction {reduction} not recognized. Try 'none'|'sum'|'mean'.")
+            raise ValueError(
+                f"Reduction {reduction} not recognized. Try 'none'|'sum'|'mean'."
+            )
         return p_var_value
 
     @staticmethod
     def p_var(
-            model: Optional[BaseModel] = None,
-            dataloader: Optional[DataLoader] = None,
-            y_true: Optional[np.ndarray] = None,
-            y_pred: Optional[np.ndarray] = None,
-            device: Optional[torch.device] = None,
-            verbose: bool = False,
-            desc: Optional[str] = None,
-            p_bar_position: int = 0,
+        model: Optional[BaseModel] = None,
+        dataloader: Optional[DataLoader] = None,
+        y_true: Optional[np.ndarray] = None,
+        y_pred: Optional[np.ndarray] = None,
+        device: Optional[torch.device] = None,
+        verbose: bool = False,
+        desc: Optional[str] = None,
+        p_bar_position: int = 0,
     ) -> Union[float, Dict[str, float]]:
         """
         Compute the p-value of the variance of the prediction.
@@ -207,24 +254,32 @@ class RegressionMetrics(BaseMetrics):
         """
         if y_true is None:
             assert y_pred is None
-            assert model is not None, "Either model or y_pred and y_true must be supplied."
-            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
+            assert (
+                model is not None
+            ), "Either model or y_pred and y_true must be supplied."
+            assert (
+                dataloader is not None
+            ), "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
-                model=model, dataloader=dataloader, device=device,
-                verbose=verbose, desc=desc, p_bar_position=p_bar_position
+                model=model,
+                dataloader=dataloader,
+                device=device,
+                verbose=verbose,
+                desc=desc,
+                p_bar_position=p_bar_position,
             )
 
         if isinstance(y_true, dict):
             return {
-                k: to_numpy(RegressionMetrics.compute_p_var(y_true[k], y_pred[k], device))
+                k: to_numpy(
+                    RegressionMetrics.compute_p_var(y_true[k], y_pred[k], device)
+                )
                 for k in y_true
             }
         return to_numpy(RegressionMetrics.compute_p_var(y_true, y_pred, device))
 
     def __call__(
-            self,
-            data_loader: DataLoader,
-            verbose: Union[bool, int] = False
+        self, data_loader: DataLoader, verbose: Union[bool, int] = False
     ) -> Dict[str, Any]:
         """
         Compute the metrics for the given data_loader.
@@ -251,7 +306,7 @@ class RegressionMetrics(BaseMetrics):
             device=self.device,
             verbose=verbose == 2,
             desc="compute_y_true_y_preds",
-            p_bar_position=1
+            p_bar_position=1,
         )
         for i, (metric_name, metric_func) in p_bar:
             output[metric_name] = metric_func(
@@ -260,6 +315,6 @@ class RegressionMetrics(BaseMetrics):
                 device=self.device,
                 verbose=verbose == 2,
                 desc=metric_name,
-                p_bar_position=i + 2
+                p_bar_position=i + 2,
             )
         return output

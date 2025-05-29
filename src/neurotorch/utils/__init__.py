@@ -56,6 +56,7 @@ class ConnectivityConvention(enum.Enum):
         The convention ``ItoJ`` is the one used by default in NeuroTorch. In this case, if the convention is not
         specified in a function, method, class or a feature, it is assumed to be ``ItoJ``.
     """
+
     ItoJ = 0
     JtoI = 1
 
@@ -130,7 +131,7 @@ def batchwise_temporal_filter(x: torch.Tensor, decay: float = 0.9):
     warnings.warn(
         "This function is supposed to compute the same result as `batchwise_temporal_recursive_filter` but it "
         "doesn't. Use `batchwise_temporal_recursive_filter` instead.",
-        DeprecationWarning
+        DeprecationWarning,
     )
     batch_size, time_steps, *_ = x.shape
     assert time_steps >= 1
@@ -176,7 +177,9 @@ def linear_decay(init_value, min_value, decay_value, current_itr):
 
 
 def ravel_compose_transforms(
-        transform: Union[List, Tuple, torchvision.transforms.Compose, Callable, torch.nn.ModuleList]
+    transform: Union[
+        List, Tuple, torchvision.transforms.Compose, Callable, torch.nn.ModuleList
+    ],
 ) -> List[Callable]:
     transforms = []
     if isinstance(transform, torchvision.transforms.Compose):
@@ -206,6 +209,7 @@ def maybe_apply_softmax(x, dim: int = -1):
     :return: The softmax applied tensor.
     """
     from ..transforms.base import to_tensor
+
     # from torch.distributions import constraints
     out = to_tensor(x)
     # constraint = constraints.simplex
@@ -221,10 +225,10 @@ def maybe_apply_softmax(x, dim: int = -1):
 
 
 def clip_tensors_norm_(
-        tensors: Union[torch.Tensor, Iterable[torch.Tensor]],
-        max_norm: float,
-        norm_type: float = 2.0,
-        error_if_nonfinite: bool = False
+    tensors: Union[torch.Tensor, Iterable[torch.Tensor]],
+    max_norm: float,
+    norm_type: float = 2.0,
+    error_if_nonfinite: bool = False,
 ) -> torch.Tensor:
     r"""Clips norm of an iterable of tensors.
 
@@ -252,19 +256,24 @@ def clip_tensors_norm_(
     max_norm = float(max_norm)
     norm_type = float(norm_type)
     if len(tensors) == 0:
-        return torch.tensor(0.)
+        return torch.tensor(0.0)
     device = tensors[0].device
     if norm_type == torch.inf:
         norms = [t.detach().abs().max().to(device) for t in tensors]
         total_norm = norms[0] if len(norms) == 1 else torch.max(torch.stack(norms))
     else:
-        total_norm = torch.norm(torch.stack([torch.norm(t.detach(), norm_type).to(device) for t in tensors]), norm_type)
+        total_norm = torch.norm(
+            torch.stack(
+                [torch.norm(t.detach(), norm_type).to(device) for t in tensors]
+            ),
+            norm_type,
+        )
     if error_if_nonfinite and torch.logical_or(total_norm.isnan(), total_norm.isinf()):
         raise RuntimeError(
-            f'The total norm of order {norm_type} for gradients from '
-            '`parameters` is non-finite, so it cannot be clipped. To disable '
-            'this error and scale the gradients by the non-finite norm anyway, '
-            'set `error_if_nonfinite=False`'
+            f"The total norm of order {norm_type} for gradients from "
+            "`parameters` is non-finite, so it cannot be clipped. To disable "
+            "this error and scale the gradients by the non-finite norm anyway, "
+            "set `error_if_nonfinite=False`"
         )
     clip_coef = max_norm / (total_norm + 1e-6)
     # Note: multiplying by the clamped coef is redundant when the coef is clamped to 1, but doing so

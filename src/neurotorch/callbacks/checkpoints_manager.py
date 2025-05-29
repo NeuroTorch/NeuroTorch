@@ -22,6 +22,7 @@ class LoadCheckpointMode(enum.Enum):
         - **BEST_ITR** (int): Indicates that the iteration with the best metric will be loaded.
         - **LAST_ITR** (int): Indicates that the last iteration will be loaded.
     """
+
     BEST_ITR = 0
     LAST_ITR = 1
 
@@ -29,7 +30,7 @@ class LoadCheckpointMode(enum.Enum):
         return self.name.lower()
 
     @staticmethod
-    def from_str(mode_name: str) -> 'LoadCheckpointMode':
+    def from_str(mode_name: str) -> "LoadCheckpointMode":
         """
         Converts a string to a :class:`LoadCheckpointMode` instance.
 
@@ -40,7 +41,9 @@ class LoadCheckpointMode(enum.Enum):
         """
         if mode_name.lower() in ["best", "last"]:
             mode_name = mode_name.upper() + "_ITR"
-        assert mode_name.upper() in LoadCheckpointMode.__members__, f"Invalid mode name: {mode_name}"
+        assert (
+            mode_name.upper() in LoadCheckpointMode.__members__
+        ), f"Invalid mode name: {mode_name}"
         return LoadCheckpointMode[mode_name.upper()]
 
 
@@ -58,14 +61,14 @@ class CheckpointManager(BaseCallback):
 
     DEFAULT_PRIORITY = BaseCallback.DEFAULT_LOW_PRIORITY
 
-    SAVE_EXT: str = '.pth'
-    SUFFIX_SEP: str = '-'
-    CHECKPOINTS_META_SUFFIX: str = 'checkpoints'
+    SAVE_EXT: str = ".pth"
+    SUFFIX_SEP: str = "-"
+    CHECKPOINTS_META_SUFFIX: str = "checkpoints"
     CHECKPOINT_SAVE_PATH_KEY: str = "save_path"
     CHECKPOINT_BEST_KEY: str = "best"
     CHECKPOINT_ITRS_KEY: str = "iterations"
     CHECKPOINT_ITR_KEY: str = "itr"
-    CHECKPOINT_METRICS_KEY: str = 'metrics'
+    CHECKPOINT_METRICS_KEY: str = "metrics"
     CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
     CHECKPOINT_STATE_DICT_KEY: str = "model_state_dict"
     CHECKPOINT_TRAINING_HISTORY_KEY: str = "training_history"
@@ -73,7 +76,9 @@ class CheckpointManager(BaseCallback):
         CHECKPOINT_BEST_KEY: CHECKPOINT_SAVE_PATH_KEY,
         CHECKPOINT_ITRS_KEY: {0: CHECKPOINT_SAVE_PATH_KEY},
     }
-    load_mode_to_suffix: Dict[LoadCheckpointMode, str] = {mode: mode.name for mode in list(LoadCheckpointMode)}
+    load_mode_to_suffix: Dict[LoadCheckpointMode, str] = {
+        mode: mode.name for mode in list(LoadCheckpointMode)
+    }
 
     @staticmethod
     def _replace_trainer_history(trainer, new_history: Any):
@@ -91,8 +96,8 @@ class CheckpointManager(BaseCallback):
 
     @staticmethod
     def get_save_name_from_checkpoints(
-            checkpoints_meta: Dict[str, Union[str, Dict[Any, str]]],
-            load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR
+        checkpoints_meta: Dict[str, Union[str, Dict[Any, str]]],
+        load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR,
     ) -> str:
         """
         Gets the save name from the checkpoint's metadata given the load checkpoint mode.
@@ -116,23 +121,25 @@ class CheckpointManager(BaseCallback):
         elif load_checkpoint_mode == load_checkpoint_mode.LAST_ITR:
             itr_dict = checkpoints_meta[CheckpointManager.CHECKPOINT_ITRS_KEY]
             last_itr: int = max([int(e) for e in itr_dict])
-            return checkpoints_meta[CheckpointManager.CHECKPOINT_ITRS_KEY][str(last_itr)]
+            return checkpoints_meta[CheckpointManager.CHECKPOINT_ITRS_KEY][
+                str(last_itr)
+            ]
         else:
             raise ValueError("Invalid load_checkpoint_mode")
 
     def __init__(
-            self,
-            checkpoint_folder: str = "./checkpoints",
-            *,
-            checkpoints_meta_path: Optional[str] = None,
-            meta_path_prefix: str = "network",
-            metric: str = "val_loss",
-            minimise_metric: bool = True,
-            save_freq: int = 1,
-            save_best_only: bool = False,
-            start_save_at: int = 0,
-            verbose: bool = False,
-            **kwargs
+        self,
+        checkpoint_folder: str = "./checkpoints",
+        *,
+        checkpoints_meta_path: Optional[str] = None,
+        meta_path_prefix: str = "network",
+        metric: str = "val_loss",
+        minimise_metric: bool = True,
+        save_freq: int = 1,
+        save_best_only: bool = False,
+        start_save_at: int = 0,
+        verbose: bool = False,
+        **kwargs,
     ):
         """
         Initialises the checkpoint manager.
@@ -179,7 +186,9 @@ class CheckpointManager(BaseCallback):
         self.start_save_at = start_save_at
         self.curr_best_metric = np.inf if self.minimise_metric else -np.inf
         self.curr_checkpoint = None
-        self.show_best_metric_on_p_bar = kwargs.get("show_best_metric_on_p_bar", self.save_best_only)
+        self.show_best_metric_on_p_bar = kwargs.get(
+            "show_best_metric_on_p_bar", self.save_best_only
+        )
 
     @property
     def checkpoints_meta_path(self) -> str:
@@ -191,9 +200,7 @@ class CheckpointManager(BaseCallback):
         """
         if self._checkpoints_meta_path is not None:
             return self._checkpoints_meta_path
-        full_filename = (
-            f"{self.meta_path_prefix}{CheckpointManager.SUFFIX_SEP}{CheckpointManager.CHECKPOINTS_META_SUFFIX}"
-        )
+        full_filename = f"{self.meta_path_prefix}{CheckpointManager.SUFFIX_SEP}{CheckpointManager.CHECKPOINTS_META_SUFFIX}"
         return f"{self.checkpoint_folder}/{full_filename}.json"
 
     @checkpoints_meta_path.setter
@@ -244,14 +251,14 @@ class CheckpointManager(BaseCallback):
         return new_info
 
     def save_checkpoint(
-            self,
-            itr: int,
-            itr_metrics: Dict[str, Any],
-            best: bool = False,
-            state_dict: Optional[Dict[str, Any]] = None,
-            optimizer_state_dict: Optional[Dict[str, Any]] = None,
-            training_history: Optional[Any] = None,
-            **other_states,
+        self,
+        itr: int,
+        itr_metrics: Dict[str, Any],
+        best: bool = False,
+        state_dict: Optional[Dict[str, Any]] = None,
+        optimizer_state_dict: Optional[Dict[str, Any]] = None,
+        training_history: Optional[Any] = None,
+        **other_states,
     ) -> str:
         """
         Saves a checkpoint of the model and optimizer states at the given iteration.
@@ -282,17 +289,16 @@ class CheckpointManager(BaseCallback):
             CheckpointManager.CHECKPOINT_METRICS_KEY: itr_metrics,
             CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY: training_history,
         }
-        assert all(key not in other_states for key in basic_states.keys()), (
-            f"Other states cannot have the same keys as the basic states ({basic_states.keys()})."
-        )
+        assert all(
+            key not in other_states for key in basic_states.keys()
+        ), f"Other states cannot have the same keys as the basic states ({basic_states.keys()})."
         states = {**basic_states, **other_states}
         torch.save(states, path)
         self.save_checkpoints_meta(self._create_new_checkpoint_meta(itr, best))
         return path
 
     def load_checkpoint(
-            self,
-            load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR
+        self, load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR
     ) -> dict:
         """
         Loads the checkpoint at the given load_checkpoint_mode.
@@ -306,7 +312,9 @@ class CheckpointManager(BaseCallback):
         # TODO: add the possibility to load a specific itr
         with open(self.checkpoints_meta_path, "r+") as jsonFile:
             info: dict = json.load(jsonFile)
-        filename = CheckpointManager.get_save_name_from_checkpoints(info, load_checkpoint_mode)
+        filename = CheckpointManager.get_save_name_from_checkpoints(
+            info, load_checkpoint_mode
+        )
         checkpoint = torch.load(f"{self.checkpoint_folder}/{filename}")
         return checkpoint
 
@@ -349,9 +357,15 @@ class CheckpointManager(BaseCallback):
         else:
             try:
                 checkpoint = self.load_checkpoint(trainer.load_checkpoint_mode)
-                trainer.model.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
+                trainer.model.load_state_dict(
+                    checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True
+                )
                 if trainer.optimizer is not None:
-                    trainer.optimizer.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY])
+                    trainer.optimizer.load_state_dict(
+                        checkpoint[
+                            CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
+                        ]
+                    )
                 start_itr = int(checkpoint[CheckpointManager.CHECKPOINT_ITR_KEY]) + 1
             # self._replace_trainer_history(trainer, checkpoint[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY])
             except FileNotFoundError as e:
@@ -384,16 +398,20 @@ class CheckpointManager(BaseCallback):
         if is_best:
             self.curr_best_metric = itr_metrics[self.metric]
         self.save_checkpoint(
-            trainer.current_training_state.iteration, itr_metrics, is_best,
+            trainer.current_training_state.iteration,
+            itr_metrics,
+            is_best,
             state_dict=trainer.model.state_dict(),
-            optimizer_state_dict=trainer.optimizer.state_dict() if trainer.optimizer else None,
+            optimizer_state_dict=(
+                trainer.optimizer.state_dict() if trainer.optimizer else None
+            ),
             training_history=trainer.training_history.get_checkpoint_state(trainer),
-            **other_states
+            **other_states,
         )
         if trainer.training_history:
             trainer.training_history.plot(
                 save_path=os.path.join(self.checkpoint_folder, "training_history.png"),
-                show=False
+                show=False,
             )
         return True
 
@@ -415,7 +433,10 @@ class CheckpointManager(BaseCallback):
                 self.save_on(trainer)
             return
 
-        if self.save_freq > 0 and trainer.current_training_state.iteration % self.save_freq == 0:
+        if (
+            self.save_freq > 0
+            and trainer.current_training_state.iteration % self.save_freq == 0
+        ):
             return self.save_on(trainer)
         if trainer.current_training_state.iteration >= trainer.state.n_iterations - 1:
             return self.save_on(trainer)
@@ -424,7 +445,9 @@ class CheckpointManager(BaseCallback):
         if trainer.current_training_state.itr_metrics is None:
             return None
 
-        itr_metric = trainer.current_training_state.itr_metrics.get(self.metric, self.curr_best_metric)
+        itr_metric = trainer.current_training_state.itr_metrics.get(
+            self.metric, self.curr_best_metric
+        )
         if self.minimise_metric:
             is_best = itr_metric < self.curr_best_metric
         else:

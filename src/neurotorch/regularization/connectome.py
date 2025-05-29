@@ -48,14 +48,15 @@ class DaleLawL2(BaseRegularization):
         - :attr:`reference_weights` (Iterable[torch.Tensor]): Reference weights to compare. Must be the same size as the weights.
 
     """
+
     def __init__(
-            self,
-            params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
-            alpha: float = 0.8,
-            reference_weights: Optional[Iterable[torch.Tensor]] = None,
-            Lambda: float = 1.0,
-            optimizer: Optional[torch.optim.Optimizer] = None,
-            **dale_kwargs
+        self,
+        params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+        alpha: float = 0.8,
+        reference_weights: Optional[Iterable[torch.Tensor]] = None,
+        Lambda: float = 1.0,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+        **dale_kwargs,
     ):
         """
         :param params: Weights matrix to regularize (can be multiple)
@@ -87,8 +88,10 @@ class DaleLawL2(BaseRegularization):
         self.reference_weights = self._init_reference_weights(reference_weights)
 
     def _init_reference_weights(
-            self,
-            reference_weights: Optional[Union[Iterable[torch.Tensor], Dict[str, torch.Tensor]]] = None
+        self,
+        reference_weights: Optional[
+            Union[Iterable[torch.Tensor], Dict[str, torch.Tensor]]
+        ] = None,
     ):
         """
         Initialize the reference weights with Dale's law.
@@ -96,7 +99,9 @@ class DaleLawL2(BaseRegularization):
         if reference_weights is None:
             self.reference_weights = []
             for param in self.params:
-                self.reference_weights.append(torch.sign(dale_(torch.empty_like(param), **self.dale_kwargs)))
+                self.reference_weights.append(
+                    torch.sign(dale_(torch.empty_like(param), **self.dale_kwargs))
+                )
         else:
             self.reference_weights = [torch.sign(ref) for ref in reference_weights]
         return self.reference_weights
@@ -124,11 +129,11 @@ class DaleLawL2(BaseRegularization):
 
 class DaleLaw(DaleLawL2):
     def __init__(
-            self,
-            params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
-            reference_weights: Optional[Iterable[torch.Tensor]] = None,
-            Lambda: float = 1.0,
-            **dale_kwargs
+        self,
+        params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+        reference_weights: Optional[Iterable[torch.Tensor]] = None,
+        Lambda: float = 1.0,
+        **dale_kwargs,
     ):
         """
         :param params: Weights matrix to regularize (can be multiple)
@@ -143,17 +148,19 @@ class DaleLaw(DaleLawL2):
             the neurons will be shuffled.
         :keyword seed: seed for the random number generator. If None, the seed is not set.
         """
-        super(DaleLaw, self).__init__(params, 0.0, reference_weights, Lambda, **dale_kwargs)
+        super(DaleLaw, self).__init__(
+            params, 0.0, reference_weights, Lambda, **dale_kwargs
+        )
         self.__name__ = self.__class__.__name__
 
 
 class WeightsDistance(BaseRegularization):
     def __init__(
-            self,
-            params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
-            reference_weights: Iterable[torch.Tensor],
-            Lambda: float = 1.0,
-            p: int = 1,
+        self,
+        params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+        reference_weights: Iterable[torch.Tensor],
+        Lambda: float = 1.0,
+        p: int = 1,
     ):
         super(WeightsDistance, self).__init__(params, Lambda)
         self.reference_weights = list(reference_weights)
@@ -188,12 +195,13 @@ class ExcRatioTargetRegularization(BaseRegularization):
         >>> m = ExcRatioTargetRegularization(params=layer.get_sign_parameters(), Lambda=0.1, exc_target_ratio=0.9)
         >>> loss = m()
     """
+
     def __init__(
-            self,
-            params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
-            exc_target_ratio: float = 0.8,
-            Lambda: float = 1.0,
-            **kwargs
+        self,
+        params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+        exc_target_ratio: float = 0.8,
+        Lambda: float = 1.0,
+        **kwargs,
     ):
         """
         Create a new ExcRatioTargetRegularization.
@@ -227,13 +235,19 @@ class ExcRatioTargetRegularization(BaseRegularization):
         """
         Returns the excitatory ratio of each parameter.
         """
-        return [to_numpy(((torch.mean(self.sign_func(param)) + 1)/2).item()) for param in self.params]
+        return [
+            to_numpy(((torch.mean(self.sign_func(param)) + 1) / 2).item())
+            for param in self.params
+        ]
 
     def get_params_inh_ratio(self) -> List[float]:
         """
         Returns the inhibitory ratio of each parameter.
         """
-        return [to_numpy(((1 - torch.mean(self.sign_func(param)))/2).item()) for param in self.params]
+        return [
+            to_numpy(((1 - torch.mean(self.sign_func(param))) / 2).item())
+            for param in self.params
+        ]
 
     def on_pbar_update(self, trainer, **kwargs) -> dict:
         loss = to_numpy(self().item())
@@ -245,11 +259,12 @@ class InhRatioTargetRegularization(ExcRatioTargetRegularization):
     """
     Applies the `ExcRatioTargetRegularization` with the target ratio of inhibitory neurons.
     """
+
     def __init__(
-            self,
-            params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
-            inh_target_ratio: float = 0.2,
-            Lambda: float = 1.0,
+        self,
+        params: Union[Iterable[torch.nn.Parameter], Dict[str, torch.nn.Parameter]],
+        inh_target_ratio: float = 0.2,
+        Lambda: float = 1.0,
     ):
         """
         Create a new InhRatioTargetRegularization.
@@ -272,5 +287,3 @@ class InhRatioTargetRegularization(ExcRatioTargetRegularization):
         loss = to_numpy(self().item())
         inh_ratio = self.get_params_inh_ratio()
         return {"inh_ratio": inh_ratio, "inh_ratio_loss": loss}
-
-

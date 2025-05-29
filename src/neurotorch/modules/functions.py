@@ -13,10 +13,17 @@ class WeirdTanh(torch.nn.Module):
     .. math::
         \text{Tanh}(x) = \tanh(x) = \frac{a\exp(\alpha x) - b\exp(-\beta x)} {c\exp(\gamma x) + d\exp(-\delta x)}
     """
+
     def __init__(
-            self,
-            a: float = 1.0, b: float = 1.0, c: float = 1.0, d: float = 1.0,
-            alpha: float = 1.0, beta: float = 1.0, gamma: float = 1.0, delta: float = 1.0,
+        self,
+        a: float = 1.0,
+        b: float = 1.0,
+        c: float = 1.0,
+        d: float = 1.0,
+        alpha: float = 1.0,
+        beta: float = 1.0,
+        gamma: float = 1.0,
+        delta: float = 1.0,
     ):
         super().__init__()
         self.a = a
@@ -29,8 +36,12 @@ class WeirdTanh(torch.nn.Module):
         self.delta = delta
 
     def forward(self, x):
-        numerator = self.a * torch.exp(self.alpha * x) - self.b * torch.exp(-self.beta * x)
-        denominator = self.c * torch.exp(self.gamma * x) + self.d * torch.exp(-self.delta * x)
+        numerator = self.a * torch.exp(self.alpha * x) - self.b * torch.exp(
+            -self.beta * x
+        )
+        denominator = self.c * torch.exp(self.gamma * x) + self.d * torch.exp(
+            -self.delta * x
+        )
         return numerator / denominator
 
 
@@ -43,6 +54,7 @@ class PSigmoid(torch.nn.Module):
     .. math::
         \\text{PSigmoid}(x) = \\frac{1}{1 + \\exp(- p \\odot x)}
     """
+
     def __init__(self, p: float = 1.0, learn_p: bool = True):
         super().__init__()
         self.p_sqrt = torch.nn.Parameter(to_tensor(np.sqrt(p)), requires_grad=learn_p)

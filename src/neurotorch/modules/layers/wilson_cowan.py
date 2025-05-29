@@ -31,13 +31,13 @@ class WilsonCowanLayer(BaseNeuronsLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            dt: float = 1e-3,
-            use_recurrent_connection: bool = False,
-            device=None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        dt: float = 1e-3,
+        use_recurrent_connection: bool = False,
+        device=None,
+        **kwargs,
     ):
         """
         :param input_size: size of the input
@@ -74,19 +74,25 @@ class WilsonCowanLayer(BaseNeuronsLayer):
             use_recurrent_connection=use_recurrent_connection,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
         self.std_weight = self.kwargs["std_weight"]
-        self.mu = torch.nn.Parameter(to_tensor(self.kwargs["mu"]).to(self.device), requires_grad=False)
+        self.mu = torch.nn.Parameter(
+            to_tensor(self.kwargs["mu"]).to(self.device), requires_grad=False
+        )
         self.mean_mu = self.kwargs["mean_mu"]
         self.std_mu = self.kwargs["std_mu"]
         self.learn_mu = self.kwargs["learn_mu"]
         self.tau_sqrt = torch.nn.Parameter(
-            torch.sqrt(to_tensor(self.kwargs["tau"])).to(self.device), requires_grad=False
+            torch.sqrt(to_tensor(self.kwargs["tau"])).to(self.device),
+            requires_grad=False,
         )
         self.learn_tau = self.kwargs["learn_tau"]
         self.r_sqrt = torch.nn.Parameter(
-            torch.sqrt(to_tensor(self.kwargs["r"], dtype=torch.float32)).to(self.device), requires_grad=False
+            torch.sqrt(to_tensor(self.kwargs["r"], dtype=torch.float32)).to(
+                self.device
+            ),
+            requires_grad=False,
         )
         self.mean_r = self.kwargs["mean_r"]
         self.std_r = self.kwargs["std_r"]
@@ -122,7 +128,9 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 
     @r.setter
     def r(self, value):
-        self.r_sqrt.data = torch.sqrt(torch.abs(to_tensor(value, dtype=torch.float32))).to(self.device)
+        self.r_sqrt.data = torch.sqrt(
+            torch.abs(to_tensor(value, dtype=torch.float32))
+        ).to(self.device)
 
     @property
     def tau(self):
@@ -133,7 +141,9 @@ class WilsonCowanLayer(BaseNeuronsLayer):
 
     @tau.setter
     def tau(self, value):
-        self.tau_sqrt.data = torch.sqrt(torch.abs(to_tensor(value, dtype=torch.float32))).to(self.device)
+        self.tau_sqrt.data = torch.sqrt(
+            torch.abs(to_tensor(value, dtype=torch.float32))
+        ).to(self.device)
 
     def initialize_weights_(self):
         """
@@ -141,7 +151,9 @@ class WilsonCowanLayer(BaseNeuronsLayer):
         """
         super().initialize_weights_()
         if self.kwargs.get("forward_weights", None) is not None:
-            self._forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+            self._forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(
+                self.device
+            )
         else:
             torch.nn.init.normal_(self._forward_weights, mean=0.0, std=self.std_weight)
 
@@ -149,36 +161,58 @@ class WilsonCowanLayer(BaseNeuronsLayer):
         # If mu is a parameter, it is initialized as a vector with the correct mean and std
         # unless stated otherwise by user.
         if self.learn_mu:
-            if self.mu.dim() == 0:  # if mu is a scalar and a parameter -> convert it to a vector
-                self.mu.data = torch.empty((1, int(self.output_size)), dtype=torch.float32, device=self.device)
+            if (
+                self.mu.dim() == 0
+            ):  # if mu is a scalar and a parameter -> convert it to a vector
+                self.mu.data = torch.empty(
+                    (1, int(self.output_size)), dtype=torch.float32, device=self.device
+                )
             self.mu = torch.nn.Parameter(self.mu, requires_grad=self.requires_grad)
             torch.nn.init.normal_(self.mu, mean=self.mean_mu, std=self.std_mu)
         if self.learn_r:
-            _r = torch.empty((1, int(self.output_size)), dtype=torch.float32, device=self.device)
+            _r = torch.empty(
+                (1, int(self.output_size)), dtype=torch.float32, device=self.device
+            )
             torch.nn.init.normal_(_r, mean=self.mean_r, std=self.std_r)
-            self.r_sqrt = torch.nn.Parameter(torch.sqrt(torch.abs(_r)), requires_grad=self.requires_grad)
+            self.r_sqrt = torch.nn.Parameter(
+                torch.sqrt(torch.abs(_r)), requires_grad=self.requires_grad
+            )
         if self.learn_tau:
-            self.tau_sqrt = torch.nn.Parameter(self.tau_sqrt, requires_grad=self.requires_grad)
+            self.tau_sqrt = torch.nn.Parameter(
+                self.tau_sqrt, requires_grad=self.requires_grad
+            )
 
     def create_empty_state(self, batch_size: int = 1, **kwargs) -> Tuple[torch.Tensor]:
         if self.kwargs["hh_init"] == "zeros":
-            state = [torch.zeros(
-                (batch_size, int(self.output_size)),
-                device=self.device,
-                dtype=torch.float32,
-                requires_grad=True,
-            ) for _ in range(1)]
+            state = [
+                torch.zeros(
+                    (batch_size, int(self.output_size)),
+                    device=self.device,
+                    dtype=torch.float32,
+                    requires_grad=True,
+                )
+                for _ in range(1)
+            ]
         elif self.kwargs["hh_init"] == "random":
-            mu, std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", 1.0)
+            mu, std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get(
+                "hh_init_std", 1.0
+            )
             gen = torch.Generator(device=self.device)
             gen.manual_seed(self.kwargs.get("hh_init_seed", 0))
-            state = [(torch.rand(
-                (batch_size, int(self.output_size)),
-                device=self.device,
-                dtype=torch.float32,
-                requires_grad=True,
-                generator=gen,
-            ) * std + mu) for _ in range(1)]
+            state = [
+                (
+                    torch.rand(
+                        (batch_size, int(self.output_size)),
+                        device=self.device,
+                        dtype=torch.float32,
+                        requires_grad=True,
+                        generator=gen,
+                    )
+                    * std
+                    + mu
+                )
+                for _ in range(1)
+            ]
         elif self.kwargs["hh_init"] == "inputs":
             assert "inputs" in kwargs, "inputs must be provided to initialize the state"
             assert kwargs["inputs"].shape == (batch_size, int(self.output_size))
@@ -188,10 +222,10 @@ class WilsonCowanLayer(BaseNeuronsLayer):
         return tuple(state)
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Optional[Tuple[torch.Tensor, ...]] = None,
-            **kwargs
+        self,
+        inputs: torch.Tensor,
+        state: Optional[Tuple[torch.Tensor, ...]] = None,
+        **kwargs,
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor]]:
         """
         Forward pass.
@@ -209,16 +243,20 @@ class WilsonCowanLayer(BaseNeuronsLayer):
         :rtype: Tuple[torch.Tensor, Tuple[torch.Tensor, ...]]
         """
         batch_size, nb_features = inputs.shape
-        hh, = self._init_forward_state(state, batch_size, inputs=inputs)
+        (hh,) = self._init_forward_state(state, batch_size, inputs=inputs)
         ratio_dt_tau = self.dt / self.tau
 
         if self.use_recurrent_connection:
-            rec_inputs = torch.matmul(hh, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_inputs = torch.matmul(
+                hh, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_inputs = 0.0
 
-        transition_rate = (1 - hh * self.r)
-        activation = self.activation(rec_inputs + torch.matmul(inputs, self.forward_weights) - self.mu)
+        transition_rate = 1 - hh * self.r
+        activation = self.activation(
+            rec_inputs + torch.matmul(inputs, self.forward_weights) - self.mu
+        )
         output = hh * (1 - ratio_dt_tau) + transition_rate * activation * ratio_dt_tau
         return output, (torch.clone(output),)
 
@@ -227,9 +265,13 @@ class WilsonCowanCURBDLayer(WilsonCowanLayer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def create_empty_state(self, batch_size: int = 1, **kwargs) -> Tuple[torch.Tensor, ...]:
+    def create_empty_state(
+        self, batch_size: int = 1, **kwargs
+    ) -> Tuple[torch.Tensor, ...]:
         if self.kwargs["hh_init"].lower() == "given":
-            assert "h0" in self.kwargs, "h0 must be provided as a tuple of tensors when hh_init is 'given'."
+            assert (
+                "h0" in self.kwargs
+            ), "h0 must be provided as a tuple of tensors when hh_init is 'given'."
             h0 = self.kwargs["h0"]
             assert isinstance(h0, (tuple, list)), "h0 must be a tuple of tensors."
             state = [to_tensor(h0_, dtype=torch.float32).to(self.device) for h0_ in h0]
@@ -238,29 +280,34 @@ class WilsonCowanCURBDLayer(WilsonCowanLayer):
         return tuple(state)
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Optional[Tuple[torch.Tensor, ...]] = None,
-            **kwargs
+        self,
+        inputs: torch.Tensor,
+        state: Optional[Tuple[torch.Tensor, ...]] = None,
+        **kwargs,
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, ...]]:
         batch_size, nb_features = inputs.shape
 
-        out_shape = tuple(inputs.shape[:-1]) + (self.forward_weights.shape[-1],)  # [*, f_out]
+        out_shape = tuple(inputs.shape[:-1]) + (
+            self.forward_weights.shape[-1],
+        )  # [*, f_out]
         inputs_view = inputs.view(-1, inputs.shape[-1])  # [*, f_in] -> [B, f_in]
 
-        hh, = self._init_forward_state(state, batch_size, inputs=inputs_view, **kwargs)  # [B, f_out]
+        (hh,) = self._init_forward_state(
+            state, batch_size, inputs=inputs_view, **kwargs
+        )  # [B, f_out]
         post_activation = self.activation(hh)  # [B, f_out]
 
         if self.use_recurrent_connection:
             # [B, f_out] @ [f_out, f_out] -> [B, f_out]
-            rec_inputs = torch.matmul(post_activation, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_inputs = torch.matmul(
+                post_activation, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_inputs = 0.0
 
         # [B, f_in] @ [f_in, f_out] -> [B, f_out]
         weighted_current = torch.matmul(inputs_view, self.forward_weights)
-        jr = (rec_inputs + weighted_current)  # [B, f_out]
+        jr = rec_inputs + weighted_current  # [B, f_out]
         next_hh = hh + self.dt * (-hh + jr) / self.tau  # [B, f_out]
         output = post_activation.view(out_shape)  # [B, f_out] -> [*, f_out]
         return output, (next_hh,)
-

@@ -57,7 +57,13 @@ class ToDevice(torch.nn.Module):
         self._device = device
         self.to(device)
 
-    def to(self, device: Optional[Union[int, torch.device]], non_blocking: Optional[bool] = None, *args, **kwargs):
+    def to(
+        self,
+        device: Optional[Union[int, torch.device]],
+        non_blocking: Optional[bool] = None,
+        *args,
+        **kwargs,
+    ):
         self._device = device
         if non_blocking is None:
             non_blocking = self.non_blocking
@@ -110,12 +116,12 @@ class IdentityTransform(torch.nn.Module):
 
 class LinearRateToSpikes(torch.nn.Module):
     def __init__(
-            self,
-            n_steps: int,
-            *,
-            data_min: float = 0.0,
-            data_max: float = 1.0,
-            epsilon: float = 1e-6,
+        self,
+        n_steps: int,
+        *,
+        data_min: float = 0.0,
+        data_max: float = 1.0,
+        epsilon: float = 1e-6,
     ):
         super().__init__()
         self.n_steps = n_steps
@@ -131,7 +137,10 @@ class LinearRateToSpikes(torch.nn.Module):
         ones_mask = firing_periods == 1
         firing_periods[firing_periods > self.n_steps] = self.n_steps
         firing_periods[firing_periods < 1] = 1
-        time_dim = np.expand_dims(np.arange(1, self.n_steps+1), axis=tuple(np.arange(firing_periods.ndim)+1))
+        time_dim = np.expand_dims(
+            np.arange(1, self.n_steps + 1),
+            axis=tuple(np.arange(firing_periods.ndim) + 1),
+        )
         spikes = (time_dim % firing_periods) == 0
         spikes[0, ones_mask] = 0
         return spikes.astype(float)
@@ -180,6 +189,7 @@ class MaybeSoftmax(torch.nn.Module):
 
     def forward(self, x):
         from ..utils import maybe_apply_softmax
+
         return maybe_apply_softmax(x, self.dim)
 
 
@@ -190,14 +200,12 @@ class ReduceMax(torch.nn.Module):
 
     def forward(self, x):
         from ..utils import unpack_out_hh
+
         out, hh = unpack_out_hh(x)
         if isinstance(out, torch.Tensor):
             out_max, _ = torch.max(out, dim=self.dim)
         elif isinstance(out, dict):
-            out_max = {
-                k: torch.max(v, dim=self.dim)[0]
-                for k, v in out.items()
-            }
+            out_max = {k: torch.max(v, dim=self.dim)[0] for k, v in out.items()}
         else:
             raise ValueError("Inputs must be a torch.Tensor or a dictionary.")
         return out_max
@@ -213,14 +221,12 @@ class ReduceMean(torch.nn.Module):
 
     def forward(self, x):
         from ..utils import unpack_out_hh
+
         out, hh = unpack_out_hh(x)
         if isinstance(out, torch.Tensor):
             out_mean = torch.mean(out, dim=self.dim)
         elif isinstance(out, dict):
-            out_mean = {
-                k: torch.mean(v, dim=self.dim)
-                for k, v in out.items()
-            }
+            out_mean = {k: torch.mean(v, dim=self.dim) for k, v in out.items()}
         else:
             raise ValueError("Inputs must be a torch.Tensor or a dictionary.")
         return out_mean
@@ -236,14 +242,12 @@ class ReduceSum(torch.nn.Module):
 
     def forward(self, x):
         from ..utils import unpack_out_hh
+
         out, hh = unpack_out_hh(x)
         if isinstance(out, torch.Tensor):
             out_sum = torch.sum(out, dim=self.dim)
         elif isinstance(out, dict):
-            out_sum = {
-                k: torch.sum(v, dim=self.dim)
-                for k, v in out.items()
-            }
+            out_sum = {k: torch.sum(v, dim=self.dim) for k, v in out.items()}
         else:
             raise ValueError("Inputs must be a torch.Tensor or a dictionary.")
         return out_sum
@@ -256,12 +260,13 @@ class ReduceFuncTanh(torch.nn.Module):
     """
     Applies a reduction function to the output of a recurrent layer and then applies a tanh activation.
     """
+
     def __init__(
-            self,
-            reduce_func: Callable[
-                [Union[Dict[str, torch.Tensor], torch.Tensor]],
-                Union[Dict[str, torch.Tensor], torch.Tensor]
-            ]
+        self,
+        reduce_func: Callable[
+            [Union[Dict[str, torch.Tensor], torch.Tensor]],
+            Union[Dict[str, torch.Tensor], torch.Tensor],
+        ],
     ):
         """
         Constructor of the ReduceFuncTanh class.
@@ -279,11 +284,7 @@ class ReduceFuncTanh(torch.nn.Module):
         if isinstance(out_reduced, torch.Tensor):
             out_reduced_tanh = self.tanh(out_reduced)
         elif isinstance(out_reduced, dict):
-            out_reduced_tanh = {
-                k: self.tanh(v)
-                for k, v in out_reduced.items()
-            }
+            out_reduced_tanh = {k: self.tanh(v) for k, v in out_reduced.items()}
         else:
             raise ValueError("Inputs must be a torch.Tensor or a dictionary.")
         return out_reduced_tanh
-

@@ -1,6 +1,11 @@
 from matplotlib import pyplot as plt
 
-from .time_series_visualisation import Visualise, VisualiseKMeans, VisualisePCA, VisualiseUMAP
+from .time_series_visualisation import (
+    Visualise,
+    VisualiseKMeans,
+    VisualisePCA,
+    VisualiseUMAP,
+)
 from ..metrics.losses import PVarianceLoss
 
 
@@ -23,10 +28,12 @@ def UMAP_PCA_report(pred_viz: Visualise, target_viz: Visualise, **kwargs):
         timeseries=pred_viz.timeseries,
         shape=pred_viz.shape,
     ).trajectory_umap(
-        UMAPs=(1, 2), target=viz_umap_target,
-        fig=fig, axes=axes[:, 0],
+        UMAPs=(1, 2),
+        target=viz_umap_target,
+        fig=fig,
+        axes=axes[:, 0],
         filename=kwargs.get("filename", None),
-        show=kwargs.get("show", True)
+        show=kwargs.get("show", True),
     )
 
 
@@ -38,14 +45,22 @@ def mix_report(pred_viz: Visualise, target_viz: Visualise, **kwargs):
     fig.suptitle(title, fontsize=kwargs.get("fontsize", 16))
 
     pred_viz.plot_timeseries_comparison(
-        target_viz.timeseries, kwargs.get("spikes"),
+        target_viz.timeseries,
+        kwargs.get("spikes"),
         n_spikes_steps=kwargs.get("n_spikes_steps"),
-        title="", desc=kwargs.get("desc", "Prediction"),
-        fig=fig, axes=axes[:, 0],
+        title="",
+        desc=kwargs.get("desc", "Prediction"),
+        fig=fig,
+        axes=axes[:, 0],
         traces_to_show=kwargs.get("traces_to_show", ["best", "most_var", "typical_0"]),
-        traces_to_show_names=kwargs.get("traces_to_show_names", [
-            "Best Neuron Prediction", "Most variable Neuron Prediction", "Typical Neuron Prediction"
-        ]),
+        traces_to_show_names=kwargs.get(
+            "traces_to_show_names",
+            [
+                "Best Neuron Prediction",
+                "Most variable Neuron Prediction",
+                "Typical Neuron Prediction",
+            ],
+        ),
         show=False,
     )
     space = kwargs.get("space", "UMAP")
@@ -64,11 +79,10 @@ def mix_report(pred_viz: Visualise, target_viz: Visualise, **kwargs):
     else:
         raise ValueError(f"Unknown space: {space}. Try 'UMAP' or 'PCA'.")
     pred_viz_space.trajectory_umap(
-        UMAPs=(1, 2), target=target_viz,
-        fig=fig, axes=axes[:, 1],
+        UMAPs=(1, 2),
+        target=target_viz,
+        fig=fig,
+        axes=axes[:, 1],
         filename=kwargs.get("filename", None),
-        show=kwargs.get("show", True)
+        show=kwargs.get("show", True),
     )
-
-
-

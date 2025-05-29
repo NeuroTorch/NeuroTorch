@@ -19,7 +19,10 @@ class _VisualizerProcess(mp.Process):
         - **axes** (plt.Axes): The axes to plot.
         - **lines** (list): The list of lines to plot.
     """
-    def __init__(self, history_path: str, lock: Union[mp.Lock, mp.RLock], update_dt: float = 1.0):
+
+    def __init__(
+        self, history_path: str, lock: Union[mp.Lock, mp.RLock], update_dt: float = 1.0
+    ):
         """
         Create a new process to plot the training history.
 
@@ -50,7 +53,9 @@ class _VisualizerProcess(mp.Process):
             if os.path.exists(self._history_path):
                 try:
                     with self._lock:
-                        self._training_history = pickle.load(open(self._history_path, "rb"))
+                        self._training_history = pickle.load(
+                            open(self._history_path, "rb")
+                        )
                     can_plot = True
                 except Exception:
                     time.sleep(self._update_dt)
@@ -64,7 +69,9 @@ class _VisualizerProcess(mp.Process):
         plt.pause(self._update_dt)
         while not self._close_event.is_set():
             self.update_history()
-            self.fig, self.axes, self.lines = self._training_history.update_fig(self.fig, self.axes, self.lines)
+            self.fig, self.axes, self.lines = self._training_history.update_fig(
+                self.fig, self.axes, self.lines
+            )
             plt.pause(self._update_dt)
         plt.close(self.fig)
 
@@ -101,11 +108,7 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
         - **lines** (list): The list of lines to plot.
     """
 
-    def __init__(
-            self,
-            temp_folder: str = '~/temp/',
-            **kwargs
-    ):
+    def __init__(self, temp_folder: str = "~/temp/", **kwargs):
         """
         Create a new callback to visualize the training history.
 
@@ -117,7 +120,8 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
         self._is_open = False
         os.makedirs(temp_folder, exist_ok=True)
         self._temp_path = os.path.join(
-            os.path.expanduser(temp_folder), f'training_visualization{time.time_ns()}.pkl'
+            os.path.expanduser(temp_folder),
+            f"training_visualization{time.time_ns()}.pkl",
         )
         self._lock = mp.Lock()
         self._process = _VisualizerProcess(self._temp_path, self._lock)
@@ -171,6 +175,3 @@ class TrainingHistoryVisualizationCallback(BaseCallback):
             with self._lock:
                 if os.path.exists(self._temp_path):
                     os.remove(self._temp_path)
-
-
-

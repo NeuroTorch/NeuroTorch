@@ -1,6 +1,17 @@
 import warnings
 from collections import OrderedDict
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Type, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
 from typing import OrderedDict as OrderedDictType
 
 import torch
@@ -13,7 +24,7 @@ from . import (
     LayerType,
     LayerType2Layer,
     SpikeFuncType,
-    SpikeFunction
+    SpikeFunction,
 )
 from .base import NamedModule
 from .wrappers import NamedModuleWrapper
@@ -44,8 +55,8 @@ class Sequential(BaseModel):
 
     @staticmethod
     def _format_input_output_layers(
-            layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]],
-            default_prefix_layer_name: str = "layer",
+        layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]],
+        default_prefix_layer_name: str = "layer",
     ) -> OrderedDictType[str, NamedModule]:
         """
         Format the input or output layers. The format is an ordered dictionary of the form {layer_name: layer}.
@@ -59,32 +70,40 @@ class Sequential(BaseModel):
         :return: The formatted input or output layers.
         :rtype: OrderedDict[str, NamedModule]
         """
-        layers: Iterable[torch.nn.Module] = [layers] if not isinstance(layers, (Iterable, Mapping)) else layers
+        layers: Iterable[torch.nn.Module] = (
+            [layers] if not isinstance(layers, (Iterable, Mapping)) else layers
+        )
         if isinstance(layers, Mapping):
             layers: OrderedDictType[str, NamedModule] = OrderedDict(
-                (k, (v if isinstance(v, NamedModule) else NamedModuleWrapper(v))) for k, v in layers.items()
+                (k, (v if isinstance(v, NamedModule) else NamedModuleWrapper(v)))
+                for k, v in layers.items()
             )
             for layer_key, layer in layers.items():
                 if not layer.name_is_set:
                     layer.name = layer_key
-            assert all(layer_key == layer.name for layer_key, layer in layers.items()), \
-                "The layer names must be the same as the keys."
+            assert all(
+                layer_key == layer.name for layer_key, layer in layers.items()
+            ), "The layer names must be the same as the keys."
         else:
             layers: Iterable[NamedModule] = [
-                (layer if isinstance(layer, NamedModule) else NamedModuleWrapper(layer)) for layer in layers
+                (layer if isinstance(layer, NamedModule) else NamedModuleWrapper(layer))
+                for layer in layers
             ]
             for layer_idx, layer in enumerate(layers):
                 if not layer.name_is_set:
                     layer.name = f"{default_prefix_layer_name}_{layer_idx}"
-            assert len([layer.name for layer in layers]) == len(set([layer.name for layer in layers])), \
-                "There are layers with the same name. Please specify the names of the layers without duplicates."
-            layers: OrderedDict[str, NamedModule] = OrderedDict((layer.name, layer) for layer in layers)
+            assert len([layer.name for layer in layers]) == len(
+                set([layer.name for layer in layers])
+            ), "There are layers with the same name. Please specify the names of the layers without duplicates."
+            layers: OrderedDict[str, NamedModule] = OrderedDict(
+                (layer.name, layer) for layer in layers
+            )
         return layers
 
     @staticmethod
     def _format_hidden_layers(
-            layers: Iterable[torch.nn.Module],
-            default_prefix_layer_name: str = "hidden",
+        layers: Iterable[torch.nn.Module],
+        default_prefix_layer_name: str = "hidden",
     ) -> List[NamedModule]:
         """
         Format the hidden layers. The format is a list of the form [layer, ...].
@@ -99,7 +118,8 @@ class Sequential(BaseModel):
         :rtype: List[NamedModule]
         """
         layers: Iterable[NamedModule] = [
-            (layer if isinstance(layer, NamedModule) else NamedModuleWrapper(layer)) for layer in layers
+            (layer if isinstance(layer, NamedModule) else NamedModuleWrapper(layer))
+            for layer in layers
         ]
         for i, layer in enumerate(layers):
             if not layer.name_is_set:
@@ -108,7 +128,7 @@ class Sequential(BaseModel):
 
     @staticmethod
     def _format_layers(
-            layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]]
+        layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]],
     ) -> Tuple[OrderedDict, List, OrderedDict]:
         """
         Format the given layers. The format is a tuple of the form:
@@ -147,9 +167,7 @@ class Sequential(BaseModel):
 
     @staticmethod
     def _layers_containers_to_modules(
-            inputs_layers: OrderedDict,
-            hidden_layers: List,
-            outputs_layers: OrderedDict
+        inputs_layers: OrderedDict, hidden_layers: List, outputs_layers: OrderedDict
     ) -> Tuple[nn.ModuleDict, nn.ModuleList, nn.ModuleDict]:
         """
         Convert the input, hidden and output layers containers to modules.
@@ -171,21 +189,23 @@ class Sequential(BaseModel):
 
     @staticmethod
     def _format_layer_type_(
-            layer_type: Optional[Acceptable_Layer_Type]
+        layer_type: Optional[Acceptable_Layer_Type],
     ) -> Optional[Type[BaseLayer]]:
         warnings.warn(
             "This function is not used anymore in the SequentialModel.",
-            DeprecationWarning
+            DeprecationWarning,
         )
         if isinstance(layer_type, LayerType):
             layer_type = LayerType2Layer[layer_type]
         return layer_type
 
     @staticmethod
-    def _format_hidden_neurons_(n_hidden_neurons: Optional[Union[int, Iterable[int]]]) -> List[int]:
+    def _format_hidden_neurons_(
+        n_hidden_neurons: Optional[Union[int, Iterable[int]]],
+    ) -> List[int]:
         warnings.warn(
             "This function is not used anymore in the SequentialModel.",
-            DeprecationWarning
+            DeprecationWarning,
         )
         if n_hidden_neurons is None:
             return []
@@ -194,14 +214,14 @@ class Sequential(BaseModel):
         return n_hidden_neurons
 
     def __init__(
-            self,
-            layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]],
-            name: str = "Sequential",
-            checkpoint_folder: str = "checkpoints",
-            device: Optional[torch.device] = None,
-            input_transform: Optional[Union[Dict[str, Callable], List[Callable]]] = None,
-            output_transform: Optional[Union[Dict[str, Callable], List[Callable]]] = None,
-            **kwargs
+        self,
+        layers: Iterable[Union[Iterable[torch.nn.Module], torch.nn.Module]],
+        name: str = "Sequential",
+        checkpoint_folder: str = "checkpoints",
+        device: Optional[torch.device] = None,
+        input_transform: Optional[Union[Dict[str, Callable], List[Callable]]] = None,
+        output_transform: Optional[Union[Dict[str, Callable], List[Callable]]] = None,
+        **kwargs,
     ):
         """
         The Sequential is a neural network that is constructed by stacking layers.
@@ -239,21 +259,30 @@ class Sequential(BaseModel):
         self._ordered_outputs_names = [layer.name for _, layer in output_layers.items()]
         super(Sequential, self).__init__(
             # TODO: automatically find the first layer in the network et get its input size.
-            input_sizes={layer.name: getattr(layer, "input_size", None) for _, layer in input_layers.items()},
-            output_size={layer.name: getattr(layer, "output_size", None) for _, layer in output_layers.items()},
+            input_sizes={
+                layer.name: getattr(layer, "input_size", None)
+                for _, layer in input_layers.items()
+            },
+            output_size={
+                layer.name: getattr(layer, "output_size", None)
+                for _, layer in output_layers.items()
+            },
             name=name,
             checkpoint_folder=checkpoint_folder,
             device=device,
             input_transform=input_transform,
             output_transform=output_transform,
-            **kwargs
+            **kwargs,
         )
         self._default_n_hidden_neurons = self.kwargs.get("n_hidden_neurons", 128)
-        self.input_layers, self.hidden_layers, self.output_layers = self._layers_containers_to_modules(
-            input_layers, hidden_layers, output_layers
+        self.input_layers, self.hidden_layers, self.output_layers = (
+            self._layers_containers_to_modules(
+                input_layers, hidden_layers, output_layers
+            )
         )
-        assert len(self.get_all_layers_names()) == len(set(self.get_all_layers_names())), \
-            "There are layers with the same name."
+        assert len(self.get_all_layers_names()) == len(
+            set(self.get_all_layers_names())
+        ), "There are layers with the same name."
 
     @BaseModel.device.setter
     def device(self, device: torch.device):
@@ -277,7 +306,11 @@ class Sequential(BaseModel):
         :return: A list of all the layers of the model.
         :rtype: List[nn.Module]
         """
-        return list(self.input_layers.values()) + list(self.hidden_layers) + list(self.output_layers.values())
+        return (
+            list(self.input_layers.values())
+            + list(self.hidden_layers)
+            + list(self.output_layers.values())
+        )
 
     def get_layers(self, layer_names: Optional[List[str]] = None) -> List[nn.Module]:
         """
@@ -353,10 +386,7 @@ class Sequential(BaseModel):
         :return: None
         """
         if isinstance(inputs, torch.Tensor):
-            inputs = {
-                layer_name: inputs
-                for layer_name, _ in self.input_layers.items()
-            }
+            inputs = {layer_name: inputs for layer_name, _ in self.input_layers.items()}
         self.input_sizes = {k: v.shape[1:] for k, v in inputs.items()}
 
     def initialize_weights_(self):
@@ -366,7 +396,9 @@ class Sequential(BaseModel):
         :return: None
         """
         for layer in self.get_all_layers():
-            if hasattr(layer, "initialize_weights_") and callable(layer.initialize_weights_):
+            if hasattr(layer, "initialize_weights_") and callable(
+                layer.initialize_weights_
+            ):
                 layer.initialize_weights_()
 
     def _format_single_inputs(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
@@ -381,7 +413,9 @@ class Sequential(BaseModel):
         """
         return inputs.float()
 
-    def _format_inputs(self, inputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def _format_inputs(
+        self, inputs: Dict[str, torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
         """
         Return the formatted inputs formatted by self._format_single_inputs.
 
@@ -391,9 +425,13 @@ class Sequential(BaseModel):
         :return: Formatted inputs dictionary.
         :rtype: Dict[str, torch.Tensor]
         """
-        return {k: self._format_single_inputs(in_tensor) for k, in_tensor in inputs.items()}
+        return {
+            k: self._format_single_inputs(in_tensor) for k, in_tensor in inputs.items()
+        }
 
-    def _inputs_to_dict(self, inputs: Union[Dict[str, Any], torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def _inputs_to_dict(
+        self, inputs: Union[Dict[str, Any], torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
         """
         Transform the inputs tensor into dictionary of tensors.
 
@@ -428,7 +466,7 @@ class Sequential(BaseModel):
                     if not getattr(layer, "is_built", False):
                         layer.build()
 
-    def build(self) -> 'Sequential':
+    def build(self) -> "Sequential":
         """
         Build the network and all its layers.
 
@@ -463,13 +501,17 @@ class Sequential(BaseModel):
         last_hidden_out_size = inputs_layers_out_sum
         for layer_idx, layer in enumerate(self.hidden_layers):
             if layer_idx == 0:
-                if hasattr(layer, "input_size") and layer.input_size is None and inputs_sum_valid:
+                if (
+                    hasattr(layer, "input_size")
+                    and layer.input_size is None
+                    and inputs_sum_valid
+                ):
                     layer.input_size = last_hidden_out_size
             # layer.input_size = inputs_layers_out_sum
             elif (
-                    hasattr(self.hidden_layers[layer_idx - 1], "output_size")
-                    and hasattr(layer, "input_size")
-                    and layer.input_size is None
+                hasattr(self.hidden_layers[layer_idx - 1], "output_size")
+                and hasattr(layer, "input_size")
+                and layer.input_size is None
             ):
                 layer.input_size = self.hidden_layers[layer_idx - 1].output_size
             if hasattr(layer, "output_size") and layer.output_size is None:
@@ -489,14 +531,16 @@ class Sequential(BaseModel):
                 else:
                     layer.output_size = self.output_sizes[layer_name]
             if self.output_sizes is None:
-                self.output_sizes = {layer_name: layer.output_size} if hasattr(layer, "output_size") else {}
+                self.output_sizes = (
+                    {layer_name: layer.output_size}
+                    if hasattr(layer, "output_size")
+                    else {}
+                )
             elif hasattr(layer, "output_size"):
                 self.output_sizes[layer_name] = layer.output_size
 
     def forward(
-            self,
-            inputs: Union[Dict[str, Any], torch.Tensor],
-            **kwargs
+        self, inputs: Union[Dict[str, Any], torch.Tensor], **kwargs
     ) -> Dict[str, torch.Tensor]:
         """
         Forward pass of the model.
@@ -521,7 +565,9 @@ class Sequential(BaseModel):
         if features_list:
             forward_tensor = torch.concat(features_list, dim=-1)
         else:
-            forward_tensor = torch.concat([inputs[in_name] for in_name in inputs], dim=-1)
+            forward_tensor = torch.concat(
+                [inputs[in_name] for in_name in inputs], dim=-1
+            )
 
         for layer_idx, layer in enumerate(self.hidden_layers):
             forward_tensor = layer(forward_tensor)
@@ -533,11 +579,7 @@ class Sequential(BaseModel):
         outputs_tensor = self.apply_output_transform(outputs)
         return outputs_tensor
 
-    def get_raw_prediction(
-            self,
-            inputs: torch.Tensor,
-            **kwargs
-    ) -> Any:
+    def get_raw_prediction(self, inputs: torch.Tensor, **kwargs) -> Any:
         """
         Get the raw prediction of the model which is the output of the forward pass.
 
@@ -550,11 +592,7 @@ class Sequential(BaseModel):
         outputs = self(inputs.to(self._device))
         return outputs
 
-    def get_prediction_proba(
-            self,
-            inputs: torch.Tensor,
-            **kwargs
-    ) -> Any:
+    def get_prediction_proba(self, inputs: torch.Tensor, **kwargs) -> Any:
         """
         Get the prediction probability of the model which is the softmax of the output of the forward pass.
         The softmax is performed on the last dimension. This method is generally used for classification.
@@ -573,18 +611,13 @@ class Sequential(BaseModel):
         if isinstance(m, torch.Tensor):
             proba = torch.softmax(m, dim=-1)
         elif isinstance(m, dict):
-            proba = {
-                k: torch.softmax(v, dim=-1)
-                for k, v in m.items()
-            }
+            proba = {k: torch.softmax(v, dim=-1) for k, v in m.items()}
         else:
             raise ValueError("m must be a torch.Tensor or a dictionary")
         return proba
 
     def get_prediction_log_proba(
-            self,
-            inputs: torch.Tensor,
-            **kwargs
+        self, inputs: torch.Tensor, **kwargs
     ) -> Union[Tuple[Tensor, Any, Any], Tuple[Tensor, Any], Tensor]:
         """
         Get the prediction log probability of the model which is the log softmax of the output of the forward pass.
@@ -605,10 +638,7 @@ class Sequential(BaseModel):
         if isinstance(m, torch.Tensor):
             log_proba = F.log_softmax(m, dim=-1)
         elif isinstance(m, dict):
-            log_proba = {
-                k: F.log_softmax(v, dim=-1)
-                for k, v in m.items()
-            }
+            log_proba = {k: F.log_softmax(v, dim=-1) for k, v in m.items()}
         else:
             raise ValueError("m must be a torch.Tensor or a dictionary")
         return log_proba
@@ -623,12 +653,12 @@ class Sequential(BaseModel):
         """
         warnings.warn(
             "This method is deprecated and will be removed in the next version. Use get_regularization_loss instead.",
-            DeprecationWarning
+            DeprecationWarning,
         )
         regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         for layer in self.get_all_layers():
-            if hasattr(layer, "get_and_reset_regularization_loss") and callable(layer.get_and_reset_regularization_loss):
+            if hasattr(layer, "get_and_reset_regularization_loss") and callable(
+                layer.get_and_reset_regularization_loss
+            ):
                 regularization_loss += layer.get_and_reset_regularization_loss()
         return regularization_loss
-
-

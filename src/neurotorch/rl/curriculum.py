@@ -10,26 +10,27 @@ class CompletionCriteria(NamedTuple):
     """
     Completion criteria for a lesson.
     """
+
     measure: str
     min_lesson_length: int
     threshold: float
 
     @staticmethod
-    def default_criteria() -> 'CompletionCriteria':
-        return CompletionCriteria(measure='Rewards', min_lesson_length=1, threshold=0.9)
+    def default_criteria() -> "CompletionCriteria":
+        return CompletionCriteria(measure="Rewards", min_lesson_length=1, threshold=0.9)
 
 
 class Lesson:
-    UNPICKLABLE_ATTRIBUTES = ['_teacher', '_channel']
+    UNPICKLABLE_ATTRIBUTES = ["_teacher", "_channel"]
 
     def __init__(
-            self,
-            name,
-            channel,  #: EnvironmentParametersChannel,
-            params: Dict[str, float],
-            completion_criteria: CompletionCriteria = CompletionCriteria.default_criteria(),
-            teacher=None,
-            teacher_strength : Optional[float] = None
+        self,
+        name,
+        channel,  #: EnvironmentParametersChannel,
+        params: Dict[str, float],
+        completion_criteria: CompletionCriteria = CompletionCriteria.default_criteria(),
+        teacher=None,
+        teacher_strength: Optional[float] = None,
     ):
         # assert teacher is None or hasattr(teacher, 'buffer'), 'Teacher must have a replay buffer.'
         self.name = name
@@ -56,7 +57,9 @@ class Lesson:
         """
         if self._teacher is not None:
             buffer = self._teacher.buffer
-            assert isinstance(buffer, ReplayBuffer), 'Teacher must have a replay buffer.'
+            assert isinstance(
+                buffer, ReplayBuffer
+            ), "Teacher must have a replay buffer."
             return self._teacher.buffer
         return None
 
@@ -121,12 +124,18 @@ class CurriculumEndIterationOutput(NamedTuple):
     """
     Output of the curriculum when the end of an iteration is reached.
     """
+
     messages: Dict[str, str]
     lesson_completed: bool
 
 
 class Curriculum:
-    def __init__(self, name: str = "Curriculum", description: str = "", lessons: List[Lesson] = None):
+    def __init__(
+        self,
+        name: str = "Curriculum",
+        description: str = "",
+        lessons: List[Lesson] = None,
+    ):
         self.name = name
         self.description = description
         self._lessons = [] if lessons is None else lessons
@@ -152,8 +161,8 @@ class Curriculum:
     def map_repr(self) -> Dict[str, str]:
         progress = f"{100 * self._current_lesson_idx / (len(self._lessons)-1):.1f} %"
         if self.is_completed:
-            return {self.name: f'(lesson: completed) 100%'}
-        return {self.name: f'(lesson: {self.current_lesson.name}) {progress}'}
+            return {self.name: f"(lesson: completed) 100%"}
+        return {self.name: f"(lesson: {self.current_lesson.name}) {progress}"}
 
     @property
     def teachers(self):
@@ -180,7 +189,7 @@ class Curriculum:
 
     def __str__(self):
         map_repr = self.map_repr
-        return f'{self.name} {map_repr[self.name]}'
+        return f"{self.name} {map_repr[self.name]}"
 
     def __repr__(self):
         return str(self)
@@ -201,7 +210,9 @@ class Curriculum:
         if not self.is_completed:
             self.current_lesson.start()
 
-    def on_iteration_end(self, metrics: Dict[str, float]) -> CurriculumEndIterationOutput:
+    def on_iteration_end(
+        self, metrics: Dict[str, float]
+    ) -> CurriculumEndIterationOutput:
         """
         Called when an iteration ends.
         """
@@ -211,20 +222,24 @@ class Curriculum:
             if self.current_lesson.is_completed:
                 self._current_lesson_idx += 1
                 lesson_is_completed = True
-        return CurriculumEndIterationOutput(messages=self.map_repr, lesson_completed=lesson_is_completed)
+        return CurriculumEndIterationOutput(
+            messages=self.map_repr, lesson_completed=lesson_is_completed
+        )
 
     def update_teachers(self, teachers: List):
-        assert len(teachers) == len(self._lessons), 'Number of teachers must match number of lessons.'
+        assert len(teachers) == len(
+            self._lessons
+        ), "Number of teachers must match number of lessons."
         for lesson, teacher in zip(self._lessons, teachers):
             lesson.teacher = teacher
 
     def update_channels(self, channels: List):
-        assert len(channels) == len(self._lessons), 'Number of channels must match number of lessons.'
+        assert len(channels) == len(
+            self._lessons
+        ), "Number of channels must match number of lessons."
         for lesson, channel in zip(self._lessons, channels):
             lesson._channel = channel
 
-    def update_teachers_and_channels(self, other: 'Curriculum'):
+    def update_teachers_and_channels(self, other: "Curriculum"):
         self.update_teachers(other.teachers)
         self.update_channels(other.channels)
-
-

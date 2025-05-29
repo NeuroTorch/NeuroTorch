@@ -101,7 +101,7 @@ class TestBaseLayer(unittest.TestCase):
         layer.update_regularization_loss(0.1)
         self.assertTrue(
             torch.isclose(layer._regularization_loss, torch.tensor(0.1)),
-            f"{layer._regularization_loss = } != {torch.tensor(0.1)}"
+            f"{layer._regularization_loss = } != {torch.tensor(0.1)}",
         )
 
     def test_reset_regularization(self):
@@ -128,7 +128,9 @@ class TestBaseLayer(unittest.TestCase):
 
         layer.update_regularization_loss = _update
         layer.update_regularization_loss(0.1)
-        self.assertTrue(torch.isclose(layer._regularization_loss, layer.get_regularization_loss()))
+        self.assertTrue(
+            torch.isclose(layer._regularization_loss, layer.get_regularization_loss())
+        )
 
     def test_get_and_reset_regularization(self):
         layer = BaseLayer(10, 10, device=torch.device("cpu"))
@@ -143,7 +145,9 @@ class TestBaseLayer(unittest.TestCase):
         self.assertTrue(torch.isclose(layer._regularization_loss, torch.tensor(0.1)))
         get_tensor = layer.get_regularization_loss()
         self.assertTrue(torch.isclose(layer._regularization_loss, get_tensor))
-        self.assertTrue(torch.isclose(get_tensor, layer.get_and_reset_regularization_loss()))
+        self.assertTrue(
+            torch.isclose(get_tensor, layer.get_and_reset_regularization_loss())
+        )
         self.assertTrue(torch.isclose(layer._regularization_loss, torch.tensor(0.0)))
 
     def test_to(self):
@@ -183,5 +187,5 @@ class TestBaseLayer(unittest.TestCase):
             )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

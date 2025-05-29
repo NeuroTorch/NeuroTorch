@@ -14,5 +14,3 @@ class CallableToModuleWrapper(torch.nn.Module):
 
     def forward(self, *args, **kwargs):
         return self.callable_object(*args, **kwargs)
-
-

@@ -47,13 +47,13 @@ class LILayer(BaseNeuronsLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         super(LILayer, self).__init__(
             input_size=input_size,
@@ -62,12 +62,12 @@ class LILayer(BaseNeuronsLayer):
             use_recurrent_connection=False,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
         self.bias_weights = None
         self.kappa = torch.nn.Parameter(
             torch.tensor(self.kwargs["kappa"], dtype=torch.float32, device=self.device),
-            requires_grad=self.kwargs["learn_kappa"]
+            requires_grad=self.kwargs["learn_kappa"],
         )
 
     def _set_default_kwargs(self):
@@ -76,14 +76,16 @@ class LILayer(BaseNeuronsLayer):
         self.kwargs.setdefault("learn_kappa", False)
         self.kwargs.setdefault("use_bias", True)
 
-    def build(self) -> 'LILayer':
+    def build(self) -> "LILayer":
         if self.kwargs["use_bias"]:
             self.bias_weights = nn.Parameter(
                 torch.empty((int(self.output_size),), device=self._device),
                 requires_grad=self.requires_grad,
             )
         else:
-            self.bias_weights = torch.zeros((int(self.output_size),), dtype=torch.float32, device=self._device)
+            self.bias_weights = torch.zeros(
+                (int(self.output_size),), dtype=torch.float32, device=self._device
+            )
         super(LILayer, self).build()
         self.initialize_weights_()
         return self
@@ -91,14 +93,14 @@ class LILayer(BaseNeuronsLayer):
     def initialize_weights_(self):
         super(LILayer, self).initialize_weights_()
         if self.kwargs.get("bias_weights", None) is not None:
-            self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
+            self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(
+                self.device
+            )
         else:
             torch.nn.init.constant_(self.bias_weights, 0.0)
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
@@ -111,21 +113,22 @@ class LILayer(BaseNeuronsLayer):
         return super(LILayer, self).create_empty_state(batch_size=batch_size, **kwargs)
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
         assert inputs.ndim == 2
         batch_size, nb_features = inputs.shape
-        V, = self._init_forward_state(state, batch_size, inputs=inputs)
-        next_V = self.kappa * V + torch.matmul(inputs, self.forward_weights) + self.bias_weights
+        (V,) = self._init_forward_state(state, batch_size, inputs=inputs)
+        next_V = (
+            self.kappa * V
+            + torch.matmul(inputs, self.forward_weights)
+            + self.bias_weights
+        )
         return self.activation(next_V), (next_V,)
 
     def extra_repr(self) -> str:
         _repr = super(LILayer, self).extra_repr()
         _repr += f", bias={self.kwargs['use_bias']}"
-        if self.kwargs['learn_kappa']:
+        if self.kwargs["learn_kappa"]:
             _repr += f", learn_kappa={self.kwargs['learn_kappa']}"
         else:
             _repr += f", kappa={self.kappa.item():.2f}"
@@ -199,13 +202,13 @@ class SpyLILayer(BaseNeuronsLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         super(SpyLILayer, self).__init__(
             input_size=input_size,
@@ -214,16 +217,16 @@ class SpyLILayer(BaseNeuronsLayer):
             use_recurrent_connection=False,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
         self.bias_weights = None
         self.alpha = torch.nn.Parameter(
             torch.tensor(self.kwargs["alpha"], dtype=torch.float32, device=self.device),
-            requires_grad=self.kwargs["learn_alpha"]
+            requires_grad=self.kwargs["learn_alpha"],
         )
         self.beta = torch.nn.Parameter(
             torch.tensor(self.kwargs["beta"], dtype=torch.float32, device=self.device),
-            requires_grad=self.kwargs["learn_beta"]
+            requires_grad=self.kwargs["learn_beta"],
         )
 
     def _set_default_kwargs(self):
@@ -235,7 +238,7 @@ class SpyLILayer(BaseNeuronsLayer):
         self.kwargs.setdefault("learn_beta", False)
         self.kwargs.setdefault("use_bias", False)
 
-    def build(self) -> 'SpyLILayer':
+    def build(self) -> "SpyLILayer":
         super(SpyLILayer, self).build()
         if self.kwargs["use_bias"]:
             self.bias_weights = torch.nn.Parameter(
@@ -249,19 +252,25 @@ class SpyLILayer(BaseNeuronsLayer):
         super(SpyLILayer, self).initialize_weights_()
         weight_scale = 0.2
         if self.kwargs.get("forward_weights", None) is not None:
-            self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+            self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(
+                self.device
+            )
         else:
-            torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.input_size)))
+            torch.nn.init.normal_(
+                self.forward_weights,
+                mean=0.0,
+                std=weight_scale / np.sqrt(int(self.input_size)),
+            )
         if self.kwargs["use_bias"]:
             if self.kwargs.get("bias_weights", None) is not None:
-                self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
+                self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(
+                    self.device
+                )
             else:
                 torch.nn.init.constant_(self.bias_weights, 0.0)
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
@@ -272,13 +281,12 @@ class SpyLILayer(BaseNeuronsLayer):
         :return: The current state.
         """
         kwargs.setdefault("n_hh", 2)
-        return super(SpyLILayer, self).create_empty_state(batch_size=batch_size, **kwargs)
+        return super(SpyLILayer, self).create_empty_state(
+            batch_size=batch_size, **kwargs
+        )
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
         assert inputs.ndim == 2
         batch_size, nb_features = inputs.shape
@@ -293,11 +301,11 @@ class SpyLILayer(BaseNeuronsLayer):
     def extra_repr(self) -> str:
         _repr = super().extra_repr()
         _repr += f", bias={self.kwargs['use_bias']}"
-        if self.kwargs['learn_alpha']:
+        if self.kwargs["learn_alpha"]:
             _repr += f", learn_alpha={self.kwargs['learn_alpha']}"
         else:
             _repr += f", alpha={self.alpha.item():.2f}"
-        if self.kwargs['learn_beta']:
+        if self.kwargs["learn_beta"]:
             _repr += f", learn_beta={self.kwargs['learn_beta']}"
         else:
             _repr += f", beta={self.beta.item():.2f}"

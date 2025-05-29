@@ -57,24 +57,31 @@ class Visualise:
         mth = kwargs.get("method", "text").lower()
         start = kwargs.get("start", 0)
         if num_type == "alpha":
-            axes_numbers = [chr(i) for i in range(97 + start, 97 + len(axes_view) + start)]
+            axes_numbers = [
+                chr(i) for i in range(97 + start, 97 + len(axes_view) + start)
+            ]
         elif num_type == "numeric":
-            axes_numbers = [str(i) for i in range(1 + start, len(axes_view) + 1 + start)]
+            axes_numbers = [
+                str(i) for i in range(1 + start, len(axes_view) + 1 + start)
+            ]
         else:
             raise ValueError(f"Unknown num_type {num_type}.")
         for i, ax in enumerate(axes_view):
             if mth == "text":
                 ax.text(
-                    kwargs.get("x", 0.0), kwargs.get("y", 1.2),
+                    kwargs.get("x", 0.0),
+                    kwargs.get("y", 1.2),
                     f"({axes_numbers[i]})",
-                    transform=ax.transAxes, fontsize=kwargs.get("fontsize", 12),
-                    fontweight=kwargs.get("fontweight", 'bold'), va='top'
+                    transform=ax.transAxes,
+                    fontsize=kwargs.get("fontsize", 12),
+                    fontweight=kwargs.get("fontweight", "bold"),
+                    va="top",
                 )
             elif mth == "title":
                 ax.set_title(
                     f"({axes_numbers[i]}) {ax.get_title()}",
                     fontsize=kwargs.get("fontsize", 12),
-                    fontweight=kwargs.get("fontweight", 'bold'),
+                    fontweight=kwargs.get("fontweight", "bold"),
                     loc=kwargs.get("loc", "left"),
                 )
             elif mth == "set_title":
@@ -82,16 +89,16 @@ class Visualise:
                 ax.set_title(
                     f"({axes_numbers[i]})",
                     fontsize=kwargs.get("fontsize", 12),
-                    fontweight=kwargs.get("fontweight", 'bold'),
+                    fontweight=kwargs.get("fontweight", "bold"),
                     loc=kwargs.get("loc", "left"),
                 )
         return axes
 
     def __init__(
-            self,
-            timeseries: Any,
-            shape: Optional[DimensionsLike] = None,
-            apply_zscore: bool = False
+        self,
+        timeseries: Any,
+        shape: Optional[DimensionsLike] = None,
+        apply_zscore: bool = False,
     ):
         """
         :param timeseries: Time series of shape (Batch size, Time Steps, Features).
@@ -106,9 +113,15 @@ class Visualise:
         self._given_timeseries = deepcopy(self.timeseries)
         self.given_shape_mean = (-1, *self.timeseries.shape[-2:])
         if len(self.timeseries.shape) >= 3:
-            self.timeseries = np.mean(self.timeseries.reshape(self.given_shape_mean), axis=0)
-            self._mean_given_timeseries = np.mean(self._given_timeseries.reshape(self.given_shape_mean), axis=0)
-            self._std_given_timeseries = np.std(self._given_timeseries.reshape(self.given_shape_mean), axis=0)
+            self.timeseries = np.mean(
+                self.timeseries.reshape(self.given_shape_mean), axis=0
+            )
+            self._mean_given_timeseries = np.mean(
+                self._given_timeseries.reshape(self.given_shape_mean), axis=0
+            )
+            self._std_given_timeseries = np.std(
+                self._given_timeseries.reshape(self.given_shape_mean), axis=0
+            )
             self.is_mean = True
         else:
             self._mean_given_timeseries = self._given_timeseries
@@ -134,8 +147,8 @@ class Visualise:
         """
         for i in range(int(self.shape[-1])):
             self.timeseries[:, i] = (
-                    (self.timeseries[:, i] - np.mean(self.timeseries[:, i])) / np.std(self.timeseries[:, i])
-            )
+                self.timeseries[:, i] - np.mean(self.timeseries[:, i])
+            ) / np.std(self.timeseries[:, i])
 
     def _set_dimension(self, shape: Optional[DimensionsLike]) -> Size:
         """
@@ -149,8 +162,10 @@ class Visualise:
             shape = self.timeseries.shape
 
         shape = Size(shape)
-        assert len(shape) == 2, "The shape of the time series must be 2 dimensional. If the time series includes a " \
-                                "batch dimension, the batch must not be included in the shape. "
+        assert len(shape) == 2, (
+            "The shape of the time series must be 2 dimensional. If the time series includes a "
+            "batch dimension, the batch must not be included in the shape. "
+        )
         if all(dim.dtype == DimensionProperty.NONE for dim in shape):
             shape[0].dtype = DimensionProperty.TIME
             for dim in shape:
@@ -169,17 +184,17 @@ class Visualise:
         return shape
 
     def animate(
-            self,
-            weights: np.ndarray,
-            dt: float = 1.0,
-            step: int = 1,
-            time_interval: float = 1.0,
-            node_size: float = 50,
-            alpha: Optional[float] = None,
-            filename: Optional[str] = None,
-            file_extension: Optional[str] = None,
-            show: bool = False,
-            **kwargs
+        self,
+        weights: np.ndarray,
+        dt: float = 1.0,
+        step: int = 1,
+        time_interval: float = 1.0,
+        node_size: float = 50,
+        alpha: Optional[float] = None,
+        filename: Optional[str] = None,
+        file_extension: Optional[str] = None,
+        show: bool = False,
+        **kwargs,
     ):
         """
         Animate the time series. The position of the nodes are obtained using the spring layout.
@@ -216,50 +231,62 @@ class Visualise:
             ax=ax,
             node_size=node_size,
             node_color=self.timeseries[0],
-            cmap="hot"
+            cmap="hot",
         )
         nx.draw_networkx_edges(connectome, pos, ax=ax, width=1.0, alpha=alpha)
         plt.axis("off")
-        text = ax.text(0.5, 0.97, rf"$t = 0 / {int(self.shape[0]) * dt}$", ha="center", transform=ax.transAxes)
+        text = ax.text(
+            0.5,
+            0.97,
+            rf"$t = 0 / {int(self.shape[0]) * dt}$",
+            ha="center",
+            transform=ax.transAxes,
+        )
         plt.tight_layout(pad=0)
 
         def _animation(i):
             nodes = nx.draw_networkx_nodes(
                 connectome,
                 pos,
-                ax=ax, node_size=node_size,
+                ax=ax,
+                node_size=node_size,
                 node_color=self.timeseries[i * step],
-                cmap="hot"
+                cmap="hot",
             )
             text.set_text(rf"$t = {i * step * dt:.3f} / {int(self.shape[0]) * dt}$")
             return nodes, text
 
-        anim = animation.FuncAnimation(fig, _animation, frames=num_frames, interval=time_interval, blit=True)
+        anim = animation.FuncAnimation(
+            fig, _animation, frames=num_frames, interval=time_interval, blit=True
+        )
         if filename is not None:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             if file_extension is None:
-                if '.' in filename:
-                    file_extension = filename.split('.')[-1]
+                if "." in filename:
+                    file_extension = filename.split(".")[-1]
                 else:
-                    file_extension = 'gif'
-            assert file_extension in ["mp4", "gif"], "The extension of the file must be mp4 or gif."
+                    file_extension = "gif"
+            assert file_extension in [
+                "mp4",
+                "gif",
+            ], "The extension of the file must be mp4 or gif."
             if filename.endswith(file_extension):
-                filename = ''.join(filename.split('.')[:-1])
+                filename = "".join(filename.split(".")[:-1])
             anim.save(
                 f"{filename}.{file_extension}",
                 writer=kwargs.get("writer", "imagemagick"),
-                fps=kwargs.get("fps", 30)
+                fps=kwargs.get("fps", 30),
             )
         if show:
             plt.show()
 
     def plot_timeseries(
-            self,
-            filename: Optional[str] = None,
-            show: bool = False,
-            fig: Optional[plt.Figure] = None,
-            ax: Optional[plt.Axes] = None,
-            **kwargs
+        self,
+        filename: Optional[str] = None,
+        show: bool = False,
+        fig: Optional[plt.Figure] = None,
+        ax: Optional[plt.Axes] = None,
+        **kwargs,
     ) -> Tuple[plt.Figure, plt.Axes]:
         """
         Plot all the neuronal activity in one figure.
@@ -273,7 +300,9 @@ class Visualise:
         :keyword figsize: Size of the figure. Default is (12, 8).
         :keyword dpi: DPI of the figure. Default is 300.
         """
-        assert (fig is None) == (ax is None), "fig and ax must be both None or both not None."
+        assert (fig is None) == (
+            ax is None
+        ), "fig and ax must be both None or both not None."
         if fig is None or ax is None:
             fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
         ax.set_xlabel(self.shape[0].name)
@@ -287,16 +316,16 @@ class Visualise:
         return fig, ax
 
     def heatmap(
-            self,
-            show_axis: bool = True,
-            interpolation: str = "nearest",
-            cmap: str = "RdBu_r",
-            v: Tuple[float, float] = (0.0, 1.0),
-            filename: Optional[str] = None,
-            show: bool = False,
-            fig: Optional[plt.Figure] = None,
-            ax: Optional[plt.Axes] = None,
-            **kwargs
+        self,
+        show_axis: bool = True,
+        interpolation: str = "nearest",
+        cmap: str = "RdBu_r",
+        v: Tuple[float, float] = (0.0, 1.0),
+        filename: Optional[str] = None,
+        show: bool = False,
+        fig: Optional[plt.Figure] = None,
+        ax: Optional[plt.Axes] = None,
+        **kwargs,
     ) -> Tuple[plt.Figure, plt.Axes]:
         """
         Plot the heatmap of the time series.
@@ -314,17 +343,26 @@ class Visualise:
         :keyword figsize: Size of the figure. Default is (12, 8).
         :keyword dpi: DPI of the figure. Default is 300.
         """
-        assert (fig is None) == (ax is None), "fig and ax must be both None or both not None."
+        assert (fig is None) == (
+            ax is None
+        ), "fig and ax must be both None or both not None."
         if fig is None or ax is None:
             fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
         ax.set_xlabel(self.shape[0].name)
         ax.set_ylabel(self.shape[1].name)
-        im = ax.imshow(self.timeseries.T, interpolation=interpolation, aspect="auto", cmap=cmap, vmin=v[0], vmax=v[1])
+        im = ax.imshow(
+            self.timeseries.T,
+            interpolation=interpolation,
+            aspect="auto",
+            cmap=cmap,
+            vmin=v[0],
+            vmax=v[1],
+        )
         if not show_axis:
             ax.axis("off")
         ax.set_title(kwargs.get("title", ""))
         cbar = fig.colorbar(im)
-        cbar.set_label('Activity [-]', rotation=270)
+        cbar.set_label("Activity [-]", rotation=270)
         if filename is not None:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             fig.savefig(filename, dpi=kwargs.get("dpi", 300))
@@ -333,13 +371,13 @@ class Visualise:
         return fig, ax
 
     def rigidplot(
-            self,
-            show_axis: bool = False,
-            filename: Optional[str] = None,
-            show: bool = False,
-            fig: Optional[plt.Figure] = None,
-            ax: Optional[plt.Axes] = None,
-            **kwargs
+        self,
+        show_axis: bool = False,
+        filename: Optional[str] = None,
+        show: bool = False,
+        fig: Optional[plt.Figure] = None,
+        ax: Optional[plt.Axes] = None,
+        **kwargs,
     ) -> Tuple[plt.Figure, plt.Axes]:
         """
         Plot the rigid plot of the time series.
@@ -354,7 +392,9 @@ class Visualise:
         :keyword figsize: Size of the figure. Default is (12, 8).
         :keyword dpi: DPI of the figure. Default is 300.
         """
-        assert (fig is None) == (ax is None), "fig and ax must be both None or both not None."
+        assert (fig is None) == (
+            ax is None
+        ), "fig and ax must be both None or both not None."
         if fig is None or ax is None:
             fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
         ax.set_xlabel(self.shape[0].name)
@@ -363,11 +403,15 @@ class Visualise:
             ax.axis("off")
         for i in range(int(self.shape[-1])):
             shifted_timeseries = self.timeseries[:, i] - np.min(self.timeseries[:, i])
-            shifted_timeseries = np.divide(
-                shifted_timeseries, np.max(shifted_timeseries),
-                out=np.zeros_like(shifted_timeseries),
-                where=np.logical_not(np.isclose(np.max(shifted_timeseries), 0))
-            ) + 0.8 * i
+            shifted_timeseries = (
+                np.divide(
+                    shifted_timeseries,
+                    np.max(shifted_timeseries),
+                    out=np.zeros_like(shifted_timeseries),
+                    where=np.logical_not(np.isclose(np.max(shifted_timeseries), 0)),
+                )
+                + 0.8 * i
+            )
             ax.plot(shifted_timeseries, c="k", alpha=0.9, linewidth=1.0)
         if filename is not None:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -377,29 +421,43 @@ class Visualise:
         return fig, ax
 
     def plot_single_timeseries_comparison(
-            self,
-            feature_index: int,
-            ax: plt.Axes,
-            target: Any,
-            spikes: Optional[Any] = None,
-            n_spikes_steps: Optional[int] = None,
-            title: str = "",
-            desc: str = "Predicted time series",
-            **kwargs
+        self,
+        feature_index: int,
+        ax: plt.Axes,
+        target: Any,
+        spikes: Optional[Any] = None,
+        n_spikes_steps: Optional[int] = None,
+        title: str = "",
+        desc: str = "Predicted time series",
+        **kwargs,
     ) -> plt.Axes:
-        predictions, target = to_tensor(self._mean_given_timeseries[:, feature_index]), to_tensor(target)
+        predictions, target = to_tensor(
+            self._mean_given_timeseries[:, feature_index]
+        ), to_tensor(target)
         if self.is_mean:
             ax.fill_between(
                 np.arange(predictions.shape[0]),
-                to_numpy(predictions) - to_numpy(self._std_given_timeseries[:, feature_index]),
-                to_numpy(predictions) + to_numpy(self._std_given_timeseries[:, feature_index]),
-                alpha=0.2, color="blue"
+                to_numpy(predictions)
+                - to_numpy(self._std_given_timeseries[:, feature_index]),
+                to_numpy(predictions)
+                + to_numpy(self._std_given_timeseries[:, feature_index]),
+                alpha=0.2,
+                color="blue",
             )
 
         pVar = PVarianceLoss()(predictions, target)
-        ax.plot(to_numpy(predictions), label=f"{desc} (pVar: {to_numpy(pVar).item():.3f})", c="tab:blue",
-                linewidth=kwargs.get("linewidth", 2.5))
-        ax.plot(to_numpy(target), label="Real time series", c="tab:orange", linewidth=kwargs.get("linewidth", 2.5))
+        ax.plot(
+            to_numpy(predictions),
+            label=f"{desc} (pVar: {to_numpy(pVar).item():.3f})",
+            c="tab:blue",
+            linewidth=kwargs.get("linewidth", 2.5),
+        )
+        ax.plot(
+            to_numpy(target),
+            label="Real time series",
+            c="tab:orange",
+            linewidth=kwargs.get("linewidth", 2.5),
+        )
 
         if "box_aspect" in kwargs:
             ax.set_box_aspect(kwargs.get("box_aspect"))
@@ -407,51 +465,61 @@ class Visualise:
         if spikes is not None:
             spikes = to_tensor(spikes)
             assert len(spikes.shape) == 2, "spikes must be a 2D tensor"
-            assert n_spikes_steps is not None, "n_spikes_steps must be provided if spikes is not None"
+            assert (
+                n_spikes_steps is not None
+            ), "n_spikes_steps must be provided if spikes is not None"
             y_max = max(target.max(), predictions.max())
-            x_scatter_space = np.linspace(0, len(target), num=n_spikes_steps * len(target))
+            x_scatter_space = np.linspace(
+                0, len(target), num=n_spikes_steps * len(target)
+            )
             x_scatter_spikes = []
             x_scatter_values = []
             x_scatter_zeros = []
             for i, xs in enumerate(x_scatter_space):
-                if np.isclose(
-                        spikes[i // n_spikes_steps][i % n_spikes_steps],
-                        0.0
-                ):
+                if np.isclose(spikes[i // n_spikes_steps][i % n_spikes_steps], 0.0):
                     x_scatter_zeros.append(xs)
                 else:
                     x_scatter_spikes.append(xs)
-                    x_scatter_values.append(spikes[i // n_spikes_steps][i % n_spikes_steps])
+                    x_scatter_values.append(
+                        spikes[i // n_spikes_steps][i % n_spikes_steps]
+                    )
             x_scatter_values = np.clip(x_scatter_values, 0.0, 1.0)
             if x_scatter_values.size == 0:
                 x_scatter_values = 0.0
             ax.scatter(
-                x_scatter_spikes, y=[y_max * 1.1] * len(x_scatter_spikes),
-                label="Latent space", c='k', marker='|', linewidths=0.5, alpha=x_scatter_values,
+                x_scatter_spikes,
+                y=[y_max * 1.1] * len(x_scatter_spikes),
+                label="Latent space",
+                c="k",
+                marker="|",
+                linewidths=0.5,
+                alpha=x_scatter_values,
             )
 
         ax.set_xlabel(self.shape[0].name)
         ax.set_ylabel(kwargs.get("ylabel", self.shape[1].name))
         ax.set_title(title)
         if spikes is not None:
-            ax.legend(loc=kwargs.get("legend_loc", "upper right"),
-                      bbox_to_anchor=kwargs.get("legend_bbox_to_anchor", (1, 0.93)))
+            ax.legend(
+                loc=kwargs.get("legend_loc", "upper right"),
+                bbox_to_anchor=kwargs.get("legend_bbox_to_anchor", (1, 0.93)),
+            )
         else:
             ax.legend(loc=kwargs.get("legend_loc", "upper right"))
         return ax
 
     def plot_timeseries_comparison(
-            self,
-            target: Any,
-            spikes: Optional[Any] = None,
-            n_spikes_steps: Optional[int] = None,
-            title: str = "",
-            desc: str = "Prediction",
-            filename: Optional[str] = None,
-            show: bool = False,
-            fig: Optional[plt.Figure] = None,
-            axes: Optional[Sequence[plt.Axes]] = None,
-            **kwargs
+        self,
+        target: Any,
+        spikes: Optional[Any] = None,
+        n_spikes_steps: Optional[int] = None,
+        title: str = "",
+        desc: str = "Prediction",
+        filename: Optional[str] = None,
+        show: bool = False,
+        fig: Optional[plt.Figure] = None,
+        axes: Optional[Sequence[plt.Axes]] = None,
+        **kwargs,
     ) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
         """
         Plot the timeseries comparison.
@@ -479,13 +547,17 @@ class Visualise:
 
         :return: Figure and axes.
         """
-        assert (fig is None) == (axes is None), "fig and axes must be both None or both not None"
+        assert (fig is None) == (
+            axes is None
+        ), "fig and axes must be both None or both not None"
         predictions, target = to_tensor(self._mean_given_timeseries), to_tensor(target)
         target = torch.squeeze(target.detach().cpu())
 
         errors = torch.squeeze(predictions - target.to(predictions.device)) ** 2
         if self.is_mean:
-            mean_pVar, std_pVar = PVarianceLoss().mean_std_over_batch(self._given_timeseries, target[np.newaxis, ...])
+            mean_pVar, std_pVar = PVarianceLoss().mean_std_over_batch(
+                self._given_timeseries, target[np.newaxis, ...]
+            )
             mean_pVar, std_pVar = to_numpy(mean_pVar).item(), to_numpy(std_pVar).item()
             batch_size = self._given_timeseries.shape[0]
             title = f"{title} (pVar[{batch_size}]: {mean_pVar:.3f} ± {std_pVar:.3f})"
@@ -493,14 +565,24 @@ class Visualise:
             pVar = PVarianceLoss()(predictions, target.to(predictions.device))
             title = f"{title} (pVar: {to_numpy(pVar).item():.3f})"
 
-        pVar_per_feature = PVarianceLoss(reduction='feature')(predictions, target.to(predictions.device))
-        mean_pVar = PVarianceLoss(reduction='mean')(predictions, target.to(predictions.device))
+        pVar_per_feature = PVarianceLoss(reduction="feature")(
+            predictions, target.to(predictions.device)
+        )
+        mean_pVar = PVarianceLoss(reduction="mean")(
+            predictions, target.to(predictions.device)
+        )
         mean_pVar_sort, indices = torch.sort(pVar_per_feature, descending=True)
-        var_diff, var_diff_indices = torch.sort(torch.var(torch.diff(target, dim=0), dim=0), descending=True)
-        typical_pVar_sort, typical_indices = torch.sort(torch.abs(pVar_per_feature - mean_pVar), descending=False)
+        var_diff, var_diff_indices = torch.sort(
+            torch.var(torch.diff(target, dim=0), dim=0), descending=True
+        )
+        typical_pVar_sort, typical_indices = torch.sort(
+            torch.abs(pVar_per_feature - mean_pVar), descending=False
+        )
         target = torch.squeeze(target).numpy().T
 
-        traces_to_show = kwargs.get("traces_to_show", ["error_quad", "best", "most_var", "worst"])
+        traces_to_show = kwargs.get(
+            "traces_to_show", ["error_quad", "best", "most_var", "worst"]
+        )
         traces_to_show = [t.lower() for t in traces_to_show]
         plot_error_quad = "error_quad" in traces_to_show
         traces_to_indexes = {
@@ -522,11 +604,16 @@ class Visualise:
                 traces_to_indexes[trace] = typical_indices[typical_idx]
                 traces_to_names[trace] = f"Typical {typical_idx}"
             if trace not in traces_to_indexes:
-                raise ValueError(f"Unknown trace to show: {trace}. Known traces: {list(traces_to_indexes.keys())}")
+                raise ValueError(
+                    f"Unknown trace to show: {trace}. Known traces: {list(traces_to_indexes.keys())}"
+                )
 
-        given_names = kwargs.get("traces_to_show_names", [traces_to_names[t] for t in traces_to_show])
+        given_names = kwargs.get(
+            "traces_to_show_names", [traces_to_names[t] for t in traces_to_show]
+        )
         assert len(given_names) == len(
-            traces_to_show), "traces_to_show_names must have the same length as traces_to_show"
+            traces_to_show
+        ), "traces_to_show_names must have the same length as traces_to_show"
         for trace, trace_name in zip(traces_to_show, given_names):
             traces_to_names[trace] = trace_name
         if plot_error_quad:
@@ -553,11 +640,14 @@ class Visualise:
             trace_to_spikes_indexes = {}
         for i, trace in enumerate(traces_to_show):
             self.plot_single_timeseries_comparison(
-                traces_to_indexes[trace], axes[i + int(plot_error_quad)], target[traces_to_indexes[trace]],
+                traces_to_indexes[trace],
+                axes[i + int(plot_error_quad)],
+                target[traces_to_indexes[trace]],
                 trace_to_spikes_indexes.get(trace, None),
                 n_spikes_steps=n_spikes_steps,
-                title=f"{traces_to_names[trace]}", desc=desc,
-                **kwargs
+                title=f"{traces_to_names[trace]}",
+                desc=desc,
+                **kwargs,
             )
 
         fig.set_tight_layout(True)
@@ -573,57 +663,77 @@ class Visualise:
         return fig, axes
 
     def plot_timeseries_comparison_report(
-            self,
-            target: Any,
-            spikes: Optional[Any] = None,
-            n_spikes_steps: Optional[int] = None,
-            title: str = "",
-            desc: str = "Prediction",
-            filename: Optional[str] = None,
-            show: bool = False,
-            fig: Optional[plt.Figure] = None,
-            axes: Optional[Sequence[plt.Axes]] = None,
-            **kwargs
+        self,
+        target: Any,
+        spikes: Optional[Any] = None,
+        n_spikes_steps: Optional[int] = None,
+        title: str = "",
+        desc: str = "Prediction",
+        filename: Optional[str] = None,
+        show: bool = False,
+        fig: Optional[plt.Figure] = None,
+        axes: Optional[Sequence[plt.Axes]] = None,
+        **kwargs,
     ) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
         if fig is None or axes is None:
-            fig, axes = plt.subplots(ncols=2, nrows=4, figsize=kwargs.get("figsize", (16, 8)))
+            fig, axes = plt.subplots(
+                ncols=2, nrows=4, figsize=kwargs.get("figsize", (16, 8))
+            )
         else:
             axes = np.asarray(axes)
-            assert axes.shape == (4, 2), f"axes must have shape (4, 2), got {axes.shape}"
+            assert axes.shape == (
+                4,
+                2,
+            ), f"axes must have shape (4, 2), got {axes.shape}"
         gs = axes[0, 0].get_gridspec()
         for ax in axes[0, :]:
             ax.remove()
         axbig = fig.add_subplot(gs[0, :])
         self.plot_timeseries_comparison(
-            target, spikes,
+            target,
+            spikes,
             n_spikes_steps=n_spikes_steps,
-            title=title, desc=desc,
-            fig=fig, axes=[axbig],
-            traces_to_show=["error_quad", ],
-            traces_to_show_names=["Squared error [-]", ],
-            show=False,
-        )
-        self.plot_timeseries_comparison(
-            target, spikes,
-            n_spikes_steps=n_spikes_steps,
-            title=title, desc=desc,
-            fig=fig, axes=axes[1:, 0],
-            traces_to_show=["best", "most_var", "worst"],
+            title=title,
+            desc=desc,
+            fig=fig,
+            axes=[axbig],
+            traces_to_show=[
+                "error_quad",
+            ],
             traces_to_show_names=[
-                "Best Neuron Prediction", "Most variable Neuron Prediction", "Worst Neuron Prediction"
+                "Squared error [-]",
             ],
             show=False,
         )
         self.plot_timeseries_comparison(
-            target, spikes,
+            target,
+            spikes,
             n_spikes_steps=n_spikes_steps,
-            title=title, desc=desc,
-            fig=fig, axes=axes[1:, 1],
+            title=title,
+            desc=desc,
+            fig=fig,
+            axes=axes[1:, 0],
+            traces_to_show=["best", "most_var", "worst"],
+            traces_to_show_names=[
+                "Best Neuron Prediction",
+                "Most variable Neuron Prediction",
+                "Worst Neuron Prediction",
+            ],
+            show=False,
+        )
+        self.plot_timeseries_comparison(
+            target,
+            spikes,
+            n_spikes_steps=n_spikes_steps,
+            title=title,
+            desc=desc,
+            fig=fig,
+            axes=axes[1:, 1],
             traces_to_show=[f"typical_{i}" for i in range(3)],
             traces_to_show_names=[
                 "Typical Neuron Prediction (1)",
                 "Typical Neuron Prediction (2)",
-                "Typical Neuron Prediction (3)"
+                "Typical Neuron Prediction (3)",
             ],
             show=False,
         )
@@ -644,12 +754,12 @@ class VisualiseKMeans(Visualise):
     """
 
     def __init__(
-            self,
-            timeseries: Any,
-            shape: Optional[DimensionsLike] = None,
-            apply_zscore: bool = False,
-            n_clusters: int = 13,
-            random_state: int = 0
+        self,
+        timeseries: Any,
+        shape: Optional[DimensionsLike] = None,
+        apply_zscore: bool = False,
+        n_clusters: int = 13,
+        random_state: int = 0,
     ):
         """
         Constructor of the class.
@@ -663,11 +773,7 @@ class VisualiseKMeans(Visualise):
         :param random_state: Determines random number generation for centroid initialization.
         Use an int to make the randomness deterministic
         """
-        super().__init__(
-            timeseries=timeseries,
-            shape=shape,
-            apply_zscore=apply_zscore
-        )
+        super().__init__(timeseries=timeseries, shape=shape, apply_zscore=apply_zscore)
         self.n_clusters = n_clusters
         self.random_state = random_state
         self.labels = self._compute_kmeans_labels()
@@ -675,7 +781,9 @@ class VisualiseKMeans(Visualise):
         self.timeseries = self.permute_timeseries(self.timeseries)
 
     def _compute_kmeans_labels(self):
-        kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(self.timeseries.T)
+        kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(
+            self.timeseries.T
+        )
         return kmeans.labels_
 
     def permute_timeseries(self, timeseries: np.ndarray):
@@ -699,11 +807,11 @@ class VisualisePCA(Visualise):
     """
 
     def __init__(
-            self,
-            timeseries: Any,
-            shape: Optional[DimensionsLike] = None,
-            apply_zscore: bool = False,
-            n_PC: int = 2
+        self,
+        timeseries: Any,
+        shape: Optional[DimensionsLike] = None,
+        apply_zscore: bool = False,
+        n_PC: int = 2,
     ):
         """
         :param timeseries: Time series of shape (n_time_steps, n_neurons).
@@ -713,15 +821,15 @@ class VisualisePCA(Visualise):
         :param apply_zscore: Whether to apply z-score or not.
         :param n_PC: Number of principal components.
         """
-        super().__init__(
-            timeseries=timeseries,
-            shape=shape,
-            apply_zscore=apply_zscore
-        )
+        super().__init__(timeseries=timeseries, shape=shape, apply_zscore=apply_zscore)
         self.n_PC = n_PC
         self.params = {}
         self.pca_transform = None
-        self.reduced_timeseries, self.params["var_ratio"], self.params["var_ratio_cumsum"] = self._compute_pca(n_PC)
+        (
+            self.reduced_timeseries,
+            self.params["var_ratio"],
+            self.params["var_ratio_cumsum"],
+        ) = self._compute_pca(n_PC)
         self.kmean_label = None
 
     def _compute_pca(self, n_PC: int):
@@ -733,7 +841,11 @@ class VisualisePCA(Visualise):
         self.pca_transform = PCA(n_components=n_PC)
         self.pca_transform.fit(self.timeseries)
         reduced_timeseries = self.pca_transform.transform(self.timeseries)
-        return reduced_timeseries, self.pca_transform.explained_variance_ratio_, self.pca_transform.explained_variance_ratio_.cumsum()
+        return (
+            reduced_timeseries,
+            self.pca_transform.explained_variance_ratio_,
+            self.pca_transform.explained_variance_ratio_.cumsum(),
+        )
 
     def with_kmeans(self, n_clusters: int = 13, random_state: int = 0):
         """
@@ -743,7 +855,9 @@ class VisualisePCA(Visualise):
         :param random_state: Determines random number generation for centroid initialization.
             Example: VisualisePCA(data).with_kmeans(n_clusters=13, random_state=0).scatter_pca()
         """
-        kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(self.reduced_timeseries)
+        kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(
+            self.reduced_timeseries
+        )
         self.kmean_label = kmeans.labels_
         return self
 
@@ -756,9 +870,13 @@ class VisualisePCA(Visualise):
         """
         dimension = len(PCs)
         if dimension < 2 or dimension > 3:
-            raise ValueError("PCs must be a tuple of 2 or 3 elements. Can only plot PCs in 2D or 3D")
+            raise ValueError(
+                "PCs must be a tuple of 2 or 3 elements. Can only plot PCs in 2D or 3D"
+            )
         if self.kmean_label is not None and color_sample:
-            raise ValueError("You can only apply color based on k-mean or the sample, not both")
+            raise ValueError(
+                "You can only apply color based on k-mean or the sample, not both"
+            )
         if max(PCs) > self.n_PC:
             raise ValueError("PCs must be less than or equal to the number of PC")
         color = None
@@ -771,8 +889,12 @@ class VisualisePCA(Visualise):
             plt.title("Two-dimensional PCA embedding")
             plt.xlabel(f"PC {PCs[0]}")
             plt.ylabel(f"PC {PCs[1]}")
-            plt.scatter(self.reduced_timeseries[:, PCs[0] - 1], self.reduced_timeseries[:, PCs[1] - 1],
-                        c=color, cmap="RdBu_r")
+            plt.scatter(
+                self.reduced_timeseries[:, PCs[0] - 1],
+                self.reduced_timeseries[:, PCs[1] - 1],
+                c=color,
+                cmap="RdBu_r",
+            )
             if self.kmean_label is not None or color_sample:
                 plt.colorbar()
         if dimension == 3:
@@ -786,24 +908,25 @@ class VisualisePCA(Visualise):
                 self.reduced_timeseries[:, PCs[0] - 1],
                 self.reduced_timeseries[:, PCs[1] - 1],
                 self.reduced_timeseries[:, PCs[2] - 1],
-                c=color, cmap="RdBu_r"
+                c=color,
+                cmap="RdBu_r",
             )
         plt.show()
 
     def trajectory_pca(
-            self,
-            target: Optional = None,
-            PCs: Tuple[int, int] = (1, 2),
-            with_smooth: bool = True,
-            degree: int = 5,
-            condition: float = 5,
-            reduction: int = 1,
-            traces: str = "all",
-            fig: Optional[plt.Figure] = None,
-            axes: Optional[plt.Axes] = None,
-            filename: Optional[str] = None,
-            show: bool = True,
-            **kwargs
+        self,
+        target: Optional = None,
+        PCs: Tuple[int, int] = (1, 2),
+        with_smooth: bool = True,
+        degree: int = 5,
+        condition: float = 5,
+        reduction: int = 1,
+        traces: str = "all",
+        fig: Optional[plt.Figure] = None,
+        axes: Optional[plt.Axes] = None,
+        filename: Optional[str] = None,
+        show: bool = True,
+        **kwargs,
     ):
         """
         Plot the trajectory of the PCA space in 2D.
@@ -840,22 +963,44 @@ class VisualisePCA(Visualise):
                     target_reduced[::reduction, PCs[0] - 1],
                     target_reduced[::reduction, PCs[1] - 1],
                     label="Real time series",
-                    c="tab:orange"
+                    c="tab:orange",
                 )
             axes[0].plot(
                 self.reduced_timeseries[::reduction, PCs[0] - 1],
                 self.reduced_timeseries[::reduction, PCs[1] - 1],
                 label="Predicted time series",
-                c="tab:blue"
+                c="tab:blue",
             )
             bbox = dict(boxstyle="round", fc="0.8")
-            axes[0].plot(self.reduced_timeseries[0, PCs[0] - 1], self.reduced_timeseries[0, PCs[1] - 1], marker="o", color="black")
-            axes[0].annotate(r"$t_0$", (self.reduced_timeseries[0, PCs[0] - 1], self.reduced_timeseries[0, PCs[1] - 1]+0.8), bbox=bbox)
-            axes[0].annotate(r"$t_f$",
-                             (self.reduced_timeseries[-1, PCs[0] - 1], self.reduced_timeseries[-1, PCs[1] - 1] - 1.5),
-                             bbox=bbox)
+            axes[0].plot(
+                self.reduced_timeseries[0, PCs[0] - 1],
+                self.reduced_timeseries[0, PCs[1] - 1],
+                marker="o",
+                color="black",
+            )
+            axes[0].annotate(
+                r"$t_0$",
+                (
+                    self.reduced_timeseries[0, PCs[0] - 1],
+                    self.reduced_timeseries[0, PCs[1] - 1] + 0.8,
+                ),
+                bbox=bbox,
+            )
+            axes[0].annotate(
+                r"$t_f$",
+                (
+                    self.reduced_timeseries[-1, PCs[0] - 1],
+                    self.reduced_timeseries[-1, PCs[1] - 1] - 1.5,
+                ),
+                bbox=bbox,
+            )
 
-            axes[0].plot(self.reduced_timeseries[-1, PCs[0] - 1],self.reduced_timeseries[-1, PCs[1] - 1], marker="o", color="black")
+            axes[0].plot(
+                self.reduced_timeseries[-1, PCs[0] - 1],
+                self.reduced_timeseries[-1, PCs[1] - 1],
+                marker="o",
+                color="black",
+            )
             if "box_aspect" in kwargs:
                 axes[0].set_box_aspect(kwargs["box_aspect"])
             axes[0].legend()
@@ -871,20 +1016,24 @@ class VisualisePCA(Visualise):
                 axes[0].plot(
                     target_reduced[::reduction, PCs[0] - 1].flatten(),
                     label="Real time series",
-                    c="tab:orange"
+                    c="tab:orange",
                 )
             axes[0].plot(
                 self.reduced_timeseries[::reduction, PCs[0] - 1].flatten(),
                 label="Predicted time series",
-                c="tab:blue"
+                c="tab:blue",
             )
             axes[0].legend()
             axes[0].set_xlabel("Time [-]")
             axes[0].set_ylabel(f"PC {PCs[0]}")
             if target is not None:
-                pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, PCs[0] - 1],
-                                       target_reduced[::reduction, PCs[0] - 1])
-                axes[0].set_title(f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+                pVar = PVarianceLoss()(
+                    self.reduced_timeseries[::reduction, PCs[0] - 1],
+                    target_reduced[::reduction, PCs[0] - 1],
+                )
+                axes[0].set_title(
+                    f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})"
+                )
             else:
                 axes[0].set_title("Trajectory in PCA space with respect to time")
             if "box_aspect" in kwargs:
@@ -898,23 +1047,28 @@ class VisualisePCA(Visualise):
                 axes[n_plot - 2].plot(
                     target_reduced[::reduction, PCs[0] - 1].flatten(),
                     label="Real timeseries",
-                    c="tab:orange"
+                    c="tab:orange",
                 )
             axes[n_plot - 2].plot(
                 self.reduced_timeseries[::reduction, PCs[0] - 1].flatten(),
                 label="Predicted timeseries",
-                c="tab:blue"
+                c="tab:blue",
             )
             axes[n_plot - 2].legend()
             axes[n_plot - 2].set_xlabel("Time [-]")
             axes[n_plot - 2].set_ylabel(f"PC {PCs[0]}")
             if target is not None:
-                pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, PCs[0] - 1],
-                                       target_reduced[::reduction, PCs[0] - 1])
+                pVar = PVarianceLoss()(
+                    self.reduced_timeseries[::reduction, PCs[0] - 1],
+                    target_reduced[::reduction, PCs[0] - 1],
+                )
                 axes[n_plot - 2].set_title(
-                    f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+                    f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})"
+                )
             else:
-                axes[n_plot - 2].set_title("Trajectory in PCA space with respect to time")
+                axes[n_plot - 2].set_title(
+                    "Trajectory in PCA space with respect to time"
+                )
             if "box_aspect" in kwargs:
                 axes[n_plot - 1].set_box_aspect(kwargs["box_aspect"])
 
@@ -925,23 +1079,28 @@ class VisualisePCA(Visualise):
                 axes[n_plot - 1].plot(
                     target_reduced[::reduction, PCs[1] - 1].flatten(),
                     label="Real timeseries",
-                    c="tab:orange"
+                    c="tab:orange",
                 )
             axes[n_plot - 1].plot(
                 self.reduced_timeseries[::reduction, PCs[1] - 1].flatten(),
                 label="Predicted timeseries",
-                c="tab:blue"
+                c="tab:blue",
             )
             axes[n_plot - 1].legend()
             axes[n_plot - 1].set_xlabel("Time [-]")
             axes[n_plot - 1].set_ylabel(f"PC {PCs[1]}")
             if target is not None:
-                pVar = PVarianceLoss()(self.reduced_timeseries[::reduction, PCs[1] - 1],
-                                       target_reduced[::reduction, PCs[1] - 1])
+                pVar = PVarianceLoss()(
+                    self.reduced_timeseries[::reduction, PCs[1] - 1],
+                    target_reduced[::reduction, PCs[1] - 1],
+                )
                 axes[n_plot - 1].set_title(
-                    f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
+                    f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})"
+                )
             else:
-                axes[n_plot - 1].set_title("Trajectory in PCA space with respect to time")
+                axes[n_plot - 1].set_title(
+                    "Trajectory in PCA space with respect to time"
+                )
             if "box_aspect" in kwargs:
                 axes[n_plot - 1].set_box_aspect(kwargs["box_aspect"])
 
@@ -964,21 +1123,17 @@ class VisualiseUMAP(Visualise):
     """
 
     def __init__(
-            self,
-            timeseries: Any,
-            shape: Optional[DimensionsLike] = None,
-            apply_zscore: bool = False,
-            n_neighbors: int = 10,
-            min_dist: float = 0.5,
-            n_components: int = 2,
-            umap_transform: Optional[Any] = None,
-            random_state: Optional[int] = None,
+        self,
+        timeseries: Any,
+        shape: Optional[DimensionsLike] = None,
+        apply_zscore: bool = False,
+        n_neighbors: int = 10,
+        min_dist: float = 0.5,
+        n_components: int = 2,
+        umap_transform: Optional[Any] = None,
+        random_state: Optional[int] = None,
     ):
-        super().__init__(
-            timeseries=timeseries,
-            shape=shape,
-            apply_zscore=apply_zscore
-        )
+        super().__init__(timeseries=timeseries, shape=shape, apply_zscore=apply_zscore)
         self.n_neighbors = n_neighbors
         self.min_dist = min_dist
         self.n_components = n_components
@@ -993,14 +1148,16 @@ class VisualiseUMAP(Visualise):
         try:
             import umap
         except ImportError:
-            raise ImportError("You must install umap-learn to use this class. `pip install umap-learn`")
+            raise ImportError(
+                "You must install umap-learn to use this class. `pip install umap-learn`"
+            )
         if data is None:
             data = self.timeseries
         self.umap_transform = umap.UMAP(
             n_neighbors=self.n_neighbors,
             min_dist=self.min_dist,
             n_components=self.n_components,
-            metric='euclidean',
+            metric="euclidean",
             random_state=self.random_state,
         )
         self.umap_transform.fit(data)
@@ -1018,7 +1175,9 @@ class VisualiseUMAP(Visualise):
         :param random_state: Determines random number generation for centroid initialization.
             Example: VisualisePCA(data).with_kmeans(n_clusters=13, random_state=0).scatter_umap()
         """
-        kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(self.reduced_timeseries)
+        kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(
+            self.reduced_timeseries
+        )
         self.kmeans_label = kmeans.labels_
         return self
 
@@ -1030,9 +1189,13 @@ class VisualiseUMAP(Visualise):
         """
         dimension = len(UMAPs)
         if dimension < 2 or dimension > 3:
-            raise ValueError("UMAPs must be a tuple of 2 or 3 elements. Can only plot UMAPs in 2D or 3D")
+            raise ValueError(
+                "UMAPs must be a tuple of 2 or 3 elements. Can only plot UMAPs in 2D or 3D"
+            )
         if self.kmeans_label is not None and color_sample:
-            raise ValueError("You can only apply color based on k-mean or the sample, not both")
+            raise ValueError(
+                "You can only apply color based on k-mean or the sample, not both"
+            )
         if max(UMAPs) > self.n_components:
             raise ValueError("UMAPs must be less than or equal to the number of UMAP")
         color = None
@@ -1046,8 +1209,10 @@ class VisualiseUMAP(Visualise):
             plt.xlabel(f"UMAP {UMAPs[0]}")
             plt.ylabel(f"UMAP {UMAPs[1]}")
             plt.scatter(
-                self.reduced_timeseries[:, UMAPs[0] - 1], self.reduced_timeseries[:, UMAPs[1] - 1],
-                c=color, cmap="RdBu_r"
+                self.reduced_timeseries[:, UMAPs[0] - 1],
+                self.reduced_timeseries[:, UMAPs[1] - 1],
+                c=color,
+                cmap="RdBu_r",
             )
             if self.kmeans_label is not None or color_sample:
                 plt.colorbar()
@@ -1062,21 +1227,22 @@ class VisualiseUMAP(Visualise):
                 self.reduced_timeseries[:, UMAPs[0] - 1],
                 self.reduced_timeseries[:, UMAPs[1] - 1],
                 self.reduced_timeseries[:, UMAPs[2] - 1],
-                c=color, cmap="RdBu_r"
+                c=color,
+                cmap="RdBu_r",
             )
         plt.show()
 
     def trajectory_umap(
-            self,
-            target: Optional[Visualise] = None,
-            UMAPs: Tuple = (1, 2),
-            reduction: int = 1,
-            traces: str = "all",
-            fig: Optional[plt.Figure] = None,
-            axes: Optional[plt.Axes] = None,
-            filename: Optional[str] = None,
-            show: bool = True,
-            **kwargs
+        self,
+        target: Optional[Visualise] = None,
+        UMAPs: Tuple = (1, 2),
+        reduction: int = 1,
+        traces: str = "all",
+        fig: Optional[plt.Figure] = None,
+        axes: Optional[plt.Axes] = None,
+        filename: Optional[str] = None,
+        show: bool = True,
+        **kwargs,
     ):
         """
         Plot the trajectory of the UMAP space in 2D.
@@ -1114,32 +1280,43 @@ class VisualiseUMAP(Visualise):
                     target_reduced[::reduction, UMAPs[0] - 1],
                     target_reduced[::reduction, UMAPs[1] - 1],
                     label="Real timeseries",
-                    c="tab:orange"
+                    c="tab:orange",
                 )
             axes[0].plot(
                 self.reduced_timeseries[::reduction, UMAPs[0] - 1],
                 self.reduced_timeseries[::reduction, UMAPs[1] - 1],
                 label="Predicted timeseries",
-                c="tab:blue"
+                c="tab:blue",
             )
             bbox = dict(boxstyle="round", fc="0.8")
             axes[0].plot(
-                self.reduced_timeseries[0, UMAPs[0] - 1], self.reduced_timeseries[0, UMAPs[1] - 1], marker="o",
-                color="black"
+                self.reduced_timeseries[0, UMAPs[0] - 1],
+                self.reduced_timeseries[0, UMAPs[1] - 1],
+                marker="o",
+                color="black",
             )
             axes[0].annotate(
-                r"$t_0$", (self.reduced_timeseries[0, UMAPs[0] - 1], self.reduced_timeseries[0, UMAPs[1] - 1] + 2),
-                bbox=bbox
+                r"$t_0$",
+                (
+                    self.reduced_timeseries[0, UMAPs[0] - 1],
+                    self.reduced_timeseries[0, UMAPs[1] - 1] + 2,
+                ),
+                bbox=bbox,
             )
             axes[0].annotate(
                 r"$t_f$",
-                (self.reduced_timeseries[-1, UMAPs[0] - 1], self.reduced_timeseries[-1, UMAPs[1] - 1] - 3.7),
-                bbox=bbox
+                (
+                    self.reduced_timeseries[-1, UMAPs[0] - 1],
+                    self.reduced_timeseries[-1, UMAPs[1] - 1] - 3.7,
+                ),
+                bbox=bbox,
             )
 
             axes[0].plot(
-                self.reduced_timeseries[-1, UMAPs[0] - 1], self.reduced_timeseries[-1, UMAPs[1] - 1], marker="o",
-                color="black"
+                self.reduced_timeseries[-1, UMAPs[0] - 1],
+                self.reduced_timeseries[-1, UMAPs[1] - 1],
+                marker="o",
+                color="black",
             )
             if "box_aspect" in kwargs:
                 axes[0].set_box_aspect(kwargs["box_aspect"])
@@ -1156,12 +1333,12 @@ class VisualiseUMAP(Visualise):
                 axes[0].plot(
                     target_reduced[::reduction, UMAPs[0] - 1].flatten(),
                     label=f"Real timeseries",
-                    c="tab:orange"
+                    c="tab:orange",
                 )
             axes[0].plot(
                 self.reduced_timeseries[::reduction, UMAPs[0] - 1].flatten(),
                 label=f"Predicted timeseries",
-                c="tab:blue"
+                c="tab:blue",
             )
             axes[0].legend()
             axes[0].set_xlabel("Time [-]")
@@ -1169,7 +1346,7 @@ class VisualiseUMAP(Visualise):
             if target is not None:
                 pVar = PVarianceLoss()(
                     self.reduced_timeseries[::reduction, UMAPs[0] - 1],
-                    target_reduced[::reduction, UMAPs[0] - 1]
+                    target_reduced[::reduction, UMAPs[0] - 1],
                 )
                 axes[0].set_title(
                     f"Trajectory in the UMAP space with respect to time (pVar={to_numpy(pVar).item():.4f})"
@@ -1180,19 +1357,21 @@ class VisualiseUMAP(Visualise):
                 axes[0].set_box_aspect(kwargs["box_aspect"])
 
         if traces == "all":
-            axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
+            axes[n_plot - 2].set_title(
+                "Trajectory in the UMAP space with respect to time"
+            )
             axes[n_plot - 2].set_xlabel("Time")
             axes[n_plot - 2].set_ylabel(f"UMAP {UMAPs[0]}")
             if target is not None:
                 axes[n_plot - 2].plot(
                     target_reduced[::reduction, UMAPs[0] - 1].flatten(),
                     label=f"Real timeseries",
-                    c="tab:orange"
+                    c="tab:orange",
                 )
             axes[n_plot - 2].plot(
                 self.reduced_timeseries[::reduction, UMAPs[0] - 1].flatten(),
                 label=f"Predicted timeseries",
-                c="tab:blue"
+                c="tab:blue",
             )
             axes[n_plot - 2].legend()
             axes[n_plot - 2].set_xlabel("Time [-]")
@@ -1200,29 +1379,33 @@ class VisualiseUMAP(Visualise):
             if target is not None:
                 pVar = PVarianceLoss()(
                     self.reduced_timeseries[::reduction, UMAPs[0] - 1],
-                    target_reduced[::reduction, UMAPs[0] - 1]
+                    target_reduced[::reduction, UMAPs[0] - 1],
                 )
                 axes[n_plot - 2].set_title(
                     f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})"
                 )
             else:
-                axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
+                axes[n_plot - 2].set_title(
+                    "Trajectory in the UMAP space with respect to time"
+                )
             if "box_aspect" in kwargs:
                 axes[n_plot - 2].set_box_aspect(kwargs["box_aspect"])
 
-            axes[n_plot - 1].set_title("Trajectory in the UMAP space with respect to time")
+            axes[n_plot - 1].set_title(
+                "Trajectory in the UMAP space with respect to time"
+            )
             axes[n_plot - 1].set_xlabel("Time")
             axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[1]}")
             if target is not None:
                 axes[n_plot - 1].plot(
                     target_reduced[::reduction, UMAPs[1] - 1].flatten(),
                     label=f"Real timeseries",
-                    c="tab:orange"
+                    c="tab:orange",
                 )
             axes[n_plot - 1].plot(
                 self.reduced_timeseries[::reduction, UMAPs[1] - 1].flatten(),
                 label=f"Predicted timeseries",
-                c="tab:blue"
+                c="tab:blue",
             )
             axes[n_plot - 1].legend()
             axes[n_plot - 1].set_xlabel("Time [-]")
@@ -1230,13 +1413,15 @@ class VisualiseUMAP(Visualise):
             if target is not None:
                 pVar = PVarianceLoss()(
                     self.reduced_timeseries[::reduction, UMAPs[1] - 1],
-                    target_reduced[::reduction, UMAPs[1] - 1]
+                    target_reduced[::reduction, UMAPs[1] - 1],
                 )
                 axes[n_plot - 1].set_title(
                     f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})"
                 )
             else:
-                axes[n_plot - 1].set_title("Trajectory in the UMAP space with respect to time")
+                axes[n_plot - 1].set_title(
+                    "Trajectory in the UMAP space with respect to time"
+                )
             if "box_aspect" in kwargs:
                 axes[n_plot - 1].set_box_aspect(kwargs["box_aspect"])
 
@@ -1257,18 +1442,14 @@ class VisualiseDBSCAN(Visualise):
     """
 
     def __init__(
-            self,
-            timeseries: Any,
-            shape: Optional[DimensionsLike] = None,
-            apply_zscore: bool = True,
-            eps: float = 25,
-            min_samples: int = 3,
+        self,
+        timeseries: Any,
+        shape: Optional[DimensionsLike] = None,
+        apply_zscore: bool = True,
+        eps: float = 25,
+        min_samples: int = 3,
     ):
-        super().__init__(
-            timeseries=timeseries,
-            shape=shape,
-            apply_zscore=apply_zscore
-        )
+        super().__init__(timeseries=timeseries, shape=shape, apply_zscore=apply_zscore)
         self.eps = eps
         self.min_samples = min_samples
         self.timeseries = self._permute_timeseries()

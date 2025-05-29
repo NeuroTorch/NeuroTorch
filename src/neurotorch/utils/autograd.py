@@ -14,12 +14,12 @@ def zero_grad_params(params: Iterable[torch.nn.Parameter]):
 
 
 def compute_jacobian(
-        *,
-        model: Optional[torch.nn.Module] = None,
-        params: Optional[Iterable[torch.nn.Parameter]] = None,
-        x: Optional[torch.Tensor] = None,
-        y: Optional[torch.Tensor] = None,
-        strategy: str = "slow",
+    *,
+    model: Optional[torch.nn.Module] = None,
+    params: Optional[Iterable[torch.nn.Parameter]] = None,
+    x: Optional[torch.Tensor] = None,
+    y: Optional[torch.Tensor] = None,
+    strategy: str = "slow",
 ):
     """
     Compute the jacobian of the model with respect to the parameters.
@@ -54,7 +54,9 @@ def compute_jacobian(
                 y.backward(grad_outputs[i], retain_graph=True)
                 for p_idx, param in enumerate(params):
                     jacobian[p_idx].append(param.grad.view(-1).detach().clone())
-            jacobian = [torch.stack(jacobian[i], dim=-1).T for i in range(len(list(params)))]
+            jacobian = [
+                torch.stack(jacobian[i], dim=-1).T for i in range(len(list(params)))
+            ]
         else:
             raise ValueError(f"Unsupported strategy: {strategy}")
     elif x is not None:
@@ -65,11 +67,11 @@ def compute_jacobian(
 
 
 def dy_dw_local(
-        y: torch.Tensor,
-        params: Sequence[torch.nn.Parameter],
-        grad_outputs: Optional[torch.Tensor] = None,
-        retain_graph: bool = True,
-        allow_unused: bool = True,
+    y: torch.Tensor,
+    params: Sequence[torch.nn.Parameter],
+    grad_outputs: Optional[torch.Tensor] = None,
+    retain_graph: bool = True,
+    allow_unused: bool = True,
 ) -> List[torch.Tensor]:
     """
     Compute the derivative of z with respect to the parameters using torch.autograd.grad. If a parameter not
@@ -95,7 +97,8 @@ def dy_dw_local(
         grad = None
         if param.requires_grad:
             grad = torch.autograd.grad(
-                y, param,
+                y,
+                param,
                 grad_outputs=grad_outputs,
                 retain_graph=retain_graph,
                 allow_unused=allow_unused,
@@ -115,8 +118,8 @@ def vmap(f):
 
 
 def filter_parameters(
-        parameters: Union[Sequence[torch.nn.Parameter], torch.nn.ParameterList],
-        requires_grad: bool = True
+    parameters: Union[Sequence[torch.nn.Parameter], torch.nn.ParameterList],
+    requires_grad: bool = True,
 ) -> List[torch.nn.Parameter]:
     """
     Filter the parameters by their requires_grad attribute.
@@ -150,7 +153,9 @@ def get_contributing_params(y, top_level=True):
             yield from get_contributing_params(f, top_level=False)
 
 
-def recursive_detach(tensors: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]]):
+def recursive_detach(
+    tensors: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]],
+):
     if isinstance(tensors, tuple):
         out = tuple([recursive_detach(o) for o in tensors])
     elif isinstance(tensors, list):
@@ -164,7 +169,9 @@ def recursive_detach(tensors: Union[torch.Tensor, Tuple[torch.Tensor], List[torc
     return out
 
 
-def recursive_detach_(tensors: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]]):
+def recursive_detach_(
+    tensors: Union[torch.Tensor, Tuple[torch.Tensor], List[torch.Tensor]],
+):
     if isinstance(tensors, tuple):
         out = tuple([recursive_detach_(o) for o in tensors])
     elif isinstance(tensors, list):

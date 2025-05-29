@@ -8,9 +8,9 @@ from .base_callback import BaseCallback
 
 class EarlyStopping(BaseCallback):
     def __init__(
-            self,
-            patience: int = 5,
-            tol: float = 1e-2,
+        self,
+        patience: int = 5,
+        tol: float = 1e-2,
     ):
         self.patience = patience
         self.tol = tol
@@ -22,7 +22,7 @@ class EarlyStopping(BaseCallback):
         :param patience:
         :return:
         """
-        losses = self.loss_history['val'][-patience:]
+        losses = self.loss_history["val"][-patience:]
         return np.all(np.abs(np.diff(losses)) < tol)
 
 
@@ -30,13 +30,9 @@ class EarlyStoppingThreshold(BaseCallback):
     """
     Monitor the training process and set the stop_training_flag to True when the threshold is met.
     """
+
     def __init__(
-            self,
-            *,
-            metric: str,
-            threshold: float,
-            minimize_metric: bool,
-            **kwargs
+        self, *, metric: str, threshold: float, minimize_metric: bool, **kwargs
     ):
         """
         Constructor for EarlyStoppingThreshold class.
@@ -56,9 +52,13 @@ class EarlyStoppingThreshold(BaseCallback):
 
     def on_iteration_end(self, trainer, **kwargs):
         if self.minimize_metric:
-            threshold_met = trainer.current_training_state.itr_metrics[self.metric] < self.threshold
+            threshold_met = (
+                trainer.current_training_state.itr_metrics[self.metric] < self.threshold
+            )
         else:
-            threshold_met = trainer.current_training_state.itr_metrics[self.metric] > self.threshold
+            threshold_met = (
+                trainer.current_training_state.itr_metrics[self.metric] > self.threshold
+            )
         if threshold_met:
             trainer.update_state_(stop_training_flag=True)
 
@@ -67,15 +67,16 @@ class EarlyStoppingOnTimeLimit(BaseCallback):
     """
     Monitor the training process and set the stop_training_flag to True when the threshold is met.
     """
+
     CURRENT_SECONDS_COUNT_KEY = "current_seconds_count"
     DELTA_SECONDS_KEY = "delta_seconds"
 
     def __init__(
-            self,
-            *,
-            delta_seconds: float = 10.0 * 60.0,
-            resume_on_load: bool = True,
-            **kwargs
+        self,
+        *,
+        delta_seconds: float = 10.0 * 60.0,
+        resume_on_load: bool = True,
+        **kwargs,
     ):
         """
         Constructor for EarlyStoppingThreshold class.
@@ -101,13 +102,15 @@ class EarlyStoppingOnTimeLimit(BaseCallback):
             state = checkpoint.get(self.name, {})
             self.delta_seconds = state.get(self.DELTA_SECONDS_KEY, self.delta_seconds)
             if self.resume_on_load:
-                self.current_seconds_count = state.get(self.CURRENT_SECONDS_COUNT_KEY, 0.0)
+                self.current_seconds_count = state.get(
+                    self.CURRENT_SECONDS_COUNT_KEY, 0.0
+                )
 
     def get_checkpoint_state(self, trainer, **kwargs) -> object:
         if self.save_state:
             state = {
                 self.CURRENT_SECONDS_COUNT_KEY: self.current_seconds_count,
-                self.DELTA_SECONDS_KEY: self.delta_seconds
+                self.DELTA_SECONDS_KEY: self.delta_seconds,
             }
             return state
         return None
@@ -136,6 +139,7 @@ class EarlyStoppingOnNaN(BaseCallback):
     """
     Monitor the training process and set the stop_training_flag to True when the metric is NaN.
     """
+
     DEFAULT_PRIORITY = BaseCallback.DEFAULT_LOW_PRIORITY
 
     def __init__(self, metric: str, **kwargs):
@@ -163,15 +167,16 @@ class EarlyStoppingOnStagnation(BaseCallback):
     The metric is considered to stagnate when the mean of the absolute difference between the last
     `patience` iterations is less than `tol`.
     """
+
     DEFAULT_PRIORITY = BaseCallback.DEFAULT_LOW_PRIORITY
 
     def __init__(
-            self,
-            metric: str,
-            patience: int = 10,
-            tol: float = 1e-4,
-            start_with_history: bool = True,
-            **kwargs
+        self,
+        metric: str,
+        patience: int = 10,
+        tol: float = 1e-4,
+        start_with_history: bool = True,
+        **kwargs,
     ):
         """
         Constructor for EarlyStoppingOnStagnation class.
@@ -206,7 +211,7 @@ class EarlyStoppingOnStagnation(BaseCallback):
             return
         history = trainer.training_history
         if history is not None:
-            self._memory = history[self.metric][-self.patience:]
+            self._memory = history[self.metric][-self.patience :]
 
     def on_iteration_end(self, trainer, **kwargs):
         self._memory.append(trainer.state.itr_metrics.get(self.metric, 0.0))
@@ -218,5 +223,3 @@ class EarlyStoppingOnStagnation(BaseCallback):
 
     def extra_repr(self) -> str:
         return f"metric: {self.metric}, patience={self.patience}, tol={self.tol}"
-
-

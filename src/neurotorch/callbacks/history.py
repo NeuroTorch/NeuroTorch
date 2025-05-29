@@ -15,25 +15,23 @@ class TrainingHistory(BaseCallback):
     :Attributes:
         - **default_value** (float): The default value to use to equalize the lengths of the container's items.
     """
+
     DEFAULT_PRIORITY = BaseCallback.DEFAULT_HIGH_PRIORITY
 
     @staticmethod
     def _set_default_plot_kwargs(kwargs: dict):
-        kwargs.setdefault('fontsize', 18)
-        kwargs.setdefault('linewidth', 4)
-        kwargs.setdefault('figsize', (16, 12))
-        kwargs.setdefault('dpi', 300)
+        kwargs.setdefault("fontsize", 18)
+        kwargs.setdefault("linewidth", 4)
+        kwargs.setdefault("figsize", (16, 12))
+        kwargs.setdefault("dpi", 300)
         return kwargs
 
     @staticmethod
     def _remove_prefix_from_metrics(metrics: List[str]):
-        return [metric.split('_')[-1] for metric in metrics]
+        return [metric.split("_")[-1] for metric in metrics]
 
     def __init__(
-            self,
-            container: Dict[str, List[float]] = None,
-            default_value=np.nan,
-            **kwargs
+        self, container: Dict[str, List[float]] = None, default_value=np.nan, **kwargs
     ):
         """
         Initialize the container with the given container.
@@ -57,7 +55,9 @@ class TrainingHistory(BaseCallback):
 
     def __setitem__(self, key, value: list):
         self._add_key(key)
-        assert len(value) == len(self), "Length of value must be equal to length of container"
+        assert len(value) == len(
+            self
+        ), "Length of value must be equal to length of container"
         self._container[key] = list(value)
 
     def __contains__(self, item):
@@ -235,7 +235,9 @@ class TrainingHistory(BaseCallback):
         """
         return self._container.get(key, default)
 
-    def create_plot(self, **kwargs) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
+    def create_plot(
+        self, **kwargs
+    ) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
         """
         Create a plot of the metrics in the container.
 
@@ -250,57 +252,70 @@ class TrainingHistory(BaseCallback):
         kwargs = self._set_default_plot_kwargs(kwargs)
         keys_lower_to_given = {k.lower(): k for k in self.keys()}
         keys_lower = [key.lower() for key in self.keys()]
-        loss_metrics = [k for k in keys_lower if 'loss' in k]
+        loss_metrics = [k for k in keys_lower if "loss" in k]
         keys_lower = list(set(keys_lower) - set(loss_metrics))
-        val_metrics = [k for k in keys_lower if 'val' in k]
-        train_metrics = [k for k in keys_lower if 'train' in k]
-        test_metrics = [k for k in keys_lower if 'test' in k]
+        val_metrics = [k for k in keys_lower if "val" in k]
+        train_metrics = [k for k in keys_lower if "train" in k]
+        test_metrics = [k for k in keys_lower if "test" in k]
         n_set_metrics = max(len(val_metrics), len(train_metrics), len(test_metrics))
-        max_set_metrics_container = [c for c in [val_metrics, train_metrics, test_metrics] if len(c) == n_set_metrics][0]
-        other_metrics = list(set(keys_lower) - set(val_metrics) - set(train_metrics) - set(test_metrics))
+        max_set_metrics_container = [
+            c
+            for c in [val_metrics, train_metrics, test_metrics]
+            if len(c) == n_set_metrics
+        ][0]
+        other_metrics = list(
+            set(keys_lower) - set(val_metrics) - set(train_metrics) - set(test_metrics)
+        )
         n_graphs = 1 + n_set_metrics + len(other_metrics)
         n_cols = int(np.sqrt(n_graphs))
         n_rows = int(np.ceil(n_graphs / n_cols))
         axes_dict, lines = {}, {}
-        fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=kwargs["figsize"], sharex='all')
+        fig, axes = plt.subplots(
+            nrows=n_rows, ncols=n_cols, figsize=kwargs["figsize"], sharex="all"
+        )
         axes = np.ravel(axes)
         for i, ax in enumerate(axes):
             if i >= n_graphs:
-                ax.axis('off')
+                ax.axis("off")
                 continue
             if i == 0:
                 for k in loss_metrics:
                     key = keys_lower_to_given[k]
-                    lines[key] = ax.plot(self[key], label=key, linewidth=kwargs['linewidth'])[0]
-                axes_dict['losses'] = ax
+                    lines[key] = ax.plot(
+                        self[key], label=key, linewidth=kwargs["linewidth"]
+                    )[0]
+                axes_dict["losses"] = ax
                 ax.set_ylabel("Loss [-]", fontsize=kwargs["fontsize"])
                 ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
                 ax.legend(fontsize=kwargs["fontsize"])
             elif 0 < i <= n_set_metrics:
-                metric_basename = '_'.join(max_set_metrics_container[i-1].split('_')[1:])
-                for prefix in ['val', 'train', 'test']:
-                    k = prefix + '_' + metric_basename
+                metric_basename = "_".join(
+                    max_set_metrics_container[i - 1].split("_")[1:]
+                )
+                for prefix in ["val", "train", "test"]:
+                    k = prefix + "_" + metric_basename
                     if k in keys_lower_to_given:
                         key = keys_lower_to_given[k]
                         if key in self:
-                            lines[key] = ax.plot(self[key], label=key, linewidth=kwargs['linewidth'])[0]
+                            lines[key] = ax.plot(
+                                self[key], label=key, linewidth=kwargs["linewidth"]
+                            )[0]
                             axes_dict[key] = ax
                 ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
                 ax.legend(fontsize=kwargs["fontsize"])
             else:
                 k = other_metrics[i - 1 - n_set_metrics]
                 key = keys_lower_to_given[k]
-                lines[key] = ax.plot(self[key], label=key, linewidth=kwargs['linewidth'])[0]
+                lines[key] = ax.plot(
+                    self[key], label=key, linewidth=kwargs["linewidth"]
+                )[0]
                 axes_dict[key] = ax
                 ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
                 ax.legend(fontsize=kwargs["fontsize"])
         return fig, axes_dict, lines
 
     def plot(
-            self,
-            save_path: Optional[str] = None,
-            show: bool = False,
-            **kwargs
+        self, save_path: Optional[str] = None, show: bool = False, **kwargs
     ) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
         """
         Plot the metrics in the container.
@@ -323,23 +338,23 @@ class TrainingHistory(BaseCallback):
         :rtype: Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]
         """
         kwargs = self._set_default_plot_kwargs(kwargs)
-        plt.close('all')
+        plt.close("all")
         fig, axes, lines = self.create_plot(**kwargs)
         if save_path is not None:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             fig.savefig(save_path, dpi=kwargs["dpi"])
         if show:
-            plt.show(block=kwargs.get('block', True))
-        if kwargs.get('close', True):
+            plt.show(block=kwargs.get("block", True))
+        if kwargs.get("close", True):
             plt.close(fig)
         return fig, axes, lines
 
     def update_fig(
-            self,
-            fig: plt.Figure,
-            axes: Dict[str, plt.Axes],
-            lines: Dict[str, plt.Line2D],
-            **kwargs
+        self,
+        fig: plt.Figure,
+        axes: Dict[str, plt.Axes],
+        lines: Dict[str, plt.Line2D],
+        **kwargs,
     ) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
         """
         Update the plot of the metrics in the container.
@@ -376,15 +391,11 @@ class TrainingHistory(BaseCallback):
         """
         self.insert(
             trainer.current_training_state.iteration,
-            {k: to_numpy(v) for k, v in trainer.current_training_state.itr_metrics.items()}
+            {
+                k: to_numpy(v)
+                for k, v in trainer.current_training_state.itr_metrics.items()
+            },
         )
 
     def extra_repr(self):
         return f", n={len(self)}, metrics={list(self.keys())}"
-
-
-
-
-
-
-

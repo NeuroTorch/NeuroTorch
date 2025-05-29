@@ -52,6 +52,7 @@ class BaseCallback:
         - :attr:`Priority`: The priority of the callback. The lower the priority, the earlier the callback is called.
             Default is 10.
     """
+
     DEFAULT_PRIORITY = 10
     DEFAULT_LOW_PRIORITY = 100
     DEFAULT_MEDIUM_PRIORITY = 50
@@ -62,12 +63,12 @@ class BaseCallback:
     UNPICKEABLE_ATTRIBUTES = ["trainer"]
 
     def __init__(
-            self,
-            priority: Optional[int] = None,
-            name: Optional[str] = None,
-            save_state: bool = True,
-            load_state: Optional[bool] = None,
-            **kwargs
+        self,
+        priority: Optional[int] = None,
+        name: Optional[str] = None,
+        save_state: bool = True,
+        load_state: Optional[bool] = None,
+        **kwargs,
     ):
         """
         :param priority: The priority of the callback. The lower the priority, the earlier the callback is called.
@@ -85,7 +86,11 @@ class BaseCallback:
         self.kwargs = kwargs
         self.priority = priority if priority is not None else self.DEFAULT_PRIORITY
         self.instance_id = self.instance_counter
-        self.name = name if name is not None else f"{self.__class__.__name__}<{self.instance_id}>"
+        self.name = (
+            name
+            if name is not None
+            else f"{self.__class__.__name__}<{self.instance_id}>"
+        )
         self.save_state = save_state
         self.load_state = load_state if load_state is not None else save_state
         self.__class__.instance_counter += 1
@@ -121,7 +126,11 @@ class BaseCallback:
         :rtype: An pickleable object.
         """
         if self.save_state:
-            return {k: v for k, v in self.__dict__.items() if k not in self.UNPICKEABLE_ATTRIBUTES}
+            return {
+                k: v
+                for k, v in self.__dict__.items()
+                if k not in self.UNPICKEABLE_ATTRIBUTES
+            }
 
     def start(self, trainer, **kwargs):
         """
@@ -380,6 +389,7 @@ class CallbacksList:
     :Attributes:
         - :attr:`callbacks` (List[BaseCallback]): The callbacks to use.
     """
+
     def __init__(self, callbacks: Optional[Iterable[BaseCallback]] = None):
         """
         Constructor of the CallbacksList class.
@@ -390,13 +400,14 @@ class CallbacksList:
         if callbacks is None:
             callbacks = []
         assert isinstance(callbacks, Iterable), "callbacks must be an Iterable"
-        assert all(isinstance(callback, BaseCallback) for callback in callbacks), \
-            "All callbacks must be instances of BaseCallback"
+        assert all(
+            isinstance(callback, BaseCallback) for callback in callbacks
+        ), "All callbacks must be instances of BaseCallback"
         self.callbacks = list(callbacks)
         self._length = len(self.callbacks)
         self.sort_callbacks_()
 
-    def sort_callbacks_(self, reverse: bool = False) -> 'CallbacksList':
+    def sort_callbacks_(self, reverse: bool = False) -> "CallbacksList":
         """
         Sorts the callbacks by their priority.
 
@@ -455,7 +466,9 @@ class CallbacksList:
 
         :return: None
         """
-        assert isinstance(callback, BaseCallback), "callback must be an instance of BaseCallback"
+        assert isinstance(
+            callback, BaseCallback
+        ), "callback must be an instance of BaseCallback"
         self.callbacks.append(callback)
         self._length += 1
         self.sort_callbacks_()
@@ -469,7 +482,9 @@ class CallbacksList:
 
         :return: None
         """
-        assert isinstance(callback, BaseCallback), "callback must be an instance of BaseCallback"
+        assert isinstance(
+            callback, BaseCallback
+        ), "callback must be an instance of BaseCallback"
         self.callbacks.remove(callback)
         self._length -= 1
         self.sort_callbacks_()
@@ -739,8 +754,9 @@ class CallbacksList:
         for callback in self.callbacks:
             callback_return = callback.on_trajectory_end(trainer, trajectory, **kwargs)
             if callback_return is not None:
-                assert len(callback_return) == len(trajectory), \
-                    "The callback must return a list of dictionaries with the same length as the trajectory."
+                assert len(callback_return) == len(
+                    trajectory
+                ), "The callback must return a list of dictionaries with the same length as the trajectory."
                 for i, re in enumerate(callback_return):
                     re_list[i].update(re)
         return re_list
@@ -765,4 +781,3 @@ class CallbacksList:
                 callback_dict = {callback.name: callback_dict}
             re_dict.update(callback_dict)
         return re_dict
-

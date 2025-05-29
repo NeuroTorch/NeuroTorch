@@ -1,4 +1,3 @@
-
 from .spike_funcs import (
     SpikeFuncType,
     SpikeFunction,

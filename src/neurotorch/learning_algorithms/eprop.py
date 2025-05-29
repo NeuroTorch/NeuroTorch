@@ -14,7 +14,7 @@ from ..utils import (
     recursive_detach,
     dy_dw_local,
     clip_tensors_norm_,
-    recursive_detach_
+    recursive_detach_,
 )
 from ..utils.random import unitary_rn_normal_matrix
 
@@ -35,6 +35,7 @@ class Eprop(TBPTT):
         likelihood loss function from :class:`nt.losses.NLLLoss` with the ``target_as_one_hot`` argument set to ``True``.
 
     """
+
     CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: str = "optimizer_state_dict"
     CHECKPOINT_FEEDBACK_WEIGHTS_KEY: str = "feedback_weights"
     OPTIMIZER_PARAMS_GROUP_IDX = 0
@@ -48,7 +49,9 @@ class Eprop(TBPTT):
             torch.empty(*args), gain=kwargs.get("gain", 1.0)
         ),
         "kaiming_normal": lambda *args, **kwargs: torch.nn.init.kaiming_normal_(
-            torch.empty(*args), a=kwargs.get("a", 0.0), mode=kwargs.get("mode", "fan_in"),
+            torch.empty(*args),
+            a=kwargs.get("a", 0.0),
+            mode=kwargs.get("mode", "fan_in"),
             nonlinearity=kwargs.get("nonlinearity", "leaky_relu"),
         ),
         "rand": lambda *args, **kwargs: torch.rand(*args, **kwargs),
@@ -69,13 +72,15 @@ class Eprop(TBPTT):
     }
 
     def __init__(
-            self,
-            *,
-            params: Optional[Sequence[torch.nn.Parameter]] = None,
-            output_params: Optional[Sequence[torch.nn.Parameter]] = None,
-            layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
-            output_layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
-            **kwargs
+        self,
+        *,
+        params: Optional[Sequence[torch.nn.Parameter]] = None,
+        output_params: Optional[Sequence[torch.nn.Parameter]] = None,
+        layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
+        output_layers: Optional[
+            Union[Sequence[torch.nn.Module], torch.nn.Module]
+        ] = None,
+        **kwargs,
     ):
         """
         Constructor for Eprop class.
@@ -133,13 +138,12 @@ class Eprop(TBPTT):
         kwargs.setdefault("criterion", torch.nn.MSELoss())
         kwargs.setdefault("alpha", 0.001)
         super().__init__(
-            params=params,
-            layers=layers,
-            output_layers=output_layers,
-            **kwargs
+            params=params, layers=layers, output_layers=output_layers, **kwargs
         )
         self.output_params = output_params or []
-        self._feedbacks_gen_strategy = kwargs.get("feedbacks_gen_strategy", self.DEFAULT_FEEDBACKS_GEN_STRATEGY).lower()
+        self._feedbacks_gen_strategy = kwargs.get(
+            "feedbacks_gen_strategy", self.DEFAULT_FEEDBACKS_GEN_STRATEGY
+        ).lower()
         if self._feedbacks_gen_strategy not in self.FEEDBACKS_GEN_FUNCS:
             raise NotImplementedError(
                 f"Feedbacks generation strategy '{self._feedbacks_gen_strategy}' is not implemented."
@@ -152,19 +156,29 @@ class Eprop(TBPTT):
         self.rn_gen = torch.Generator()
         self.rn_gen.manual_seed(kwargs.get("seed", 0))
         self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
-        self.output_eligibility_traces = [torch.zeros_like(p) for p in self.output_params]
+        self.output_eligibility_traces = [
+            torch.zeros_like(p) for p in self.output_params
+        ]
         self.learning_signals = defaultdict(list)
         self.param_groups = []
         self.eval_criterion = kwargs.get("eval_criterion", self.criterion)
         self.gamma = kwargs.get("gamma", 0.001)
         self._default_params_lr = kwargs.get("params_lr", 1e-5)
         self._default_output_params_lr = kwargs.get("output_params_lr", 2e-5)
-        self.eligibility_traces_norm_clip_value = to_tensor(kwargs.get("eligibility_traces_norm_clip_value", torch.inf))
-        self.learning_signal_norm_clip_value = to_tensor(kwargs.get("learning_signal_norm_clip_value", torch.inf))
-        self.feedback_weights_norm_clip_value = to_tensor(kwargs.get(
-            "feedback_weights_norm_clip_value",
-            self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(str(self._feedbacks_gen_strategy), torch.inf)
-        ))
+        self.eligibility_traces_norm_clip_value = to_tensor(
+            kwargs.get("eligibility_traces_norm_clip_value", torch.inf)
+        )
+        self.learning_signal_norm_clip_value = to_tensor(
+            kwargs.get("learning_signal_norm_clip_value", torch.inf)
+        )
+        self.feedback_weights_norm_clip_value = to_tensor(
+            kwargs.get(
+                "feedback_weights_norm_clip_value",
+                self.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE.get(
+                    str(self._feedbacks_gen_strategy), torch.inf
+                ),
+            )
+        )
         self.raise_non_finite_errors = kwargs.get("raise_non_finite_errors", False)
 
     def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
@@ -186,9 +200,15 @@ class Eprop(TBPTT):
                     self.optimizer = self.DEFAULT_OPTIMIZER_CLS(saved_param_groups)
                 self.optimizer.load_state_dict(opt_state_dict)
                 self.param_groups = self.optimizer.param_groups
-                self.params = self.param_groups[self.OPTIMIZER_PARAMS_GROUP_IDX]["params"]
-                self.output_params = self.param_groups[self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX]["params"]
-                self.feedback_weights = state.get(self.CHECKPOINT_FEEDBACK_WEIGHTS_KEY, None)
+                self.params = self.param_groups[self.OPTIMIZER_PARAMS_GROUP_IDX][
+                    "params"
+                ]
+                self.output_params = self.param_groups[
+                    self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX
+                ]["params"]
+                self.feedback_weights = state.get(
+                    self.CHECKPOINT_FEEDBACK_WEIGHTS_KEY, None
+                )
 
     def get_checkpoint_state(self, trainer, **kwargs) -> object:
         """
@@ -201,7 +221,9 @@ class Eprop(TBPTT):
         if self.save_state:
             state = {}
             if self.optimizer is not None:
-                state[self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY] = self.optimizer.state_dict()
+                state[self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY] = (
+                    self.optimizer.state_dict()
+                )
                 state[self.CHECKPOINT_FEEDBACK_WEIGHTS_KEY] = self.feedback_weights
             return state
         return None
@@ -233,12 +255,13 @@ class Eprop(TBPTT):
         """
         feedback_gen_func = self._get_feedback_gen_func()
         feedback_weights = feedback_gen_func(*args, **kwargs)
-        clip_tensors_norm_(feedback_weights, max_norm=self.feedback_weights_norm_clip_value)
+        clip_tensors_norm_(
+            feedback_weights, max_norm=self.feedback_weights_norm_clip_value
+        )
         return feedback_weights
 
     def initialize_feedback_weights(
-            self,
-            y_batch: Optional[Union[Dict[str, torch.Tensor], torch.Tensor]] = None
+        self, y_batch: Optional[Union[Dict[str, torch.Tensor], torch.Tensor]] = None
     ) -> Dict[str, List[torch.Tensor]]:
         """
         TODO : Non-random feedbacks must be implemented with {W_out}.T
@@ -257,9 +280,12 @@ class Eprop(TBPTT):
         last_dims = [p.shape[-1] if p.ndim > 0 else 1 for p in self.params]
         self.feedback_weights = {
             k: [
-                self.make_feedback_weights(y_batch_item.shape[-1], pld, generator=self.rn_gen)
+                self.make_feedback_weights(
+                    y_batch_item.shape[-1], pld, generator=self.rn_gen
+                )
                 for pld in last_dims
-            ] for k, y_batch_item in y_batch.items()
+            ]
+            for k, y_batch_item in y_batch.items()
         }
         return self.feedback_weights
 
@@ -274,16 +300,18 @@ class Eprop(TBPTT):
         :return: None
         """
         if not self.params and self.optimizer:
-            self.params = self.optimizer.param_groups[self.OPTIMIZER_PARAMS_GROUP_IDX]["params"]
+            self.params = self.optimizer.param_groups[self.OPTIMIZER_PARAMS_GROUP_IDX][
+                "params"
+            ]
 
         if not self.params:
             self.params = [
-                param
-                for layer in self.layers
-                for param in layer.parameters()
+                param for layer in self.layers for param in layer.parameters()
             ]
         if not self.params:
-            warnings.warn("No hidden parameters found. Please provide them manually if you have any.")
+            warnings.warn(
+                "No hidden parameters found. Please provide them manually if you have any."
+            )
 
         return self.params
 
@@ -299,16 +327,18 @@ class Eprop(TBPTT):
         :return: None
         """
         if not self.output_params and self.optimizer:
-            self.output_params = self.optimizer.param_groups[self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX]["params"]
+            self.output_params = self.optimizer.param_groups[
+                self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX
+            ]["params"]
 
         if not self.output_params:
             self.output_params = [
-                param
-                for layer in self.output_layers
-                for param in layer.parameters()
+                param for layer in self.output_layers for param in layer.parameters()
             ]
         if not self.output_params:
-            raise ValueError("Could not find output parameters. Please provide them manually.")
+            raise ValueError(
+                "Could not find output parameters. Please provide them manually."
+            )
 
         return
 
@@ -351,7 +381,12 @@ class Eprop(TBPTT):
         """
         if not self.layers:
             self.layers = []
-            possible_attrs = ["input_layers", "input_layer", "hidden_layers", "hidden_layer"]
+            possible_attrs = [
+                "input_layers",
+                "input_layer",
+                "hidden_layers",
+                "hidden_layer",
+            ]
             for attr in possible_attrs:
                 if hasattr(trainer.model, attr):
                     obj = getattr(trainer.model, attr, [])
@@ -379,12 +414,12 @@ class Eprop(TBPTT):
         list_insert_replace_at(
             self.param_groups,
             self.OPTIMIZER_PARAMS_GROUP_IDX,
-            {"params": self.params, "lr": self._default_params_lr}
+            {"params": self.params, "lr": self._default_params_lr},
         )
         list_insert_replace_at(
             self.param_groups,
             self.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX,
-            {"params": self.output_params, "lr": self._default_output_params_lr}
+            {"params": self.output_params, "lr": self._default_output_params_lr},
         )
         return self.param_groups
 
@@ -395,7 +430,9 @@ class Eprop(TBPTT):
         :return: None
         """
         self.eligibility_traces = [torch.zeros_like(p) for p in self.params]
-        self.output_eligibility_traces = [torch.zeros_like(p) for p in self.output_params]
+        self.output_eligibility_traces = [
+            torch.zeros_like(p) for p in self.output_params
+        ]
 
     def start(self, trainer, **kwargs):
         """
@@ -465,14 +502,20 @@ class Eprop(TBPTT):
             for layer in self.layers:
                 self._hidden_layer_names.append(layer.name)
                 if self._use_hooks:
-                    hook = layer.register_forward_hook(self._hidden_hook, with_kwargs=True)
+                    hook = layer.register_forward_hook(
+                        self._hidden_hook, with_kwargs=True
+                    )
                     self.forwards_hooks.append(hook)
                 else:
-                    layer.forward = self._decorate_hidden_forward(layer.forward, layer.name)
+                    layer.forward = self._decorate_hidden_forward(
+                        layer.forward, layer.name
+                    )
 
             for layer in self.output_layers:
                 if self._use_hooks:
-                    hook = layer.register_forward_hook(self._output_hook, with_kwargs=True)
+                    hook = layer.register_forward_hook(
+                        self._output_hook, with_kwargs=True
+                    )
                     self.forwards_hooks.append(hook)
                 else:
                     layer.forward = self._decorate_forward(layer.forward, layer.name)
@@ -489,17 +532,23 @@ class Eprop(TBPTT):
 
         :return: The decorated forward method
         """
+
         def _forward(*args, **kwargs):
             out = forward(*args, **kwargs)
             t, forecasting = kwargs.get("t", None), kwargs.get("forecasting", False)
             if t is None:
                 return out
             out_tensor, hh = unpack_out_hh(out)
-            list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
+            list_insert_replace_at(
+                self._layers_buffer[layer_name],
+                t % self.backward_time_steps,
+                out_tensor,
+            )
             if len(self._layers_buffer[layer_name]) >= self.backward_time_steps:
                 self._hidden_backward_at_t(t, self.backward_time_steps, layer_name)
                 out = recursive_detach(out)
             return out
+
         return _forward
 
     def _hidden_hook(self, module, args, kwargs, output) -> None:
@@ -514,7 +563,9 @@ class Eprop(TBPTT):
 
         layer_name = module.name
         out_tensor, hh = unpack_out_hh(output)
-        list_insert_replace_at(self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor)
+        list_insert_replace_at(
+            self._layers_buffer[layer_name], t % self.backward_time_steps, out_tensor
+        )
         if len(self._layers_buffer[layer_name]) >= self.backward_time_steps:
             self._hidden_backward_at_t(t, self.backward_time_steps, layer_name)
             output = recursive_detach_(output)
@@ -533,10 +584,13 @@ class Eprop(TBPTT):
         :return: None
         """
         pred_batch = torch.squeeze(self._get_pred_batch_from_buffer(layer_name))
-        dy_dw_locals = dy_dw_local(y=pred_batch, params=self.params, retain_graph=True, allow_unused=True)
+        dy_dw_locals = dy_dw_local(
+            y=pred_batch, params=self.params, retain_graph=True, allow_unused=True
+        )
         with torch.no_grad():
             self.eligibility_traces = [
-                self.gamma * et + torch.nan_to_num(
+                self.gamma * et
+                + torch.nan_to_num(
                     dy_dw.to(et.device),
                     nan=0.0,
                     neginf=-self.eligibility_traces_norm_clip_value,
@@ -544,7 +598,9 @@ class Eprop(TBPTT):
                 )
                 for et, dy_dw in zip(self.eligibility_traces, dy_dw_locals)
             ]
-            clip_tensors_norm_(self.eligibility_traces, self.eligibility_traces_norm_clip_value)
+            clip_tensors_norm_(
+                self.eligibility_traces, self.eligibility_traces_norm_clip_value
+            )
             self._layers_buffer[layer_name].clear()
 
     def _backward_at_t(self, t: int, backward_t: int, layer_name: str):
@@ -557,7 +613,9 @@ class Eprop(TBPTT):
 
         :return: None
         """
-        y_batch = self._get_y_batch_slice_from_trainer((t + 1) - backward_t, t + 1, layer_name)
+        y_batch = self._get_y_batch_slice_from_trainer(
+            (t + 1) - backward_t, t + 1, layer_name
+        )
         pred_batch = self._get_pred_batch_from_buffer(layer_name)
         batch_loss = self.apply_criterion(pred_batch, y_batch)
         if batch_loss.grad_fn is None:
@@ -566,10 +624,16 @@ class Eprop(TBPTT):
             )
         with torch.no_grad():
             errors = self.compute_errors(pred_batch, y_batch)
-        output_grads = dy_dw_local(torch.mean(batch_loss), self.output_params, retain_graph=True, allow_unused=True)
+        output_grads = dy_dw_local(
+            torch.mean(batch_loss),
+            self.output_params,
+            retain_graph=True,
+            allow_unused=True,
+        )
         with torch.no_grad():
             self.output_eligibility_traces = [
-                self.alpha * et + torch.nan_to_num(
+                self.alpha * et
+                + torch.nan_to_num(
                     dy_dw.to(et.device),
                     nan=0.0,
                     neginf=-self.eligibility_traces_norm_clip_value,
@@ -577,12 +641,16 @@ class Eprop(TBPTT):
                 )
                 for et, dy_dw in zip(self.output_eligibility_traces, output_grads)
             ]
-            clip_tensors_norm_(self.output_eligibility_traces, self.eligibility_traces_norm_clip_value)
+            clip_tensors_norm_(
+                self.output_eligibility_traces, self.eligibility_traces_norm_clip_value
+            )
         self.update_grads(errors)
         with torch.no_grad():
             self._layers_buffer[layer_name].clear()
 
-    def compute_learning_signals(self, errors: Dict[str, torch.Tensor]) -> List[torch.Tensor]:
+    def compute_learning_signals(
+        self, errors: Dict[str, torch.Tensor]
+    ) -> List[torch.Tensor]:
         """
         TODO : Determine if we normalize with the number of output when computing the learning signal : If multiple
         TODO : output layers, do we sum the learning signals or do we average them ? Should we make a 'reduce' param?
@@ -593,25 +661,36 @@ class Eprop(TBPTT):
 
         :return: List of the learning signals for each parameter.
         """
-        learning_signals = [torch.zeros((p.shape[-1] if p.ndim > 0 else 1), device=p.device) for p in self.params]
+        learning_signals = [
+            torch.zeros((p.shape[-1] if p.ndim > 0 else 1), device=p.device)
+            for p in self.params
+        ]
         for k, feedbacks in self.feedback_weights.items():
             if k not in errors:
                 raise ValueError(
                     f"This is an internal error. Please report this issue on GitHub."
                     f"Key {k} from {self.feedback_weights.keys()=} not found in errors of keys {errors.keys()}."
                 )
-            torch.nan_to_num_(errors[k], nan=self.nan, posinf=self.posinf, neginf=self.neginf)
-            error_mean = torch.mean(errors[k].view(-1, errors[k].shape[-1]), dim=0).view(1, -1)
+            torch.nan_to_num_(
+                errors[k], nan=self.nan, posinf=self.posinf, neginf=self.neginf
+            )
+            error_mean = torch.mean(
+                errors[k].view(-1, errors[k].shape[-1]), dim=0
+            ).view(1, -1)
             if torch.isfinite(self.learning_signal_norm_clip_value):
-                clip_tensors_norm_(error_mean, max_norm=self.learning_signal_norm_clip_value)
+                clip_tensors_norm_(
+                    error_mean, max_norm=self.learning_signal_norm_clip_value
+                )
             for i, feedback in enumerate(feedbacks):
-                learning_signals[i] = learning_signals[i] + torch.matmul(error_mean, feedback.to(error_mean.device))
+                learning_signals[i] = learning_signals[i] + torch.matmul(
+                    error_mean, feedback.to(error_mean.device)
+                )
         return learning_signals
 
     def compute_errors(
-            self,
-            pred_batch: Union[Dict[str, torch.Tensor], torch.Tensor],
-            y_batch: Union[Dict[str, torch.Tensor], torch.Tensor]
+        self,
+        pred_batch: Union[Dict[str, torch.Tensor], torch.Tensor],
+        y_batch: Union[Dict[str, torch.Tensor], torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         """
         The errors for each output is computed then inserted in a dict for further use. This function check if the
@@ -626,22 +705,28 @@ class Eprop(TBPTT):
             if isinstance(y_batch, torch.Tensor):
                 y_batch = {k: y_batch for k in pred_batch}
             else:
-                raise ValueError(f"y_batch must be a dict or a tensor, not {type(y_batch)}.")
+                raise ValueError(
+                    f"y_batch must be a dict or a tensor, not {type(y_batch)}."
+                )
             if isinstance(pred_batch, torch.Tensor):
                 pred_batch = {k: pred_batch for k in y_batch}
             else:
-                raise ValueError(f"pred_batch must be a dict or a tensor, not {type(pred_batch)}.")
+                raise ValueError(
+                    f"pred_batch must be a dict or a tensor, not {type(pred_batch)}."
+                )
             batch_errors = {
                 k: (pred_batch[k] - y_batch[k].to(pred_batch[k].device))
                 for k in y_batch
             }
         else:
-            batch_errors = {self.DEFAULT_Y_KEY: pred_batch - y_batch.to(pred_batch.device)}
+            batch_errors = {
+                self.DEFAULT_Y_KEY: pred_batch - y_batch.to(pred_batch.device)
+            }
         return batch_errors
 
     def update_grads(
-            self,
-            errors: Dict[str, torch.Tensor],
+        self,
+        errors: Dict[str, torch.Tensor],
     ):
         """
         The learning signal is computed. The gradients of the parameters are then updated as seen in equation (28)
@@ -653,10 +738,19 @@ class Eprop(TBPTT):
         """
         learning_signals = self.compute_learning_signals(errors)
         with torch.no_grad():
-            for param, ls, et in zip(self.params, learning_signals, self.eligibility_traces):
+            for param, ls, et in zip(
+                self.params, learning_signals, self.eligibility_traces
+            ):
                 if param.requires_grad:
-                    param.grad += (ls * et.to(ls.device)).to(param.device).view(param.shape).detach()
-                    torch.nan_to_num_(param.grad, nan=self.nan, posinf=self.posinf, neginf=self.neginf)
+                    param.grad += (
+                        (ls * et.to(ls.device))
+                        .to(param.device)
+                        .view(param.shape)
+                        .detach()
+                    )
+                    torch.nan_to_num_(
+                        param.grad, nan=self.nan, posinf=self.posinf, neginf=self.neginf
+                    )
             if torch.isfinite(self.grad_norm_clip_value):
                 torch.nn.utils.clip_grad_norm_(self.params, self.grad_norm_clip_value)
 
@@ -668,12 +762,23 @@ class Eprop(TBPTT):
                     )
 
         with torch.no_grad():
-            for out_param, out_el in zip(self.output_params, self.output_eligibility_traces):
+            for out_param, out_el in zip(
+                self.output_params, self.output_eligibility_traces
+            ):
                 if out_param.requires_grad:
-                    out_param.grad += out_el.to(out_param.device).view(out_param.shape).detach()
-                    torch.nan_to_num_(out_param.grad, nan=self.nan, posinf=self.posinf, neginf=self.neginf)
+                    out_param.grad += (
+                        out_el.to(out_param.device).view(out_param.shape).detach()
+                    )
+                    torch.nan_to_num_(
+                        out_param.grad,
+                        nan=self.nan,
+                        posinf=self.posinf,
+                        neginf=self.neginf,
+                    )
             if torch.isfinite(self.grad_norm_clip_value):
-                torch.nn.utils.clip_grad_norm_(self.output_params, self.grad_norm_clip_value)
+                torch.nn.utils.clip_grad_norm_(
+                    self.output_params, self.grad_norm_clip_value
+                )
 
             if self.raise_non_finite_errors:
                 if not all([torch.isfinite(p).all() for p in self.output_params]):
@@ -723,14 +828,16 @@ class Eprop(TBPTT):
                 if backward_t > 0:
                     need_optim_step = True
                     if layer_name in self._hidden_layer_names:
-                        self._hidden_backward_at_t(self._data_n_time_steps - 1, backward_t, layer_name)
+                        self._hidden_backward_at_t(
+                            self._data_n_time_steps - 1, backward_t, layer_name
+                        )
                     else:
-                        self._backward_at_t(self._data_n_time_steps - 1, backward_t, layer_name)
+                        self._backward_at_t(
+                            self._data_n_time_steps - 1, backward_t, layer_name
+                        )
             if need_optim_step:
                 self._make_optim_step()
         self.undecorate_forwards()
         self._layers_buffer.clear()
         self.optimizer.zero_grad()
         self.eligibility_traces_zeros_()
-
-

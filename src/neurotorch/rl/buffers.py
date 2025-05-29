@@ -19,17 +19,18 @@ class Experience:
     - Terminal flag
     - Next Observation
     """
+
     def __init__(
-            self,
-            obs: Any,
-            action: Any,
-            reward: float,
-            terminal: bool,
-            next_obs: Any,
-            discounted_reward: Optional[float] = None,
-            advantage: Optional[float] = None,
-            rewards_horizon: Optional[List[float]] = None,
-            others: Optional[dict] = None
+        self,
+        obs: Any,
+        action: Any,
+        reward: float,
+        terminal: bool,
+        next_obs: Any,
+        discounted_reward: Optional[float] = None,
+        advantage: Optional[float] = None,
+        rewards_horizon: Optional[List[float]] = None,
+        others: Optional[dict] = None,
     ):
         self.obs = obs
         self.action = action
@@ -76,9 +77,9 @@ class Experience:
 
 class BatchExperience:
     def __init__(
-            self,
-            batch: List[Experience],
-            device: torch.device = torch.device("cpu"),
+        self,
+        batch: List[Experience],
+        device: torch.device = torch.device("cpu"),
     ):
         """
         An object that contains a batch of experiences as tensors.
@@ -173,11 +174,12 @@ class Trajectory:
     """
     A trajectory is a list of experiences.
     """
+
     def __init__(
-            self,
-            experiences: Optional[List[Experience]] = None,
-            gamma: Optional[float] = None,
-            **kwargs,
+        self,
+        experiences: Optional[List[Experience]] = None,
+        gamma: Optional[float] = None,
+        **kwargs,
     ):
         self.experiences = experiences if experiences is not None else []
         self._propagated_flag = False
@@ -227,7 +229,8 @@ class Trajectory:
                 self.experiences[i].discounted_reward = self.experiences[i].reward
             else:
                 self.experiences[i].discounted_reward = (
-                        self.experiences[i].reward + gamma * self.experiences[i + 1].discounted_reward
+                    self.experiences[i].reward
+                    + gamma * self.experiences[i + 1].discounted_reward
                 )
 
     def make_rewards_horizon(self):
@@ -262,7 +265,9 @@ class Trajectory:
         self.propagate()
 
     def update_others(self, others_list: List[dict]):
-        assert len(others_list) == len(self.experiences), "The number of experiences must be the same."
+        assert len(others_list) == len(
+            self.experiences
+        ), "The number of experiences must be the same."
         for i, others in enumerate(others_list):
             self.experiences[i].others.update(others)
 
@@ -323,7 +328,7 @@ class ReplayBuffer:
     def increase_capacity(self, increment: int):
         self.__capacity += increment
 
-    def extend(self, iterable: Iterable[Experience]) -> 'ReplayBuffer':
+    def extend(self, iterable: Iterable[Experience]) -> "ReplayBuffer":
         _ = [self.store(e) for e in iterable]
         return self
 
@@ -336,14 +341,18 @@ class ReplayBuffer:
     def __getitem__(self, idx: int) -> Experience:
         return self.data[idx]
 
-    def store(self, element: Experience) -> 'ReplayBuffer':
+    def store(self, element: Experience) -> "ReplayBuffer":
         """
         Stores an element. If the replay buffer is already full, deletes the oldest
         element to make space.
         """
         if len(self.data) >= self.__capacity:
             if self.use_priority:
-                self.data.pop(np.argmin([np.abs(getattr(e, self.priority_key, 0.0)) for e in self.data]))
+                self.data.pop(
+                    np.argmin(
+                        [np.abs(getattr(e, self.priority_key, 0.0)) for e in self.data]
+                    )
+                )
             else:
                 self.data.pop(0)
         self.data.append(deepcopy(element))
@@ -357,7 +366,7 @@ class ReplayBuffer:
         """
         return self.random_generator.choice(self.data, size=batch_size)
 
-    def get_batch_tensor(self, batch_size: int, device='cpu') -> BatchExperience:
+    def get_batch_tensor(self, batch_size: int, device="cpu") -> BatchExperience:
         """
         Returns a list of batch_size elements from the buffer.
         """
@@ -365,11 +374,11 @@ class ReplayBuffer:
         return BatchExperience(batch, device=device)
 
     def get_batch_generator(
-            self,
-            batch_size: int,
-            n_batches: int = None,
-            randomize: bool = True,
-            device='cpu',
+        self,
+        batch_size: int,
+        n_batches: int = None,
+        randomize: bool = True,
+        device="cpu",
     ) -> Iterator[BatchExperience]:
         """
         Returns a generator of batch_size elements from the buffer.
@@ -402,12 +411,12 @@ class ReplayBuffer:
                 terminal=e.terminal,
                 next_obs=e.next_obs,
             )
-        with open(filename, 'wb') as file:
+        with open(filename, "wb") as file:
             pickle.dump(self, file)
 
     @staticmethod
-    def load(filename: str) -> 'ReplayBuffer':
-        with open(filename, 'rb') as file:
+    def load(filename: str) -> "ReplayBuffer":
+        with open(filename, "rb") as file:
             buffer = pickle.load(file)
         for i, e in enumerate(buffer.data):
             buffer.data[i] = Experience(
@@ -439,13 +448,13 @@ class AgentsHistoryMaps:
     def __init__(self, buffer: Optional[ReplayBuffer] = None, **kwargs):
         self.buffer = buffer if buffer is not None else ReplayBuffer()
         self.trajectories: Dict[int, Trajectory] = defaultdict(Trajectory)
-        self.trajectories.update(kwargs.get('trajectories', {}))
+        self.trajectories.update(kwargs.get("trajectories", {}))
         self.cumulative_rewards: Dict[int, list] = defaultdict(list)
         self.terminal_rewards: Dict[int, float] = defaultdict(_re_zero)
         self._terminal_counter = 0
         self._experience_counter = 0
-        self.min_rewards = kwargs.get("min_rewards", float('inf'))
-        self.max_rewards = kwargs.get("max_rewards", float('-inf'))
+        self.min_rewards = kwargs.get("min_rewards", float("inf"))
+        self.max_rewards = kwargs.get("max_rewards", float("-inf"))
         self.normalize_rewards = kwargs.get("normalize_rewards", False)
 
     @property
@@ -491,16 +500,16 @@ class AgentsHistoryMaps:
         return np.nanmean(cumulative_rewards).item()
 
     def update_trajectories_(
-            self,
-            *,
-            observations,
-            actions,
-            next_observations,
-            rewards,
-            terminals,
-            truncated=None,
-            infos=None,
-            others=None,
+        self,
+        *,
+        observations,
+        actions,
+        next_observations,
+        rewards,
+        terminals,
+        truncated=None,
+        infos=None,
+        others=None,
     ) -> List[Trajectory]:
         """
         Updates the trajectories of the agents and returns the trajectories of the agents that have been terminated.
@@ -519,7 +528,9 @@ class AgentsHistoryMaps:
         from .utils import get_item_from_batch
 
         actions = deepcopy(to_numpy(actions))
-        observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(to_numpy(next_observations))
+        observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(
+            to_numpy(next_observations)
+        )
         rewards, terminals = deepcopy(to_numpy(rewards)), deepcopy(to_numpy(terminals))
         if others is None:
             others = [None] * len(observations)
@@ -543,7 +554,9 @@ class AgentsHistoryMaps:
                         others=get_item_from_batch(others, i),
                     )
                 )
-                self.cumulative_rewards[i].append(self.trajectories[i].cumulative_reward)
+                self.cumulative_rewards[i].append(
+                    self.trajectories[i].cumulative_reward
+                )
                 self.terminal_rewards[i] = self.trajectories[i].terminal_reward
                 finished_trajectory = self.trajectories.pop(i)
                 finished_trajectories.append(finished_trajectory)
@@ -576,7 +589,9 @@ class AgentsHistoryMaps:
             if not self.trajectories[i].propagated:
                 self.trajectories[i].propagate()
             if self.trajectories[i].terminated:
-                self.cumulative_rewards[i].append(self.trajectories[i].cumulative_reward)
+                self.cumulative_rewards[i].append(
+                    self.trajectories[i].cumulative_reward
+                )
                 trajectory = self.trajectories.pop(i)
                 trajectories.append(trajectory)
                 self._terminal_counter += 1
@@ -597,7 +612,9 @@ class AgentsHistoryMaps:
             if not self.trajectories[i].propagated:
                 self.trajectories[i].propagate()
             if self.trajectories[i].terminated:
-                self.cumulative_rewards[i].append(self.trajectories[i].cumulative_reward)
+                self.cumulative_rewards[i].append(
+                    self.trajectories[i].cumulative_reward
+                )
                 trajectory = self.trajectories.pop(i)
                 self._terminal_counter += 1
             else:

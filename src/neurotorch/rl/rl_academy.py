@@ -14,9 +14,20 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from .agent import Agent
-from .buffers import ReplayBuffer, Trajectory, Experience, BatchExperience, AgentsHistoryMaps
+from .buffers import (
+    ReplayBuffer,
+    Trajectory,
+    Experience,
+    BatchExperience,
+    AgentsHistoryMaps,
+)
 from .ppo import PPO
-from .utils import env_batch_step, env_batch_reset, batch_numpy_actions, env_batch_render
+from .utils import (
+    env_batch_step,
+    env_batch_reset,
+    batch_numpy_actions,
+    env_batch_render,
+)
 from .. import Trainer, LoadCheckpointMode, to_numpy, TrainingHistory
 from ..callbacks.base_callback import BaseCallback, CallbacksList
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
@@ -36,14 +47,16 @@ class RLAcademy(Trainer):
     TERMINAL_REWARDS_METRIC_KEY = "terminal_rewards"
 
     def __init__(
-            self,
-            agent: Agent,
-            *,
-            predict_method: str = "__call__",
-            learning_algorithm: Optional[LearningAlgorithm] = None,
-            callbacks: Optional[Union[List[BaseCallback], CallbacksList, BaseCallback]] = None,
-            verbose: bool = True,
-            **kwargs
+        self,
+        agent: Agent,
+        *,
+        predict_method: str = "__call__",
+        learning_algorithm: Optional[LearningAlgorithm] = None,
+        callbacks: Optional[
+            Union[List[BaseCallback], CallbacksList, BaseCallback]
+        ] = None,
+        verbose: bool = True,
+        **kwargs,
     ):
         self.agent = agent
         kwargs = self.set_default_academy_kwargs(**kwargs)
@@ -53,7 +66,7 @@ class RLAcademy(Trainer):
             learning_algorithm=learning_algorithm,
             callbacks=callbacks,
             verbose=verbose,
-            **kwargs
+            **kwargs,
         )
         self._agents_history_maps_meta = {}
 
@@ -115,7 +128,9 @@ class RLAcademy(Trainer):
         assert kwargs["batch_size"] > 0
         return kwargs
 
-    def _maybe_add_learning_algorithm(self, learning_algorithm: Optional[LearningAlgorithm]) -> None:
+    def _maybe_add_learning_algorithm(
+        self, learning_algorithm: Optional[LearningAlgorithm]
+    ) -> None:
         if len(self.learning_algorithms) == 0 and learning_algorithm is None:
             learning_algorithm = PPO(optimizer=self.optimizer, criterion=self.criterion)
         if learning_algorithm is not None:
@@ -147,7 +162,7 @@ class RLAcademy(Trainer):
         self.policy_optimizer = torch.optim.Adam(
             self.policy.parameters(),
             lr=self.kwargs["init_lr"],
-            weight_decay=self.kwargs["weight_decay"]
+            weight_decay=self.kwargs["weight_decay"],
         )
 
     def _update_agents_history_maps_meta(self, agents_history_maps: AgentsHistoryMaps):
@@ -162,15 +177,15 @@ class RLAcademy(Trainer):
         self.update_objects_state_(observations=None, info=None)
 
     def generate_trajectories(
-            self,
-            *,
-            n_trajectories: Optional[int] = None,
-            n_experiences: Optional[int] = None,
-            buffer: Optional[ReplayBuffer] = None,
-            epsilon: float = 0.0,
-            p_bar_position: int = 0,
-            verbose: Optional[bool] = None,
-            **kwargs
+        self,
+        *,
+        n_trajectories: Optional[int] = None,
+        n_experiences: Optional[int] = None,
+        buffer: Optional[ReplayBuffer] = None,
+        epsilon: float = 0.0,
+        p_bar_position: int = 0,
+        verbose: Optional[bool] = None,
+        **kwargs,
     ) -> GenTrajectoriesOutput:
         """
         Generate trajectories using the current policy. If the policy of the agent is in evaluation mode, the
@@ -213,7 +228,7 @@ class RLAcademy(Trainer):
                     self.kwargs["buffer_size"],
                     use_priority=self.kwargs["use_priority_buffer"],
                     priority_key=self.kwargs["buffer_priority_key"],
-                )
+                ),
             )
             self.update_objects_state_(buffer=buffer)
         if self.kwargs["clear_buffer"]:
@@ -225,34 +240,53 @@ class RLAcademy(Trainer):
                 self.reset_agents_history_maps_meta()
             self.update_objects_state_(env=kwargs["env"])
         render = kwargs.get("render", self.kwargs.get("render", False))
-        rendering = [None for _ in range((self.env.num_envs if hasattr(self.env, "num_envs") else 1))]
+        rendering = [
+            None
+            for _ in range((self.env.num_envs if hasattr(self.env, "num_envs") else 1))
+        ]
         re_trajectories = kwargs.get("re_trajectories", False)
         re_trajectories_list = []
         agents_history_maps = AgentsHistoryMaps(
             # buffer,
-            normalize_rewards=self.kwargs["normalize_rewards"], **self._agents_history_maps_meta
+            normalize_rewards=self.kwargs["normalize_rewards"],
+            **self._agents_history_maps_meta,
         )
         # terminal_rewards: List[float] = []
         p_bar = tqdm(
             total=n_experiences if n_trajectories is None else n_trajectories,
-            disable=not verbose, desc="Generating Trajectories", position=p_bar_position,
+            disable=not verbose,
+            desc="Generating Trajectories",
+            position=p_bar_position,
             unit="trajectory" if n_trajectories is not None else "experience",
         )
-        observations = kwargs.get("observations", self.current_training_state.objects.get("observations", None))
+        observations = kwargs.get(
+            "observations",
+            self.current_training_state.objects.get("observations", None),
+        )
         info = kwargs.get("info", self.current_training_state.objects.get("info", None))
         if observations is None or info is None:
             observations, info = env_batch_reset(self.env)
-        while not self._update_gen_trajectories_break_flag(agents_history_maps, n_trajectories, n_experiences):
+        while not self._update_gen_trajectories_break_flag(
+            agents_history_maps, n_trajectories, n_experiences
+        ):
             if render:
                 rendering = env_batch_render(self.env)
             if not self.agent.training:
-                actions = self.agent.get_actions(observations, env=self.env, re_format="argmax", as_numpy=True)
+                actions = self.agent.get_actions(
+                    observations, env=self.env, re_format="argmax", as_numpy=True
+                )
             elif np.random.random() < epsilon:
-                actions = self.agent.get_random_actions(env=self.env, re_format="argmax", as_numpy=True)
+                actions = self.agent.get_random_actions(
+                    env=self.env, re_format="argmax", as_numpy=True
+                )
             else:
-                actions = self.agent.get_actions(observations, env=self.env, re_format="sample", as_numpy=True)
+                actions = self.agent.get_actions(
+                    observations, env=self.env, re_format="sample", as_numpy=True
+                )
             actions = batch_numpy_actions(actions, self.env)
-            next_observations, rewards, dones, truncated, info = env_batch_step(self.env, actions)
+            next_observations, rewards, dones, truncated, info = env_batch_step(
+                self.env, actions
+            )
             terminals = np.logical_or(dones, truncated)
             finished_trajectories = agents_history_maps.update_trajectories_(
                 observations=observations,
@@ -261,27 +295,41 @@ class RLAcademy(Trainer):
                 rewards=rewards,
                 terminals=terminals,
                 others=[
-                    {"render": rendering_item, "info": info_item, "truncated": truncated_item}
-                    for rendering_item, info_item, truncated_item in zip(rendering, info, truncated)
+                    {
+                        "render": rendering_item,
+                        "info": info_item,
+                        "truncated": truncated_item,
+                    }
+                    for rendering_item, info_item, truncated_item in zip(
+                        rendering, info, truncated
+                    )
                 ],
             )
             # terminal_rewards = list(agents_history_maps.terminal_rewards.values())
             if all(terminals):
                 finished_trajectories.extend(agents_history_maps.propagate_all())
                 next_observations, info = env_batch_reset(self.env)
-            self._update_gen_trajectories_finished_trajectories(finished_trajectories, buffer)
+            self._update_gen_trajectories_finished_trajectories(
+                finished_trajectories, buffer
+            )
             if re_trajectories:
                 re_trajectories_list.extend(finished_trajectories)
             if n_trajectories is None:
-                p_bar.update(min(len(terminals), max(0, n_experiences - len(terminals))))
+                p_bar.update(
+                    min(len(terminals), max(0, n_experiences - len(terminals)))
+                )
             else:
-                p_bar.update(min(sum(terminals), max(0, n_trajectories - sum(terminals))))
+                p_bar.update(
+                    min(sum(terminals), max(0, n_trajectories - sum(terminals)))
+                )
             p_bar.set_postfix(
                 cumulative_reward=f"{agents_history_maps.mean_cumulative_rewards:.3f}",
                 # terminal_rewards=f"{np.nanmean(terminal_rewards) if terminal_rewards else 0.0:.3f}",
             )
             observations = next_observations
-        self._update_gen_trajectories_finished_trajectories(agents_history_maps.propagate_and_get_all(), buffer)
+        self._update_gen_trajectories_finished_trajectories(
+            agents_history_maps.propagate_and_get_all(), buffer
+        )
         self._update_agents_history_maps_meta(agents_history_maps)
         self.update_objects_state_(observations=observations, info=info, buffer=buffer)
         self.update_itr_metrics_state_(
@@ -299,15 +347,17 @@ class RLAcademy(Trainer):
         )
 
     def _update_gen_trajectories_finished_trajectories(
-            self,
-            finished_trajectories: List[Trajectory],
-            buffer: Optional[ReplayBuffer] = None,
+        self,
+        finished_trajectories: List[Trajectory],
+        buffer: Optional[ReplayBuffer] = None,
     ):
         if buffer is None:
             buffer = self.state.objects.get("buffer", None)
         for trajectory in finished_trajectories:
             if not trajectory.is_empty():
-                trajectory_others_list = self.callbacks.on_trajectory_end(self, trajectory)
+                trajectory_others_list = self.callbacks.on_trajectory_end(
+                    self, trajectory
+                )
                 if trajectory_others_list is not None:
                     trajectory.update_others(trajectory_others_list)
                 if buffer is not None:
@@ -315,17 +365,20 @@ class RLAcademy(Trainer):
         return buffer
 
     def _update_gen_trajectories_break_flag(
-            self,
-            agents_history_maps: AgentsHistoryMaps,
-            n_trajectories: Optional[int],
-            n_experiences: Optional[int],
+        self,
+        agents_history_maps: AgentsHistoryMaps,
+        n_trajectories: Optional[int],
+        n_experiences: Optional[int],
     ) -> bool:
         if n_trajectories is not None:
             break_flag = agents_history_maps.terminals_count >= n_trajectories
         elif n_experiences is not None:
             break_flag = agents_history_maps.experience_count >= n_experiences
         else:
-            break_flag = agents_history_maps.experience_count >= agents_history_maps.buffer.capacity
+            break_flag = (
+                agents_history_maps.experience_count
+                >= agents_history_maps.buffer.capacity
+            )
         return break_flag
 
     def _init_train_buffer(self) -> ReplayBuffer:
@@ -334,16 +387,16 @@ class RLAcademy(Trainer):
         return buffer
 
     def train(
-            self,
-            env,  # TODO: add eval_env
-            n_iterations: Optional[int] = None,
-            *,
-            n_epochs: int = 10,
-            load_checkpoint_mode: LoadCheckpointMode = None,
-            force_overwrite: bool = False,
-            p_bar_position: Optional[int] = None,
-            p_bar_leave: Optional[bool] = None,
-            **kwargs
+        self,
+        env,  # TODO: add eval_env
+        n_iterations: Optional[int] = None,
+        *,
+        n_epochs: int = 10,
+        load_checkpoint_mode: LoadCheckpointMode = None,
+        force_overwrite: bool = False,
+        p_bar_position: Optional[int] = None,
+        p_bar_leave: Optional[bool] = None,
+        **kwargs,
     ) -> TrainingHistory:
         self._load_checkpoint_mode = load_checkpoint_mode
         self._force_overwrite = force_overwrite
@@ -353,7 +406,10 @@ class RLAcademy(Trainer):
             n_epochs=n_epochs,
             objects={
                 **self.current_training_state.objects,
-                **{"env": env, "last_k_rewards": deque(maxlen=self.kwargs["last_k_rewards"])}
+                **{
+                    "env": env,
+                    "last_k_rewards": deque(maxlen=self.kwargs["last_k_rewards"]),
+                },
             },
         )
         self.sort_callbacks_()
@@ -375,14 +431,17 @@ class RLAcademy(Trainer):
             disable=not self.verbose,
             position=p_bar_position,
             unit="itr",
-            leave=p_bar_leave
+            leave=p_bar_leave,
         )
 
         for i in self._iterations_generator(p_bar):
             self.update_state_(iteration=i)
             self.callbacks.on_iteration_begin(self)
             epsilon = linear_decay(
-                self.kwargs["init_epsilon"], self.kwargs["min_epsilon"], self.kwargs["epsilon_decay"], i
+                self.kwargs["init_epsilon"],
+                self.kwargs["min_epsilon"],
+                self.kwargs["epsilon_decay"],
+                i,
             )
             env = self.current_training_state.objects["env"]
             env.reset()
@@ -403,10 +462,10 @@ class RLAcademy(Trainer):
         return self.training_history
 
     def _exec_iteration(
-            self,
-            env: gym.Env,
-            buffer: Optional[ReplayBuffer] = None,
-            **kwargs,
+        self,
+        env: gym.Env,
+        buffer: Optional[ReplayBuffer] = None,
+        **kwargs,
     ) -> Dict[str, float]:
         if buffer is None:
             buffer = self.current_training_state.objects.get("buffer", None)
@@ -421,9 +480,12 @@ class RLAcademy(Trainer):
             n_trajectories=self.kwargs["n_new_trajectories"],
             buffer=buffer,
             epsilon=kwargs.get("epsilon", 0.0),
-            p_bar_position=1, verbose=False,
+            p_bar_position=1,
+            verbose=False,
         )
-        metrics[self.CUM_REWARDS_METRIC_KEY] = np.mean(gen_trajectories_out.cumulative_rewards)
+        metrics[self.CUM_REWARDS_METRIC_KEY] = np.mean(
+            gen_trajectories_out.cumulative_rewards
+        )
         # metrics[self.TERMINAL_REWARDS_METRIC_KEY] = np.mean(terminal_rewards)
         self.update_state_(batch_is_train=True)
         train_losses = []
@@ -445,24 +507,30 @@ class RLAcademy(Trainer):
         # 		self.callbacks.on_validation_end(self)
         # 		losses["val_loss"] = val_loss
 
-        last_k_rewards = self.state.objects.get("last_k_rewards", deque(maxlen=self.kwargs["last_k_rewards"]))
-        assert self.kwargs["last_k_rewards_key"] in metrics, \
-            f"last_k_rewards_key {self.kwargs['last_k_rewards_key']} not in metrics. " \
+        last_k_rewards = self.state.objects.get(
+            "last_k_rewards", deque(maxlen=self.kwargs["last_k_rewards"])
+        )
+        assert self.kwargs["last_k_rewards_key"] in metrics, (
+            f"last_k_rewards_key {self.kwargs['last_k_rewards_key']} not in metrics. "
             f"Please select one of {metrics.keys()}"
+        )
         last_k_rewards.append(metrics[self.kwargs["last_k_rewards_key"]])
-        metrics[f"mean_last_{self.kwargs['last_k_rewards']}_rewards"] = np.nanmean(last_k_rewards)
+        metrics[f"mean_last_{self.kwargs['last_k_rewards']}_rewards"] = np.nanmean(
+            last_k_rewards
+        )
         with torch.no_grad():
             torch.cuda.empty_cache()
         return metrics
 
     def _exec_epoch(
-            self,
-            buffer: ReplayBuffer,
+        self,
+        buffer: ReplayBuffer,
     ) -> float:
         self.callbacks.on_epoch_begin(self)
         batch_size = min(len(buffer), self.kwargs["batch_size"])
         batches = buffer.get_batch_generator(
-            batch_size, self.kwargs["n_batches"],
+            batch_size,
+            self.kwargs["n_batches"],
             randomize=self.kwargs["randomize_buffer"],
             device=self.agent.policy.device,
         )
@@ -475,9 +543,9 @@ class RLAcademy(Trainer):
         return mean_loss
 
     def _exec_batch(
-            self,
-            exp_batch: BatchExperience,
-            **kwargs,
+        self,
+        exp_batch: BatchExperience,
+        **kwargs,
     ):
         self.update_state_(x_batch=exp_batch)
         self.callbacks.on_batch_begin(self)

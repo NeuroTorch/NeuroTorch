@@ -4,6 +4,8 @@ on:
   push:
     branches: ["main"]
 
+permissions:
+  contents: write
 
 jobs:
   Build-Dist:
@@ -12,31 +14,51 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.9
+    - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
-        python-version: "3.9"
+        python-version: "3.10"
 
     - name: Install dependencies
       run: |
+        python -m venv ./venv
+        . ./venv/bin/activate
         python -m pip install --upgrade pip
-        pip install flake8
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install wheel
-        python -m pip install --upgrade build
+        pip install wheel build
+        pip install poetry
+        poetry install --with=dev --no-interaction --no-ansi
+
+    - name: Gather new package version
+      id: version
+      uses: anothrNick/github-tag-action@2.12.0
+      env:
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        WITH_V: false
+        DEFAULT_BUMP: patch
+        DRY_RUN: true
+
+    - name: Bump package version in pyproject.toml
+      run: |
+        poetry version ${{steps.version.outputs.new_tag}}
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add pyproject.toml
+        git diff-index --quiet HEAD || git commit -m "Updating version of pyproject.toml [skip actions]"
+        git push
 
     - name: Build dist
       run: |
+        . ./venv/bin/activate
         python -m build
 
-    - name: Commit
+    - name: Commit the new dist
       run: |
         git add -f dist
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git commit -m "Update dist"
 
-    - name: Push
+    - name: Push the new dist
       uses: ad-m/github-push-action@master
       with:
         github_token: ${{secrets.GITHUB_TOKEN}}
@@ -44,3 +66,19 @@ jobs:
         force: true
         directory: dist
 
+    - name: Create Tag and Release
+      id: create_tag_and_release
+      uses: anothrNick/github-tag-action@2.12.0
+      env:
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        WITH_V: false
+        DEFAULT_BUMP: patch
+        DRY_RUN: false
+
+    - name: Publish distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags')
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        skip_existing: true
+        verbose: true

@@ -16,13 +16,14 @@ class BaseMetrics:
         - **metrics_names** (List[str]): The metrics to compute.
         - **device** (torch.device): The device in which the metrics will be computed.
     """
-    METRICS_NAMES_SEP = ' '
+
+    METRICS_NAMES_SEP = " "
 
     def __init__(
-            self,
-            model: BaseModel,
-            metrics_names: Any = "all",
-            device: Optional[torch.device] = None
+        self,
+        model: BaseModel,
+        metrics_names: Any = "all",
+        device: Optional[torch.device] = None,
     ):
         """
         Constructor for the BaseMetrics class.
@@ -68,8 +69,9 @@ class BaseMetrics:
     @classmethod
     def _check_metrics_names_(cls, metrics: List[str]) -> None:
         all_metrics_names = cls.get_all_metrics_names()
-        assert all([metric in all_metrics_names for metric in metrics]), \
-            f"metrics must be in {all_metrics_names}"
+        assert all(
+            [metric in all_metrics_names for metric in metrics]
+        ), f"metrics must be in {all_metrics_names}"
 
     @staticmethod
     def get_all_metrics_names_to_func() -> Dict[str, Callable]:
@@ -121,9 +123,7 @@ class BaseMetrics:
         return all_metrics_names
 
     def __call__(
-            self,
-            data_loader: DataLoader,
-            verbose: Union[bool, int] = False
+        self, data_loader: DataLoader, verbose: Union[bool, int] = False
     ) -> Dict[str, Any]:
         """
         Compute the metrics for the given data_loader.
@@ -156,20 +156,6 @@ class BaseMetrics:
                 device=self.device,
                 verbose=verbose == 2,
                 desc=metric_name,
-                p_bar_position=i + 1
+                p_bar_position=i + 1,
             )
         return output
-
-
-
-
-
-
-
-
-
-
-
-
-
-

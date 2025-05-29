@@ -73,16 +73,16 @@ class LIFLayer(BaseNeuronsLayer):
 
     # @inherit_docstring(bases=BaseNeuronsLayer)
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            use_recurrent_connection: bool = True,
-            use_rec_eye_mask: bool = False,
-            spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        use_recurrent_connection: bool = True,
+        use_rec_eye_mask: bool = False,
+        spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         """
         :keyword float tau_m: The decay time constant of the membrane potential which is generally 20 ms. See equation
@@ -100,20 +100,26 @@ class LIFLayer(BaseNeuronsLayer):
             use_rec_eye_mask=use_rec_eye_mask,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
 
         self.alpha = nn.Parameter(
-            torch.tensor(np.exp(-dt / self.kwargs["tau_m"]), dtype=torch.float32, device=self.device),
-            requires_grad=False
+            torch.tensor(
+                np.exp(-dt / self.kwargs["tau_m"]),
+                dtype=torch.float32,
+                device=self.device,
+            ),
+            requires_grad=False,
         )
         self.threshold = nn.Parameter(
-            torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device),
-            requires_grad=False
+            torch.tensor(
+                self.kwargs["threshold"], dtype=torch.float32, device=self.device
+            ),
+            requires_grad=False,
         )
         self.gamma = nn.Parameter(
             torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device),
-            requires_grad=False
+            requires_grad=False,
         )
 
     def _set_default_kwargs(self):
@@ -129,19 +135,24 @@ class LIFLayer(BaseNeuronsLayer):
     def initialize_weights_(self):
         super().initialize_weights_()
         if self.kwargs.get("forward_weights", None) is not None:
-            self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+            self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(
+                self.device
+            )
         else:
             torch.nn.init.xavier_normal_(self.forward_weights)
 
-        if self.kwargs.get("recurrent_weights", None) is not None and self.use_recurrent_connection:
-            self.recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
+        if (
+            self.kwargs.get("recurrent_weights", None) is not None
+            and self.use_recurrent_connection
+        ):
+            self.recurrent_weights.data = to_tensor(
+                self.kwargs["recurrent_weights"]
+            ).to(self.device)
         elif self.use_recurrent_connection:
             torch.nn.init.xavier_normal_(self.recurrent_weights)
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
@@ -154,7 +165,9 @@ class LIFLayer(BaseNeuronsLayer):
         kwargs.setdefault("n_hh", 2)
         return super(LIFLayer, self).create_empty_state(batch_size=batch_size, **kwargs)
 
-    def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
+    def update_regularization_loss(
+        self, state: Optional[Any] = None, *args, **kwargs
+    ) -> torch.Tensor:
         """
         Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
         the regularization loss will be the sum of all calls to this function.
@@ -163,23 +176,24 @@ class LIFLayer(BaseNeuronsLayer):
         :return: The updated regularization loss.
         """
         next_V, next_Z = state
-        self._regularization_loss += self.kwargs["spikes_regularization_factor"] * torch.sum(next_Z)
+        self._regularization_loss += self.kwargs[
+            "spikes_regularization_factor"
+        ] * torch.sum(next_Z)
         # self._regularization_loss += 2e-6*torch.mean(torch.sum(next_Z, dim=-1)**2)
         return self._regularization_loss
 
     # @inherit_docstring(bases=BaseNeuronsLayer)
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
         assert inputs.ndim == 2
         batch_size, nb_features = inputs.shape
         V, Z = self._init_forward_state(state, batch_size, inputs=inputs)
         input_current = torch.matmul(inputs, self.forward_weights)
         if self.use_recurrent_connection:
-            rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_current = torch.matmul(
+                Z, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_current = 0.0
         next_V = (self.alpha * V + input_current + rec_current) * (1.0 - Z.detach())
@@ -264,15 +278,15 @@ class SpyLIFLayer(BaseNeuronsLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            use_recurrent_connection: bool = True,
-            use_rec_eye_mask: bool = False,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        use_recurrent_connection: bool = True,
+        use_rec_eye_mask: bool = False,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         """
         Constructor for the SpyLIF layer.
@@ -314,27 +328,41 @@ class SpyLIFLayer(BaseNeuronsLayer):
             use_rec_eye_mask=use_rec_eye_mask,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
 
         self.alpha = nn.Parameter(
-            torch.tensor(np.exp(-dt / self.kwargs["tau_syn"]), dtype=torch.float32, device=self.device),
-            requires_grad=False
+            torch.tensor(
+                np.exp(-dt / self.kwargs["tau_syn"]),
+                dtype=torch.float32,
+                device=self.device,
+            ),
+            requires_grad=False,
         )
         self.beta = nn.Parameter(
-            torch.tensor(np.exp(-dt / self.kwargs["tau_mem"]), dtype=torch.float32, device=self.device),
-            requires_grad=False
+            torch.tensor(
+                np.exp(-dt / self.kwargs["tau_mem"]),
+                dtype=torch.float32,
+                device=self.device,
+            ),
+            requires_grad=False,
         )
         self.threshold = nn.Parameter(
-            torch.tensor(self.kwargs["threshold"], dtype=torch.float32, device=self.device),
-            requires_grad=False
+            torch.tensor(
+                self.kwargs["threshold"], dtype=torch.float32, device=self.device
+            ),
+            requires_grad=False,
         )
         self.gamma = nn.Parameter(
             torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self.device),
-            requires_grad=False
+            requires_grad=False,
         )
-        self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-        self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
+        self._regularization_l1 = torch.tensor(
+            0.0, dtype=torch.float32, device=self.device
+        )
+        self._n_spike_per_neuron = torch.zeros(
+            int(self.output_size), dtype=torch.float32, device=self.device
+        )
         self._total_count = 0
 
     def _set_default_kwargs(self):
@@ -349,19 +377,32 @@ class SpyLIFLayer(BaseNeuronsLayer):
         super().initialize_weights_()
         weight_scale = 0.2
         if self.kwargs.get("forward_weights", None) is not None:
-            self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+            self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(
+                self.device
+            )
         else:
-            torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.input_size)))
+            torch.nn.init.normal_(
+                self.forward_weights,
+                mean=0.0,
+                std=weight_scale / np.sqrt(int(self.input_size)),
+            )
 
-        if self.kwargs.get("recurrent_weights", None) is not None and self.use_recurrent_connection:
-            self.recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
+        if (
+            self.kwargs.get("recurrent_weights", None) is not None
+            and self.use_recurrent_connection
+        ):
+            self.recurrent_weights.data = to_tensor(
+                self.kwargs["recurrent_weights"]
+            ).to(self.device)
         elif self.use_recurrent_connection:
-            torch.nn.init.normal_(self.recurrent_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.output_size)))
+            torch.nn.init.normal_(
+                self.recurrent_weights,
+                mean=0.0,
+                std=weight_scale / np.sqrt(int(self.output_size)),
+            )
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
@@ -375,9 +416,13 @@ class SpyLIFLayer(BaseNeuronsLayer):
         kwargs.setdefault("n_hh", 3)
         thr = self.threshold.detach().cpu().item()
         if self.kwargs["hh_init"] == "random":
-            V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
+            V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get(
+                "hh_init_std", 0.341 * thr
+            )
             gen = torch.Generator(device=self.device)
-            gen.manual_seed(format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None)))
+            gen.manual_seed(
+                format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None))
+            )
             V = torch.clamp_min(
                 torch.rand(
                     (batch_size, int(self.output_size)),
@@ -385,7 +430,10 @@ class SpyLIFLayer(BaseNeuronsLayer):
                     dtype=torch.float32,
                     requires_grad=True,
                     generator=gen,
-                ) * V_std + V_mu, min=0.0
+                )
+                * V_std
+                + V_mu,
+                min=0.0,
             )
             I = torch.rand(
                 (batch_size, int(self.output_size)),
@@ -398,13 +446,20 @@ class SpyLIFLayer(BaseNeuronsLayer):
             V = V * (1.0 - Z)
             return tuple([V, I, Z])
         elif self.kwargs["hh_init"] == "inputs":
-            assert "inputs" in kwargs, "The inputs must be provided to initialize the state."
-            assert int(self.input_size) == int(self.output_size), \
-                "The input and output size must be the same with inputs initialization."
+            assert (
+                "inputs" in kwargs
+            ), "The inputs must be provided to initialize the state."
+            assert int(self.input_size) == int(
+                self.output_size
+            ), "The input and output size must be the same with inputs initialization."
             # V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
-            V_mu, V_std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", thr)
+            V_mu, V_std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get(
+                "hh_init_std", thr
+            )
             gen = torch.Generator(device=self.device)
-            gen.manual_seed(format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None)))
+            gen.manual_seed(
+                format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None))
+            )
             I = torch.rand(
                 (batch_size, int(self.output_size)),
                 device=self.device,
@@ -413,26 +468,40 @@ class SpyLIFLayer(BaseNeuronsLayer):
                 generator=gen,
             )
             Z = kwargs["inputs"].clone()
-            V = (torch.rand(
-                (batch_size, int(self.output_size)),
-                device=self.device,
-                dtype=torch.float32,
-                requires_grad=True,
-                generator=gen,
-            ) * V_std + V_mu)
+            V = (
+                torch.rand(
+                    (batch_size, int(self.output_size)),
+                    device=self.device,
+                    dtype=torch.float32,
+                    requires_grad=True,
+                    generator=gen,
+                )
+                * V_std
+                + V_mu
+            )
             V = (self.beta * V + self.alpha * I) * (1.0 - Z)
 
             return tuple([V, I, Z])
-        return super(SpyLIFLayer, self).create_empty_state(batch_size=batch_size, **kwargs)
+        return super(SpyLIFLayer, self).create_empty_state(
+            batch_size=batch_size, **kwargs
+        )
 
     def reset_regularization_loss(self):
         super(SpyLIFLayer, self).reset_regularization_loss()
-        self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-        self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-        self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
+        self._regularization_loss = torch.tensor(
+            0.0, dtype=torch.float32, device=self.device
+        )
+        self._regularization_l1 = torch.tensor(
+            0.0, dtype=torch.float32, device=self.device
+        )
+        self._n_spike_per_neuron = torch.zeros(
+            int(self.output_size), dtype=torch.float32, device=self.device
+        )
         self._total_count = 0
 
-    def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
+    def update_regularization_loss(
+        self, state: Optional[Any] = None, *args, **kwargs
+    ) -> torch.Tensor:
         """
         Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
         the regularization loss will be the sum of all calls to this function.
@@ -441,7 +510,9 @@ class SpyLIFLayer(BaseNeuronsLayer):
         :return: The updated regularization loss.
         """
         next_V, next_I_syn, next_Z = state
-        self._regularization_l1 += self.kwargs["spikes_regularization_factor"] * torch.sum(next_Z)
+        self._regularization_l1 += self.kwargs[
+            "spikes_regularization_factor"
+        ] * torch.sum(next_Z)
         # self._n_spike_per_neuron += torch.sum(torch.sum(next_Z, dim=0), dim=0)
         # self._total_count += next_Z.shape[0]*next_Z.shape[1]
         # current_l2 = self.kwargs["spikes_regularization_factor"]*torch.sum(self._n_spike_per_neuron ** 2) / (self._total_count + 1e-6)
@@ -450,17 +521,18 @@ class SpyLIFLayer(BaseNeuronsLayer):
         return self._regularization_loss
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
-        assert inputs.ndim == 2, f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
+        assert (
+            inputs.ndim == 2
+        ), f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
         batch_size, nb_features = inputs.shape
         V, I_syn, Z = self._init_forward_state(state, batch_size, inputs=inputs)
         input_current = torch.matmul(inputs, self.forward_weights)
         if self.use_recurrent_connection:
-            rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_current = torch.matmul(
+                Z, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_current = 0.0
         next_I_syn = self.alpha * I_syn + input_current + rec_current
@@ -578,15 +650,15 @@ class SpyALIFLayer(SpyLIFLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            use_recurrent_connection: bool = True,
-            use_rec_eye_mask: bool = False,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        use_recurrent_connection: bool = True,
+        use_rec_eye_mask: bool = False,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         """
         Constructor for the SpyLIF layer.
@@ -628,16 +700,20 @@ class SpyALIFLayer(SpyLIFLayer):
             use_rec_eye_mask=use_rec_eye_mask,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
 
         self.kappa = nn.Parameter(
             torch.tensor(self.kwargs["kappa"], dtype=torch.float32, device=self.device),
-            requires_grad=self.kwargs["learn_kappa"]
+            requires_grad=self.kwargs["learn_kappa"],
         )
         self.rho = nn.Parameter(
-            torch.tensor(np.exp(-dt / self.kwargs["tau_a"]), dtype=torch.float32, device=self.device),
-            requires_grad=False
+            torch.tensor(
+                np.exp(-dt / self.kwargs["tau_a"]),
+                dtype=torch.float32,
+                device=self.device,
+            ),
+            requires_grad=False,
         )
 
     def _set_default_kwargs(self):
@@ -655,19 +731,32 @@ class SpyALIFLayer(SpyLIFLayer):
         super().initialize_weights_()
         weight_scale = 0.2
         if self.kwargs.get("forward_weights", None) is not None:
-            self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+            self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(
+                self.device
+            )
         else:
-            torch.nn.init.normal_(self.forward_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.input_size)))
+            torch.nn.init.normal_(
+                self.forward_weights,
+                mean=0.0,
+                std=weight_scale / np.sqrt(int(self.input_size)),
+            )
 
-        if self.kwargs.get("recurrent_weights", None) is not None and self.use_recurrent_connection:
-            self.recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
+        if (
+            self.kwargs.get("recurrent_weights", None) is not None
+            and self.use_recurrent_connection
+        ):
+            self.recurrent_weights.data = to_tensor(
+                self.kwargs["recurrent_weights"]
+            ).to(self.device)
         elif self.use_recurrent_connection:
-            torch.nn.init.normal_(self.recurrent_weights, mean=0.0, std=weight_scale / np.sqrt(int(self.output_size)))
+            torch.nn.init.normal_(
+                self.recurrent_weights,
+                mean=0.0,
+                std=weight_scale / np.sqrt(int(self.output_size)),
+            )
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
@@ -681,9 +770,13 @@ class SpyALIFLayer(SpyLIFLayer):
         kwargs.setdefault("n_hh", 4)
         thr = self.threshold.detach().cpu().item()
         if self.kwargs["hh_init"] == "random":
-            V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
+            V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get(
+                "hh_init_std", 0.341 * thr
+            )
             gen = torch.Generator(device=self.device)
-            gen.manual_seed(format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None)))
+            gen.manual_seed(
+                format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None))
+            )
             V = torch.clamp_min(
                 torch.rand(
                     (batch_size, int(self.output_size)),
@@ -691,7 +784,10 @@ class SpyALIFLayer(SpyLIFLayer):
                     dtype=torch.float32,
                     requires_grad=True,
                     generator=gen,
-                ) * V_std + V_mu, min=0.0
+                )
+                * V_std
+                + V_mu,
+                min=0.0,
             )
             I = torch.rand(
                 (batch_size, int(self.output_size)),
@@ -712,9 +808,13 @@ class SpyALIFLayer(SpyLIFLayer):
             return tuple([V, I, a, Z])
         elif self.kwargs["hh_init"] == "inputs":
             # V_mu, V_std = self.kwargs.get("hh_init_mu", thr / 2.0), self.kwargs.get("hh_init_std", 0.341 * thr)
-            V_mu, V_std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", thr)
+            V_mu, V_std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get(
+                "hh_init_std", thr
+            )
             gen = torch.Generator(device=self.device)
-            gen.manual_seed(format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None)))
+            gen.manual_seed(
+                format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None))
+            )
             I = torch.rand(
                 (batch_size, int(self.output_size)),
                 device=self.device,
@@ -723,32 +823,51 @@ class SpyALIFLayer(SpyLIFLayer):
                 generator=gen,
             )
             Z = kwargs["inputs"].clone()
-            V = (torch.rand(
-                (batch_size, int(self.output_size)),
-                device=self.device,
-                dtype=torch.float32,
-                requires_grad=True,
-                generator=gen,
-            ) * V_std + V_mu)
+            V = (
+                torch.rand(
+                    (batch_size, int(self.output_size)),
+                    device=self.device,
+                    dtype=torch.float32,
+                    requires_grad=True,
+                    generator=gen,
+                )
+                * V_std
+                + V_mu
+            )
             V = (self.beta * V + self.alpha * I) * (1.0 - Z)
-            a = self.rho * torch.rand(
-                (batch_size, int(self.output_size)),
-                device=self.device,
-                dtype=torch.float32,
-                requires_grad=True,
-                generator=gen,
-            ) * thr + Z
+            a = (
+                self.rho
+                * torch.rand(
+                    (batch_size, int(self.output_size)),
+                    device=self.device,
+                    dtype=torch.float32,
+                    requires_grad=True,
+                    generator=gen,
+                )
+                * thr
+                + Z
+            )
             return tuple([V, I, a, Z])
-        return super(SpyLIFLayer, self).create_empty_state(batch_size=batch_size, **kwargs)
+        return super(SpyLIFLayer, self).create_empty_state(
+            batch_size=batch_size, **kwargs
+        )
 
     def reset_regularization_loss(self):
         super(SpyLIFLayer, self).reset_regularization_loss()
-        self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-        self._regularization_l1 = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-        self._n_spike_per_neuron = torch.zeros(int(self.output_size), dtype=torch.float32, device=self.device)
+        self._regularization_loss = torch.tensor(
+            0.0, dtype=torch.float32, device=self.device
+        )
+        self._regularization_l1 = torch.tensor(
+            0.0, dtype=torch.float32, device=self.device
+        )
+        self._n_spike_per_neuron = torch.zeros(
+            int(self.output_size), dtype=torch.float32, device=self.device
+        )
         self._total_count = 0
 
-    def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
+    def update_regularization_loss(
+        self, state: Optional[Any] = None, *args, **kwargs
+    ) -> torch.Tensor:
         """
         Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
         the regularization loss will be the sum of all calls to this function.
@@ -757,7 +876,9 @@ class SpyALIFLayer(SpyLIFLayer):
         :return: The updated regularization loss.
         """
         next_V, next_I_syn, next_Z = state
-        self._regularization_l1 += self.kwargs["spikes_regularization_factor"] * torch.sum(next_Z)
+        self._regularization_l1 += self.kwargs[
+            "spikes_regularization_factor"
+        ] * torch.sum(next_Z)
         # self._n_spike_per_neuron += torch.sum(torch.sum(next_Z, dim=0), dim=0)
         # self._total_count += next_Z.shape[0]*next_Z.shape[1]
         # current_l2 = self.kwargs["spikes_regularization_factor"]*torch.sum(self._n_spike_per_neuron ** 2) / (self._total_count + 1e-6)
@@ -766,24 +887,27 @@ class SpyALIFLayer(SpyLIFLayer):
         return self._regularization_loss
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
-        assert inputs.ndim == 2, f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
+        assert (
+            inputs.ndim == 2
+        ), f"Inputs must be of shape (batch_size, input_size), got {inputs.shape}."
         batch_size, nb_features = inputs.shape
         V, I_syn, a, Z = self._init_forward_state(state, batch_size, inputs=inputs)
         input_current = torch.matmul(inputs, self.forward_weights)
         if self.use_recurrent_connection:
-            rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_current = torch.matmul(
+                Z, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_current = 0.0
         next_I_syn = self.alpha * I_syn + input_current + rec_current
         next_V = (self.beta * V + next_I_syn) * (1.0 - Z.detach())
         next_a = self.rho * a + Z  # a^{t+1} = \rho * a_j^t + z_j^t
         A = self.threshold + self.kappa * next_a  # A_j^t = v_{th} + \kappa * a_j^t
-        next_Z = self.spike_func.apply(next_V, A, self.gamma)  # z_j^t = H(v_j^t - A_j^t)
+        next_Z = self.spike_func.apply(
+            next_V, A, self.gamma
+        )  # z_j^t = H(v_j^t - A_j^t)
         return next_Z, (next_V, next_I_syn, next_a, next_Z)
 
 
@@ -841,16 +965,16 @@ class ALIFLayer(LIFLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            use_recurrent_connection: bool = True,
-            use_rec_eye_mask: bool = False,
-            spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        use_recurrent_connection: bool = True,
+        use_rec_eye_mask: bool = False,
+        spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         super(ALIFLayer, self).__init__(
             input_size=input_size,
@@ -861,15 +985,19 @@ class ALIFLayer(LIFLayer):
             spike_func=spike_func,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
         self.beta = nn.Parameter(
             torch.tensor(self.kwargs["beta"], dtype=torch.float32, device=self.device),
-            requires_grad=self.kwargs["learn_beta"]
+            requires_grad=self.kwargs["learn_beta"],
         )
         self.rho = nn.Parameter(
-            torch.tensor(np.exp(-dt / self.kwargs["tau_a"]), dtype=torch.float32, device=self.device),
-            requires_grad=False
+            torch.tensor(
+                np.exp(-dt / self.kwargs["tau_a"]),
+                dtype=torch.float32,
+                device=self.device,
+            ),
+            requires_grad=False,
         )
 
     def _set_default_kwargs(self):
@@ -886,9 +1014,7 @@ class ALIFLayer(LIFLayer):
         self.kwargs.setdefault("spikes_regularization_factor", 0.0)
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
@@ -903,30 +1029,35 @@ class ALIFLayer(LIFLayer):
         :rtype: Tuple[torch.Tensor, ...]
         """
         kwargs.setdefault("n_hh", 3)
-        return super(ALIFLayer, self).create_empty_state(batch_size=batch_size, **kwargs)
+        return super(ALIFLayer, self).create_empty_state(
+            batch_size=batch_size, **kwargs
+        )
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
         assert inputs.ndim == 2
         batch_size, nb_features = inputs.shape
         V, a, Z = self._init_forward_state(state, batch_size, inputs=inputs)
         input_current = torch.matmul(inputs, self.forward_weights)
         if self.use_recurrent_connection:
-            rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_current = torch.matmul(
+                Z, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_current = 0.0
         # v_j^{t+1} = \alpha * v_j^t + \sum_i W_{ji}*z_i^t + \sum_i W_{ji}^{in}x_i^{t+1} - z_j^t * v_{th}
         next_V = (self.alpha * V + input_current + rec_current) * (1.0 - Z.detach())
         next_a = self.rho * a + Z  # a^{t+1} = \rho * a_j^t + z_j^t
         A = self.threshold + self.beta * next_a  # A_j^t = v_{th} + \beta * a_j^t
-        next_Z = self.spike_func.apply(next_V, A, self.gamma)  # z_j^t = H(v_j^t - A_j^t)
+        next_Z = self.spike_func.apply(
+            next_V, A, self.gamma
+        )  # z_j^t = H(v_j^t - A_j^t)
         return next_Z, (next_V, next_a, next_Z)
 
-    def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
+    def update_regularization_loss(
+        self, state: Optional[Any] = None, *args, **kwargs
+    ) -> torch.Tensor:
         """
         Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
         the regularization loss will be the sum of all calls to this function.
@@ -938,7 +1069,9 @@ class ALIFLayer(LIFLayer):
         :rtype: torch.Tensor
         """
         next_V, next_a, next_Z = state
-        self._regularization_loss += self.kwargs["spikes_regularization_factor"] * torch.sum(next_Z)
+        self._regularization_loss += self.kwargs[
+            "spikes_regularization_factor"
+        ] * torch.sum(next_Z)
         # self._regularization_loss += 2e-6*torch.mean(torch.sum(next_Z, dim=-1)**2)
         return self._regularization_loss
 
@@ -951,16 +1084,16 @@ class BellecLIFLayer(LIFLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            use_recurrent_connection: bool = True,
-            use_rec_eye_mask: bool = True,
-            spike_func: Type[SpikeFunction] = HeavisidePhiApprox,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        use_recurrent_connection: bool = True,
+        use_rec_eye_mask: bool = True,
+        spike_func: Type[SpikeFunction] = HeavisidePhiApprox,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         super().__init__(
             input_size=input_size,
@@ -971,24 +1104,25 @@ class BellecLIFLayer(LIFLayer):
             spike_func=spike_func,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
         assert inputs.ndim == 2
         batch_size, nb_features = inputs.shape
         V, Z = self._init_forward_state(state, batch_size, inputs=inputs)
         input_current = torch.matmul(inputs, self.forward_weights)
         if self.use_recurrent_connection:
-            rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_current = torch.matmul(
+                Z, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_current = 0.0
-        next_V = (self.alpha * V + input_current + rec_current) - Z.detach() * self.threshold
+        next_V = (
+            self.alpha * V + input_current + rec_current
+        ) - Z.detach() * self.threshold
         next_Z = self.spike_func.apply(next_V, self.threshold, self.gamma)
         return next_Z, (next_V, next_Z)
 
@@ -1002,16 +1136,16 @@ class IzhikevichLayer(BaseNeuronsLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            use_recurrent_connection=True,
-            use_rec_eye_mask=True,
-            spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
-            dt=1e-3,
-            device=None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        use_recurrent_connection=True,
+        use_rec_eye_mask=True,
+        spike_func: Type[SpikeFunction] = HeavisideSigmoidApprox,
+        dt=1e-3,
+        device=None,
+        **kwargs,
     ):
         self.spike_func = spike_func
         super(IzhikevichLayer, self).__init__(
@@ -1022,19 +1156,39 @@ class IzhikevichLayer(BaseNeuronsLayer):
             use_rec_eye_mask=use_rec_eye_mask,
             dt=dt,
             device=device,
-            **kwargs
+            **kwargs,
         )
 
-        self.C = torch.tensor(self.kwargs["C"], dtype=torch.float32, device=self._device)
-        self.v_rest = torch.tensor(self.kwargs["v_rest"], dtype=torch.float32, device=self._device)
-        self.v_th = torch.tensor(self.kwargs["v_th"], dtype=torch.float32, device=self._device)
-        self.k = torch.tensor(self.kwargs["k"], dtype=torch.float32, device=self._device)
-        self.a = torch.tensor(self.kwargs["a"], dtype=torch.float32, device=self._device)
-        self.b = torch.tensor(self.kwargs["b"], dtype=torch.float32, device=self._device)
-        self.c = torch.tensor(self.kwargs["c"], dtype=torch.float32, device=self._device)
-        self.d = torch.tensor(self.kwargs["d"], dtype=torch.float32, device=self._device)
-        self.v_peak = torch.tensor(self.kwargs["v_peak"], dtype=torch.float32, device=self._device)
-        self.gamma = torch.tensor(self.kwargs["gamma"], dtype=torch.float32, device=self._device)
+        self.C = torch.tensor(
+            self.kwargs["C"], dtype=torch.float32, device=self._device
+        )
+        self.v_rest = torch.tensor(
+            self.kwargs["v_rest"], dtype=torch.float32, device=self._device
+        )
+        self.v_th = torch.tensor(
+            self.kwargs["v_th"], dtype=torch.float32, device=self._device
+        )
+        self.k = torch.tensor(
+            self.kwargs["k"], dtype=torch.float32, device=self._device
+        )
+        self.a = torch.tensor(
+            self.kwargs["a"], dtype=torch.float32, device=self._device
+        )
+        self.b = torch.tensor(
+            self.kwargs["b"], dtype=torch.float32, device=self._device
+        )
+        self.c = torch.tensor(
+            self.kwargs["c"], dtype=torch.float32, device=self._device
+        )
+        self.d = torch.tensor(
+            self.kwargs["d"], dtype=torch.float32, device=self._device
+        )
+        self.v_peak = torch.tensor(
+            self.kwargs["v_peak"], dtype=torch.float32, device=self._device
+        )
+        self.gamma = torch.tensor(
+            self.kwargs["gamma"], dtype=torch.float32, device=self._device
+        )
         self.initialize_weights_()
 
     def _set_default_kwargs(self):
@@ -1062,9 +1216,7 @@ class IzhikevichLayer(BaseNeuronsLayer):
                 torch.nn.init.normal_(param, std=gain)
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
@@ -1095,17 +1247,16 @@ class IzhikevichLayer(BaseNeuronsLayer):
         return V, u, Z
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: Tuple[torch.Tensor, ...] = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
     ):
         assert inputs.ndim == 2
         batch_size, nb_features = inputs.shape
         V, u, Z = self._init_forward_state(state, batch_size)
         input_current = torch.matmul(inputs, self.forward_weights)
         if self.use_recurrent_connection:
-            rec_current = torch.matmul(Z, torch.mul(self.recurrent_weights, self.rec_mask))
+            rec_current = torch.matmul(
+                Z, torch.mul(self.recurrent_weights, self.rec_mask)
+            )
         else:
             rec_current = 0.0
         is_reset = Z.detach()

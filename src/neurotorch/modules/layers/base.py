@@ -24,12 +24,12 @@ class BaseLayer(SizedModule):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         """
         Constructor of the BaseLayer class.
@@ -48,7 +48,9 @@ class BaseLayer(SizedModule):
             will be called after each forward pass. Defaults to False.
         :keyword bool freeze_weights: Whether to freeze the weights of the layer. Defaults to False.
         """
-        super(BaseLayer, self).__init__(input_size=input_size, output_size=output_size, name=name)
+        super(BaseLayer, self).__init__(
+            input_size=input_size, output_size=output_size, name=name
+        )
         self._is_built = False
         self._freeze_weights = kwargs.get("freeze_weights", False)
         self._device = device
@@ -62,7 +64,9 @@ class BaseLayer(SizedModule):
         self.input_size = input_size
         self.output_size = output_size
 
-        self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+        self._regularization_loss = torch.tensor(
+            0.0, dtype=torch.float32, device=self.device
+        )
 
     @property
     def freeze_weights(self) -> bool:
@@ -83,9 +87,9 @@ class BaseLayer(SizedModule):
             [
                 s is not None
                 for s in [
-                self._input_size,
-                (self._output_size if hasattr(self, "_output_size") else None)
-            ]
+                    self._input_size,
+                    (self._output_size if hasattr(self, "_output_size") else None),
+                ]
             ]
         )
 
@@ -124,7 +128,10 @@ class BaseLayer(SizedModule):
         """
         self._device = device
         for module in self.modules():
-            if module is not self and getattr(module, "device", device).type != device.type:
+            if (
+                module is not self
+                and getattr(module, "device", device).type != device.type
+            ):
                 module.to(device, non_blocking=non_blocking)
         return super(BaseLayer, self).to(*args, **kwargs)
 
@@ -145,9 +152,11 @@ class BaseLayer(SizedModule):
         pass
 
     def _set_default_device_(self):
-        self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        self._device = (
+            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        )
 
-    def build(self) -> 'BaseLayer':
+    def build(self) -> "BaseLayer":
         """
         Build the layer. This method must be call after the layer is initialized to make sure that the layer is ready
         to be used e.g. the input and output size is set, the weights are initialized, etc.
@@ -158,12 +167,16 @@ class BaseLayer(SizedModule):
         if self._is_built:
             raise ValueError("The layer can't be built multiple times.")
         if not self.is_ready_to_build:
-            raise ValueError("Input size and output size must be specified before the build call.")
+            raise ValueError(
+                "Input size and output size must be specified before the build call."
+            )
         self._is_built = True
         self.reset_regularization_loss()
         return self
 
-    def create_empty_state(self, batch_size: int = 1, **kwargs) -> Tuple[torch.Tensor, ...]:
+    def create_empty_state(
+        self, batch_size: int = 1, **kwargs
+    ) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state for the layer. This method must be implemented by the child class.
 
@@ -176,10 +189,7 @@ class BaseLayer(SizedModule):
         raise NotImplementedError()
 
     def _init_forward_state(
-            self,
-            state: Tuple[torch.Tensor, ...] = None,
-            batch_size: int = 1,
-            **kwargs
+        self, state: Tuple[torch.Tensor, ...] = None, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         if state is None:
             state = self.create_empty_state(batch_size, **kwargs)
@@ -205,7 +215,9 @@ class BaseLayer(SizedModule):
         if self.output_size is None:
             raise ValueError("output_size must be specified before the forward call.")
 
-    def __call__(self, inputs: torch.Tensor, state: torch.Tensor = None, *args, **kwargs):
+    def __call__(
+        self, inputs: torch.Tensor, state: torch.Tensor = None, *args, **kwargs
+    ):
         """
         Call the forward method of the layer. If the layer is not built, it will be built automatically.
         In addition, if :attr:`kwargs['regularize']` is set to True, the :meth: `update_regularization_loss` method
@@ -240,10 +252,7 @@ class BaseLayer(SizedModule):
         return call_output
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: torch.Tensor = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: torch.Tensor = None, **kwargs
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         raise NotImplementedError()
 
@@ -255,7 +264,9 @@ class BaseLayer(SizedModule):
         """
         pass
 
-    def update_regularization_loss(self, state: Optional[Any] = None, *args, **kwargs) -> torch.Tensor:
+    def update_regularization_loss(
+        self, state: Optional[Any] = None, *args, **kwargs
+    ) -> torch.Tensor:
         """
         Update the regularization loss for this layer. Each update call increments the regularization loss so at the end
         the regularization loss will be the sum of all calls to this function. This method is called at the end of each
@@ -277,7 +288,9 @@ class BaseLayer(SizedModule):
 
         :return: None
         """
-        self._regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+        self._regularization_loss = torch.tensor(
+            0.0, dtype=torch.float32, device=self.device
+        )
 
     def get_and_reset_regularization_loss(self):
         """
@@ -318,15 +331,15 @@ class BaseNeuronsLayer(BaseLayer):
     """
 
     def __init__(
-            self,
-            input_size: Optional[SizeTypes] = None,
-            output_size: Optional[SizeTypes] = None,
-            name: Optional[str] = None,
-            use_recurrent_connection: bool = True,
-            use_rec_eye_mask: bool = False,
-            dt: float = 1e-3,
-            device: Optional[torch.device] = None,
-            **kwargs
+        self,
+        input_size: Optional[SizeTypes] = None,
+        output_size: Optional[SizeTypes] = None,
+        name: Optional[str] = None,
+        use_recurrent_connection: bool = True,
+        use_rec_eye_mask: bool = False,
+        dt: float = 1e-3,
+        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         """
         Initialize the layer.; See the :class:`BaseLayer` class for more details.;
@@ -379,10 +392,12 @@ class BaseNeuronsLayer(BaseLayer):
             output_size=output_size,
             name=name,
             device=device,
-            **kwargs
+            **kwargs,
         )
         self.sign_activation = self.kwargs.get("sign_activation", torch.nn.Tanh())
-        self.activation = self._init_activation(self.kwargs.get("activation", "identity"))
+        self.activation = self._init_activation(
+            self.kwargs.get("activation", "identity")
+        )
 
     @property
     def forward_weights(self) -> torch.nn.Parameter:
@@ -403,7 +418,9 @@ class BaseNeuronsLayer(BaseLayer):
         :param value: The forward weights.
         """
         if not isinstance(value, torch.nn.Parameter):
-            value = torch.nn.Parameter(to_tensor(value), requires_grad=self.requires_grad)
+            value = torch.nn.Parameter(
+                to_tensor(value), requires_grad=self.requires_grad
+            )
         self._forward_weights = value
 
     @property
@@ -425,7 +442,9 @@ class BaseNeuronsLayer(BaseLayer):
         :param value: The recurrent weights.
         """
         if not isinstance(value, torch.nn.Parameter):
-            value = torch.nn.Parameter(to_tensor(value), requires_grad=self.requires_grad)
+            value = torch.nn.Parameter(
+                to_tensor(value), requires_grad=self.requires_grad
+            )
         self._recurrent_weights = value
 
     @property
@@ -456,7 +475,9 @@ class BaseNeuronsLayer(BaseLayer):
         :param value: The forward sign.
         """
         if not isinstance(value, torch.nn.Parameter):
-            value = torch.nn.Parameter(value, requires_grad=self.force_dale_law and self.requires_grad)
+            value = torch.nn.Parameter(
+                value, requires_grad=self.force_dale_law and self.requires_grad
+            )
         self._forward_sign = value
 
     @property
@@ -611,9 +632,7 @@ class BaseNeuronsLayer(BaseLayer):
         return parameters
 
     def create_empty_state(
-            self,
-            batch_size: int = 1,
-            **kwargs
+        self, batch_size: int = 1, **kwargs
     ) -> Tuple[torch.Tensor, ...]:
         self.kwargs.setdefault("hh_init", "zeros")
         self.kwargs.setdefault("hh_init_mu", 0.0)
@@ -622,42 +641,57 @@ class BaseNeuronsLayer(BaseLayer):
         n_hh = kwargs.get("n_hh", 1)
         if self.kwargs["hh_init"] == "zeros":
             state = tuple(
-                [torch.zeros(
-                    (batch_size, int(self.output_size)),
-                    device=self.device,
-                    dtype=torch.float32,
-                    requires_grad=True,
-                ) for _ in range(n_hh)]
+                [
+                    torch.zeros(
+                        (batch_size, int(self.output_size)),
+                        device=self.device,
+                        dtype=torch.float32,
+                        requires_grad=True,
+                    )
+                    for _ in range(n_hh)
+                ]
             )
         elif self.kwargs["hh_init"] == "random":
-            mu, std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get("hh_init_std", 1.0)
+            mu, std = self.kwargs.get("hh_init_mu", 0.0), self.kwargs.get(
+                "hh_init_std", 1.0
+            )
             gen = torch.Generator(device=self.device)
-            gen.manual_seed(format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None)))
-            state = [(torch.rand(
-                (batch_size, int(self.output_size)),
-                device=self.device,
-                dtype=torch.float32,
-                requires_grad=True,
-                generator=gen,
-            ) * std + mu) for _ in range(n_hh)]
+            gen.manual_seed(
+                format_pseudo_rn_seed(self.kwargs.get("hh_init_seed", None))
+            )
+            state = [
+                (
+                    torch.rand(
+                        (batch_size, int(self.output_size)),
+                        device=self.device,
+                        dtype=torch.float32,
+                        requires_grad=True,
+                        generator=gen,
+                    )
+                    * std
+                    + mu
+                )
+                for _ in range(n_hh)
+            ]
         elif self.kwargs["hh_init"] == "inputs":
             assert "inputs" in kwargs, "inputs must be provided to initialize the state"
             assert kwargs["inputs"].shape == (batch_size, int(self.output_size))
             state = [kwargs["inputs"].clone() for _ in range(n_hh)]
         elif self.kwargs["hh_init"].lower() == "given":
-            assert "h0" in self.kwargs, "h0 must be provided as a tuple of tensors when hh_init is 'given'."
+            assert (
+                "h0" in self.kwargs
+            ), "h0 must be provided as a tuple of tensors when hh_init is 'given'."
             h0 = self.kwargs["h0"]
             assert isinstance(h0, (tuple, list)), "h0 must be a tuple of tensors."
             state = [to_tensor(h0_, dtype=torch.float32).to(self.device) for h0_ in h0]
         else:
-            raise ValueError("Hidden state init method not known. Please use 'zeros', 'inputs', 'random' or 'given'.")
+            raise ValueError(
+                "Hidden state init method not known. Please use 'zeros', 'inputs', 'random' or 'given'."
+            )
         return tuple(state)
 
     def forward(
-            self,
-            inputs: torch.Tensor,
-            state: torch.Tensor = None,
-            **kwargs
+        self, inputs: torch.Tensor, state: torch.Tensor = None, **kwargs
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         raise NotImplementedError()
 
@@ -666,34 +700,58 @@ class BaseNeuronsLayer(BaseLayer):
             self.kwargs.pop("forward_sign", None)
         if "forward_sign" in self.kwargs and self.force_dale_law:
             if isinstance(self.kwargs["forward_sign"], float):
-                assert 0.0 <= self.kwargs["forward_sign"] <= 1.0, "forward_sign must be in [0, 1]"
+                assert (
+                    0.0 <= self.kwargs["forward_sign"] <= 1.0
+                ), "forward_sign must be in [0, 1]"
                 n_inh = int(int(self.input_size) * self.kwargs["forward_sign"])
                 inh_indexes = torch.randperm(int(self.input_size))[:n_inh]
-                self.kwargs["forward_sign"] = np.abs(np.random.normal(size=(int(self.input_size), 1)))
+                self.kwargs["forward_sign"] = np.abs(
+                    np.random.normal(size=(int(self.input_size), 1))
+                )
                 self.kwargs["forward_sign"][inh_indexes] *= -1
-            assert self.kwargs["forward_sign"].shape == (int(self.input_size), 1), \
-                "forward_sign must be a float or a tensor of shape (input_size, 1)"
-            self._forward_sign.data = to_tensor(self.kwargs["forward_sign"]).to(self.device)
+            assert self.kwargs["forward_sign"].shape == (
+                int(self.input_size),
+                1,
+            ), "forward_sign must be a float or a tensor of shape (input_size, 1)"
+            self._forward_sign.data = to_tensor(self.kwargs["forward_sign"]).to(
+                self.device
+            )
             with torch.no_grad():
-                self._forward_weights.data = torch.sqrt(torch.abs(self._forward_weights.data))
+                self._forward_weights.data = torch.sqrt(
+                    torch.abs(self._forward_weights.data)
+                )
         elif self.force_dale_law:
             torch.nn.init.normal_(self._forward_sign)
 
     def _init_recurrent_sign_(self):
         if self.kwargs.get("recurrent_sign", None) is None:
             self.kwargs.pop("recurrent_sign", None)
-        if "recurrent_sign" in self.kwargs and self.force_dale_law and self.use_recurrent_connection:
+        if (
+            "recurrent_sign" in self.kwargs
+            and self.force_dale_law
+            and self.use_recurrent_connection
+        ):
             if isinstance(self.kwargs["recurrent_sign"], float):
-                assert 0.0 <= self.kwargs["recurrent_sign"] <= 1.0, "recurrent_sign must be in [0, 1]"
+                assert (
+                    0.0 <= self.kwargs["recurrent_sign"] <= 1.0
+                ), "recurrent_sign must be in [0, 1]"
                 n_inh = int(int(self.output_size) * self.kwargs["recurrent_sign"])
                 inh_indexes = torch.randperm(int(self.output_size))[:n_inh]
-                self.kwargs["recurrent_sign"] = np.abs(np.random.normal(size=(int(self.output_size), 1)))
+                self.kwargs["recurrent_sign"] = np.abs(
+                    np.random.normal(size=(int(self.output_size), 1))
+                )
                 self.kwargs["recurrent_sign"][inh_indexes] *= -1
-            assert self.kwargs["recurrent_sign"].shape == (int(self.output_size), 1), \
-                "recurrent_sign must be a float or a tensor of shape (output_size, 1)"
-            self._recurrent_sign.data = to_tensor(self.kwargs["recurrent_sign"]).to(self.device)
+            assert self.kwargs["recurrent_sign"].shape == (
+                int(self.output_size),
+                1,
+            ), "recurrent_sign must be a float or a tensor of shape (output_size, 1)"
+            self._recurrent_sign.data = to_tensor(self.kwargs["recurrent_sign"]).to(
+                self.device
+            )
             with torch.no_grad():
-                self._recurrent_weights.data = torch.sqrt(torch.abs(self._recurrent_weights.data))
+                self._recurrent_weights.data = torch.sqrt(
+                    torch.abs(self._recurrent_weights.data)
+                )
         elif self.force_dale_law and self.use_recurrent_connection:
             torch.nn.init.xavier_normal_(self._recurrent_sign)
 
@@ -706,13 +764,13 @@ class BaseNeuronsLayer(BaseLayer):
         """
         str_to_activation = {
             "identity": torch.nn.Identity(),
-            "relu"    : torch.nn.ReLU(),
-            "tanh"    : torch.nn.Tanh(),
-            "sigmoid" : torch.nn.Sigmoid(),
-            "softmax" : torch.nn.Softmax(dim=-1),
-            "elu"     : torch.nn.ELU(),
-            "selu"    : torch.nn.SELU(),
-            "prelu"   : torch.nn.PReLU(),
+            "relu": torch.nn.ReLU(),
+            "tanh": torch.nn.Tanh(),
+            "sigmoid": torch.nn.Sigmoid(),
+            "softmax": torch.nn.Softmax(dim=-1),
+            "elu": torch.nn.ELU(),
+            "selu": torch.nn.SELU(),
+            "prelu": torch.nn.PReLU(),
             "leakyrelu": torch.nn.LeakyReLU(),
             "leaky_relu": torch.nn.LeakyReLU(),
             "logsigmoid": torch.nn.LogSigmoid(),
@@ -734,19 +792,26 @@ class BaseNeuronsLayer(BaseLayer):
     def initialize_weights_(self):
         super().initialize_weights_()
         if self.kwargs.get("forward_weights", None) is not None:
-            self._forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
+            self._forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(
+                self.device
+            )
         else:
             torch.nn.init.xavier_normal_(self._forward_weights)
 
-        if self.kwargs.get("recurrent_weights", None) is not None and self.use_recurrent_connection:
-            self._recurrent_weights.data = to_tensor(self.kwargs["recurrent_weights"]).to(self.device)
+        if (
+            self.kwargs.get("recurrent_weights", None) is not None
+            and self.use_recurrent_connection
+        ):
+            self._recurrent_weights.data = to_tensor(
+                self.kwargs["recurrent_weights"]
+            ).to(self.device)
         elif self.use_recurrent_connection:
             torch.nn.init.xavier_normal_(self._recurrent_weights)
 
         self._init_forward_sign_()
         self._init_recurrent_sign_()
 
-    def build(self) -> 'BaseNeuronsLayer':
+    def build(self) -> "BaseNeuronsLayer":
         """
         Build the layer. This method must be call after the layer is initialized to make sure that the layer is ready
         to be used e.g. the input and output size is set, the weights are initialized, etc.
@@ -759,36 +824,59 @@ class BaseNeuronsLayer(BaseLayer):
         """
         super().build()
         self._forward_weights = nn.Parameter(
-            torch.empty((int(self.input_size), int(self.output_size)), device=self.device, dtype=torch.float32),
-            requires_grad=self.requires_grad
+            torch.empty(
+                (int(self.input_size), int(self.output_size)),
+                device=self.device,
+                dtype=torch.float32,
+            ),
+            requires_grad=self.requires_grad,
         )
         if self.force_dale_law:
             self._forward_sign = torch.nn.Parameter(
-                torch.empty((int(self.input_size), 1), dtype=torch.float32, device=self.device),
-                requires_grad=self.force_dale_law
+                torch.empty(
+                    (int(self.input_size), 1), dtype=torch.float32, device=self.device
+                ),
+                requires_grad=self.force_dale_law,
             )
 
         if self.use_recurrent_connection:
             self._recurrent_weights = nn.Parameter(
-                torch.empty((int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32),
-                requires_grad=self.requires_grad
+                torch.empty(
+                    (int(self.output_size), int(self.output_size)),
+                    device=self.device,
+                    dtype=torch.float32,
+                ),
+                requires_grad=self.requires_grad,
             )
             if self.use_rec_eye_mask:
                 self.rec_mask = nn.Parameter(
-                    (1 - torch.eye(int(self.output_size), device=self.device, dtype=torch.float32)),
-                    requires_grad=False
+                    (
+                        1
+                        - torch.eye(
+                            int(self.output_size),
+                            device=self.device,
+                            dtype=torch.float32,
+                        )
+                    ),
+                    requires_grad=False,
                 )
             else:
                 self.rec_mask = nn.Parameter(
                     torch.ones(
-                        (int(self.output_size), int(self.output_size)), device=self.device, dtype=torch.float32
+                        (int(self.output_size), int(self.output_size)),
+                        device=self.device,
+                        dtype=torch.float32,
                     ),
-                    requires_grad=False
+                    requires_grad=False,
                 )
             if self.force_dale_law:
                 self._recurrent_sign = torch.nn.Parameter(
-                    torch.empty((int(self.output_size), 1), dtype=torch.float32, device=self.device),
-                    requires_grad=self.force_dale_law
+                    torch.empty(
+                        (int(self.output_size), 1),
+                        dtype=torch.float32,
+                        device=self.device,
+                    ),
+                    requires_grad=self.force_dale_law,
                 )
         self.initialize_weights_()
         return self
@@ -812,4 +900,3 @@ class BaseNeuronsLayer(BaseLayer):
             _repr += "[frozen]"
         _repr += f"@{self.device}"
         return _repr
-

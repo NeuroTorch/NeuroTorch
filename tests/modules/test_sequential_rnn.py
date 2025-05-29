@@ -81,10 +81,20 @@ class TestSequentialRNN(unittest.TestCase):
         self.assertTrue(model.is_built)
 
         self.assertEqual(int(model.input_layers["input"].input_size), 12)
-        self.assertEqual(int(model.input_layers["input"].output_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.hidden_layers[0].input_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.output_layers["output"].input_size), model._default_n_hidden_neurons)
+        self.assertEqual(
+            int(model.input_layers["input"].output_size),
+            model._default_n_hidden_neurons,
+        )
+        self.assertEqual(
+            int(model.hidden_layers[0].input_size), model._default_n_hidden_neurons
+        )
+        self.assertEqual(
+            int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons
+        )
+        self.assertEqual(
+            int(model.output_layers["output"].input_size),
+            model._default_n_hidden_neurons,
+        )
         self.assertEqual(int(model.output_layers["output"].output_size), 10)
 
     def test_init_sizes_unspecified(self):
@@ -115,10 +125,20 @@ class TestSequentialRNN(unittest.TestCase):
         self.assertTrue(model.is_built)
 
         self.assertEqual(int(model.input_layers["input"].input_size), 12)
-        self.assertEqual(int(model.input_layers["input"].output_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.hidden_layers[0].input_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.output_layers["output"].input_size), model._default_n_hidden_neurons)
+        self.assertEqual(
+            int(model.input_layers["input"].output_size),
+            model._default_n_hidden_neurons,
+        )
+        self.assertEqual(
+            int(model.hidden_layers[0].input_size), model._default_n_hidden_neurons
+        )
+        self.assertEqual(
+            int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons
+        )
+        self.assertEqual(
+            int(model.output_layers["output"].input_size),
+            model._default_n_hidden_neurons,
+        )
         self.assertEqual(int(model.output_layers["output"].output_size), 10)
 
     def test_init_sizes_unspecified_in_dict(self):
@@ -149,16 +169,29 @@ class TestSequentialRNN(unittest.TestCase):
         self.assertTrue(model.is_built)
 
         self.assertEqual(int(model.input_layers["input"].input_size), 12)
-        self.assertEqual(int(model.input_layers["input"].output_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.hidden_layers[0].input_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.output_layers["output"].input_size), model._default_n_hidden_neurons)
+        self.assertEqual(
+            int(model.input_layers["input"].output_size),
+            model._default_n_hidden_neurons,
+        )
+        self.assertEqual(
+            int(model.hidden_layers[0].input_size), model._default_n_hidden_neurons
+        )
+        self.assertEqual(
+            int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons
+        )
+        self.assertEqual(
+            int(model.output_layers["output"].input_size),
+            model._default_n_hidden_neurons,
+        )
         self.assertEqual(int(model.output_layers["output"].output_size), 10)
 
     def test_init_input_dict(self):
         model = SequentialRNN(
             layers=[
-                {"input_0": LIFLayer(6, name="input_0"), "input_1": LIFLayer(12, name="input_1")},
+                {
+                    "input_0": LIFLayer(6, name="input_0"),
+                    "input_1": LIFLayer(12, name="input_1"),
+                },
                 ALIFLayer(name="hidden"),
                 LILayer(output_size=10, name="output"),
             ],
@@ -167,7 +200,10 @@ class TestSequentialRNN(unittest.TestCase):
         self.assertEqual(len(model.hidden_layers), 1)
         self.assertEqual(len(model.output_layers), 1)
 
-        self.assertEqual({k: int(v) for k, v in model.input_sizes.items()}, {"input_0": 6, "input_1": 12})
+        self.assertEqual(
+            {k: int(v) for k, v in model.input_sizes.items()},
+            {"input_0": 6, "input_1": 12},
+        )
         self.assertEqual(int(list(model.output_sizes.values())[0]), 10)
 
         self.assertEqual(model.hidden_layers[0].name, "hidden")
@@ -184,9 +220,17 @@ class TestSequentialRNN(unittest.TestCase):
 
         for k, v in model.input_layers.items():
             self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.hidden_layers[0].input_size), model._default_n_hidden_neurons * len(model.input_layers))
-        self.assertEqual(int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.output_layers["output"].input_size), model._default_n_hidden_neurons)
+        self.assertEqual(
+            int(model.hidden_layers[0].input_size),
+            model._default_n_hidden_neurons * len(model.input_layers),
+        )
+        self.assertEqual(
+            int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons
+        )
+        self.assertEqual(
+            int(model.output_layers["output"].input_size),
+            model._default_n_hidden_neurons,
+        )
         self.assertEqual(int(model.output_layers["output"].output_size), 10)
 
     def test_init_output_dict(self):
@@ -194,15 +238,24 @@ class TestSequentialRNN(unittest.TestCase):
             layers=[
                 {"input_0": LIFLayer(6), "input_1": LIFLayer(12)},
                 ALIFLayer(name="hidden"),
-                {"output_0": LILayer(output_size=10), "output_1": LILayer(output_size=16)},
+                {
+                    "output_0": LILayer(output_size=10),
+                    "output_1": LILayer(output_size=16),
+                },
             ],
         )
         self.assertEqual(len(model.input_layers), 2)
         self.assertEqual(len(model.hidden_layers), 1)
         self.assertEqual(len(model.output_layers), 2)
 
-        self.assertEqual({k: int(v) for k, v in model.input_sizes.items()}, {"input_0": 6, "input_1": 12})
-        self.assertEqual({k: int(v) for k, v in model.output_sizes.items()}, {"output_0": 10, "output_1": 16})
+        self.assertEqual(
+            {k: int(v) for k, v in model.input_sizes.items()},
+            {"input_0": 6, "input_1": 12},
+        )
+        self.assertEqual(
+            {k: int(v) for k, v in model.output_sizes.items()},
+            {"output_0": 10, "output_1": 16},
+        )
         self.assertEqual(model.hidden_layers[0].name, "hidden")
 
         for k, v in model.input_layers.items():
@@ -217,8 +270,13 @@ class TestSequentialRNN(unittest.TestCase):
 
         for k, v in model.input_layers.items():
             self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.hidden_layers[0].input_size), model._default_n_hidden_neurons * len(model.input_layers))
-        self.assertEqual(int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons)
+        self.assertEqual(
+            int(model.hidden_layers[0].input_size),
+            model._default_n_hidden_neurons * len(model.input_layers),
+        )
+        self.assertEqual(
+            int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons
+        )
         for k, v in model.output_layers.items():
             self.assertEqual(int(v.input_size), model._default_n_hidden_neurons)
 
@@ -234,8 +292,14 @@ class TestSequentialRNN(unittest.TestCase):
         self.assertEqual(len(model.hidden_layers), 1)
         self.assertEqual(len(model.output_layers), 2)
 
-        self.assertEqual({k: int(v) for k, v in model.input_sizes.items()}, {"input_0": 6, "input_1": 12})
-        self.assertEqual({k: int(v) for k, v in model.output_sizes.items()}, {"output_0": 10, "output_1": 16})
+        self.assertEqual(
+            {k: int(v) for k, v in model.input_sizes.items()},
+            {"input_0": 6, "input_1": 12},
+        )
+        self.assertEqual(
+            {k: int(v) for k, v in model.output_sizes.items()},
+            {"output_0": 10, "output_1": 16},
+        )
         self.assertEqual(model.hidden_layers[0].name, "hidden")
 
         for k, v in model.input_layers.items():
@@ -250,8 +314,13 @@ class TestSequentialRNN(unittest.TestCase):
 
         for k, v in model.input_layers.items():
             self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)
-        self.assertEqual(int(model.hidden_layers[0].input_size), model._default_n_hidden_neurons * len(model.input_layers))
-        self.assertEqual(int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons)
+        self.assertEqual(
+            int(model.hidden_layers[0].input_size),
+            model._default_n_hidden_neurons * len(model.input_layers),
+        )
+        self.assertEqual(
+            int(model.hidden_layers[0].output_size), model._default_n_hidden_neurons
+        )
         for k, v in model.output_layers.items():
             self.assertEqual(int(v.input_size), model._default_n_hidden_neurons)
 
@@ -268,9 +337,18 @@ class TestSequentialRNN(unittest.TestCase):
         self.assertEqual(len(model.hidden_layers), 2)
         self.assertEqual(len(model.output_layers), 2)
 
-        self.assertEqual({k: int(v) for k, v in model.input_sizes.items()}, {"input_0": 6, "input_1": 12})
-        self.assertEqual({k: int(v) for k, v in model.output_sizes.items()}, {"output_0": 10, "output_1": 16})
-        self.assertEqual(len([hh.name for hh in model.hidden_layers]), len(set([hh.name for hh in model.hidden_layers])))
+        self.assertEqual(
+            {k: int(v) for k, v in model.input_sizes.items()},
+            {"input_0": 6, "input_1": 12},
+        )
+        self.assertEqual(
+            {k: int(v) for k, v in model.output_sizes.items()},
+            {"output_0": 10, "output_1": 16},
+        )
+        self.assertEqual(
+            len([hh.name for hh in model.hidden_layers]),
+            len(set([hh.name for hh in model.hidden_layers])),
+        )
 
         for k, v in model.input_layers.items():
             self.assertEqual(v.output_size, None)
@@ -288,7 +366,9 @@ class TestSequentialRNN(unittest.TestCase):
 
         for i, v in enumerate(model.hidden_layers):
             self.assertEqual(
-                int(v.input_size), model._default_n_hidden_neurons * (len(model.input_layers) if i == 0 else 1)
+                int(v.input_size),
+                model._default_n_hidden_neurons
+                * (len(model.input_layers) if i == 0 else 1),
             )
             self.assertEqual(int(v.output_size), model._default_n_hidden_neurons)
         for k, v in model.output_layers.items():
@@ -311,7 +391,12 @@ class TestSequentialRNN(unittest.TestCase):
             # Test that the model is initialized with the specified device if it is specified in the layer
             model = SequentialRNN(
                 layers=[
-                    BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input", device=torch.device("cpu")),
+                    BaseLayer(
+                        Dimension(10, DimensionProperty.NONE),
+                        2,
+                        name="input",
+                        device=torch.device("cpu"),
+                    ),
                 ],
                 device=torch.device("cuda"),
             )
@@ -323,7 +408,12 @@ class TestSequentialRNN(unittest.TestCase):
             # Test that the model is initialized with the specified device if it is specified in the layer
             model = SequentialRNN(
                 layers=[
-                    BaseLayer(Dimension(10, DimensionProperty.NONE), 2, name="input", device=torch.device("cuda")),
+                    BaseLayer(
+                        Dimension(10, DimensionProperty.NONE),
+                        2,
+                        name="input",
+                        device=torch.device("cuda"),
+                    ),
                 ],
                 device=torch.device("cpu"),
             )
@@ -335,11 +425,31 @@ class TestSequentialRNN(unittest.TestCase):
             # Test that the model is initialized with the specified device if it is specified in the layer
             model = SequentialRNN(
                 layers=[
-                    BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
-                    BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
-                    BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
-                    BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
-                    BaseLayer(Dimension(10, DimensionProperty.NONE), 10, device=torch.device("cuda")),
+                    BaseLayer(
+                        Dimension(10, DimensionProperty.NONE),
+                        10,
+                        device=torch.device("cuda"),
+                    ),
+                    BaseLayer(
+                        Dimension(10, DimensionProperty.NONE),
+                        10,
+                        device=torch.device("cuda"),
+                    ),
+                    BaseLayer(
+                        Dimension(10, DimensionProperty.NONE),
+                        10,
+                        device=torch.device("cuda"),
+                    ),
+                    BaseLayer(
+                        Dimension(10, DimensionProperty.NONE),
+                        10,
+                        device=torch.device("cuda"),
+                    ),
+                    BaseLayer(
+                        Dimension(10, DimensionProperty.NONE),
+                        10,
+                        device=torch.device("cuda"),
+                    ),
                 ],
                 device=torch.device("cpu"),
             )
@@ -357,50 +467,46 @@ class TestSequentialRNN(unittest.TestCase):
     def test_format_hidden_outputs_traces(self):
         data = torch.ones((32, 2))
         time_steps = 10
-        hh_states = {
-            '0': [(0 * data, 1 * data, 2 * data) for _ in range(time_steps)]
-        }
+        hh_states = {"0": [(0 * data, 1 * data, 2 * data) for _ in range(time_steps)]}
         hh_states_transposed = {
-            '0': tuple([torch.stack(e, dim=1) for e in list(zip(*hh_states['0']))])
+            "0": tuple([torch.stack(e, dim=1) for e in list(zip(*hh_states["0"]))])
         }
         hh_pred = SequentialRNN._format_hidden_outputs_traces(hh_states)
-        self.assertTrue(all(torch.allclose(x, y) for x, y in zip(hh_states_transposed['0'], hh_pred['0'])))
+        self.assertTrue(
+            all(
+                torch.allclose(x, y)
+                for x, y in zip(hh_states_transposed["0"], hh_pred["0"])
+            )
+        )
 
-        hh_states = {
-            '0': [(data, ) for _ in range(time_steps)]
-        }
+        hh_states = {"0": [(data,) for _ in range(time_steps)]}
         hh_states_transposed = {
-            '0': torch.stack([data for _ in range(time_steps)], dim=1)
+            "0": torch.stack([data for _ in range(time_steps)], dim=1)
         }
         hh_pred = SequentialRNN._format_hidden_outputs_traces(hh_states)
-        self.assertTrue(all(torch.allclose(x, y) for x, y in zip(hh_states_transposed['0'], hh_pred['0'])))
+        self.assertTrue(
+            all(
+                torch.allclose(x, y)
+                for x, y in zip(hh_states_transposed["0"], hh_pred["0"])
+            )
+        )
 
-        hh_states = {
-            '0': [data for _ in range(time_steps)]
-        }
+        hh_states = {"0": [data for _ in range(time_steps)]}
         hh_states_transposed = {
-            '0': torch.stack([data for _ in range(time_steps)], dim=1)
+            "0": torch.stack([data for _ in range(time_steps)], dim=1)
         }
         hh_pred = SequentialRNN._format_hidden_outputs_traces(hh_states)
-        self.assertTrue(torch.allclose(hh_states_transposed['0'], hh_pred['0']))
+        self.assertTrue(torch.allclose(hh_states_transposed["0"], hh_pred["0"]))
 
-        hh_states = {
-            '0': [(None, ) for _ in range(time_steps)]
-        }
-        hh_states_transposed = {
-            '0': [None for _ in range(time_steps)]
-        }
+        hh_states = {"0": [(None,) for _ in range(time_steps)]}
+        hh_states_transposed = {"0": [None for _ in range(time_steps)]}
         hh_pred = SequentialRNN._format_hidden_outputs_traces(hh_states)
-        self.assertEqual(hh_states_transposed['0'],  hh_pred['0'])
+        self.assertEqual(hh_states_transposed["0"], hh_pred["0"])
 
-        hh_states = {
-            '0': [None for _ in range(time_steps)]
-        }
-        hh_states_transposed = {
-            '0': [None for _ in range(time_steps)]
-        }
+        hh_states = {"0": [None for _ in range(time_steps)]}
+        hh_states_transposed = {"0": [None for _ in range(time_steps)]}
         hh_pred = SequentialRNN._format_hidden_outputs_traces(hh_states)
-        self.assertEqual(hh_states_transposed['0'], hh_pred['0'])
+        self.assertEqual(hh_states_transposed["0"], hh_pred["0"])
 
     def test_init_transforms(self):
         # Test that the model is initialized with the default transforms with one layer
@@ -413,8 +519,9 @@ class TestSequentialRNN(unittest.TestCase):
         self.assertGreater(len(model.input_transform), 0)
         for key, value in model.input_transform.items():
             self.assertIn(
-                key, model.output_layers.keys(),
-                f"{key} is not in the output layers {model.output_layers.keys()}"
+                key,
+                model.output_layers.keys(),
+                f"{key} is not in the output layers {model.output_layers.keys()}",
             )
 
         # Test that the model is initialized with the default transforms with multiple layers
@@ -428,8 +535,9 @@ class TestSequentialRNN(unittest.TestCase):
         self.assertGreater(len(model.input_transform), 0)
         for key, value in model.input_transform.items():
             self.assertIn(
-                key, model.input_layers.keys(),
-                f"{key} is not in the output layers {model.input_layers.keys()}"
+                key,
+                model.input_layers.keys(),
+                f"{key} is not in the output layers {model.input_layers.keys()}",
             )
 
         class _DummyTransform(torch.nn.Module):
@@ -443,14 +551,15 @@ class TestSequentialRNN(unittest.TestCase):
                 BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
                 BaseLayer(Dimension(10, DimensionProperty.NONE), 2),
             ],
-            input_transform=[trans]
+            input_transform=[trans],
         )
         model.build()
         self.assertEqual(len(model.input_transform), 1)
         for key, value in model.input_transform.items():
             self.assertIn(
-                key, model.input_layers.keys(),
-                f"{key} is not in the output layers {model.input_layers.keys()}"
+                key,
+                model.input_layers.keys(),
+                f"{key} is not in the output layers {model.input_layers.keys()}",
             )
             self.assertIn(trans, ravel_compose_transforms(value))
 
@@ -548,7 +657,9 @@ class TestSequentialRNN(unittest.TestCase):
 
         for layer in model.get_all_layers():
             self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
-            self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
+            self.assertEqual(
+                layer.forward_weights.grad.shape, layer.forward_weights.shape
+            )
             self.assertEqual(layer.forward_weights.grad.device.type, layer.device.type)
             self.assertIsInstance(layer.bias_weights.grad, torch.Tensor)
             self.assertEqual(layer.bias_weights.grad.shape, layer.bias_weights.shape)
@@ -578,7 +689,9 @@ class TestSequentialRNN(unittest.TestCase):
 
         for layer in model.get_all_layers():
             self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
-            self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
+            self.assertEqual(
+                layer.forward_weights.grad.shape, layer.forward_weights.shape
+            )
             self.assertEqual(layer.forward_weights.grad.device.type, layer.device.type)
             self.assertIsInstance(layer.bias_weights.grad, torch.Tensor)
             self.assertEqual(layer.bias_weights.grad.shape, layer.bias_weights.shape)
@@ -608,7 +721,9 @@ class TestSequentialRNN(unittest.TestCase):
 
         for layer in model.get_all_layers():
             self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
-            self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
+            self.assertEqual(
+                layer.forward_weights.grad.shape, layer.forward_weights.shape
+            )
             self.assertEqual(layer.forward_weights.grad.device.type, layer.device.type)
             self.assertIsInstance(layer.bias_weights.grad, torch.Tensor)
             self.assertEqual(layer.bias_weights.grad.shape, layer.bias_weights.shape)
@@ -638,7 +753,9 @@ class TestSequentialRNN(unittest.TestCase):
 
         for layer in model.get_all_layers():
             self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
-            self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
+            self.assertEqual(
+                layer.forward_weights.grad.shape, layer.forward_weights.shape
+            )
             self.assertEqual(layer.forward_weights.grad.device.type, layer.device.type)
             self.assertIsInstance(layer.bias_weights.grad, torch.Tensor)
             self.assertEqual(layer.bias_weights.grad.shape, layer.bias_weights.shape)
@@ -668,16 +785,16 @@ class TestSequentialRNN(unittest.TestCase):
 
         for layer in model.get_all_layers():
             self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
-            self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
+            self.assertEqual(
+                layer.forward_weights.grad.shape, layer.forward_weights.shape
+            )
             self.assertEqual(layer.forward_weights.grad.device.type, layer.device.type)
             self.assertIsInstance(layer.bias_weights.grad, torch.Tensor)
             self.assertEqual(layer.bias_weights.grad.shape, layer.bias_weights.shape)
             self.assertEqual(layer.bias_weights.grad.device.type, layer.device.type)
 
     def test_get_and_reset_regularization_loss(self):
-        layers = [
-            BaseLayer(10, 10) for _ in range(3)
-        ]
+        layers = [BaseLayer(10, 10) for _ in range(3)]
 
         def _update(layer_self, x):
             layer_self._regularization_loss = torch.tensor(x)
@@ -686,16 +803,23 @@ class TestSequentialRNN(unittest.TestCase):
         for layer in layers:
             layer.update_regularization_loss = partial(_update, layer)
 
-        model = SequentialRNN(
-            layers=layers
-        )
+        model = SequentialRNN(layers=layers)
         model.build()
-        self.assertTrue(torch.isclose(model.get_and_reset_regularization_loss(), torch.tensor(0.0)))
+        self.assertTrue(
+            torch.isclose(model.get_and_reset_regularization_loss(), torch.tensor(0.0))
+        )
         for layer in layers:
             layer.update_regularization_loss(0.1)
-        self.assertTrue(torch.isclose(model.get_and_reset_regularization_loss(), torch.tensor(0.1)*len(layers)))
+        self.assertTrue(
+            torch.isclose(
+                model.get_and_reset_regularization_loss(),
+                torch.tensor(0.1) * len(layers),
+            )
+        )
         for layer in layers:
-            self.assertTrue(torch.isclose(layer.get_regularization_loss(), torch.tensor(0.0)))
+            self.assertTrue(
+                torch.isclose(layer.get_regularization_loss(), torch.tensor(0.0))
+            )
 
     def test_output_shape_with_out_memory_size(self):
         model = SequentialRNN(
@@ -724,7 +848,11 @@ class TestSequentialRNN(unittest.TestCase):
         ).build()
         x = torch.randn(1, 100, 10)
         y = model.get_prediction_trace(x, foresight_time_steps=20)
-        self.assertEqual(y.shape, torch.Size((1, 119, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
+        self.assertEqual(
+            y.shape,
+            torch.Size((1, 119, 10)),
+            msg=f"Shape of y is {y.shape} and should be (1, 5, 10)",
+        )
 
         model = SequentialRNN(
             layers=[
@@ -733,7 +861,11 @@ class TestSequentialRNN(unittest.TestCase):
         ).build()
         x = torch.randn(1, 100, 10)
         y = model.get_prediction_trace(x, foresight_time_steps=200, trunc_time_steps=20)
-        self.assertEqual(y.shape, torch.Size((1, 20, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
+        self.assertEqual(
+            y.shape,
+            torch.Size((1, 20, 10)),
+            msg=f"Shape of y is {y.shape} and should be (1, 5, 10)",
+        )
 
         model = SequentialRNN(
             layers=[
@@ -743,23 +875,31 @@ class TestSequentialRNN(unittest.TestCase):
         ).build()
         x = torch.randn(1, 100, 10)
         y = model.get_prediction_trace(x, foresight_time_steps=20, trunc_time_steps=200)
-        self.assertEqual(y.shape, torch.Size((1, 5, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
+        self.assertEqual(
+            y.shape,
+            torch.Size((1, 5, 10)),
+            msg=f"Shape of y is {y.shape} and should be (1, 5, 10)",
+        )
 
         model = SequentialRNN(
             layers=[
                 LILayer(10, 10),
             ],
             out_memory_size=5,
-            foresight_time_steps=20
+            foresight_time_steps=20,
         ).build()
         x = torch.randn(1, 100, 10)
         y = model.get_prediction_trace(x, trunc_time_steps=200)
-        self.assertEqual(y.shape, torch.Size((1, 5, 10)), msg=f"Shape of y is {y.shape} and should be (1, 5, 10)")
+        self.assertEqual(
+            y.shape,
+            torch.Size((1, 5, 10)),
+            msg=f"Shape of y is {y.shape} and should be (1, 5, 10)",
+        )
 
     def test_output_shape_with_hh_memory_size(self):
         model = SequentialRNN(
             layers=[
-                LILayer(10, 10, name='layer'),
+                LILayer(10, 10, name="layer"),
             ],
         ).build()
         x = torch.randn(2, 100, 10)
@@ -768,11 +908,15 @@ class TestSequentialRNN(unittest.TestCase):
             hh = hh["layer"]
         if isinstance(hh, tuple):
             hh = hh[0]
-        self.assertEqual(hh.shape[1], 100, msg=f"Shape of hh is {hh.shape} and should be (1, 100, 10)")
+        self.assertEqual(
+            hh.shape[1],
+            100,
+            msg=f"Shape of hh is {hh.shape} and should be (1, 100, 10)",
+        )
 
         model = SequentialRNN(
             layers=[
-                LILayer(10, 10, name='layer'),
+                LILayer(10, 10, name="layer"),
             ],
             hh_memory_size=5,
         ).build()
@@ -786,11 +930,13 @@ class TestSequentialRNN(unittest.TestCase):
 
         model = SequentialRNN(
             layers=[
-                LILayer(10, 10, name='layer'),
+                LILayer(10, 10, name="layer"),
             ],
         ).build()
         x = torch.randn(1, 100, 10)
-        y, hh = model.get_prediction_trace(x, foresight_time_steps=20, return_hidden_states=True)
+        y, hh = model.get_prediction_trace(
+            x, foresight_time_steps=20, return_hidden_states=True
+        )
         if isinstance(hh, dict):
             hh = hh["layer"]
         if isinstance(hh, tuple):
@@ -799,11 +945,13 @@ class TestSequentialRNN(unittest.TestCase):
 
         model = SequentialRNN(
             layers=[
-                LILayer(10, 10, name='layer'),
+                LILayer(10, 10, name="layer"),
             ],
         ).build()
         x = torch.randn(1, 100, 10)
-        y, hh = model.get_prediction_trace(x, foresight_time_steps=200, trunc_time_steps=20, return_hidden_states=True)
+        y, hh = model.get_prediction_trace(
+            x, foresight_time_steps=200, trunc_time_steps=20, return_hidden_states=True
+        )
         if isinstance(hh, dict):
             hh = hh["layer"]
         if isinstance(hh, tuple):
@@ -812,12 +960,14 @@ class TestSequentialRNN(unittest.TestCase):
 
         model = SequentialRNN(
             layers=[
-                LILayer(10, 10, name='layer'),
+                LILayer(10, 10, name="layer"),
             ],
             hh_memory_size=5,
         ).build()
         x = torch.randn(1, 100, 10)
-        y, hh = model.get_prediction_trace(x, foresight_time_steps=20, trunc_time_steps=200, return_hidden_states=True)
+        y, hh = model.get_prediction_trace(
+            x, foresight_time_steps=20, trunc_time_steps=200, return_hidden_states=True
+        )
         if isinstance(hh, dict):
             hh = hh["layer"]
         if isinstance(hh, tuple):
@@ -826,13 +976,15 @@ class TestSequentialRNN(unittest.TestCase):
 
         model = SequentialRNN(
             layers=[
-                LILayer(10, 10, name='layer'),
+                LILayer(10, 10, name="layer"),
             ],
             hh_memory_size=5,
-            foresight_time_steps=20
+            foresight_time_steps=20,
         ).build()
         x = torch.randn(1, 100, 10)
-        y, hh = model.get_prediction_trace(x, trunc_time_steps=200, return_hidden_states=True)
+        y, hh = model.get_prediction_trace(
+            x, trunc_time_steps=200, return_hidden_states=True
+        )
         if isinstance(hh, dict):
             hh = hh["layer"]
         if isinstance(hh, tuple):
@@ -846,25 +998,35 @@ class TestSequentialRNN(unittest.TestCase):
         """
         model = SequentialRNN(layers=[Linear(10, 10), Linear(10, 10)]).build()
         model.to(torch.device("cpu"))
-        self.assertEqual(model.device.type, 'cpu', f"{model.device = }, expected 'cpu'")
+        self.assertEqual(model.device.type, "cpu", f"{model.device = }, expected 'cpu'")
         for layer in model.get_layers():
-            self.assertEqual(layer.device.type, 'cpu', f"{layer.device = }, expected 'cpu'")
+            self.assertEqual(
+                layer.device.type, "cpu", f"{layer.device = }, expected 'cpu'"
+            )
         for m in model.modules():
-            if hasattr(m, 'device'):
-                self.assertEqual(m.device.type, 'cpu', f"{m.device = }, expected 'cpu'")
+            if hasattr(m, "device"):
+                self.assertEqual(m.device.type, "cpu", f"{m.device = }, expected 'cpu'")
         for p in model.parameters():
-            self.assertEqual(p.device.type, 'cpu', f"{p.device = }, expected 'cpu'")
+            self.assertEqual(p.device.type, "cpu", f"{p.device = }, expected 'cpu'")
 
         if torch.cuda.is_available():
             model.to(torch.device("cuda"))
-            self.assertEqual(model.device.type, 'cuda', f"{model.device = }, expected 'cuda'")
+            self.assertEqual(
+                model.device.type, "cuda", f"{model.device = }, expected 'cuda'"
+            )
             for layer in model.get_layers():
-                self.assertEqual(layer.device.type, 'cuda', f"{layer.device = }, expected 'cuda'")
+                self.assertEqual(
+                    layer.device.type, "cuda", f"{layer.device = }, expected 'cuda'"
+                )
             for m in model.modules():
-                if hasattr(m, 'device'):
-                    self.assertEqual(m.device.type, 'cuda', f"{m.device = }, expected 'cuda'")
+                if hasattr(m, "device"):
+                    self.assertEqual(
+                        m.device.type, "cuda", f"{m.device = }, expected 'cuda'"
+                    )
             for p in model.parameters():
-                self.assertEqual(p.device.type, 'cuda', f"{p.device = }, expected 'cuda'")
+                self.assertEqual(
+                    p.device.type, "cuda", f"{p.device = }, expected 'cuda'"
+                )
         else:
             warnings.warn(
                 "No CUDA available. Skipping test_to. Please consider running the tests on a machine "
@@ -875,30 +1037,38 @@ class TestSequentialRNN(unittest.TestCase):
     def test_set_device(self):
         model = SequentialRNN(layers=[Linear(10, 10), Linear(10, 10)]).build()
         model.device = torch.device("cpu")
-        self.assertEqual(model.device.type, 'cpu', f"{model.device = }, expected 'cpu'")
+        self.assertEqual(model.device.type, "cpu", f"{model.device = }, expected 'cpu'")
         for layer in model.get_layers():
-            self.assertEqual(layer.device.type, 'cpu', f"{layer.device = }, expected 'cpu'")
+            self.assertEqual(
+                layer.device.type, "cpu", f"{layer.device = }, expected 'cpu'"
+            )
         for m in model.modules():
-            if hasattr(m, 'device'):
-                self.assertEqual(m.device.type, 'cpu', f"{m.device = }, expected 'cpu'")
+            if hasattr(m, "device"):
+                self.assertEqual(m.device.type, "cpu", f"{m.device = }, expected 'cpu'")
         for p in model.parameters():
-            self.assertEqual(p.device.type, 'cpu', f"{p.device = }, expected 'cpu'")
+            self.assertEqual(p.device.type, "cpu", f"{p.device = }, expected 'cpu'")
 
         if torch.cuda.is_available():
             model.device = torch.device("cuda")
-            self.assertEqual(model.device.type, 'cuda', f"{model.device = }, expected 'cuda'")
+            self.assertEqual(
+                model.device.type, "cuda", f"{model.device = }, expected 'cuda'"
+            )
             for layer in model.get_layers():
-                self.assertEqual(layer.device.type, 'cuda', f"{layer.device = }, expected 'cuda'")
+                self.assertEqual(
+                    layer.device.type, "cuda", f"{layer.device = }, expected 'cuda'"
+                )
             for m in model.modules():
-                if hasattr(m, 'device'):
-                    self.assertEqual(m.device.type, 'cuda', f"{m.device = }, expected 'cuda'")
+                if hasattr(m, "device"):
+                    self.assertEqual(
+                        m.device.type, "cuda", f"{m.device = }, expected 'cuda'"
+                    )
             for p in model.parameters():
-                self.assertEqual(p.device.type, 'cuda', f"{p.device = }, expected 'cuda'")
+                self.assertEqual(
+                    p.device.type, "cuda", f"{p.device = }, expected 'cuda'"
+                )
         else:
             warnings.warn(
                 "No CUDA available. Skipping test_to. Please consider running the tests on a machine "
                 "with CUDA.",
                 UserWarning,
             )
-
-

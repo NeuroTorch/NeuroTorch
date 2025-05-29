@@ -25,7 +25,7 @@ def hash_params(params: Dict[str, Any]):
 
     :return: The hash of the parameters.
     """
-    return int(hashlib.md5(get_meta_name(params).encode('utf-8')).hexdigest(), 16)
+    return int(hashlib.md5(get_meta_name(params).encode("utf-8")).hexdigest(), 16)
 
 
 def get_meta_str(__obj: Any) -> str:
@@ -56,18 +56,16 @@ def get_meta_str(__obj: Any) -> str:
     meta_name = f""
     if isinstance(__obj, collections.abc.Mapping):
         keys = sorted(list(__obj.keys()))
-        meta_name = '_'.join([f"{k}-{get_meta_str(__obj[k])}" for k in keys])
+        meta_name = "_".join([f"{k}-{get_meta_str(__obj[k])}" for k in keys])
     elif isinstance(__obj, collections.abc.Iterable):
-        meta_name = '_'.join([get_meta_str(k) for k in __obj])
+        meta_name = "_".join([get_meta_str(k) for k in __obj])
     else:
         meta_name = str(repr(__obj))
     return meta_name
 
 
 def hash_meta_str(
-        __obj: Any,
-        hash_mth: str = "md5",
-        out_type: str = "hex"
+    __obj: Any, hash_mth: str = "md5", out_type: str = "hex"
 ) -> Union[str, int]:
     """
     Hash an object to get a unique and persistent id. The hash is computed by hashing the
@@ -87,9 +85,9 @@ def hash_meta_str(
         raise ValueError(f"hash_mth must be in {hashlib.algorithms_available}")
     hash_func = getattr(hashlib, hash_mth, hashlib.md5)
     if out_type == "hex":
-        return hash_func(get_meta_str(__obj).encode('utf-8')).hexdigest()
+        return hash_func(get_meta_str(__obj).encode("utf-8")).hexdigest()
     elif out_type == "int":
-        return int(hash_func(get_meta_str(__obj).encode('utf-8')).hexdigest(), 16)
+        return int(hash_func(get_meta_str(__obj).encode("utf-8")).hexdigest(), 16)
     raise ValueError(f"out_type must be in {available_out_type}")
 
 
@@ -115,17 +113,24 @@ def get_all_params_combinations(params_space: Dict[str, Any]) -> List[Dict[str, 
     :return: List of dictionaries of parameters.
     """
     import itertools
+
     # get all the combinaison of the parameters
     all_params = list(params_space.keys())
     all_params_values = list(params_space.values())
-    all_params_combinaison = list(map(lambda x: list(x), list(itertools.product(*all_params_values))))
+    all_params_combinaison = list(
+        map(lambda x: list(x), list(itertools.product(*all_params_values)))
+    )
 
     # create a list of dict of all the combinaison
-    all_params_combinaison_dict = list(map(lambda x: dict(zip(all_params, x)), all_params_combinaison))
+    all_params_combinaison_dict = list(
+        map(lambda x: dict(zip(all_params, x)), all_params_combinaison)
+    )
     return all_params_combinaison_dict
 
 
-def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Sequential:
+def list_of_callable_to_sequential(
+    callable_list: List[Callable],
+) -> torch.nn.Sequential:
     """
     Convert a list of callable to a list of modules.
 
@@ -134,6 +139,7 @@ def list_of_callable_to_sequential(callable_list: List[Callable]) -> torch.nn.Se
     :return: List of modules.
     """
     from neurotorch.transforms.wrappers import CallableToModuleWrapper
+
     return torch.nn.Sequential(
         *[
             c if isinstance(c, torch.nn.Module) else CallableToModuleWrapper(c)
@@ -213,12 +219,12 @@ def unpack_x_hh_y(__input) -> Tuple[Any, Any, Any]:
 
 
 def unpack_tuple(
-        x: Any,
-        expected_length: int,
-        fill_value: Any = None,
-        fill_method: str = "middle",
-        aggregate_method: str = "middle",
-        aggregate_type: Type = tuple,
+    x: Any,
+    expected_length: int,
+    fill_value: Any = None,
+    fill_method: str = "middle",
+    aggregate_method: str = "middle",
+    aggregate_type: Type = tuple,
 ) -> tuple:
     """
     Unpack a tuple of a specific length. If the tuple has a different length, one of the following
@@ -264,11 +270,15 @@ def unpack_tuple(
             n_fill = expected_length - x_length
             idx_start_fill = int(x_length / 2)
             idx_end_fill = idx_start_fill + n_fill - 1
-            x_indexes = list(set(indexes) - set(range(idx_start_fill, idx_end_fill + 1)))
+            x_indexes = list(
+                set(indexes) - set(range(idx_start_fill, idx_end_fill + 1))
+            )
             for i, idx in enumerate(x_indexes):
                 output[idx] = x[i]
         else:
-            raise ValueError(f"fill_method must be in ['left', 'right', 'middle']. Got {fill_method}.")
+            raise ValueError(
+                f"fill_method must be in ['left', 'right', 'middle']. Got {fill_method}."
+            )
     elif x_length > expected_length:
         n_aggregate = x_length - expected_length + 1
         if aggregate_method == "left":
@@ -279,12 +289,14 @@ def unpack_tuple(
             idx_start_aggregate = int(n_aggregate / 2)
             idx_end_aggregate = idx_start_aggregate + n_aggregate
             output = (
-                    list(x[:idx_start_aggregate])
-                    + [aggregate_type(x[idx_start_aggregate:idx_end_aggregate])]
-                    + list(x[idx_end_aggregate:])
+                list(x[:idx_start_aggregate])
+                + [aggregate_type(x[idx_start_aggregate:idx_end_aggregate])]
+                + list(x[idx_end_aggregate:])
             )
         else:
-            raise ValueError(f"aggregate_method must be in ['left', 'right', 'middle']. Got {aggregate_method}.")
+            raise ValueError(
+                f"aggregate_method must be in ['left', 'right', 'middle']. Got {aggregate_method}."
+            )
     return tuple(output)
 
 

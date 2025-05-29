@@ -24,7 +24,3 @@ class TestMeanConv(unittest.TestCase):
         x = torch.rand(10, 8 * 16 - 2, 5)
         y = mean_conv(x)
         self.assertEqual(y.shape, (10, 16, 5))
-		
-
-
-

@@ -17,12 +17,12 @@ class RegressionTrainer(Trainer):
         kwargs.setdefault("foresight_time_steps", None)
         return kwargs
 
-    def _set_default_criterion(self, criterion: Optional[torch.nn.Module]) -> torch.nn.Module:
+    def _set_default_criterion(
+        self, criterion: Optional[torch.nn.Module]
+    ) -> torch.nn.Module:
         if criterion is None:
             if isinstance(self.model.output_sizes, dict):
-                criterion = {
-                    k: torch.nn.MSELoss() for k in self.model.output_sizes
-                }
+                criterion = {k: torch.nn.MSELoss() for k in self.model.output_sizes}
             elif isinstance(self.model.output_sizes, int):
                 criterion = torch.nn.MSELoss()
             else:
@@ -33,5 +33,3 @@ class RegressionTrainer(Trainer):
         if metrics is None:
             metrics = [RegressionMetrics(self.model)]
         return metrics
-
-

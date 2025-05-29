@@ -31,10 +31,10 @@ class SpikeFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(
-            ctx: torch.autograd.function.FunctionCtx,
-            inputs: torch.Tensor,
-            threshold: torch.Tensor = torch.tensor(1.0),
-            gamma: torch.Tensor = torch.tensor(1.0)
+        ctx: torch.autograd.function.FunctionCtx,
+        inputs: torch.Tensor,
+        threshold: torch.Tensor = torch.tensor(1.0),
+        gamma: torch.Tensor = torch.tensor(1.0),
     ) -> torch.Tensor:
         """
         The forward pass of the spike function is the Heaviside function. See the heaviside equation.
@@ -96,7 +96,9 @@ class HeavisideSigmoidApprox(SpikeFunction):
     """
 
     @staticmethod
-    def backward(ctx: torch.autograd.function.FunctionCtx, grad_outputs: torch.Tensor) -> Any:
+    def backward(
+        ctx: torch.autograd.function.FunctionCtx, grad_outputs: torch.Tensor
+    ) -> Any:
         """
         The implementation of the equation :eq:`fast_sigmoid_derivative`.
 
@@ -108,7 +110,9 @@ class HeavisideSigmoidApprox(SpikeFunction):
         """
         inputs, threshold, scale = ctx.saved_tensors
         grad_outputs_clone = grad_outputs.clone()
-        inputs_grad = grad_outputs_clone / (scale * torch.abs(inputs - threshold) + 1.0) ** 2
+        inputs_grad = (
+            grad_outputs_clone / (scale * torch.abs(inputs - threshold) + 1.0) ** 2
+        )
         if ctx.needs_input_grad[1]:
             threshold_grad = -inputs_grad.clone()
         else:
@@ -133,12 +137,17 @@ class HeavisidePhiApprox(SpikeFunction):
     .. bibliography::
 
     """
+
     epsilon = 1e-5
 
     @staticmethod
     def pseudo_derivative(inputs, threshold, gamma):
         return (gamma / (threshold + HeavisidePhiApprox.epsilon)) * torch.max(
-            torch.zeros_like(inputs), 1 - torch.abs((inputs - threshold) / (threshold + HeavisidePhiApprox.epsilon))
+            torch.zeros_like(inputs),
+            1
+            - torch.abs(
+                (inputs - threshold) / (threshold + HeavisidePhiApprox.epsilon)
+            ),
         )
 
     @staticmethod
@@ -153,8 +162,16 @@ class HeavisidePhiApprox(SpikeFunction):
         :return: The gradient of the loss with respect to the input of the forward pass.
         """
         inputs, threshold, gamma = ctx.saved_tensors
-        inputs_grad = grad_outputs.clone() * (gamma / (threshold + HeavisidePhiApprox.epsilon)) * torch.max(
-            torch.zeros_like(inputs), 1 - torch.abs((inputs - threshold) / (threshold + HeavisidePhiApprox.epsilon))
+        inputs_grad = (
+            grad_outputs.clone()
+            * (gamma / (threshold + HeavisidePhiApprox.epsilon))
+            * torch.max(
+                torch.zeros_like(inputs),
+                1
+                - torch.abs(
+                    (inputs - threshold) / (threshold + HeavisidePhiApprox.epsilon)
+                ),
+            )
         )
         if ctx.needs_input_grad[1]:
             threshold_grad = -inputs_grad.clone()
@@ -168,18 +185,16 @@ SpikeFuncType2Func = {
     SpikeFuncType.Phi: HeavisidePhiApprox,
 }
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import numpy as np
 
     th, sc = torch.tensor(1.0), torch.tensor(1.0)
     funcs = {
         "FastSigmoid": HeavisideSigmoidApprox.apply,
-        "Bellec": HeavisidePhiApprox.apply
+        "Bellec": HeavisidePhiApprox.apply,
     }
-    grads = {
-        name: [] for name in funcs
-    }
+    grads = {name: [] for name in funcs}
     X = torch.tensor(np.linspace(th - 2, th + 2, num=1_000), requires_grad=False)
     Y = SpikeFunction.apply(X, th, sc)
     for name, func in funcs.items():

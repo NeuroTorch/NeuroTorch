@@ -12,15 +12,16 @@ class MeanConv(torch.nn.Module):
     Apply a weighted mean filter to the input tensor.
 
     """
+
     def __init__(
-            self,
-            kernel_size: int,
-            alpha: Union[float, torch.Tensor, np.ndarray] = 1.0,
-            learn_alpha: bool = True,
-            learn_kernel: bool = True,
-            activation: torch.nn.Module = torch.nn.Identity(),
-            pad_value: Optional[float] = 0.0,
-            pad_mode: str = "left",
+        self,
+        kernel_size: int,
+        alpha: Union[float, torch.Tensor, np.ndarray] = 1.0,
+        learn_alpha: bool = True,
+        learn_kernel: bool = True,
+        activation: torch.nn.Module = torch.nn.Identity(),
+        pad_value: Optional[float] = 0.0,
+        pad_mode: str = "left",
     ):
         """
         Constructor for MeanConv class.
@@ -39,7 +40,9 @@ class MeanConv(torch.nn.Module):
         super(MeanConv, self).__init__()
         self.kernel_size = kernel_size
         self.learn_kernel = learn_kernel
-        self.kernel = torch.nn.Parameter(torch.ones(1, self.kernel_size, 1), requires_grad=learn_kernel)
+        self.kernel = torch.nn.Parameter(
+            torch.ones(1, self.kernel_size, 1), requires_grad=learn_kernel
+        )
         self.learn_alpha = learn_alpha
         self.alpha = torch.nn.Parameter(to_tensor(alpha), requires_grad=learn_alpha)
         self.activation = activation
@@ -49,7 +52,9 @@ class MeanConv(torch.nn.Module):
     def extra_repr(self):
         extra_repr = f"kernel(size={self.kernel_size}, learn={self.learn_kernel})"
         if self.learn_alpha:
-            extra_repr += f"\nalpha(size={tuple(self.alpha.shape)} learn={self.learn_alpha})"
+            extra_repr += (
+                f"\nalpha(size={tuple(self.alpha.shape)} learn={self.learn_alpha})"
+            )
         else:
             if torch.numel(self.alpha) == 1:
                 extra_repr += f"\nalpha(value={self.alpha.detach().cpu().item()})"
@@ -72,11 +77,7 @@ class MeanConv(torch.nn.Module):
             inputs = torch.nn.functional.pad(inputs, pad=pad, value=self.pad_value)
 
         inputs_view = torch.reshape(inputs, (batch_size, -1, self.kernel_size, n_units))
-        inputs_mean = self.alpha * torch.sum(self.kernel * inputs_view, dim=2) / self.kernel_size
+        inputs_mean = (
+            self.alpha * torch.sum(self.kernel * inputs_view, dim=2) / self.kernel_size
+        )
         return self.activation(inputs_mean)
-	
-
-
-
-
-

@@ -17,17 +17,18 @@ class EventOnMetricThreshold(BaseCallback):
         - **event_args** (tuple): The arguments to pass to the event.
         - **event_kwargs** (dict): The keyword arguments to pass to the event.
     """
+
     def __init__(
-            self,
-            metric_name: str,
-            threshold: float,
-            *,
-            event: Callable,
-            event_args: Optional[tuple] = None,
-            event_kwargs: Optional[dict] = None,
-            minimize_metric: bool = True,
-            do_once: bool = False,
-            **kwargs
+        self,
+        metric_name: str,
+        threshold: float,
+        *,
+        event: Callable,
+        event_args: Optional[tuple] = None,
+        event_kwargs: Optional[dict] = None,
+        minimize_metric: bool = True,
+        do_once: bool = False,
+        **kwargs,
     ):
         """
         Constructor for the EventOnMetricThreshold class.
@@ -73,7 +74,9 @@ class EventOnMetricThreshold(BaseCallback):
             else:
                 threshold_reached = metric_value >= self.threshold
             if threshold_reached:
-                self._current_event_output = self.event(trainer, *self.event_args, **self.event_kwargs)
+                self._current_event_output = self.event(
+                    trainer, *self.event_args, **self.event_kwargs
+                )
                 self._has_triggered = True
 
     def on_pbar_update(self, trainer, **kwargs) -> dict:
@@ -89,7 +92,3 @@ class EventOnMetricThreshold(BaseCallback):
         if self._current_event_output is not None:
             return {self.name: self._current_event_output}
         return dict()
-
-
-
-

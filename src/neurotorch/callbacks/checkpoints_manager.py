@@ -61,7 +61,7 @@ class CheckpointManager(BaseCallback):
 
     DEFAULT_PRIORITY = BaseCallback.DEFAULT_LOW_PRIORITY
 
-    SAVE_EXT: str = ".pth"
+    SAVE_EXT: str = ".pt"
     SUFFIX_SEP: str = "-"
     CHECKPOINTS_META_SUFFIX: str = "checkpoints"
     CHECKPOINT_SAVE_PATH_KEY: str = "save_path"
@@ -315,7 +315,9 @@ class CheckpointManager(BaseCallback):
         filename = CheckpointManager.get_save_name_from_checkpoints(
             info, load_checkpoint_mode
         )
-        checkpoint = torch.load(f"{self.checkpoint_folder}/{filename}")
+        checkpoint = torch.load(
+            f"{self.checkpoint_folder}/{filename}", weights_only=False
+        )
         return checkpoint
 
     def save_checkpoints_meta(self, new_info: dict):

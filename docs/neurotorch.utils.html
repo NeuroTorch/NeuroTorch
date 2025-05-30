@@ -1,0 +1,797 @@
+
+
+<!DOCTYPE html>
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>neurotorch.utils package &mdash; NeuroTorch  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="static/css/theme.min.css" type="text/css" />
+  <link rel="stylesheet" href="static/css/custom.css" type="text/css" />
+  <link rel="stylesheet" href="static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="static/css/theme.min.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="neurotorch.visualisation package" href="neurotorch.visualisation.html" />
+    <link rel="prev" title="neurotorch.transforms package" href="neurotorch.transforms.html" /> 
+
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <a class="site-nav-toggle hidden-lg-up"><i class="icon-menu"></i></a>
+            <a class="site-title" href="index.html">
+                NeuroTorch
+            </a>
+        </div>
+    </header>
+
+
+<div class="breadcrumbs-outer hidden-xs-down">
+    <div class="container">
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="breadcrumbs">
+    
+      <li><a href="index.html">Docs</a></li>
+        
+          <li><a href="neurotorch.html">neurotorch package</a></li>
+        
+      <li>neurotorch.utils package</li>
+    
+    
+      <li class="breadcrumbs-aside">
+        
+            
+            <a href="sources/neurotorch.utils.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+</div>
+    </div>
+</div>
+    <div class="main-outer">
+        <div class="container">
+            <div class="row">
+                <div class="col-12 col-lg-3 site-nav">
+                    
+<div role="search">
+    <form class="search" action="search.html" method="get">
+        <div class="icon-input">
+            <input type="text" name="q" placeholder="Search" />
+            <span class="icon-search"></span>
+        </div>
+        <input type="submit" value="Go" class="d-hidden" />
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+                    <div class="site-nav-tree">
+                        
+                            
+                            
+                                <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="readme.html">1. Description</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="readme.html#current-version">Current Version</a></li>
+<li class="toctree-l2"><a class="reference internal" href="readme.html#next-versions">Next Versions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#installation">2. Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="readme.html#last-unstable-version">2.1 Last unstable version</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#tutorials-applications">3. Tutorials / Applications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#quick-usage-preview">4. Quick usage preview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#why-neurotorch">5. Why NeuroTorch?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#similar-work">6. Similar work</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#about">7. About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#important-links">8. Important Links</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#found-a-bug-or-have-a-feature-request">9. Found a bug or have a feature request?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#thanks">10. Thanks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#license">11. License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#citation">12. Citation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Modules:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="neurotorch.html">neurotorch package</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="neurotorch.html#subpackages">Subpackages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neurotorch.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neurotorch.html#module-neurotorch.dimension">neurotorch.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neurotorch.html#module-neurotorch">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+                            
+                        
+                    </div>
+                </div>
+                <div class="col-12 col-lg-9">
+                    <div class="document">
+                        
+                            
+  <section id="neurotorch-utils-package">
+<h1>neurotorch.utils package<a class="headerlink" href="#neurotorch-utils-package" title="Permalink to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
+</section>
+<section id="module-neurotorch.utils.autograd">
+<span id="neurotorch-utils-autograd-module"></span><h2>neurotorch.utils.autograd module<a class="headerlink" href="#module-neurotorch.utils.autograd" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.autograd.compute_jacobian">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.autograd.</span></span><span class="sig-name descname"><span class="pre">compute_jacobian</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'slow'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.autograd.compute_jacobian" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the jacobian of the model with respect to the parameters.</p>
+<p># TODO: check <a class="reference external" href="https://medium.com/&#64;monadsblog/pytorch-backward-function-e5e2b7e60140">https://medium.com/&#64;monadsblog/pytorch-backward-function-e5e2b7e60140</a>
+# TODO: see <a class="reference external" href="https://pytorch.org/tutorials/beginner/blitz/autograd_tutorial.html#sphx-glr-beginner-blitz-autograd-tutorial-py">https://pytorch.org/tutorials/beginner/blitz/autograd_tutorial.html#sphx-glr-beginner-blitz-autograd-tutorial-py</a></p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model</strong> – The model to compute the jacobian.</p></li>
+<li><p><strong>params</strong> – The parameters to compute the jacobian with respect to. If None, compute the jacobian
+with respect to all the parameters of the model.</p></li>
+<li><p><strong>x</strong> – The input to compute the jacobian. If None, use y instead.</p></li>
+<li><p><strong>y</strong> – The output to compute the jacobian. If None, use x instead.</p></li>
+<li><p><strong>strategy</strong> – The strategy to use to compute the jacobian. Can be “slow” or “fast”. At this time the only
+strategy implemented is “slow”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The jacobian.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.autograd.dy_dw_local">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.autograd.</span></span><span class="sig-name descname"><span class="pre">dy_dw_local</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grad_outputs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retain_graph</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_unused</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#neurotorch.utils.autograd.dy_dw_local" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the derivative of z with respect to the parameters using torch.autograd.grad. If a parameter not
+requires grad, the derivative is set to zero.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>y</strong> (<em>torch.Tensor</em>) – The tensor to compute the derivative.</p></li>
+<li><p><strong>params</strong> (<em>Sequence</em><em>[</em><em>torch.nn.Parameter</em><em>]</em>) – The parameters to compute the derivative with respect to.</p></li>
+<li><p><strong>grad_outputs</strong> (<em>torch.Tensor</em><em> or </em><em>None</em>) – The gradient of the output. If None, use a tensor of ones.</p></li>
+<li><p><strong>retain_graph</strong> (<em>bool</em>) – If True, the graph used to compute the grad will be retained.</p></li>
+<li><p><strong>allow_unused</strong> (<em>bool</em>) – If True, allow the computation of the derivative with respect to a parameter that is not
+used in the computation of z.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The derivative of z with respect to the parameters.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>List[torch.Tensor]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.autograd.filter_parameters">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.autograd.</span></span><span class="sig-name descname"><span class="pre">filter_parameters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ParameterList</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">requires_grad</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#neurotorch.utils.autograd.filter_parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Filter the parameters by their requires_grad attribute.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>parameters</strong> – The parameters to filter.</p></li>
+<li><p><strong>requires_grad</strong> – The value of the requires_grad attribute to filter.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The filtered parameters.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.autograd.get_contributing_params">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.autograd.</span></span><span class="sig-name descname"><span class="pre">get_contributing_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">top_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.autograd.get_contributing_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the parameters that contribute to the computation of y.</p>
+<p>Taken from “<a class="reference external" href="https://stackoverflow.com/questions/72301628/find-pytorch-model-parameters-that-dont-contribute-to-loss">https://stackoverflow.com/questions/72301628/find-pytorch-model-parameters-that-dont-contribute-to-loss</a>”.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>y</strong> – The tensor to compute the contribution of the parameters.</p></li>
+<li><p><strong>top_level</strong> (<em>bool</em>) – Whether y is a top level tensor or not.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A generator of the parameters that contribute to the computation of y.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.autograd.recursive_detach">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.autograd.</span></span><span class="sig-name descname"><span class="pre">recursive_detach</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tensors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.autograd.recursive_detach" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.autograd.recursive_detach_">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.autograd.</span></span><span class="sig-name descname"><span class="pre">recursive_detach_</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tensors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.autograd.recursive_detach_" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.autograd.vmap">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.autograd.</span></span><span class="sig-name descname"><span class="pre">vmap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.autograd.vmap" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.autograd.zero_grad_params">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.autograd.</span></span><span class="sig-name descname"><span class="pre">zero_grad_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.autograd.zero_grad_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the gradient of the parameters to zero.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>params</strong> – The parameters to set the gradient to zero.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-neurotorch.utils.collections">
+<span id="neurotorch-utils-collections-module"></span><h2>neurotorch.utils.collections module<a class="headerlink" href="#module-neurotorch.utils.collections" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.get_all_params_combinations">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">get_all_params_combinations</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params_space</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#neurotorch.utils.collections.get_all_params_combinations" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get all possible combinations of parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>params_space</strong> – Dictionary of parameters.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>List of dictionaries of parameters.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.get_meta_name">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">get_meta_name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.collections.get_meta_name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.get_meta_str">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">get_meta_str</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">__obj</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#neurotorch.utils.collections.get_meta_str" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the meta string of an object. The meta string is a string representation of the object
+that can be used as a file name. All mappings are sorted by keys before being converted to
+strings.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>__obj</strong> – The object to get the meta string of.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The meta string of the object.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">get_meta_str</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="go">&#39;1&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">get_meta_str</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="go">&#39;1_2_3&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">get_meta_str</span><span class="p">({</span><span class="s2">&quot;a&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;b&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">})</span>
+<span class="go">&#39;a-1_b-2&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">get_meta_str</span><span class="p">([{</span><span class="s2">&quot;b&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="p">{</span><span class="mi">1</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span> <span class="mi">4</span><span class="p">}])</span>
+<span class="go">&#39;a-1_b-2_1-2_3-4&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">CustomObject</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="s2">&quot;my_repr&quot;</span>
+<span class="gp">... </span><span class="n">get_meta_str</span><span class="p">([{</span><span class="s2">&quot;b&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span> <span class="p">{</span><span class="mi">1</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span> <span class="mi">4</span><span class="p">},</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="n">CustomObject</span><span class="p">()])</span>
+<span class="go">&#39;a-1_b-2_1-2_3-4_5_6_7_my_repr&#39;</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.hash_meta_str">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">hash_meta_str</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">__obj</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hash_mth</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'md5'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'hex'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span></span></span><a class="headerlink" href="#neurotorch.utils.collections.hash_meta_str" title="Permalink to this definition">¶</a></dt>
+<dd><p>Hash an object to get a unique and persistent id. The hash is computed by hashing the
+string representation of the entry. The string representation is obtained using the function
+<cite>get_meta_str</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>__obj</strong> – The object to hash.</p></li>
+<li><p><strong>hash_mth</strong> – The hash method to use. Must be in hashlib.algorithms_available. Default is “md5”.</p></li>
+<li><p><strong>out_type</strong> – The type of the output. Must be in [“hex”, “int”]. Default is “hex”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The hash of the object.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.hash_params">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">hash_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.collections.hash_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Hash the parameters to get a unique and persistent id.</p>
+<dl class="simple">
+<dt>Note: This is the old version of hash_params. It is kept for compatibility with old code.</dt><dd><p>Please use hash_dict instead which is more general and offers more options.</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>params</strong> – The parameters to hash.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The hash of the parameters.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.list_insert_replace_at">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">list_insert_replace_at</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">__list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.collections.list_insert_replace_at" title="Permalink to this definition">¶</a></dt>
+<dd><p>Insert a value at a specific index. If there is already a value at this index, replace it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>__list</strong> – The list to modify.</p></li>
+<li><p><strong>idx</strong> – The index to insert the value.</p></li>
+<li><p><strong>value</strong> – The value to insert.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.list_of_callable_to_sequential">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">list_of_callable_to_sequential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">callable_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Sequential</span></span></span><a class="headerlink" href="#neurotorch.utils.collections.list_of_callable_to_sequential" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert a list of callable to a list of modules.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>callable_list</strong> – List of callable.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>List of modules.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.mapping_update_recursively">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">mapping_update_recursively</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.collections.mapping_update_recursively" title="Permalink to this definition">¶</a></dt>
+<dd><p>from <a class="reference external" href="https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth">https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth</a></p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>d</strong> – mapping item that wil be updated</p></li>
+<li><p><strong>u</strong> – mapping item updater</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>updated mapping recursively</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.maybe_unpack_singleton_dict">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">maybe_unpack_singleton_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Any</span></span></span><a class="headerlink" href="#neurotorch.utils.collections.maybe_unpack_singleton_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Accept a dict or any other type. If x is a dict with one key and value, the singleton is unpacked. Otherwise, x is
+returned without being changed.
+:param x:
+:return:</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.save_params">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">save_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.collections.save_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Save the parameters in a file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>save_path</strong> – The path to save the parameters.</p></li>
+<li><p><strong>params</strong> – The parameters to save.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The path to the saved parameters.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.sequence_get">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">sequence_get</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">__sequence</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Any</span></span></span><a class="headerlink" href="#neurotorch.utils.collections.sequence_get" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.unpack_out_hh">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">unpack_out_hh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">out</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.collections.unpack_out_hh" title="Permalink to this definition">¶</a></dt>
+<dd><p>Unpack the output of a recurrent network.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>out</strong> – The output of a recurrent network.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The output of the recurrent network with the hidden state.
+If there is no hidden state, consider it as None.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.unpack_singleton_dict">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">unpack_singleton_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Any</span></span></span><a class="headerlink" href="#neurotorch.utils.collections.unpack_singleton_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Unpack a dictionary with a single key and value. If the dict has more than one key, a ValueError is raised.
+:param x:
+:return:</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.unpack_tuple">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">unpack_tuple</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x:</span> <span class="pre">~typing.Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expected_length:</span> <span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_value:</span> <span class="pre">~typing.Any</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_method:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'middle'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aggregate_method:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">'middle'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aggregate_type:</span> <span class="pre">~typing.Type</span> <span class="pre">=</span> <span class="pre">&lt;class</span> <span class="pre">'tuple'&gt;</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span></span></span><a class="headerlink" href="#neurotorch.utils.collections.unpack_tuple" title="Permalink to this definition">¶</a></dt>
+<dd><p>Unpack a tuple of a specific length. If the tuple has a different length, one of the following
+output is returned:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>If the input ‘x’ has the expected length, the input ‘x’ unpacked is returned.</p></li>
+<li><dl class="simple">
+<dt>If the input ‘x’ has a length lower than the expected length, the input ‘x’ unpacked is</dt><dd><p>returned with ‘fill_value’ appended to it using the ‘fill_method’.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>If the input ‘x’ has a length greater than the expected length, the input ‘x’ unpacked is</dt><dd><p>returned with the elements packed together using the ‘aggregate_method’.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>Any</em>) – The tuple to unpack.</p></li>
+<li><p><strong>expected_length</strong> (<em>int</em>) – The expected length of the tuple.</p></li>
+<li><p><strong>fill_value</strong> (<em>Any</em>) – The value to fill the tuple with if the length of the tuple is lower than the
+expected length. Default is None.</p></li>
+<li><p><strong>fill_method</strong> (<em>str</em>) – The method to use to fill the tuple with ‘fill_value’s if the length of the tuple is lower than
+the expected length. Must be in [“left”, “right”, “middle”]. Default is “middle”.</p></li>
+<li><p><strong>aggregate_method</strong> (<em>str</em>) – The method to use to aggregate the tuple if the length of the tuple is
+greater than the expected length. Must be in [“left”, “right”, “middle”]. Default is “middle”.</p></li>
+<li><p><strong>aggregate_type</strong> – The type of the aggregated items if the length of the tuple is greater than the
+expected length. Generally one of [tuple, list]. Default is tuple.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The unpacked tuple.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+<p>TODO: Optimize this function.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.collections.unpack_x_hh_y">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.collections.</span></span><span class="sig-name descname"><span class="pre">unpack_x_hh_y</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">__input</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#neurotorch.utils.collections.unpack_x_hh_y" title="Permalink to this definition">¶</a></dt>
+<dd><p>Unpack the input, hidden state and target of a recurrent network.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>__input</strong> – The input to unpack.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The input of the recurrent network with the hidden state and the target.
+If there is no hidden state, consider it as None.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-neurotorch.utils.formatting">
+<span id="neurotorch-utils-formatting-module"></span><h2>neurotorch.utils.formatting module<a class="headerlink" href="#module-neurotorch.utils.formatting" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.formatting.format_pred_batch">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.formatting.</span></span><span class="sig-name descname"><span class="pre">format_pred_batch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">raw_pred_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.formatting.format_pred_batch" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function format the raw pred batch to the same format as y_batch. For example, if y_batch is a dict, then
+raw_pred_batch will be converted to a dict. If raw_pred_batch is a tuple or a list, then raw_pred_batch is
+consider to be in the following format : pred, hidden_state. In this case, only pred will be taken.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>raw_pred_batch</strong> – </p></li>
+<li><p><strong>y_batch</strong> – </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-neurotorch.utils.random">
+<span id="neurotorch-utils-random-module"></span><h2>neurotorch.utils.random module<a class="headerlink" href="#module-neurotorch.utils.random" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.random.format_pseudo_rn_seed">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.random.</span></span><span class="sig-name descname"><span class="pre">format_pseudo_rn_seed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="headerlink" href="#neurotorch.utils.random.format_pseudo_rn_seed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Format the pseudo random number generator seed. If the seed is None, return a pseudo random seed
+else return the given seed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>seed</strong> (<em>int</em><em> or </em><em>None</em>) – The seed to format.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The formatted seed.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.random.set_seed">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.random.</span></span><span class="sig-name descname"><span class="pre">set_seed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.random.set_seed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the seed of the random number generator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>seed</strong> – The seed to set.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.random.unitary_rn_normal_matrix">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.random.</span></span><span class="sig-name descname"><span class="pre">unitary_rn_normal_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">m</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Generator</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tensor</span></span></span><a class="headerlink" href="#neurotorch.utils.random.unitary_rn_normal_matrix" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-neurotorch.utils.visualise">
+<span id="neurotorch-utils-visualise-module"></span><h2>neurotorch.utils.visualise module<a class="headerlink" href="#module-neurotorch.utils.visualise" title="Permalink to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.visualise.legend_without_duplicate_labels_">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.visualise.</span></span><span class="sig-name descname"><span class="pre">legend_without_duplicate_labels_</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Axes</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.visualise.legend_without_duplicate_labels_" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.visualise.plot_confusion_matrix">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.visualise.</span></span><span class="sig-name descname"><span class="pre">plot_confusion_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cm</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classes</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.visualise.plot_confusion_matrix" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-neurotorch.utils">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-neurotorch.utils" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="neurotorch.utils.ConnectivityConvention">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">neurotorch.utils.</span></span><span class="sig-name descname"><span class="pre">ConnectivityConvention</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.ConnectivityConvention" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></p>
+<p>Enum class to specify the convention used to define the connectivity matrix.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">ItoJ</span></code>: The connectivity matrix is defined as <code class="docutils literal notranslate"><span class="pre">W[i,</span> <span class="pre">j]</span></code> where <code class="docutils literal notranslate"><span class="pre">i</span></code> is the index of the pre-synaptic</dt><dd><p>neuron and <code class="docutils literal notranslate"><span class="pre">j</span></code> is the index of the post-synaptic neuron.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">JtoI</span></code>: The connectivity matrix is defined as <code class="docutils literal notranslate"><span class="pre">W[i,</span> <span class="pre">j]</span></code> where <code class="docutils literal notranslate"><span class="pre">i</span></code> is the index of the post-synaptic</dt><dd><p>neuron and <code class="docutils literal notranslate"><span class="pre">j</span></code> is the index of the pre-synaptic neuron.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The convention <code class="docutils literal notranslate"><span class="pre">ItoJ</span></code> is the one used by default in NeuroTorch. In this case, if the convention is not
+specified in a function, method, class or a feature, it is assumed to be <code class="docutils literal notranslate"><span class="pre">ItoJ</span></code>.</p>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.utils.ConnectivityConvention.ItoJ">
+<span class="sig-name descname"><span class="pre">ItoJ</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#neurotorch.utils.ConnectivityConvention.ItoJ" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.utils.ConnectivityConvention.JtoI">
+<span class="sig-name descname"><span class="pre">JtoI</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#neurotorch.utils.ConnectivityConvention.JtoI" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.utils.ConnectivityConvention.from_other">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_other</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.ConnectivityConvention.from_other" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.utils.ConnectivityConvention.from_str">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_str</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">convention</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.ConnectivityConvention.from_str" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.batchwise_temporal_decay">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.</span></span><span class="sig-name descname"><span class="pre">batchwise_temporal_decay</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decay</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.9</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.batchwise_temporal_decay" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply a decay filter to the input tensor along the temporal dimension.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>torch.Tensor</em>) – Input of shape (batch_size, time_steps, …).</p></li>
+<li><p><strong>decay</strong> (<em>float</em>) – Decay factor of the filter.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Filtered input of shape (batch_size, …).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.batchwise_temporal_filter">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.</span></span><span class="sig-name descname"><span class="pre">batchwise_temporal_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decay</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.9</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.batchwise_temporal_filter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply a low-pass filter to the input tensor along the temporal dimension.</p>
+<div class="math notranslate nohighlight" id="equation-eqn-low-pass-filter">
+<span class="eqno">(1)<a class="headerlink" href="#equation-eqn-low-pass-filter" title="Permalink to this equation">¶</a></span>\[\begin{equation}\label{eqn:low-pass-filter}
+    \mathcal{F}_\alpha\qty(x^t) = \alpha\mathcal{F}_\alpha\qty(x^{t-1}) + x^t.
+\end{equation}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>torch.Tensor</em>) – Input of shape (batch_size, time_steps, …).</p></li>
+<li><p><strong>decay</strong> (<em>float</em>) – Decay factor of the filter.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Filtered input of shape (batch_size, time_steps, …).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.batchwise_temporal_recursive_filter">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.</span></span><span class="sig-name descname"><span class="pre">batchwise_temporal_recursive_filter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decay</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.9</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.batchwise_temporal_recursive_filter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply a low-pass filter to the input tensor along the temporal dimension recursively.</p>
+<div class="math notranslate nohighlight" id="equation-eqn-low-pass-filter">
+<span class="eqno">(2)<a class="headerlink" href="#equation-eqn-low-pass-filter" title="Permalink to this equation">¶</a></span>\[\begin{equation}\label{eqn:low-pass-filter}
+    \mathcal{F}_\alpha\qty(x^t) = \alpha\mathcal{F}_\alpha\qty(x^{t-1}) + x^t.
+\end{equation}\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>torch.Tensor</em>) – Input of shape (batch_size, time_steps, …).</p></li>
+<li><p><strong>decay</strong> (<em>float</em>) – Decay factor of the filter.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Filtered input of shape (batch_size, time_steps, …).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.clip_tensors_norm_">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.</span></span><span class="sig-name descname"><span class="pre">clip_tensors_norm_</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tensors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_norm</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">error_if_nonfinite</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tensor</span></span></span><a class="headerlink" href="#neurotorch.utils.clip_tensors_norm_" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clips norm of an iterable of tensors.</p>
+<p>This function is a clone from <a href="#id1"><span class="problematic" id="id2">torch.nn.utils.clip_grad_norm_</span></a> with the difference that it
+works on tensors instead of parameters.</p>
+<p>The norm is computed over all tensors together, as if they were
+concatenated into a single vector.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tensors</strong> (<em>Iterable</em><em>[</em><em>Tensor</em><em>] or </em><em>Tensor</em>) – an iterable of Tensors or a
+single Tensor that will have data normalized</p></li>
+<li><p><strong>max_norm</strong> (<em>float</em><em> or </em><em>int</em>) – max norm of the data</p></li>
+<li><p><strong>norm_type</strong> (<em>float</em><em> or </em><em>int</em>) – type of the used p-norm. Can be <code class="docutils literal notranslate"><span class="pre">'inf'</span></code> for
+infinity norm.</p></li>
+<li><p><strong>error_if_nonfinite</strong> (<em>bool</em>) – if True, an error is thrown if the total
+norm of the data from <code class="xref py py-attr docutils literal notranslate"><span class="pre">parameters</span></code> is <code class="docutils literal notranslate"><span class="pre">nan</span></code>,
+<code class="docutils literal notranslate"><span class="pre">inf</span></code>, or <code class="docutils literal notranslate"><span class="pre">-inf</span></code>. Default: False</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Total norm of the tensors (viewed as a single vector).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.linear_decay">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.</span></span><span class="sig-name descname"><span class="pre">linear_decay</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">init_value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decay_value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_itr</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.linear_decay" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.maybe_apply_softmax">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.</span></span><span class="sig-name descname"><span class="pre">maybe_apply_softmax</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.utils.maybe_apply_softmax" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply softmax to x if x is not l1 normalized.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Note<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The input will be cast to tensor bye the transform <cite>to_tensor</cite>.</p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>x</strong> – The tensor to apply softmax to.</p></li>
+<li><p><strong>dim</strong> – The dimension to apply softmax to.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The softmax applied tensor.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="neurotorch.utils.ravel_compose_transforms">
+<span class="sig-prename descclassname"><span class="pre">neurotorch.utils.</span></span><span class="sig-name descname"><span class="pre">ravel_compose_transforms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Compose</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ModuleList</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#neurotorch.utils.ravel_compose_transforms" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+</section>
+
+
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>    
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'',
+            LANGUAGE:'en',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+    <script type="text/javascript" src="static/documentation_options.js"></script>
+    <script type="text/javascript" src="static/doctools.js"></script>
+    <script type="text/javascript" src="static/sphinx_highlight.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/javascript" src="static/js/theme.js"></script>
+  
+    <div class="footer" role="contentinfo">
+        <div class="container">
+            &#169; Copyright 2022, Jérémie Gince.
+        Created using <a href="http://sphinx-doc.org/">Sphinx</a> 6.2.1.
+        </div>
+    </div>  
+
+</body>
+</html>

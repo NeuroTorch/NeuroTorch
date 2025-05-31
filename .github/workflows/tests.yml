@@ -14,13 +14,16 @@ jobs:
   Run-tests-on-Ubuntu:
     name: Run tests on Ubuntu-latest
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ "3.10", "3.11", "3.12", "3.13" ]
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.10
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
       with:
-        python-version: "3.10"
+        python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         python -m venv ./venv
@@ -50,6 +53,12 @@ jobs:
         . ./venv/bin/activate
         pytest tests
 
+    - name: Test Build
+      run: |
+        . ./venv/bin/activate
+        python -m build
+        twine check dist/*
+
   Run-tests-on-Windows:
     name: Run tests on Windows-latest
     runs-on: windows-latest
@@ -71,3 +80,4 @@ jobs:
       run: |
         . ./venv/Scripts/activate
         pytest tests
+        

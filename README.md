@@ -53,7 +53,6 @@ What can be done with NeuroTorch in the current version?
 |------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **PyPi**   | `pip install neurotorch`                                                                                                                                                       |
 | **source** | `pip install git+https://github.com/NeuroTorch/NeuroTorch`                                                                                                                     |
-| **wheel**  | 1.Download the .whl file [here](https://github.com/NeuroTorch/NeuroTorch/tree/main/dist);<br> 2. Copy the path of this file on your computer; <br> 3. `pip install [path].whl` |
 
 
 ### 2.1 Last unstable version

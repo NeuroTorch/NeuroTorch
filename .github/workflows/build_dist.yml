@@ -40,6 +40,14 @@ jobs:
       run: |
         . ./venv/bin/activate
         poetry version ${{steps.version.outputs.new_tag}}
+
+    - name: Build dist
+      run: |
+        . ./venv/bin/activate
+        python -m build
+
+    - name: Commit updated pyproject.toml
+      run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add pyproject.toml
@@ -51,26 +59,6 @@ jobs:
         github_token: ${{secrets.GITHUB_TOKEN}}
         branch: main
         force: true
-
-    - name: Build dist
-      run: |
-        . ./venv/bin/activate
-        python -m build
-
-    - name: Commit the new dist
-      run: |
-        git add -f dist
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git commit -m "Update dist"
-
-    - name: Push the new dist
-      uses: ad-m/github-push-action@master
-      with:
-        github_token: ${{secrets.GITHUB_TOKEN}}
-        branch: main
-        force: true
-        directory: dist
 
     - name: Create Tag
       id: tag

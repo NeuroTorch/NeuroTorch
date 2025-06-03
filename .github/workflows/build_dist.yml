@@ -58,7 +58,7 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add pyproject.toml
-        git commit -m "Updating version of pyproject.toml"
+        git diff-index --quiet HEAD || git commit -m "Updating version of pyproject.toml"
 
     - name: Push the new pyproject.toml
       uses: ad-m/github-push-action@master

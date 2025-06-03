@@ -6,6 +6,12 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
+  actions: write
+  checks: write
+  statuses: write
+  issues: write
+  discussions: write
 
 jobs:
   Build-Dist:
@@ -40,6 +46,15 @@ jobs:
       run: |
         . ./venv/bin/activate
         poetry version ${{steps.version.outputs.new_tag}}
+
+    - name: Build dist
+      run: |
+        . ./venv/bin/activate
+        python -m build
+        twine check dist/*
+
+    - name: Commit updated pyproject.toml
+      run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add pyproject.toml
@@ -51,26 +66,6 @@ jobs:
         github_token: ${{secrets.GITHUB_TOKEN}}
         branch: main
         force: true
-
-    - name: Build dist
-      run: |
-        . ./venv/bin/activate
-        python -m build
-
-    - name: Commit the new dist
-      run: |
-        git add -f dist
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git commit -m "Update dist"
-
-    - name: Push the new dist
-      uses: ad-m/github-push-action@master
-      with:
-        github_token: ${{secrets.GITHUB_TOKEN}}
-        branch: main
-        force: true
-        directory: dist
 
     - name: Create Tag
       id: tag
@@ -93,3 +88,13 @@ jobs:
         password: ${{ secrets.PYPI_API_TOKEN }}
         skip_existing: true
         verbose: true
+
+    - name: Merge 'main' branch -> 'dev' branch
+      uses: devmasx/merge-branch@master
+      with:
+        type: now
+        from_branch: main
+        target_branch: dev
+        message: "Automatic merge from 'main' into 'dev' [skip actions]"
+        label_name: "gh-actions"
+        github_token: ${{ secrets.GITHUB_TOKEN }}

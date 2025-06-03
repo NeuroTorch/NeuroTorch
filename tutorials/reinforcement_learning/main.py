@@ -224,5 +224,5 @@ if __name__ == '__main__':
           "use_spiking_policy": True,
         },
         force_overwrite=False,
-        use_multiprocessing=True,
+        use_multiprocessing=False,
     )

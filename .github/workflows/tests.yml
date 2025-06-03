@@ -95,4 +95,3 @@ jobs:
       run: |
         . ./venv/Scripts/activate
         pytest tests
-        

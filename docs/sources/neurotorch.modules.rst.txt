@@ -1,0 +1,77 @@
+neurotorch.modules package
+==========================
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   neurotorch.modules.layers
+
+Submodules
+----------
+
+neurotorch.modules.base module
+------------------------------
+
+.. automodule:: neurotorch.modules.base
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.modules.functions module
+-----------------------------------
+
+.. automodule:: neurotorch.modules.functions
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.modules.sequential module
+------------------------------------
+
+.. automodule:: neurotorch.modules.sequential
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.modules.sequential\_rnn module
+-----------------------------------------
+
+.. automodule:: neurotorch.modules.sequential_rnn
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.modules.spike\_funcs module
+--------------------------------------
+
+.. automodule:: neurotorch.modules.spike_funcs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.modules.utils module
+-------------------------------
+
+.. automodule:: neurotorch.modules.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.modules.wrappers module
+----------------------------------
+
+.. automodule:: neurotorch.modules.wrappers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: neurotorch.modules
+   :members:
+   :undoc-members:
+   :show-inheritance:

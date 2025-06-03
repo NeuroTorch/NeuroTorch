@@ -1,0 +1,1348 @@
+
+
+<!DOCTYPE html>
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>neurotorch.learning_algorithms package &mdash; NeuroTorch  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="static/css/theme.min.css" type="text/css" />
+  <link rel="stylesheet" href="static/css/custom.css" type="text/css" />
+  <link rel="stylesheet" href="static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="static/css/theme.min.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="neurotorch.metrics package" href="neurotorch.metrics.html" />
+    <link rel="prev" title="neurotorch.init package" href="neurotorch.init.html" /> 
+
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <a class="site-nav-toggle hidden-lg-up"><i class="icon-menu"></i></a>
+            <a class="site-title" href="index.html">
+                NeuroTorch
+            </a>
+        </div>
+    </header>
+
+
+<div class="breadcrumbs-outer hidden-xs-down">
+    <div class="container">
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="breadcrumbs">
+    
+      <li><a href="index.html">Docs</a></li>
+        
+          <li><a href="neurotorch.html">neurotorch package</a></li>
+        
+      <li>neurotorch.learning_algorithms package</li>
+    
+    
+      <li class="breadcrumbs-aside">
+        
+            
+            <a href="sources/neurotorch.learning_algorithms.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+</div>
+    </div>
+</div>
+    <div class="main-outer">
+        <div class="container">
+            <div class="row">
+                <div class="col-12 col-lg-3 site-nav">
+                    
+<div role="search">
+    <form class="search" action="search.html" method="get">
+        <div class="icon-input">
+            <input type="text" name="q" placeholder="Search" />
+            <span class="icon-search"></span>
+        </div>
+        <input type="submit" value="Go" class="d-hidden" />
+        <input type="hidden" name="check_keywords" value="yes" />
+        <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+                    <div class="site-nav-tree">
+                        
+                            
+                            
+                                <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="readme.html">1. Description</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="readme.html#current-version">Current Version</a></li>
+<li class="toctree-l2"><a class="reference internal" href="readme.html#next-versions">Next Versions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#installation">2. Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="readme.html#last-unstable-version">2.1 Last unstable version</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#tutorials-applications">3. Tutorials / Applications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#quick-usage-preview">4. Quick usage preview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#why-neurotorch">5. Why NeuroTorch?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#similar-work">6. Similar work</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#about">7. About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#important-links">8. Important Links</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#found-a-bug-or-have-a-feature-request">9. Found a bug or have a feature request?</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#thanks">10. Thanks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#license">11. License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="readme.html#citation">12. Citation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Modules:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="neurotorch.html">neurotorch package</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="neurotorch.html#subpackages">Subpackages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neurotorch.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neurotorch.html#module-neurotorch.dimension">neurotorch.dimension module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neurotorch.html#module-neurotorch">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+                            
+                        
+                    </div>
+                </div>
+                <div class="col-12 col-lg-9">
+                    <div class="document">
+                        
+                            
+  <section id="neurotorch-learning-algorithms-package">
+<h1>neurotorch.learning_algorithms package<a class="headerlink" href="#neurotorch-learning-algorithms-package" title="Permalink to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">¶</a></h2>
+</section>
+<section id="module-neurotorch.learning_algorithms.bptt">
+<span id="neurotorch-learning-algorithms-bptt-module"></span><h2>neurotorch.learning_algorithms.bptt module<a class="headerlink" href="#module-neurotorch.learning_algorithms.bptt" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">neurotorch.learning_algorithms.bptt.</span></span><span class="sig-name descname"><span class="pre">BPTT</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">optimizer</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optimizer</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">criterion</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#neurotorch.learning_algorithms.learning_algorithm.LearningAlgorithm" title="neurotorch.learning_algorithms.learning_algorithm.LearningAlgorithm"><code class="xref py py-class docutils literal notranslate"><span class="pre">LearningAlgorithm</span></code></a></p>
+<p>Apply the backpropagation through time algorithm to the given model.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY">
+<span class="sig-name descname"><span class="pre">CHECKPOINT_OPTIMIZER_STATE_DICT_KEY</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'optimizer_state_dict'</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.DEFAULT_OPTIMIZER_CLS">
+<span class="sig-name descname"><span class="pre">DEFAULT_OPTIMIZER_CLS</span></span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.DEFAULT_OPTIMIZER_CLS" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">AdamW</span></code></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.OPTIMIZER_PARAMS_GROUP_IDX">
+<span class="sig-name descname"><span class="pre">OPTIMIZER_PARAMS_GROUP_IDX</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.OPTIMIZER_PARAMS_GROUP_IDX" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">optimizer</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optimizer</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">criterion</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Constructor for BPTT class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>Optional</em><em>[</em><em>Sequence</em><em>[</em><em>torch.nn.Parameter</em><em>]</em><em>]</em>) – The parameters to optimize. If None, the parameters of the model’s trainer will be used.</p></li>
+<li><p><strong>optimizer</strong> (<em>Optional</em><em>[</em><em>torch.optim.Optimizer</em><em>]</em>) – The optimizer to use. If not provided, torch.optim.Adam is used.</p></li>
+<li><p><strong>criterion</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>Union</em><em>[</em><em>torch.nn.Module</em><em>, </em><em>Callable</em><em>]</em><em>]</em><em>, </em><em>torch.nn.Module</em><em>, </em><em>Callable</em><em>]</em><em>]</em>) – The criterion to use. If not provided, torch.nn.MSELoss is used.</p></li>
+<li><p><strong>kwargs</strong> – The keyword arguments to pass to the BaseCallback.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Keyword Arguments<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>save_state</strong> (<em>bool</em>) – Whether to save the state of the optimizer. Defaults to True.</p></li>
+<li><p><strong>load_state</strong> (<em>bool</em>) – Whether to load the state of the optimizer. Defaults to True.</p></li>
+<li><p><strong>maximize</strong> (<em>bool</em>) – Whether to maximize the loss. Defaults to False.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.apply_criterion">
+<span class="sig-name descname"><span class="pre">apply_criterion</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pred_batch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_batch</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.apply_criterion" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.create_default_optimizer">
+<span class="sig-name descname"><span class="pre">create_default_optimizer</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.create_default_optimizer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create the default optimizer.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The optimizer to use for training.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.extra_repr">
+<span class="sig-name descname"><span class="pre">extra_repr</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.extra_repr" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.get_checkpoint_state">
+<span class="sig-name descname"><span class="pre">get_checkpoint_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">object</span></span></span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.get_checkpoint_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the state of the callback. This is called when the checkpoint manager saves the state of the trainer.
+Then this state is saved in the checkpoint file with the name of the callback as the key.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The state of the callback.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>An pickleable object.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.initialize_param_groups">
+<span class="sig-name descname"><span class="pre">initialize_param_groups</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.initialize_param_groups" title="Permalink to this definition">¶</a></dt>
+<dd><p>The learning rate are initialize. If the user has provided a learning rate for each parameter, then it is used.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.load_checkpoint_state">
+<span class="sig-name descname"><span class="pre">load_checkpoint_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">checkpoint</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.load_checkpoint_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads the state of the callback from a dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p></li>
+<li><p><strong>checkpoint</strong> (<em>dict</em>) – The dictionary containing all the states of the trainer.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.on_optimization_begin">
+<span class="sig-name descname"><span class="pre">on_optimization_begin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.on_optimization_begin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when the optimization phase of an iteration starts. The optimization phase is defined as
+the moment where the model weights are updated.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p></li>
+<li><p><strong>kwargs</strong> – Additional arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Keyword Arguments<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>x</strong> – The input data.</p></li>
+<li><p><strong>y</strong> – The target data.</p></li>
+<li><p><strong>pred</strong> – The predicted data.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.on_optimization_end">
+<span class="sig-name descname"><span class="pre">on_optimization_end</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.on_optimization_end" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when the optimization phase of an iteration ends. The optimization phase is defined as
+the moment where the model weights are updated.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.on_validation_batch_begin">
+<span class="sig-name descname"><span class="pre">on_validation_batch_begin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.on_validation_batch_begin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when the validation batch starts. The validation batch is defined as one forward pass through the network
+on the validation dataset. This is used to update the batch loss and metrics on the validation dataset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p></li>
+<li><p><strong>kwargs</strong> – Additional arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Keyword Arguments<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>x</strong> – The input data.</p></li>
+<li><p><strong>y</strong> – The target data.</p></li>
+<li><p><strong>pred</strong> – The predicted data.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.bptt.BPTT.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.bptt.BPTT.start" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when the training starts. This is the first callback called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-neurotorch.learning_algorithms.eprop">
+<span id="neurotorch-learning-algorithms-eprop-module"></span><h2>neurotorch.learning_algorithms.eprop module<a class="headerlink" href="#module-neurotorch.learning_algorithms.eprop" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">neurotorch.learning_algorithms.eprop.</span></span><span class="sig-name descname"><span class="pre">Eprop</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#neurotorch.learning_algorithms.tbptt.TBPTT" title="neurotorch.learning_algorithms.tbptt.TBPTT"><code class="xref py py-class docutils literal notranslate"><span class="pre">TBPTT</span></code></a></p>
+<p>Apply the eligibility trace forward propagation (e-prop) <span id="id1">Bellec <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id11" title="Guillaume Bellec, Franz Scherr, Anand Subramoney, Elias Hajek, Darjan Salaj, Robert Legenstein, and Wolfgang Maass. A solution to the learning dilemma for recurrent networks of spiking neurons. Nature Communications, 11(1):3625, 2020. URL: https://www.nature.com/articles/s41467-020-17236-y (visited on 2021-12-18), doi:10.1038/s41467-020-17236-y.">BSS+20</a>]</span>
+algorithm to the given model.</p>
+<a class="reference internal image-reference" href="../../images/learning_algorithms/EpropDiagram.png"><img alt="../../images/learning_algorithms/EpropDiagram.png" class="align-center" src="../../images/learning_algorithms/EpropDiagram.png" style="width: 300px;" /></a>
+<dl class="simple">
+<dt>Note: If this learning algorithm is used for classification, the output layer should have a log-softmax activation</dt><dd><p>function and the target should be a one-hot encoded tensor. Then, the loss function should be the negative log
+likelihood loss function from <code class="xref py py-class docutils literal notranslate"><span class="pre">nt.losses.NLLLoss</span></code> with the <code class="docutils literal notranslate"><span class="pre">target_as_one_hot</span></code> argument set to <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.CHECKPOINT_FEEDBACK_WEIGHTS_KEY">
+<span class="sig-name descname"><span class="pre">CHECKPOINT_FEEDBACK_WEIGHTS_KEY</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'feedback_weights'</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.CHECKPOINT_FEEDBACK_WEIGHTS_KEY" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY">
+<span class="sig-name descname"><span class="pre">CHECKPOINT_OPTIMIZER_STATE_DICT_KEY</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'optimizer_state_dict'</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.DEFAULT_FEEDBACKS_GEN_STRATEGY">
+<span class="sig-name descname"><span class="pre">DEFAULT_FEEDBACKS_GEN_STRATEGY</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'xavier_normal'</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.DEFAULT_FEEDBACKS_GEN_STRATEGY" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE">
+<span class="sig-name descname"><span class="pre">DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'kaiming_normal':</span> <span class="pre">inf,</span> <span class="pre">'ones':</span> <span class="pre">1.0,</span> <span class="pre">'orthogonal':</span> <span class="pre">inf,</span> <span class="pre">'rand':</span> <span class="pre">1.0,</span> <span class="pre">'randn':</span> <span class="pre">1.0,</span> <span class="pre">'unitary':</span> <span class="pre">inf,</span> <span class="pre">'xavier_normal':</span> <span class="pre">inf}</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.DEFAULT_FEEDBACKS_STR_NORM_CLIP_VALUE" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.DEFAULT_OPTIMIZER_CLS">
+<span class="sig-name descname"><span class="pre">DEFAULT_OPTIMIZER_CLS</span></span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.DEFAULT_OPTIMIZER_CLS" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">AdamW</span></code></p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.DEFAULT_Y_KEY">
+<span class="sig-name descname"><span class="pre">DEFAULT_Y_KEY</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'default_key'</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.DEFAULT_Y_KEY" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.FEEDBACKS_GEN_FUNCS">
+<span class="sig-name descname"><span class="pre">FEEDBACKS_GEN_FUNCS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'kaiming_normal':</span> <span class="pre">&lt;function</span> <span class="pre">Eprop.&lt;lambda&gt;&gt;,</span> <span class="pre">'ones':</span> <span class="pre">&lt;function</span> <span class="pre">Eprop.&lt;lambda&gt;&gt;,</span> <span class="pre">'orthogonal':</span> <span class="pre">&lt;function</span> <span class="pre">Eprop.&lt;lambda&gt;&gt;,</span> <span class="pre">'rand':</span> <span class="pre">&lt;function</span> <span class="pre">Eprop.&lt;lambda&gt;&gt;,</span> <span class="pre">'randn':</span> <span class="pre">&lt;function</span> <span class="pre">Eprop.&lt;lambda&gt;&gt;,</span> <span class="pre">'unitary':</span> <span class="pre">&lt;function</span> <span class="pre">Eprop.&lt;lambda&gt;&gt;,</span> <span class="pre">'xavier_normal':</span> <span class="pre">&lt;function</span> <span class="pre">Eprop.&lt;lambda&gt;&gt;}</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.FEEDBACKS_GEN_FUNCS" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX">
+<span class="sig-name descname"><span class="pre">OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.OPTIMIZER_PARAMS_GROUP_IDX">
+<span class="sig-name descname"><span class="pre">OPTIMIZER_PARAMS_GROUP_IDX</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.OPTIMIZER_PARAMS_GROUP_IDX" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Constructor for Eprop class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>Optional</em><em>[</em><em>Sequence</em><em>[</em><em>torch.nn.Parameter</em><em>]</em><em>]</em>) – The hidden parameters to optimize. If not provided, eprop will try to find the hidden parameters
+by looking for the parameters of the layers provided or in the inputs and hidden layers of the
+model provided in the trainer.</p></li>
+<li><p><strong>output_params</strong> (<em>Optional</em><em>[</em><em>Sequence</em><em>[</em><em>torch.nn.Parameter</em><em>]</em><em>]</em>) – The output parameters to optimize. If not provided, eprop will try to find the output
+parameters by looking for the parameters of the output layers provided or in the output layers
+of the model provided in the trainer.</p></li>
+<li><p><strong>layers</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>Sequence</em><em>[</em><em>torch.nn.Module</em><em>]</em><em>, </em><em>torch.nn.Module</em><em>]</em><em>]</em>) – The hidden layers to optimize. If not provided, eprop will try to find the hidden layers
+by looking for the layers of the model provided in the trainer.</p></li>
+<li><p><strong>output_layers</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>Sequence</em><em>[</em><em>torch.nn.Module</em><em>]</em><em>, </em><em>torch.nn.Module</em><em>]</em><em>]</em>) – The output layers to optimize. If not provided, eprop will try to find the output layers
+by looking for the layers of the model provided in the trainer.</p></li>
+<li><p><strong>kwargs</strong> – Keyword arguments to pass to the parent class and to configure the algorithm.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Keyword Arguments<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>optimizer</strong> (<em>Optional</em><em>[</em><em>torch.optim.Optimizer</em><em>]</em>) – <p>The optimizer to use. If provided make sure to provide the
+param_group in the following format:</p>
+<blockquote>
+<div><p>[{“params”: params, “lr”: params_lr}, {“params”: output_params, “lr”: output_params_lr}]</p>
+</div></blockquote>
+<p>The index of the group must be the same as the OPTIMIZER_PARAMS_GROUP_IDX and
+OPTIMIZER_OUTPUT_PARAMS_GROUP_IDX constants which are 0 and 1 respectively.
+If not provided, torch.optim.Adam is used.</p>
+</p></li>
+<li><p><strong>criterion</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>Union</em><em>[</em><em>torch.nn.Module</em><em>, </em><em>Callable</em><em>]</em><em>]</em><em>, </em><em>torch.nn.Module</em><em>, </em><em>Callable</em><em>]</em><em>]</em>) – The
+criterion to use for the output learning signal. If not provided, torch.nn.MSELoss is used. Note
+that this criterion will be minimized.</p></li>
+<li><p><strong>params_lr</strong> (<em>float</em>) – The learning rate for the hidden parameters. Defaults to 1e-4.</p></li>
+<li><p><strong>output_params_lr</strong> (<em>float</em>) – The learning rate for the output parameters. Defaults to 2e-4.</p></li>
+<li><p><strong>eligibility_traces_norm_clip_value</strong> (<em>float</em>) – The value to clip the eligibility traces norm to.
+Defaults to torch.inf.</p></li>
+<li><p><strong>grad_norm_clip_value</strong> (<em>float</em>) – The value to clip the gradients norm to. This parameter is used to
+normalize the gradients of the parameters in order to help the convergence and avoid
+overflowing. Defaults to 1.0.</p></li>
+<li><p><strong>feedbacks_gen_strategy</strong> (<em>str</em>) – <p>The strategy to use to generate the feedbacks. Defaults to
+Eprop.DEFAULT_FEEDBACKS_GEN_STRATEGY which is “xavier_normal”. The available strategies are
+stored in Eprop.FEEDBACKS_GEN_FUNCS which are:</p>
+<blockquote>
+<div><ul>
+<li><p>”randn”: Normal distribution with mean 0 and variance 1.</p></li>
+<li><p>”xavier_normal”: Xavier normal distribution.</p></li>
+<li><p>”rand”: Uniform distribution between 0 and 1.</p></li>
+<li><p>”unitary”: Unitary matrix with normal distribution.</p></li>
+</ul>
+</div></blockquote>
+</p></li>
+<li><p><strong>nan</strong> (<em>float</em>) – The value to use to replace the NaN values in the gradients. Defaults to 0.0.</p></li>
+<li><p><strong>posinf</strong> (<em>float</em>) – The value to use to replace the inf values in the gradients. Defaults to 1.0.</p></li>
+<li><p><strong>neginf</strong> (<em>float</em>) – The value to use to replace the -inf values in the gradients. Defaults to -1.0.</p></li>
+<li><p><strong>save_state</strong> (<em>bool</em>) – Whether to save the state of the optimizer. Defaults to True.</p></li>
+<li><p><strong>load_state</strong> (<em>bool</em>) – Whether to load the state of the optimizer. Defaults to True.</p></li>
+<li><p><strong>raise_non_finite_errors</strong> (<em>bool</em>) – Whether to raise non-finite errors when detected. Defaults to False.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.compute_errors">
+<span class="sig-name descname"><span class="pre">compute_errors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pred_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tensor</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.compute_errors" title="Permalink to this definition">¶</a></dt>
+<dd><p>The errors for each output is computed then inserted in a dict for further use. This function check if the
+y_batch and pred_batch are given as a dict or a tensor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pred_batch</strong> – prediction of the network</p></li>
+<li><p><strong>y_batch</strong> – target</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict of errors</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.compute_learning_signals">
+<span class="sig-name descname"><span class="pre">compute_learning_signals</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">errors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.compute_learning_signals" title="Permalink to this definition">¶</a></dt>
+<dd><p>TODO : Determine if we normalize with the number of output when computing the learning signal : If multiple
+TODO : output layers, do we sum the learning signals or do we average them ? Should we make a ‘reduce’ param?
+TODO : When averaging, add factor 1/n to the learning signal. It “kind of” results in a change of learning rate.
+The learning signals are computed using equation (28) from <span id="id2">Bellec <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id11" title="Guillaume Bellec, Franz Scherr, Anand Subramoney, Elias Hajek, Darjan Salaj, Robert Legenstein, and Wolfgang Maass. A solution to the learning dilemma for recurrent networks of spiking neurons. Nature Communications, 11(1):3625, 2020. URL: https://www.nature.com/articles/s41467-020-17236-y (visited on 2021-12-18), doi:10.1038/s41467-020-17236-y.">BSS+20</a>]</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>errors</strong> – The errors to use to compute the learning signals.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>List of the learning signals for each parameter.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.decorate_forwards">
+<span class="sig-name descname"><span class="pre">decorate_forwards</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.decorate_forwards" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ensure that the forward pass is decorated. THe original forward and the hidden layers names are stored. The
+hidden layers forward method are decorated using :meth: <cite>_decorate_hidden_forward</cite>. The output layers forward
+are decorated using :meth: <cite>_decorate_output_forward</cite> from TBPTT.</p>
+<p>Here, we are using decorators to introduce a specific behavior in the forward pass. For E-prop, we need to
+ensure that the gradient is computed and optimize at each time step t of the sequence. This can be achieved by
+decorating our forward. However, we do keep in storage the previous forward pass. This is done to ensure
+that the forward pass is not modified permanently in any way.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.eligibility_traces_zeros_">
+<span class="sig-name descname"><span class="pre">eligibility_traces_zeros_</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.eligibility_traces_zeros_" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the eligibility traces to zero.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.get_checkpoint_state">
+<span class="sig-name descname"><span class="pre">get_checkpoint_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">object</span></span></span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.get_checkpoint_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the state of the optimizer to be saved in the checkpoint.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trainer</strong> – The trainer object that is used for training.</p></li>
+<li><p><strong>kwargs</strong> – Additional keyword arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The state of the optimizer to be saved in the checkpoint.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.initialize_feedback_weights">
+<span class="sig-name descname"><span class="pre">initialize_feedback_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">y_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.initialize_feedback_weights" title="Permalink to this definition">¶</a></dt>
+<dd><p>TODO : Non-random feedbacks must be implemented with {W_out}.T
+Initialize the feedback weights for each params.
+The random feedback is noted B_{ij} in Bellec’s paper <span id="id3">Bellec <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id11" title="Guillaume Bellec, Franz Scherr, Anand Subramoney, Elias Hajek, Darjan Salaj, Robert Legenstein, and Wolfgang Maass. A solution to the learning dilemma for recurrent networks of spiking neurons. Nature Communications, 11(1):3625, 2020. URL: https://www.nature.com/articles/s41467-020-17236-y (visited on 2021-12-18), doi:10.1038/s41467-020-17236-y.">BSS+20</a>]</span>.
+The keys of the feedback_weights dictionary are the names of the output layers.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>y_batch</strong> – The batch of the target values.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The feedback weights for each params.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.initialize_layers">
+<span class="sig-name descname"><span class="pre">initialize_layers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.initialize_layers" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize the layers of the optimizer. Try multiple ways to identify the output layers if those are not
+provided by the user.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> – The trainer object.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.initialize_output_layers">
+<span class="sig-name descname"><span class="pre">initialize_output_layers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.initialize_output_layers" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize the output layers of the optimizer. Try multiple ways to identify the output layers if those are not
+provided by the user.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Note<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Must be called before <a class="reference internal" href="#neurotorch.learning_algorithms.eprop.Eprop.initialize_output_params" title="neurotorch.learning_algorithms.eprop.Eprop.initialize_output_params"><code class="xref py py-meth docutils literal notranslate"><span class="pre">initialize_output_params()</span></code></a>.</p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>trainer</strong> – The trainer object.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.initialize_output_params">
+<span class="sig-name descname"><span class="pre">initialize_output_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.initialize_output_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize the output parameters of the optimizer. Try multiple ways to identify the
+output parameters if those are not provided by the user.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Note<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Must be called after <a class="reference internal" href="#neurotorch.learning_algorithms.eprop.Eprop.initialize_output_layers" title="neurotorch.learning_algorithms.eprop.Eprop.initialize_output_layers"><code class="xref py py-meth docutils literal notranslate"><span class="pre">initialize_output_layers()</span></code></a>.</p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>trainer</strong> – The trainer object.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.initialize_param_groups">
+<span class="sig-name descname"><span class="pre">initialize_param_groups</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.initialize_param_groups" title="Permalink to this definition">¶</a></dt>
+<dd><p>The learning rate are initialize. If the user has provided a learning rate for each parameter, then it is used.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>the param_groups.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.initialize_params">
+<span class="sig-name descname"><span class="pre">initialize_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.initialize_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize the parameters of the optimizer.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Note<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Must be called after <a class="reference internal" href="#neurotorch.learning_algorithms.eprop.Eprop.initialize_output_params" title="neurotorch.learning_algorithms.eprop.Eprop.initialize_output_params"><code class="xref py py-meth docutils literal notranslate"><span class="pre">initialize_output_params()</span></code></a> and <a class="reference internal" href="#neurotorch.learning_algorithms.eprop.Eprop.initialize_layers" title="neurotorch.learning_algorithms.eprop.Eprop.initialize_layers"><code class="xref py py-meth docutils literal notranslate"><span class="pre">initialize_layers()</span></code></a>.</p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>trainer</strong> – The trainer to use.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.load_checkpoint_state">
+<span class="sig-name descname"><span class="pre">load_checkpoint_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">checkpoint</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.load_checkpoint_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Load the state of the optimizer from the checkpoint.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trainer</strong> – The trainer object that is used for training.</p></li>
+<li><p><strong>checkpoint</strong> – The checkpoint dictionary.</p></li>
+<li><p><strong>kwargs</strong> – Additional keyword arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.make_feedback_weights">
+<span class="sig-name descname"><span class="pre">make_feedback_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.make_feedback_weights" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate the feedback weights for each params.
+The random feedback is noted B_{ij} in Bellec’s paper <span id="id4">Bellec <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id11" title="Guillaume Bellec, Franz Scherr, Anand Subramoney, Elias Hajek, Darjan Salaj, Robert Legenstein, and Wolfgang Maass. A solution to the learning dilemma for recurrent networks of spiking neurons. Nature Communications, 11(1):3625, 2020. URL: https://www.nature.com/articles/s41467-020-17236-y (visited on 2021-12-18), doi:10.1038/s41467-020-17236-y.">BSS+20</a>]</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The feedback weights for each params.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.on_batch_begin">
+<span class="sig-name descname"><span class="pre">on_batch_begin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.on_batch_begin" title="Permalink to this definition">¶</a></dt>
+<dd><p>For each batch. Initialize the random feedback weights if not already done. Also, set the eligibility traces
+to zero.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trainer</strong> – The trainer object.</p></li>
+<li><p><strong>kwargs</strong> – Additional arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.on_batch_end">
+<span class="sig-name descname"><span class="pre">on_batch_end</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.on_batch_end" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ensure that there is not any remaining gradients in the output parameters. The forward are undecorated and the
+gradients are set to zero. The buffer are also cleared.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trainer</strong> – The trainer to use for computation.</p></li>
+<li><p><strong>kwargs</strong> – Additional arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.start" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start the training process with E-prop.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trainer</strong> – The trainer object for the training process with E-prop.</p></li>
+<li><p><strong>kwargs</strong> – Additional arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.eprop.Eprop.update_grads">
+<span class="sig-name descname"><span class="pre">update_grads</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">errors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.eprop.Eprop.update_grads" title="Permalink to this definition">¶</a></dt>
+<dd><p>The learning signal is computed. The gradients of the parameters are then updated as seen in equation (28)
+from <span id="id5">Bellec <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id11" title="Guillaume Bellec, Franz Scherr, Anand Subramoney, Elias Hajek, Darjan Salaj, Robert Legenstein, and Wolfgang Maass. A solution to the learning dilemma for recurrent networks of spiking neurons. Nature Communications, 11(1):3625, 2020. URL: https://www.nature.com/articles/s41467-020-17236-y (visited on 2021-12-18), doi:10.1038/s41467-020-17236-y.">BSS+20</a>]</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>errors</strong> – The errors to use to compute the learning signals.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-neurotorch.learning_algorithms.learning_algorithm">
+<span id="neurotorch-learning-algorithms-learning-algorithm-module"></span><h2>neurotorch.learning_algorithms.learning_algorithm module<a class="headerlink" href="#module-neurotorch.learning_algorithms.learning_algorithm" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.learning_algorithm.LearningAlgorithm">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">neurotorch.learning_algorithms.learning_algorithm.</span></span><span class="sig-name descname"><span class="pre">LearningAlgorithm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.learning_algorithm.LearningAlgorithm" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="neurotorch.callbacks.html#neurotorch.callbacks.base_callback.BaseCallback" title="neurotorch.callbacks.base_callback.BaseCallback"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseCallback</span></code></a></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.learning_algorithm.LearningAlgorithm.DEFAULT_PRIORITY">
+<span class="sig-name descname"><span class="pre">DEFAULT_PRIORITY</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">50</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.learning_algorithm.LearningAlgorithm.DEFAULT_PRIORITY" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.learning_algorithm.LearningAlgorithm.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.learning_algorithm.LearningAlgorithm.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Constructor for LearningAlgorithm class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>params</strong> (<em>Optional</em><em>[</em><em>Sequence</em><em>[</em><em>torch.nn.Parameter</em><em>]</em><em>]</em>) – The parameters to optimize. If None, the parameters of the model’s trainer will be used.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-neurotorch.learning_algorithms.rls">
+<span id="neurotorch-learning-algorithms-rls-module"></span><h2>neurotorch.learning_algorithms.rls module<a class="headerlink" href="#module-neurotorch.learning_algorithms.rls" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">neurotorch.learning_algorithms.rls.</span></span><span class="sig-name descname"><span class="pre">RLS</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">criterion</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backward_time_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_recurrent</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#neurotorch.learning_algorithms.tbptt.TBPTT" title="neurotorch.learning_algorithms.tbptt.TBPTT"><code class="xref py py-class docutils literal notranslate"><span class="pre">TBPTT</span></code></a></p>
+<p>Apply the recursive least squares algorithm to the given model. Different strategies are available to update the
+parameters of the model. The strategy is defined by the <code class="xref py py-attr docutils literal notranslate"><span class="pre">strategy</span></code> attribute of the class. The following
+strategies are available:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><cite>inputs</cite>: The parameters are updated using the inputs of the model.</p></li>
+<li><dl class="simple">
+<dt><cite>outputs</cite>: The parameters are updated using the outputs of the model. This one is inspired by the work of</dt><dd><p>Perich and al. <span id="id6">Perich <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id48" title="Matthew G. Perich, Charlotte Arlt, Sofia Soares, Megan E. Young, Clayton P. Mosher, Juri Minxha, Eugene Carter, Ueli Rutishauser, Peter H. Rudebeck, Christopher D. Harvey, and Kanaka Rajan. Inferring brain-wide interactions using data-constrained recurrent neural network models. Pages: 2020.12.18.423348 Section: New Results. URL: https://www.biorxiv.org/content/10.1101/2020.12.18.423348v2 (visited on 2022-11-06), doi:10.1101/2020.12.18.423348.">PAS+</a>]</span> with the CURBD algorithm.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><cite>grad</cite>: The parameters are updated using the gradients of the model. This one is inspired by the work of</dt><dd><p>Zhang and al. <span id="id7">Zhang <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id49" title="Chunyuan Zhang, Qi Song, Hui Zhou, Yigui Ou, Hongyao Deng, and Laurence Tianruo Yang. Revisiting recursive least squares for training deep neural networks. URL: http://arxiv.org/abs/2109.03220 (visited on 2022-11-06), arXiv:2109.03220 [cs].">ZSZ+</a>]</span>.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><cite>jacobian</cite>: The parameters are updated using the Jacobian of the model. This one is inspired by the work of</dt><dd><p>Al-Batah and al. <span id="id8">Al-Batah <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id50">ABMIZA</a>]</span>.</p>
+</dd>
+</dl>
+</li>
+<li><p><cite>scaled_jacobian</cite>: The parameters are updated using the scaled Jacobian of the model.</p></li>
+</ul>
+</div></blockquote>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <cite>inputs</cite> and <cite>outputs</cite> strategies are limited to an optimization of only one parameter. The others
+strategies can be used with multiple parameters. Unfortunately, those strategies do not work as expected
+at the moment. If you want to help with the development of those strategies, please open an issue on
+GitHub.</p>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY">
+<span class="sig-name descname"><span class="pre">CHECKPOINT_OPTIMIZER_STATE_DICT_KEY</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'optimizer_state_dict'</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.CHECKPOINT_P_STATES_DICT_KEY">
+<span class="sig-name descname"><span class="pre">CHECKPOINT_P_STATES_DICT_KEY</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'P_list'</span></em><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.CHECKPOINT_P_STATES_DICT_KEY" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">criterion</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backward_time_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_recurrent</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Constructor for RLS class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>Optional</em><em>[</em><em>Sequence</em><em>[</em><em>torch.nn.Parameter</em><em>]</em><em>]</em>) – The parameters to optimize. If None, the parameters of the model’s trainer will be used.</p></li>
+<li><p><strong>layers</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>Sequence</em><em>[</em><em>torch.nn.Module</em><em>]</em><em>, </em><em>torch.nn.Module</em><em>]</em><em>]</em>) – The layers to optimize. If not None the parameters of the layers will be added to the
+parameters to optimize.</p></li>
+<li><p><strong>criterion</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>Union</em><em>[</em><em>torch.nn.Module</em><em>, </em><em>Callable</em><em>]</em><em>]</em><em>, </em><em>torch.nn.Module</em><em>, </em><em>Callable</em><em>]</em><em>]</em>) – The criterion to use. If not provided, torch.nn.MSELoss is used.</p></li>
+<li><p><strong>backward_time_steps</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – The frequency of parameter optimisation. If None, the number of
+time steps of the data will be used.</p></li>
+<li><p><strong>is_recurrent</strong> (<em>bool</em>) – If True, the model is recurrent. If False, the model is not recurrent.</p></li>
+<li><p><strong>kwargs</strong> – The keyword arguments to pass to the BaseCallback.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Keyword Arguments<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>save_state</strong> (<em>bool</em>) – Whether to save the state of the optimizer. Defaults to True.</p></li>
+<li><p><strong>load_state</strong> (<em>bool</em>) – Whether to load the state of the optimizer. Defaults to True.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.curbd_step_method">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">curbd_step_method</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inv_corr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_activation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">error</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">connectivity_convention</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="neurotorch.utils.html#neurotorch.utils.ConnectivityConvention" title="neurotorch.utils.ConnectivityConvention"><span class="pre">ConnectivityConvention</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">ConnectivityConvention.ItoJ</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Tensor</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.curbd_step_method" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.get_checkpoint_state">
+<span class="sig-name descname"><span class="pre">get_checkpoint_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">object</span></span></span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.get_checkpoint_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the state of the callback. This is called when the checkpoint manager saves the state of the trainer.
+Then this state is saved in the checkpoint file with the name of the callback as the key.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The state of the callback.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>An pickleable object.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.grad_mth_step">
+<span class="sig-name descname"><span class="pre">grad_mth_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.grad_mth_step" title="Permalink to this definition">¶</a></dt>
+<dd><p>This method is inspired by the work of Zhang and al. <span id="id9">Zhang <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id49" title="Chunyuan Zhang, Qi Song, Hui Zhou, Yigui Ou, Hongyao Deng, and Laurence Tianruo Yang. Revisiting recursive least squares for training deep neural networks. URL: http://arxiv.org/abs/2109.03220 (visited on 2022-11-06), arXiv:2109.03220 [cs].">ZSZ+</a>]</span>. Unfortunately, this
+method does not seem to work with the current implementation.</p>
+<p>TODO: Make it work.</p>
+<p>x.shape = [B, f_in]
+y.shape = [B, f_out]
+error.shape = [B, f_out]
+P.shape = [f_in, f_in]</p>
+<p>epsilon = mean[B](error[B, f_out]) -&gt; [1, f_out]
+phi = mean[B](x[B, f_in]) [1, f_in]</p>
+<p>K = P[f_in, f_in] &#64; phi.T[f_in, 1] -&gt; [f_in, 1]
+h = 1 / (labda[1] + kappa[1] * phi[1, f_in] &#64; K[f_in, 1]) -&gt; [1]
+grad = h[1] * P[f_in, f_in] &#64; grad[N_in, N_out] -&gt; [N_in, N_out]
+P = labda[1] * P[f_in, f_in] - h[1] * kappa[1] * K[f_in, 1] &#64; K.T[1, f_in] -&gt; [f_in, f_in]</p>
+<p>In this case f_in must be equal to N_in.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x_batch</strong> – inputs of the layer</p></li>
+<li><p><strong>pred_batch</strong> – outputs of the layer</p></li>
+<li><p><strong>y_batch</strong> – targets of the layer</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.initialize_P_list">
+<span class="sig-name descname"><span class="pre">initialize_P_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">m</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.initialize_P_list" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.inputs_mth_step">
+<span class="sig-name descname"><span class="pre">inputs_mth_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.inputs_mth_step" title="Permalink to this definition">¶</a></dt>
+<dd><p>x.shape = [B, f_in]
+y.shape = [B, f_out]
+error.shape = [B, f_out]
+P.shape = [f_in, f_in]</p>
+<p>epsilon = mean[B](error[B, f_out]) -&gt; [1, f_out]
+phi = mean[B](x[B, f_in]) [1, f_in]</p>
+<p>K = P[f_in, f_in] &#64; phi.T[f_in, 1] -&gt; [f_in, 1]
+h = 1 / (labda[1] + kappa[1] * phi[1, f_in] &#64; K[f_in, 1]) -&gt; [1]
+P = labda[1] * P[f_in, f_in] - h[1] * kappa[1] * K[f_in, 1] &#64; K.T[1, f_in] -&gt; [f_in, f_in]
+grad = h[1] * K[f_in, 1] &#64; epsilon[1, f_out] -&gt; [N_in, N_out]</p>
+<p>In this case [N_in, N_out] must be equal to [f_in, f_out].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x_batch</strong> – inputs of the layer</p></li>
+<li><p><strong>pred_batch</strong> – outputs of the layer</p></li>
+<li><p><strong>y_batch</strong> – targets of the layer</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.jacobian_mth_step">
+<span class="sig-name descname"><span class="pre">jacobian_mth_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.jacobian_mth_step" title="Permalink to this definition">¶</a></dt>
+<dd><p>This method is inspired by the work of Al-Batah and al. <span id="id10">Al-Batah <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id50">ABMIZA</a>]</span>. Unfortunately, this
+method does not seem to work with the current implementation.</p>
+<p>TODO: Make it work.</p>
+<p>x.shape = [B, f_in]
+y.shape = [B, f_out]
+error.shape = [B, f_out]
+P.shape = [f_out, f_out]
+theta.shape = [ell, 1]</p>
+<p>epsilon = mean[B](error[B, f_out]) -&gt; [1, f_out]
+phi = mean[B](y[B, f_out]) [1, f_out]
+psi = jacobian[theta](phi[1, f_out]]) -&gt; [f_out, L]</p>
+<p>K = P[f_out, f_out] &#64; psi[f_out, L] -&gt; [f_out, L]
+grad = epsilon[1, f_out] &#64; K[f_out, L] -&gt; [L, 1]
+P = labda[1] * P[f_out, f_out] - kappa[1] * K[f_out, L] &#64; K[f_out, L].T -&gt; [f_out, f_out]</p>
+<p>In this case f_in must be equal to N_in.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x_batch</strong> – inputs of the layer</p></li>
+<li><p><strong>pred_batch</strong> – outputs of the layer</p></li>
+<li><p><strong>y_batch</strong> – targets of the layer</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.load_checkpoint_state">
+<span class="sig-name descname"><span class="pre">load_checkpoint_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">checkpoint</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.load_checkpoint_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads the state of the callback from a dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p></li>
+<li><p><strong>checkpoint</strong> (<em>dict</em>) – The dictionary containing all the states of the trainer.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.on_batch_begin">
+<span class="sig-name descname"><span class="pre">on_batch_begin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.on_batch_begin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when a batch starts. The batch is defined as one forward pass through the network.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.on_batch_end">
+<span class="sig-name descname"><span class="pre">on_batch_end</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.on_batch_end" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when a batch ends. The batch is defined as one forward pass through the network.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.on_optimization_begin">
+<span class="sig-name descname"><span class="pre">on_optimization_begin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.on_optimization_begin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when the optimization phase of an iteration starts. The optimization phase is defined as
+the moment where the model weights are updated.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p></li>
+<li><p><strong>kwargs</strong> – Additional arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Keyword Arguments<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>x</strong> – The input data.</p></li>
+<li><p><strong>y</strong> – The target data.</p></li>
+<li><p><strong>pred</strong> – The predicted data.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.optimization_step">
+<span class="sig-name descname"><span class="pre">optimization_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.optimization_step" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.outputs_mth_step">
+<span class="sig-name descname"><span class="pre">outputs_mth_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.outputs_mth_step" title="Permalink to this definition">¶</a></dt>
+<dd><p>This method is inspired by the work of Perich and al. <span id="id11">Perich <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id48" title="Matthew G. Perich, Charlotte Arlt, Sofia Soares, Megan E. Young, Clayton P. Mosher, Juri Minxha, Eugene Carter, Ueli Rutishauser, Peter H. Rudebeck, Christopher D. Harvey, and Kanaka Rajan. Inferring brain-wide interactions using data-constrained recurrent neural network models. Pages: 2020.12.18.423348 Section: New Results. URL: https://www.biorxiv.org/content/10.1101/2020.12.18.423348v2 (visited on 2022-11-06), doi:10.1101/2020.12.18.423348.">PAS+</a>]</span> with
+the CURBD algorithm.</p>
+<p>x.shape = [B, f_in]
+y.shape = [B, f_out]
+error.shape = [B, f_out]
+epsilon = mean[B](error[B, f_out]) -&gt; [1, f_out]
+phi = mean[B](y[B, f_out]) [1, f_out]</p>
+<p>P.shape = [f_out, f_out]
+K = P[f_out, f_out] &#64; phi.T[f_out, 1] -&gt; [f_out, 1]
+h = 1 / (labda[1] + kappa[1] * phi[1, f_out] &#64; K[f_out, 1]) -&gt; [1]
+P = labda[1] * P[f_out, f_out] - h[1] * kappa[1] * K[f_out, 1] &#64; K.T[1, f_out] -&gt; [f_out, f_out]
+grad = h[1] * K[f_out, 1] &#64; epsilon[1, f_out] -&gt; [N_in, N_out]</p>
+<p>In this case [N_in, N_out] must be equal to [f_out, f_out].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x_batch</strong> – inputs of the layer</p></li>
+<li><p><strong>pred_batch</strong> – outputs of the layer</p></li>
+<li><p><strong>y_batch</strong> – targets of the layer</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.scaled_jacobian_mth_step">
+<span class="sig-name descname"><span class="pre">scaled_jacobian_mth_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.scaled_jacobian_mth_step" title="Permalink to this definition">¶</a></dt>
+<dd><p>This method is inspired by the work of Al-Batah and al. <span id="id12">Al-Batah <em>et al.</em> [<a class="reference internal" href="neurotorch.modules.html#id50">ABMIZA</a>]</span>. Unfortunately, this
+method does not seem to work with the current implementation.</p>
+<p>TODO: Make it work.</p>
+<p>x.shape = [B, f_in]
+y.shape = [B, f_out]
+error.shape = [B, f_out]
+P.shape = [f_out, f_out]
+theta.shape = [ell, 1]</p>
+<p>epsilon = mean[B](error[B, f_out]) -&gt; [1, f_out]
+phi = mean[B](y[B, f_out]) [1, f_out]
+psi = jacobian[theta](phi[1, f_out]]) -&gt; [f_out, ell]</p>
+<p>K = P[f_out, f_out] &#64; psi[f_out, ell] -&gt; [f_out, ell]
+h = 1 / (labda[1] + kappa[1] * psi.T[ell, f_out] &#64; K[f_out, ell]) -&gt; [ell, ell]
+grad = (K[f_out, ell] &#64; h[ell, ell]).T[ell, f_out] &#64; epsilon.T[f_out, 1] -&gt; [1, ell]
+P = labda[1] * P[f_out, f_out] - kappa[1] * K[f_out, ell] &#64; h[ell, ell] &#64; K[f_out, ell].T -&gt; [f_out, f_out]</p>
+<p>In this case f_in must be equal to N_in.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x_batch</strong> – inputs of the layer</p></li>
+<li><p><strong>pred_batch</strong> – outputs of the layer</p></li>
+<li><p><strong>y_batch</strong> – targets of the layer</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.rls.RLS.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.rls.RLS.start" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when the training starts. This is the first callback called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-neurotorch.learning_algorithms.tbptt">
+<span id="neurotorch-learning-algorithms-tbptt-module"></span><h2>neurotorch.learning_algorithms.tbptt module<a class="headerlink" href="#module-neurotorch.learning_algorithms.tbptt" title="Permalink to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">neurotorch.learning_algorithms.tbptt.</span></span><span class="sig-name descname"><span class="pre">TBPTT</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">optimizer</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optimizer</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">criterion</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backward_time_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">optim_time_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#neurotorch.learning_algorithms.bptt.BPTT" title="neurotorch.learning_algorithms.bptt.BPTT"><code class="xref py py-class docutils literal notranslate"><span class="pre">BPTT</span></code></a></p>
+<p>Truncated Backpropagation Through Time (TBPTT) algorithm.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Parameter</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Module</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">optimizer</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optimizer</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">criterion</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Module</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Callable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backward_time_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">optim_time_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Constructor for TBPTT class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>Optional</em><em>[</em><em>Sequence</em><em>[</em><em>torch.nn.Parameter</em><em>]</em><em>]</em>) – The parameters to optimize. If None, the parameters of the model’s trainer will be used.</p></li>
+<li><p><strong>layers</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>Sequence</em><em>[</em><em>torch.nn.Module</em><em>]</em><em>, </em><em>torch.nn.Module</em><em>]</em><em>]</em>) – The layers to apply the TBPTT algorithm to. If None, the layers of the model’s trainer will be used.</p></li>
+<li><p><strong>output_layers</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>Sequence</em><em>[</em><em>torch.nn.Module</em><em>]</em><em>, </em><em>torch.nn.Module</em><em>]</em><em>]</em>) – The layers to use as output layers. If None, the output layers of the model’s trainer will be used.</p></li>
+<li><p><strong>optimizer</strong> (<em>Optional</em><em>[</em><em>torch.optim.Optimizer</em><em>]</em>) – The optimizer to use.</p></li>
+<li><p><strong>criterion</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>Union</em><em>[</em><em>torch.nn.Module</em><em>, </em><em>Callable</em><em>]</em><em>]</em><em>, </em><em>torch.nn.Module</em><em>, </em><em>Callable</em><em>]</em><em>]</em>) – The criterion to use.</p></li>
+<li><p><strong>backward_time_steps</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – The number of time steps to use for the backward pass.</p></li>
+<li><p><strong>optim_time_steps</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – The number of time steps to use for the optimizer step.</p></li>
+<li><p><strong>kwargs</strong> – Additional keyword arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Keyword Arguments<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>auto_backward_time_steps_ratio</strong> (<em>float</em>) – The ratio of the number of time steps to use for the backward pass.
+Defaults to 0.1.</p></li>
+<li><p><strong>auto_optim_time_steps_ratio</strong> (<em>float</em>) – The ratio of the number of time steps to use for the optimizer step.
+Defaults to 0.1.</p></li>
+<li><p><strong>alpha</strong> (<em>float</em>) – The alpha value to use for the exponential moving average of the gradients.</p></li>
+<li><p><strong>grad_norm_clip_value</strong> (<em>float</em>) – The value to clip the gradients norm to. This parameter is used to
+normalize the gradients of the parameters in order to help the convergence and avoid
+overflowing. Defaults to 1.0.</p></li>
+<li><p><strong>nan</strong> (<em>float</em>) – The value to use to replace the NaN values in the gradients. Defaults to 0.0.</p></li>
+<li><p><strong>posinf</strong> (<em>float</em>) – The value to use to replace the inf values in the gradients. Defaults to 1.0.</p></li>
+<li><p><strong>neginf</strong> (<em>float</em>) – The value to use to replace the -inf values in the gradients. Defaults to -1.0.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>AssertionError</strong> – If auto_backward_time_steps_ratio is not between 0 and 1.</p></li>
+<li><p><strong>AssertionError</strong> – If auto_optim_time_steps_ratio is not between 0 and 1.</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="#neurotorch.learning_algorithms.bptt.BPTT.__init__" title="neurotorch.learning_algorithms.bptt.BPTT.__init__"><code class="xref py py-meth docutils literal notranslate"><span class="pre">neurotorch.learning_algorithms.bptt.BPTT.__init__()</span></code></a></p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.close" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when the training ends. This is the last callback called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.decorate_forwards">
+<span class="sig-name descname"><span class="pre">decorate_forwards</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.decorate_forwards" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.extra_repr">
+<span class="sig-name descname"><span class="pre">extra_repr</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.extra_repr" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.initialize_layers">
+<span class="sig-name descname"><span class="pre">initialize_layers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.initialize_layers" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize the layers of the optimizer. Try multiple ways to identify the output layers if those are not
+provided by the user.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> – The trainer object.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.initialize_output_layers">
+<span class="sig-name descname"><span class="pre">initialize_output_layers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.initialize_output_layers" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize the output layers of the optimizer. Try multiple ways to identify the output layers if those are not
+provided by the user.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Note<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Must be called before <code class="xref py py-meth docutils literal notranslate"><span class="pre">initialize_output_params()</span></code>.</p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>trainer</strong> – The trainer object.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.on_batch_begin">
+<span class="sig-name descname"><span class="pre">on_batch_begin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.on_batch_begin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when a batch starts. The batch is defined as one forward pass through the network.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.on_batch_end">
+<span class="sig-name descname"><span class="pre">on_batch_end</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.on_batch_end" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when a batch ends. The batch is defined as one forward pass through the network.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.on_optimization_begin">
+<span class="sig-name descname"><span class="pre">on_optimization_begin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.on_optimization_begin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when the optimization phase of an iteration starts. The optimization phase is defined as
+the moment where the model weights are updated.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p></li>
+<li><p><strong>kwargs</strong> – Additional arguments.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Keyword Arguments<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>x</strong> – The input data.</p></li>
+<li><p><strong>y</strong> – The target data.</p></li>
+<li><p><strong>pred</strong> – The predicted data.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.on_optimization_end">
+<span class="sig-name descname"><span class="pre">on_optimization_end</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.on_optimization_end" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when the optimization phase of an iteration ends. The optimization phase is defined as
+the moment where the model weights are updated.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trainer</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.start" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called when the training starts. This is the first callback called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trainer</strong> (<a class="reference internal" href="neurotorch.trainers.html#neurotorch.trainers.trainer.Trainer" title="neurotorch.trainers.trainer.Trainer"><em>Trainer</em></a>) – The trainer.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="neurotorch.learning_algorithms.tbptt.TBPTT.undecorate_forwards">
+<span class="sig-name descname"><span class="pre">undecorate_forwards</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#neurotorch.learning_algorithms.tbptt.TBPTT.undecorate_forwards" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-neurotorch.learning_algorithms">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-neurotorch.learning_algorithms" title="Permalink to this heading">¶</a></h2>
+</section>
+</section>
+
+
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>    
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'',
+            LANGUAGE:'en',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+    <script type="text/javascript" src="static/documentation_options.js"></script>
+    <script type="text/javascript" src="static/doctools.js"></script>
+    <script type="text/javascript" src="static/sphinx_highlight.js"></script>
+    <script type="text/javascript" src="static/js/theme.js"></script>
+  
+    <div class="footer" role="contentinfo">
+        <div class="container">
+            &#169; Copyright 2022, Jérémie Gince.
+        Created using <a href="http://sphinx-doc.org/">Sphinx</a> 6.2.1.
+        </div>
+    </div>  
+
+</body>
+</html>

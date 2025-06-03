@@ -1,0 +1,53 @@
+neurotorch.utils package
+========================
+
+Submodules
+----------
+
+neurotorch.utils.autograd module
+--------------------------------
+
+.. automodule:: neurotorch.utils.autograd
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.utils.collections module
+-----------------------------------
+
+.. automodule:: neurotorch.utils.collections
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.utils.formatting module
+----------------------------------
+
+.. automodule:: neurotorch.utils.formatting
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.utils.random module
+------------------------------
+
+.. automodule:: neurotorch.utils.random
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+neurotorch.utils.visualise module
+---------------------------------
+
+.. automodule:: neurotorch.utils.visualise
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: neurotorch.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:

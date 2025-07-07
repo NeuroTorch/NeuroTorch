@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import torch
 
 from ..metrics import RegressionMetrics
-from . import Trainer
+from .trainer import Trainer
 
 
 class RegressionTrainer(Trainer):

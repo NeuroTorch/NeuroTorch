@@ -7,7 +7,7 @@ from torch import nn
 from ...dimension import SizeTypes
 from ...transforms import to_tensor
 from ...utils import format_pseudo_rn_seed
-from .. import HeavisidePhiApprox, HeavisideSigmoidApprox, SpikeFunction
+from ..spike_funcs import HeavisidePhiApprox, HeavisideSigmoidApprox, SpikeFunction
 from .base import BaseNeuronsLayer
 
 

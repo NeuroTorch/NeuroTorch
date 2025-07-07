@@ -6,7 +6,7 @@ from ..learning_algorithms.bptt import BPTT
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 from ..metrics import ClassificationMetrics
 from ..transforms.base import ToTensor
-from . import Trainer
+from .trainer import Trainer
 
 
 class ClassificationTrainer(Trainer):

@@ -6,7 +6,6 @@ from .buffers import ReplayBuffer
 # from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
 
 
-
 class CompletionCriteria(NamedTuple):
     """
     Completion criteria for a lesson.

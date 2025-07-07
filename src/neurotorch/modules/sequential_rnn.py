@@ -10,13 +10,10 @@ from torch import Tensor
 from ..dimension import Dimension
 from ..transforms.base import ToDevice
 from ..utils import sequence_get, unpack_out_hh
-from . import (
-    BaseLayer,
-    LayerType,
-    SpikeFunction,
-    SpikeFuncType,
-)
+from .layers import LayerType
+from .layers.base import BaseLayer
 from .sequential import Sequential
+from .spike_funcs import SpikeFunction, SpikeFuncType
 
 Acceptable_Spike_Func = Union[Type[SpikeFunction], SpikeFuncType]
 Acceptable_Spike_Funcs = Union[Acceptable_Spike_Func, Iterable[Acceptable_Spike_Func]]

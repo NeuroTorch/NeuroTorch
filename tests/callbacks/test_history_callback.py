@@ -5,7 +5,6 @@ from neurotorch.callbacks import TrainingHistory
 # import pytest
 
 
-
 class TestHistoryCallback(unittest.TestCase):
     def test_concat(self):
         """

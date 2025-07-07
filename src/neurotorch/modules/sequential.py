@@ -21,15 +21,10 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from ..dimension import Dimension
-from . import (
-    BaseLayer,
-    BaseModel,
-    LayerType,
-    LayerType2Layer,
-    SpikeFunction,
-    SpikeFuncType,
-)
-from .base import NamedModule
+from .base import BaseModel, NamedModule
+from .layers import LayerType, LayerType2Layer
+from .layers.base import BaseLayer
+from .spike_funcs import SpikeFunction, SpikeFuncType
 from .wrappers import NamedModuleWrapper
 
 Acceptable_Spike_Func = Union[Type[SpikeFunction], SpikeFuncType]

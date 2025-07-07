@@ -65,7 +65,7 @@ jobs:
     - name: Test Build
       run: |
         . ./venv/bin/activate
-        python -m build
+        python -m build --sdist --wheel --no-isolation --outdir dist/ .
         twine check dist/*
 
   Run-tests-on-Windows:

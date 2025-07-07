@@ -44,17 +44,13 @@ def dale_(
     values_upper = torch.cat(
         (
             torch.zeros(N_0),
-            torch.normal(
-                0, (1 / np.sqrt(N * rho * (1 - rho))), (len(i) - N_0,), generator=rn_gen
-            ),
+            torch.normal(0, (1 / np.sqrt(N * rho * (1 - rho))), (len(i) - N_0,), generator=rn_gen),
         )
     ).to(tensor.device)
     values_lower = torch.cat(
         (
             torch.zeros(N_0),
-            torch.normal(
-                0, (1 / np.sqrt(N * rho * (1 - rho))), (len(i) - N_0,), generator=rn_gen
-            ),
+            torch.normal(0, (1 / np.sqrt(N * rho * (1 - rho))), (len(i) - N_0,), generator=rn_gen),
         )
     ).to(tensor.device)
     values_upper_rn_indexes = torch.randperm(len(values_upper), generator=rn_gen)

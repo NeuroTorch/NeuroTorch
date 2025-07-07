@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict, Union, List, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch
 from torch.utils.data import DataLoader
@@ -49,10 +49,7 @@ class BaseMetrics:
         :rtype: Dict[str, Callable]
         """
         all_metrics_names_to_func = self.get_unwrap_all_metrics_names_to_func()
-        return {
-            metric_name: all_metrics_names_to_func[metric_name]
-            for metric_name in self.metrics_names
-        }
+        return {metric_name: all_metrics_names_to_func[metric_name] for metric_name in self.metrics_names}
 
     @classmethod
     def _format_metrics_names_(cls, metrics: Any) -> List[str]:
@@ -69,9 +66,7 @@ class BaseMetrics:
     @classmethod
     def _check_metrics_names_(cls, metrics: List[str]) -> None:
         all_metrics_names = cls.get_all_metrics_names()
-        assert all(
-            [metric in all_metrics_names for metric in metrics]
-        ), f"metrics must be in {all_metrics_names}"
+        assert all([metric in all_metrics_names for metric in metrics]), f"metrics must be in {all_metrics_names}"
 
     @staticmethod
     def get_all_metrics_names_to_func() -> Dict[str, Callable]:
@@ -122,9 +117,7 @@ class BaseMetrics:
             all_metrics_names.append(metric_names.split(cls.METRICS_NAMES_SEP)[0])
         return all_metrics_names
 
-    def __call__(
-        self, data_loader: DataLoader, verbose: Union[bool, int] = False
-    ) -> Dict[str, Any]:
+    def __call__(self, data_loader: DataLoader, verbose: Union[bool, int] = False) -> Dict[str, Any]:
         """
         Compute the metrics for the given data_loader.
 

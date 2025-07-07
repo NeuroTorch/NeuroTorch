@@ -11,9 +11,7 @@ class ConvergenceTimeGetter(BaseCallback):
     Monitor the training process and return the time it took to pass the threshold.
     """
 
-    def __init__(
-        self, *, metric: str, threshold: float, minimize_metric: bool, **kwargs
-    ):
+    def __init__(self, *, metric: str, threshold: float, minimize_metric: bool, **kwargs):
         """
         Constructor for ConvergenceTimeGetter class.
 
@@ -38,10 +36,7 @@ class ConvergenceTimeGetter(BaseCallback):
     def load_checkpoint_state(self, trainer, checkpoint: dict, **kwargs):
         if self.save_state:
             state = checkpoint.get(self.name, {})
-            if (
-                state.get("threshold") == self.threshold
-                and state.get("metric") == self.metric
-            ):
+            if state.get("threshold") == self.threshold and state.get("metric") == self.metric:
                 super().load_checkpoint_state(trainer, checkpoint)
                 self.start_time = time.time()
                 if np.isfinite(state.get("time_convergence")):
@@ -58,15 +53,9 @@ class ConvergenceTimeGetter(BaseCallback):
     def on_iteration_end(self, trainer, **kwargs):
         if not self.threshold_met:
             if self.minimize_metric:
-                self.threshold_met = (
-                    trainer.current_training_state.itr_metrics[self.metric]
-                    < self.threshold
-                )
+                self.threshold_met = trainer.current_training_state.itr_metrics[self.metric] < self.threshold
             else:
-                self.threshold_met = (
-                    trainer.current_training_state.itr_metrics[self.metric]
-                    > self.threshold
-                )
+                self.threshold_met = trainer.current_training_state.itr_metrics[self.metric] > self.threshold
             if self.threshold_met:
                 self.save_on(trainer, **kwargs)
 

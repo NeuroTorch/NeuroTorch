@@ -15,9 +15,7 @@ class TestUtils(unittest.TestCase):
         def conv_filter(x, decay):
             batch_size, time_steps, *_ = x.shape
             assert time_steps >= 1
-            weighs = torch.tensor(
-                [decay**t for t in range(time_steps)], dtype=torch.float32
-            )
+            weighs = torch.tensor([decay**t for t in range(time_steps)], dtype=torch.float32)
             y = torch.nn.functional.conv1d(x, weighs.unsqueeze(0).unsqueeze(0))
             return y
 

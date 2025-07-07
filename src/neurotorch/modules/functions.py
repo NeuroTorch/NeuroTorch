@@ -36,12 +36,8 @@ class WeirdTanh(torch.nn.Module):
         self.delta = delta
 
     def forward(self, x):
-        numerator = self.a * torch.exp(self.alpha * x) - self.b * torch.exp(
-            -self.beta * x
-        )
-        denominator = self.c * torch.exp(self.gamma * x) + self.d * torch.exp(
-            -self.delta * x
-        )
+        numerator = self.a * torch.exp(self.alpha * x) - self.b * torch.exp(-self.beta * x)
+        denominator = self.c * torch.exp(self.gamma * x) + self.d * torch.exp(-self.delta * x)
         return numerator / denominator
 
 

@@ -5,35 +5,30 @@ from .base import (
     BaseLayer,
     BaseNeuronsLayer,
 )
-
 from .classical import (
     Linear,
     LinearRNN,
 )
-
-from .spiking import (
-    LIFLayer,
-    ALIFLayer,
-    SpyLIFLayer,
-    SpyALIFLayer,
-    IzhikevichLayer,
-)
-
-from .spiking_lpf import (
-    SpyLIFLayerLPF,
-    SpyALIFLayerLPF,
-    LIFLayerLPF,
-    ALIFLayerLPF,
-)
-
-from .wilson_cowan import (
-    WilsonCowanLayer,
-    WilsonCowanCURBDLayer,
-)
-
 from .leaky_integrate import (
     LILayer,
     SpyLILayer,
+)
+from .spiking import (
+    ALIFLayer,
+    IzhikevichLayer,
+    LIFLayer,
+    SpyALIFLayer,
+    SpyLIFLayer,
+)
+from .spiking_lpf import (
+    ALIFLayerLPF,
+    LIFLayerLPF,
+    SpyALIFLayerLPF,
+    SpyLIFLayerLPF,
+)
+from .wilson_cowan import (
+    WilsonCowanCURBDLayer,
+    WilsonCowanLayer,
 )
 
 

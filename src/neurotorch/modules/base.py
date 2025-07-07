@@ -1,19 +1,19 @@
 import json
 import logging
 from copy import deepcopy
-from typing import Any, Callable, Dict, List, Optional, Union, Tuple, Iterable
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torchvision.transforms import Compose, Lambda
-import torch.nn.functional as F
 
 from ..callbacks import CheckpointManager, LoadCheckpointMode
-from ..dimension import DimensionLike, SizeTypes, Dimension, DimensionProperty
+from ..dimension import Dimension, DimensionLike, DimensionProperty, SizeTypes
 from ..transforms import to_tensor
-from ..transforms.wrappers import CallableToModuleWrapper
 from ..transforms.base import IdentityTransform, ToDevice, ToTensor
-from ..utils import ravel_compose_transforms, list_of_callable_to_sequential
+from ..transforms.wrappers import CallableToModuleWrapper
+from ..utils import list_of_callable_to_sequential, ravel_compose_transforms
 
 
 class NamedModule(torch.nn.Module):
@@ -90,23 +90,15 @@ class SizedModule(NamedModule):
         self._output_size = self._format_size(size)
 
     def _format_size(self, size: Optional[SizeTypes], **kwargs) -> Optional[Dimension]:
-        filter_time = kwargs.get(
-            "filter_time", getattr(self, "size_filter_time", False)
-        )
+        filter_time = kwargs.get("filter_time", getattr(self, "size_filter_time", False))
         # TODO: must accept multiple time dimensions
         if size is not None:
             if isinstance(size, Iterable):
                 size = [Dimension.from_int_or_dimension(s) for s in size]
                 if filter_time:
-                    time_dim_count = len(
-                        list(filter(lambda d: d.dtype == DimensionProperty.TIME, size))
-                    )
-                    assert (
-                        time_dim_count <= 1
-                    ), "Size must not contain more than one Time dimension."
-                    size = list(
-                        filter(lambda d: d.dtype != DimensionProperty.TIME, size)
-                    )
+                    time_dim_count = len(list(filter(lambda d: d.dtype == DimensionProperty.TIME, size)))
+                    assert time_dim_count <= 1, "Size must not contain more than one Time dimension."
+                    size = list(filter(lambda d: d.dtype != DimensionProperty.TIME, size))
                 if len(size) == 1:
                     size = size[0]
                 else:
@@ -114,9 +106,7 @@ class SizedModule(NamedModule):
                         "Size must be a single dimension or a list of 2 dimensions with a Time one "
                         "if `filter_time` is True."
                     )
-            assert isinstance(
-                size, (int, Dimension)
-            ), f"Size must be an int or Dimension. Got {type(size)}."
+            assert isinstance(size, (int, Dimension)), f"Size must be an int or Dimension. Got {type(size)}."
             size = Dimension.from_int_or_dimension(size)
         return size
 
@@ -216,17 +206,9 @@ class BaseModel(NamedModule):
 
     @property
     def _ready(self):
-        is_all_not_none = all(
-            [s is not None for s in [self._input_sizes, self._output_sizes]]
-        )
+        is_all_not_none = all([s is not None for s in [self._input_sizes, self._output_sizes]])
         if is_all_not_none:
-            is_any_none = any(
-                [
-                    s is None
-                    for s in list(self._input_sizes.values())
-                    + list(self._output_sizes.values())
-                ]
-            )
+            is_any_none = any([s is None for s in list(self._input_sizes.values()) + list(self._output_sizes.values())])
         else:
             is_any_none = True
         return is_all_not_none and not is_any_none
@@ -269,18 +251,11 @@ class BaseModel(NamedModule):
     def to(self, device: torch.device, non_blocking: bool = True, *args, **kwargs):
         self._device = device
         for module in self.modules():
-            if (
-                module is not self
-                and getattr(module, "device", device).type != device.type
-            ):
+            if module is not self and getattr(module, "device", device).type != device.type:
                 module.to(device, non_blocking=non_blocking)
-        return super(BaseModel, self).to(
-            device=device, non_blocking=non_blocking, *args, **kwargs
-        )
+        return super(BaseModel, self).to(device=device, non_blocking=non_blocking, *args, **kwargs)
 
-    def _make_input_transform(
-        self, input_transform: Union[Dict[str, Callable], List[Callable]]
-    ) -> torch.nn.ModuleDict:
+    def _make_input_transform(self, input_transform: Union[Dict[str, Callable], List[Callable]]) -> torch.nn.ModuleDict:
         """
         Make the input transform containing the transforms to apply to the inputs. If the input_transform is None,
         the default transform is used. If the input_transform is a list, it is converted to a dict. If the
@@ -307,9 +282,7 @@ class BaseModel(NamedModule):
             if len(input_transform) < len(transform_keys):
                 for i in range(len(input_transform), len(transform_keys)):
                     input_transform.append(default_transform[transform_keys[i]])
-            input_transform = {
-                in_name: t for in_name, t in zip(transform_keys, input_transform)
-            }
+            input_transform = {in_name: t for in_name, t in zip(transform_keys, input_transform)}
         elif callable(input_transform):
             input_transform = {in_name: input_transform for in_name in transform_keys}
         if isinstance(input_transform, dict):
@@ -317,9 +290,7 @@ class BaseModel(NamedModule):
                 [in_name in input_transform for in_name in transform_keys]
             ), f"Input transform must contain all input names: {transform_keys}"
         else:
-            raise TypeError(
-                f"Input transform must be a dict or a list of callables. Got {type(input_transform)}."
-            )
+            raise TypeError(f"Input transform must be a dict or a list of callables. Got {type(input_transform)}.")
 
         for in_name, t in input_transform.items():
             if isinstance(t, torch.nn.Module):
@@ -355,9 +326,7 @@ class BaseModel(NamedModule):
             if len(output_transform) < len(transform_keys):
                 for i in range(len(output_transform), len(transform_keys)):
                     output_transform.append(default_transform[transform_keys[i]])
-            output_transform = {
-                in_name: t for in_name, t in zip(transform_keys, output_transform)
-            }
+            output_transform = {in_name: t for in_name, t in zip(transform_keys, output_transform)}
         elif callable(output_transform):
             output_transform = {in_name: output_transform for in_name in transform_keys}
         if isinstance(output_transform, dict):
@@ -365,9 +334,7 @@ class BaseModel(NamedModule):
                 [in_name in output_transform for in_name in transform_keys]
             ), f"Output transform must contain all output names: {transform_keys}"
         else:
-            raise TypeError(
-                f"Output transform must be a dict or a list of callables. Got {type(output_transform)}."
-            )
+            raise TypeError(f"Output transform must be a dict or a list of callables. Got {type(output_transform)}.")
 
         for out_name, t in output_transform.items():
             if isinstance(t, torch.nn.Module):
@@ -400,18 +367,12 @@ class BaseModel(NamedModule):
             checkpoints_meta_path = self.checkpoints_meta_path
         with open(checkpoints_meta_path, "r+") as jsonFile:
             info: dict = json.load(jsonFile)
-        save_name = CheckpointManager.get_save_name_from_checkpoints(
-            info, load_checkpoint_mode
-        )
+        save_name = CheckpointManager.get_save_name_from_checkpoints(info, load_checkpoint_mode)
         checkpoint_path = f"{self.checkpoint_folder}/{save_name}"
         if verbose:
             logging.info(f"Loading checkpoint from {checkpoint_path}")
-        checkpoint = torch.load(
-            checkpoint_path, map_location=self.device, weights_only=False
-        )
-        self.load_state_dict(
-            checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True
-        )
+        checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
+        self.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
         return checkpoint
 
     def get_default_input_transform(self) -> Dict[str, nn.Module]:
@@ -462,15 +423,10 @@ class BaseModel(NamedModule):
         assert all(
             [in_name in self.input_transform for in_name in inputs]
         ), f"Inputs must be all in input names: {self.input_transform.keys()}"
-        inputs = {
-            in_name: self.input_transform[in_name](in_batch)
-            for in_name, in_batch in inputs.items()
-        }
+        inputs = {in_name: self.input_transform[in_name](in_batch) for in_name, in_batch in inputs.items()}
         return inputs
 
-    def apply_output_transform(
-        self, outputs: Dict[str, Any]
-    ) -> Dict[str, torch.Tensor]:
+    def apply_output_transform(self, outputs: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
         Apply the output transform to the outputs.
 
@@ -483,10 +439,7 @@ class BaseModel(NamedModule):
         assert all(
             [out_name in self.output_transform for out_name in outputs]
         ), f"Outputs must be all in output names: {self.output_transform.keys()}"
-        outputs = {
-            out_name: self.output_transform[out_name](out_batch)
-            for out_name, out_batch in outputs.items()
-        }
+        outputs = {out_name: self.output_transform[out_name](out_batch) for out_name, out_batch in outputs.items()}
         return outputs
 
     def _add_to_device_transform_(self):
@@ -498,9 +451,7 @@ class BaseModel(NamedModule):
         for in_name, trans in self.input_transform.items():
             list_of_transforms = ravel_compose_transforms(self.input_transform[in_name])
             list_of_transforms.append(self._to_device_transform)
-            self.input_transform[in_name] = list_of_callable_to_sequential(
-                list_of_transforms
-            )
+            self.input_transform[in_name] = list_of_callable_to_sequential(list_of_transforms)
             trans.to(self.device)
 
     def _remove_to_device_transform_(self):
@@ -511,13 +462,9 @@ class BaseModel(NamedModule):
         """
         for in_name, trans in self.input_transform.items():
             if self._to_device_transform:
-                list_of_transforms = ravel_compose_transforms(
-                    self.input_transform[in_name]
-                )
+                list_of_transforms = ravel_compose_transforms(self.input_transform[in_name])
                 list_of_transforms.remove(self._to_device_transform)
-                self.input_transform[in_name] = list_of_callable_to_sequential(
-                    list_of_transforms
-                )
+                self.input_transform[in_name] = list_of_callable_to_sequential(list_of_transforms)
 
     def _set_default_device_(self):
         """
@@ -525,9 +472,7 @@ class BaseModel(NamedModule):
 
         :return: None
         """
-        self._device = (
-            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        )
+        self._device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     def infer_sizes_from_inputs(self, inputs: Union[Dict[str, Any], torch.Tensor]):
         """
@@ -553,12 +498,8 @@ class BaseModel(NamedModule):
         :rtype: BaseModel
         """
         self._is_built = True
-        self.input_transform: Dict[str, Callable] = self._make_input_transform(
-            self._given_input_transform
-        )
-        self.output_transform: Dict[str, Callable] = self._make_output_transform(
-            self._given_output_transform
-        )
+        self.input_transform: Dict[str, Callable] = self._make_input_transform(self._given_input_transform)
+        self.output_transform: Dict[str, Callable] = self._make_output_transform(self._given_output_transform)
         self._add_to_device_transform_()
         self.device = self._device
         return self
@@ -569,9 +510,7 @@ class BaseModel(NamedModule):
             self.build()
         return super(BaseModel, self).__call__(inputs, *args, **kwargs)
 
-    def forward(
-        self, inputs: Union[Dict[str, Any], torch.Tensor], **kwargs
-    ) -> Dict[str, torch.Tensor]:
+    def forward(self, inputs: Union[Dict[str, Any], torch.Tensor], **kwargs) -> Dict[str, torch.Tensor]:
         raise NotImplementedError()
 
     def get_prediction_trace(

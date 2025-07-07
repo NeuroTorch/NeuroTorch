@@ -1,10 +1,10 @@
-from typing import Any, Type, Union, Optional
+from typing import Any, Optional, Type, Union
 
 import numpy as np
 import torch
 
+from ..modules.layers import ALIFLayer, LIFLayer, SpyLIFLayer
 from . import ConstantValuesTransform, to_tensor
-from ..modules.layers import LIFLayer, SpyLIFLayer, ALIFLayer
 
 
 class SpikesEncoder(torch.nn.Module):
@@ -43,12 +43,8 @@ class SpikesEncoder(torch.nn.Module):
         kwargs.setdefault("name", "encoder")
         kwargs.setdefault("freeze_weights", False)
 
-        assert (
-            "dt" not in kwargs
-        ), "dt cannot be specified since it must be the given dt"
-        assert (
-            "device" not in kwargs
-        ), "device cannot be specified since it must be the given device"
+        assert "dt" not in kwargs, "dt cannot be specified since it must be the given dt"
+        assert "device" not in kwargs, "device cannot be specified since it must be the given device"
 
         self.spikes_layer = self.spikes_layer_type(
             n_units,
@@ -82,9 +78,7 @@ class SpikesEncoder(torch.nn.Module):
 
         :return: the regularization loss.
         """
-        regularization_loss = torch.tensor(
-            0.0, dtype=torch.float32, device=self.spikes_layer.device
-        )
+        regularization_loss = torch.tensor(0.0, dtype=torch.float32, device=self.spikes_layer.device)
         if hasattr(self.spikes_layer, "get_and_reset_regularization_loss") and callable(
             self.spikes_layer.get_and_reset_regularization_loss
         ):

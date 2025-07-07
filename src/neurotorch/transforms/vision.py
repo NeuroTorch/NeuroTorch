@@ -30,11 +30,7 @@ class ImgToSpikes:
         self.epsilon = epsilon
         self.spikes_indices = None
         self.use_periods = use_periods
-        self.spikes_gen_func = (
-            self.firing_periods_to_spikes
-            if use_periods
-            else self.firing_times_to_spikes
-        )
+        self.spikes_gen_func = self.firing_periods_to_spikes if use_periods else self.firing_times_to_spikes
 
     def pixels_to_firing_periods(self, x: np.ndarray) -> np.ndarray:
         """
@@ -63,9 +59,7 @@ class ImgToSpikes:
         starts = np.clip(firing_periods, 0, self.n_steps - 1, dtype=int)
         # starts[starts > (self.n_steps - 1)] = self.n_steps - 1
         spikes_range = self.spikes_indices[0] - starts[self.spikes_indices[1]]
-        spikes = ((spikes_range % firing_periods[self.spikes_indices[1]]) == 0) * (
-            spikes_range >= 0
-        )
+        spikes = ((spikes_range % firing_periods[self.spikes_indices[1]]) == 0) * (spikes_range >= 0)
         return spikes.astype(float)
 
     def firing_periods_to_spikes(self, firing_periods: np.ndarray) -> np.ndarray:
@@ -74,9 +68,7 @@ class ImgToSpikes:
         firing_periods[firing_periods > (self.n_steps - 1)] = self.n_steps - 1
         firing_periods[firing_periods < 1] = 1
         spikes_range = self.spikes_indices[0] - firing_periods[self.spikes_indices[1]]
-        spikes = ((spikes_range % firing_periods[self.spikes_indices[1]]) == 0) * (
-            spikes_range >= 0
-        )
+        spikes = ((spikes_range % firing_periods[self.spikes_indices[1]]) == 0) * (spikes_range >= 0)
         return spikes.astype(float)
 
     def firing_times_to_spikes(self, firing_times: np.ndarray) -> np.ndarray:

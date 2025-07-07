@@ -1,13 +1,13 @@
 import pickle
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Iterable, List, NamedTuple, Optional, Dict, Iterator
+from queue import PriorityQueue
+from typing import Any, Dict, Iterable, Iterator, List, NamedTuple, Optional
 
 import numpy as np
 import torch
-from queue import PriorityQueue
 
-from ..transforms.base import to_tensor, ToDevice, to_numpy
+from ..transforms.base import ToDevice, to_numpy, to_tensor
 
 
 class Experience:
@@ -127,20 +127,14 @@ class BatchExperience:
     def _make_obs_batch(self, batch: List[Experience]) -> List[torch.Tensor]:
         as_dict = isinstance(batch[0].obs, dict)
         if as_dict:
-            obs = {
-                key: torch.stack([to_tensor(ex.obs[key]) for ex in batch])
-                for key in batch[0].obs
-            }
+            obs = {key: torch.stack([to_tensor(ex.obs[key]) for ex in batch]) for key in batch[0].obs}
             return self._to(obs)
         return self._to(torch.stack([to_tensor(ex.obs) for ex in batch]))
 
     def _make_next_obs_batch(self, batch: List[Experience]) -> List[torch.Tensor]:
         as_dict = isinstance(batch[0].next_obs, dict)
         if as_dict:
-            obs = {
-                key: torch.stack([to_tensor(ex.next_obs[key]) for ex in batch])
-                for key in batch[0].next_obs
-            }
+            obs = {key: torch.stack([to_tensor(ex.next_obs[key]) for ex in batch]) for key in batch[0].next_obs}
             return self._to(obs)
         return self._to(torch.stack([to_tensor(ex.next_obs) for ex in batch]))
 
@@ -159,10 +153,7 @@ class BatchExperience:
     def _make_actions_batch(self, batch: List[Experience]) -> torch.Tensor:
         as_dict = isinstance(batch[0].action, dict)
         if as_dict:
-            action = {
-                key: torch.stack([to_tensor(ex.action[key]) for ex in batch])
-                for key in batch[0].action
-            }
+            action = {key: torch.stack([to_tensor(ex.action[key]) for ex in batch]) for key in batch[0].action}
             return self._to(action)
         return self._to(torch.stack([to_tensor(ex.action) for ex in batch]))
 
@@ -229,8 +220,7 @@ class Trajectory:
                 self.experiences[i].discounted_reward = self.experiences[i].reward
             else:
                 self.experiences[i].discounted_reward = (
-                    self.experiences[i].reward
-                    + gamma * self.experiences[i + 1].discounted_reward
+                    self.experiences[i].reward + gamma * self.experiences[i + 1].discounted_reward
                 )
 
     def make_rewards_horizon(self):
@@ -265,9 +255,7 @@ class Trajectory:
         self.propagate()
 
     def update_others(self, others_list: List[dict]):
-        assert len(others_list) == len(
-            self.experiences
-        ), "The number of experiences must be the same."
+        assert len(others_list) == len(self.experiences), "The number of experiences must be the same."
         for i, others in enumerate(others_list):
             self.experiences[i].others.update(others)
 
@@ -348,11 +336,7 @@ class ReplayBuffer:
         """
         if len(self.data) >= self.__capacity:
             if self.use_priority:
-                self.data.pop(
-                    np.argmin(
-                        [np.abs(getattr(e, self.priority_key, 0.0)) for e in self.data]
-                    )
-                )
+                self.data.pop(np.argmin([np.abs(getattr(e, self.priority_key, 0.0)) for e in self.data]))
             else:
                 self.data.pop(0)
         self.data.append(deepcopy(element))
@@ -528,9 +512,7 @@ class AgentsHistoryMaps:
         from .utils import get_item_from_batch
 
         actions = deepcopy(to_numpy(actions))
-        observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(
-            to_numpy(next_observations)
-        )
+        observations, next_observations = deepcopy(to_numpy(observations)), deepcopy(to_numpy(next_observations))
         rewards, terminals = deepcopy(to_numpy(rewards)), deepcopy(to_numpy(terminals))
         if others is None:
             others = [None] * len(observations)
@@ -554,9 +536,7 @@ class AgentsHistoryMaps:
                         others=get_item_from_batch(others, i),
                     )
                 )
-                self.cumulative_rewards[i].append(
-                    self.trajectories[i].cumulative_reward
-                )
+                self.cumulative_rewards[i].append(self.trajectories[i].cumulative_reward)
                 self.terminal_rewards[i] = self.trajectories[i].terminal_reward
                 finished_trajectory = self.trajectories.pop(i)
                 finished_trajectories.append(finished_trajectory)
@@ -589,9 +569,7 @@ class AgentsHistoryMaps:
             if not self.trajectories[i].propagated:
                 self.trajectories[i].propagate()
             if self.trajectories[i].terminated:
-                self.cumulative_rewards[i].append(
-                    self.trajectories[i].cumulative_reward
-                )
+                self.cumulative_rewards[i].append(self.trajectories[i].cumulative_reward)
                 trajectory = self.trajectories.pop(i)
                 trajectories.append(trajectory)
                 self._terminal_counter += 1
@@ -612,9 +590,7 @@ class AgentsHistoryMaps:
             if not self.trajectories[i].propagated:
                 self.trajectories[i].propagate()
             if self.trajectories[i].terminated:
-                self.cumulative_rewards[i].append(
-                    self.trajectories[i].cumulative_reward
-                )
+                self.cumulative_rewards[i].append(self.trajectories[i].cumulative_reward)
                 trajectory = self.trajectories.pop(i)
                 self._terminal_counter += 1
             else:

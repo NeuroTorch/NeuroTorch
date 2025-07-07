@@ -4,9 +4,9 @@ import numpy as np
 import torch
 from torch import nn
 
-from .base import BaseNeuronsLayer
 from ...dimension import SizeTypes
 from ...transforms import to_tensor
+from .base import BaseNeuronsLayer
 
 
 # @inherit_fields_docstring(fields=["Attributes"], bases=[BaseNeuronsLayer])
@@ -83,9 +83,7 @@ class LILayer(BaseNeuronsLayer):
                 requires_grad=self.requires_grad,
             )
         else:
-            self.bias_weights = torch.zeros(
-                (int(self.output_size),), dtype=torch.float32, device=self._device
-            )
+            self.bias_weights = torch.zeros((int(self.output_size),), dtype=torch.float32, device=self._device)
         super(LILayer, self).build()
         self.initialize_weights_()
         return self
@@ -93,15 +91,11 @@ class LILayer(BaseNeuronsLayer):
     def initialize_weights_(self):
         super(LILayer, self).initialize_weights_()
         if self.kwargs.get("bias_weights", None) is not None:
-            self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(
-                self.device
-            )
+            self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
         else:
             torch.nn.init.constant_(self.bias_weights, 0.0)
 
-    def create_empty_state(
-        self, batch_size: int = 1, **kwargs
-    ) -> Tuple[torch.Tensor, ...]:
+    def create_empty_state(self, batch_size: int = 1, **kwargs) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
             [membrane potential of shape (batch_size, self.output_size)]
@@ -112,17 +106,11 @@ class LILayer(BaseNeuronsLayer):
         kwargs.setdefault("n_hh", 1)
         return super(LILayer, self).create_empty_state(batch_size=batch_size, **kwargs)
 
-    def forward(
-        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
-    ):
+    def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs):
         assert inputs.ndim == 2
         batch_size, nb_features = inputs.shape
         (V,) = self._init_forward_state(state, batch_size, inputs=inputs)
-        next_V = (
-            self.kappa * V
-            + torch.matmul(inputs, self.forward_weights)
-            + self.bias_weights
-        )
+        next_V = self.kappa * V + torch.matmul(inputs, self.forward_weights) + self.bias_weights
         return self.activation(next_V), (next_V,)
 
     def extra_repr(self) -> str:
@@ -252,9 +240,7 @@ class SpyLILayer(BaseNeuronsLayer):
         super(SpyLILayer, self).initialize_weights_()
         weight_scale = 0.2
         if self.kwargs.get("forward_weights", None) is not None:
-            self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(
-                self.device
-            )
+            self.forward_weights.data = to_tensor(self.kwargs["forward_weights"]).to(self.device)
         else:
             torch.nn.init.normal_(
                 self.forward_weights,
@@ -263,15 +249,11 @@ class SpyLILayer(BaseNeuronsLayer):
             )
         if self.kwargs["use_bias"]:
             if self.kwargs.get("bias_weights", None) is not None:
-                self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(
-                    self.device
-                )
+                self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
             else:
                 torch.nn.init.constant_(self.bias_weights, 0.0)
 
-    def create_empty_state(
-        self, batch_size: int = 1, **kwargs
-    ) -> Tuple[torch.Tensor, ...]:
+    def create_empty_state(self, batch_size: int = 1, **kwargs) -> Tuple[torch.Tensor, ...]:
         """
         Create an empty state in the following form:
             [membrane potential of shape (batch_size, self.output_size),
@@ -281,13 +263,9 @@ class SpyLILayer(BaseNeuronsLayer):
         :return: The current state.
         """
         kwargs.setdefault("n_hh", 2)
-        return super(SpyLILayer, self).create_empty_state(
-            batch_size=batch_size, **kwargs
-        )
+        return super(SpyLILayer, self).create_empty_state(batch_size=batch_size, **kwargs)
 
-    def forward(
-        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
-    ):
+    def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs):
         assert inputs.ndim == 2
         batch_size, nb_features = inputs.shape
         V, I_syn = self._init_forward_state(state, batch_size, inputs=inputs)

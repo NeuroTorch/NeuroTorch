@@ -1,10 +1,12 @@
+from typing import Dict, Iterable, List, Optional, Union
+
+import pythonbasictools as pybt
 import torch
 import torch.nn as nn
-from typing import Optional, Union, Iterable, Dict, List
-import pythonbasictools as pybt
-from . import BaseRegularization
-from ..transforms.base import to_numpy
+
 from ..init import dale_
+from ..transforms.base import to_numpy
+from . import BaseRegularization
 
 
 # @pybt.docstring.inherit_fields_docstring(fields=["Attributes"], bases=[BaseRegularization])
@@ -89,9 +91,7 @@ class DaleLawL2(BaseRegularization):
 
     def _init_reference_weights(
         self,
-        reference_weights: Optional[
-            Union[Iterable[torch.Tensor], Dict[str, torch.Tensor]]
-        ] = None,
+        reference_weights: Optional[Union[Iterable[torch.Tensor], Dict[str, torch.Tensor]]] = None,
     ):
         """
         Initialize the reference weights with Dale's law.
@@ -99,9 +99,7 @@ class DaleLawL2(BaseRegularization):
         if reference_weights is None:
             self.reference_weights = []
             for param in self.params:
-                self.reference_weights.append(
-                    torch.sign(dale_(torch.empty_like(param), **self.dale_kwargs))
-                )
+                self.reference_weights.append(torch.sign(dale_(torch.empty_like(param), **self.dale_kwargs)))
         else:
             self.reference_weights = [torch.sign(ref) for ref in reference_weights]
         return self.reference_weights
@@ -116,9 +114,7 @@ class DaleLawL2(BaseRegularization):
         """
         loss_list = []
         for param, ref in zip(self.params, self.reference_weights):
-            loss = torch.trace(
-                param.T @ (self.alpha * param - (1 - self.alpha) * ref.to(param.device))
-            )
+            loss = torch.trace(param.T @ (self.alpha * param - (1 - self.alpha) * ref.to(param.device)))
             loss_list.append(loss)
         if len(self.params) == 0:
             loss = torch.tensor(0.0, dtype=torch.float32)
@@ -148,9 +144,7 @@ class DaleLaw(DaleLawL2):
             the neurons will be shuffled.
         :keyword seed: seed for the random number generator. If None, the seed is not set.
         """
-        super(DaleLaw, self).__init__(
-            params, 0.0, reference_weights, Lambda, **dale_kwargs
-        )
+        super(DaleLaw, self).__init__(params, 0.0, reference_weights, Lambda, **dale_kwargs)
         self.__name__ = self.__class__.__name__
 
 
@@ -235,19 +229,13 @@ class ExcRatioTargetRegularization(BaseRegularization):
         """
         Returns the excitatory ratio of each parameter.
         """
-        return [
-            to_numpy(((torch.mean(self.sign_func(param)) + 1) / 2).item())
-            for param in self.params
-        ]
+        return [to_numpy(((torch.mean(self.sign_func(param)) + 1) / 2).item()) for param in self.params]
 
     def get_params_inh_ratio(self) -> List[float]:
         """
         Returns the inhibitory ratio of each parameter.
         """
-        return [
-            to_numpy(((1 - torch.mean(self.sign_func(param))) / 2).item())
-            for param in self.params
-        ]
+        return [to_numpy(((1 - torch.mean(self.sign_func(param))) / 2).item()) for param in self.params]
 
     def on_pbar_update(self, trainer, **kwargs) -> dict:
         loss = to_numpy(self().item())

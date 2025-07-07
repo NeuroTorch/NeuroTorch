@@ -3,7 +3,6 @@ import unittest
 # import pytest
 from neurotorch import Dimension, DimensionProperty, Size
 
-
 # @pytest.fixture
 # def dimension_init(*args, **kwargs) -> Dimension:
 # 	return Dimension(*args, **kwargs)

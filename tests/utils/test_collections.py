@@ -14,9 +14,7 @@ class TestCollections(unittest.TestCase):
         self.assertEqual(get_meta_str({"a": 1, "b": 2}), "a-1_b-2")
 
     def test_get_meta_str_mixed_input(self):
-        self.assertEqual(
-            get_meta_str([{"b": 2, "a": 1}, {1: 2, 3: 4}]), "a-1_b-2_1-2_3-4"
-        )
+        self.assertEqual(get_meta_str([{"b": 2, "a": 1}, {1: 2, 3: 4}]), "a-1_b-2_1-2_3-4")
 
     def test_get_meta_str_custom_object_input(self):
         class CustomObject:

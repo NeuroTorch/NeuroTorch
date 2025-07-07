@@ -10,8 +10,8 @@ from typing import Any, Dict, Optional, Union
 import numpy as np
 import torch
 
-from .base_callback import BaseCallback
 from ..utils import mapping_update_recursively
+from .base_callback import BaseCallback
 
 
 class LoadCheckpointMode(enum.Enum):
@@ -41,9 +41,7 @@ class LoadCheckpointMode(enum.Enum):
         """
         if mode_name.lower() in ["best", "last"]:
             mode_name = mode_name.upper() + "_ITR"
-        assert (
-            mode_name.upper() in LoadCheckpointMode.__members__
-        ), f"Invalid mode name: {mode_name}"
+        assert mode_name.upper() in LoadCheckpointMode.__members__, f"Invalid mode name: {mode_name}"
         return LoadCheckpointMode[mode_name.upper()]
 
 
@@ -76,9 +74,7 @@ class CheckpointManager(BaseCallback):
         CHECKPOINT_BEST_KEY: CHECKPOINT_SAVE_PATH_KEY,
         CHECKPOINT_ITRS_KEY: {0: CHECKPOINT_SAVE_PATH_KEY},
     }
-    load_mode_to_suffix: Dict[LoadCheckpointMode, str] = {
-        mode: mode.name for mode in list(LoadCheckpointMode)
-    }
+    load_mode_to_suffix: Dict[LoadCheckpointMode, str] = {mode: mode.name for mode in list(LoadCheckpointMode)}
 
     @staticmethod
     def _replace_trainer_history(trainer, new_history: Any):
@@ -115,15 +111,12 @@ class CheckpointManager(BaseCallback):
                 return checkpoints_meta[CheckpointManager.CHECKPOINT_BEST_KEY]
             else:
                 raise FileNotFoundError(
-                    f"No best checkpoint found in checkpoints_meta. "
-                    f"Please use a different load_checkpoint_mode."
+                    f"No best checkpoint found in checkpoints_meta. " f"Please use a different load_checkpoint_mode."
                 )
         elif load_checkpoint_mode == load_checkpoint_mode.LAST_ITR:
             itr_dict = checkpoints_meta[CheckpointManager.CHECKPOINT_ITRS_KEY]
             last_itr: int = max([int(e) for e in itr_dict])
-            return checkpoints_meta[CheckpointManager.CHECKPOINT_ITRS_KEY][
-                str(last_itr)
-            ]
+            return checkpoints_meta[CheckpointManager.CHECKPOINT_ITRS_KEY][str(last_itr)]
         else:
             raise ValueError("Invalid load_checkpoint_mode")
 
@@ -186,9 +179,7 @@ class CheckpointManager(BaseCallback):
         self.start_save_at = start_save_at
         self.curr_best_metric = np.inf if self.minimise_metric else -np.inf
         self.curr_checkpoint = None
-        self.show_best_metric_on_p_bar = kwargs.get(
-            "show_best_metric_on_p_bar", self.save_best_only
-        )
+        self.show_best_metric_on_p_bar = kwargs.get("show_best_metric_on_p_bar", self.save_best_only)
 
     @property
     def checkpoints_meta_path(self) -> str:
@@ -200,7 +191,9 @@ class CheckpointManager(BaseCallback):
         """
         if self._checkpoints_meta_path is not None:
             return self._checkpoints_meta_path
-        full_filename = f"{self.meta_path_prefix}{CheckpointManager.SUFFIX_SEP}{CheckpointManager.CHECKPOINTS_META_SUFFIX}"
+        full_filename = (
+            f"{self.meta_path_prefix}{CheckpointManager.SUFFIX_SEP}{CheckpointManager.CHECKPOINTS_META_SUFFIX}"
+        )
         return f"{self.checkpoint_folder}/{full_filename}.json"
 
     @checkpoints_meta_path.setter
@@ -297,9 +290,7 @@ class CheckpointManager(BaseCallback):
         self.save_checkpoints_meta(self._create_new_checkpoint_meta(itr, best))
         return path
 
-    def load_checkpoint(
-        self, load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR
-    ) -> dict:
+    def load_checkpoint(self, load_checkpoint_mode: LoadCheckpointMode = LoadCheckpointMode.BEST_ITR) -> dict:
         """
         Loads the checkpoint at the given load_checkpoint_mode.
 
@@ -312,12 +303,8 @@ class CheckpointManager(BaseCallback):
         # TODO: add the possibility to load a specific itr
         with open(self.checkpoints_meta_path, "r+") as jsonFile:
             info: dict = json.load(jsonFile)
-        filename = CheckpointManager.get_save_name_from_checkpoints(
-            info, load_checkpoint_mode
-        )
-        checkpoint = torch.load(
-            f"{self.checkpoint_folder}/{filename}", weights_only=False
-        )
+        filename = CheckpointManager.get_save_name_from_checkpoints(info, load_checkpoint_mode)
+        checkpoint = torch.load(f"{self.checkpoint_folder}/{filename}", weights_only=False)
         return checkpoint
 
     def save_checkpoints_meta(self, new_info: dict):
@@ -359,15 +346,9 @@ class CheckpointManager(BaseCallback):
         else:
             try:
                 checkpoint = self.load_checkpoint(trainer.load_checkpoint_mode)
-                trainer.model.load_state_dict(
-                    checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True
-                )
+                trainer.model.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY], strict=True)
                 if trainer.optimizer is not None:
-                    trainer.optimizer.load_state_dict(
-                        checkpoint[
-                            CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-                        ]
-                    )
+                    trainer.optimizer.load_state_dict(checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY])
                 start_itr = int(checkpoint[CheckpointManager.CHECKPOINT_ITR_KEY]) + 1
             # self._replace_trainer_history(trainer, checkpoint[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY])
             except FileNotFoundError as e:
@@ -404,9 +385,7 @@ class CheckpointManager(BaseCallback):
             itr_metrics,
             is_best,
             state_dict=trainer.model.state_dict(),
-            optimizer_state_dict=(
-                trainer.optimizer.state_dict() if trainer.optimizer else None
-            ),
+            optimizer_state_dict=(trainer.optimizer.state_dict() if trainer.optimizer else None),
             training_history=trainer.training_history.get_checkpoint_state(trainer),
             **other_states,
         )
@@ -435,10 +414,7 @@ class CheckpointManager(BaseCallback):
                 self.save_on(trainer)
             return
 
-        if (
-            self.save_freq > 0
-            and trainer.current_training_state.iteration % self.save_freq == 0
-        ):
+        if self.save_freq > 0 and trainer.current_training_state.iteration % self.save_freq == 0:
             return self.save_on(trainer)
         if trainer.current_training_state.iteration >= trainer.state.n_iterations - 1:
             return self.save_on(trainer)
@@ -447,9 +423,7 @@ class CheckpointManager(BaseCallback):
         if trainer.current_training_state.itr_metrics is None:
             return None
 
-        itr_metric = trainer.current_training_state.itr_metrics.get(
-            self.metric, self.curr_best_metric
-        )
+        itr_metric = trainer.current_training_state.itr_metrics.get(self.metric, self.curr_best_metric)
         if self.minimise_metric:
             is_best = itr_metric < self.curr_best_metric
         else:

@@ -1,9 +1,10 @@
 from copy import deepcopy
 from typing import Dict, List, NamedTuple, Optional
 
+from .buffers import ReplayBuffer
+
 # from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
 
-from .buffers import ReplayBuffer
 
 
 class CompletionCriteria(NamedTuple):
@@ -57,9 +58,7 @@ class Lesson:
         """
         if self._teacher is not None:
             buffer = self._teacher.buffer
-            assert isinstance(
-                buffer, ReplayBuffer
-            ), "Teacher must have a replay buffer."
+            assert isinstance(buffer, ReplayBuffer), "Teacher must have a replay buffer."
             return self._teacher.buffer
         return None
 
@@ -79,11 +78,7 @@ class Lesson:
         self._channel = channel
 
     def __getstate__(self):
-        state = {
-            k: v
-            for k, v in self.__dict__.items()
-            if k not in self.UNPICKLABLE_ATTRIBUTES
-        }
+        state = {k: v for k, v in self.__dict__.items() if k not in self.UNPICKLABLE_ATTRIBUTES}
         return state
 
     def __setstate__(self, state):
@@ -210,9 +205,7 @@ class Curriculum:
         if not self.is_completed:
             self.current_lesson.start()
 
-    def on_iteration_end(
-        self, metrics: Dict[str, float]
-    ) -> CurriculumEndIterationOutput:
+    def on_iteration_end(self, metrics: Dict[str, float]) -> CurriculumEndIterationOutput:
         """
         Called when an iteration ends.
         """
@@ -222,21 +215,15 @@ class Curriculum:
             if self.current_lesson.is_completed:
                 self._current_lesson_idx += 1
                 lesson_is_completed = True
-        return CurriculumEndIterationOutput(
-            messages=self.map_repr, lesson_completed=lesson_is_completed
-        )
+        return CurriculumEndIterationOutput(messages=self.map_repr, lesson_completed=lesson_is_completed)
 
     def update_teachers(self, teachers: List):
-        assert len(teachers) == len(
-            self._lessons
-        ), "Number of teachers must match number of lessons."
+        assert len(teachers) == len(self._lessons), "Number of teachers must match number of lessons."
         for lesson, teacher in zip(self._lessons, teachers):
             lesson.teacher = teacher
 
     def update_channels(self, channels: List):
-        assert len(channels) == len(
-            self._lessons
-        ), "Number of channels must match number of lessons."
+        assert len(channels) == len(self._lessons), "Number of channels must match number of lessons."
         for lesson, channel in zip(self._lessons, channels):
             lesson._channel = channel
 

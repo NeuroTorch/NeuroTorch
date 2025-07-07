@@ -1,6 +1,7 @@
 from typing import Optional
 
 import torch
+
 from .base import NamedModule, SizedModule
 
 

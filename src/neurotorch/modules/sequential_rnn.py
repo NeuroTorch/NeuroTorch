@@ -7,15 +7,15 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from . import (
-    BaseLayer,
-    LayerType,
-    SpikeFuncType,
-    SpikeFunction,
-)
 from ..dimension import Dimension
 from ..transforms.base import ToDevice
 from ..utils import sequence_get, unpack_out_hh
+from . import (
+    BaseLayer,
+    LayerType,
+    SpikeFunction,
+    SpikeFuncType,
+)
 from .sequential import Sequential
 
 Acceptable_Spike_Func = Union[Type[SpikeFunction], SpikeFuncType]
@@ -71,9 +71,7 @@ class SequentialRNN(Sequential):
                 continue
             trace_element_type = type(trace[0])
             if not all(isinstance(e, trace_element_type) for e in trace):
-                raise ValueError(
-                    "The hidden states returned by the layers must always have the same type"
-                )
+                raise ValueError("The hidden states returned by the layers must always have the same type")
             # if trace is a list of tensors :
             if issubclass(trace_element_type, torch.Tensor):
                 new_hidden_states[layer_name] = torch.stack(trace, dim=1)
@@ -86,9 +84,7 @@ class SequentialRNN(Sequential):
                     new_hidden_states[layer_name] = [None] * len(trace)
                 # if the iterable is a list of tensors:
                 elif issubclass(internal_trace_element_type, torch.Tensor):
-                    new_hidden_states[layer_name] = tuple(
-                        [torch.stack(e, dim=1) for e in list(zip(*trace))]
-                    )
+                    new_hidden_states[layer_name] = tuple([torch.stack(e, dim=1) for e in list(zip(*trace))])
                 # If the iterable has another format, it will be kept as it is
                 else:
                     new_hidden_states[layer_name] = trace
@@ -113,9 +109,7 @@ class SequentialRNN(Sequential):
         :return: Dictionary of hidden states without the initial hidden state
         :rtype: Dict[str, List[Tuple[torch.Tensor, ...]]]
         """
-        return {
-            layer_name: hidden_states[layer_name][1:] for layer_name in hidden_states
-        }
+        return {layer_name: hidden_states[layer_name][1:] for layer_name in hidden_states}
 
     @staticmethod
     def _pop_memory_(memory: List[Any], memory_size: int) -> List[Any]:
@@ -214,13 +208,9 @@ class SequentialRNN(Sequential):
             default_mem_value = self.foresight_time_steps
         else:
             default_mem_value = np.inf
-        self._out_memory_size: int = self.kwargs.get(
-            "out_memory_size", default_mem_value
-        )
+        self._out_memory_size: int = self.kwargs.get("out_memory_size", default_mem_value)
         self._hh_memory_size: int = self.kwargs.get("hh_memory_size", default_mem_value)
-        self._memory_device_transform = ToDevice(
-            self.kwargs.get("memory_device", self.device)
-        )
+        self._memory_device_transform = ToDevice(self.kwargs.get("memory_device", self.device))
         assert (
             self._out_memory_size is not None and self._out_memory_size > 0
         ), "The memory size must be greater than 0 and not None."
@@ -246,9 +236,7 @@ class SequentialRNN(Sequential):
 
         :return: None
         """
-        assert (
-            memory_size is not None and memory_size > 0
-        ), "The memory size must be greater than 0 and not None."
+        assert memory_size is not None and memory_size > 0, "The memory size must be greater than 0 and not None."
         self._out_memory_size = memory_size
 
     @property
@@ -271,9 +259,7 @@ class SequentialRNN(Sequential):
 
         :return: None
         """
-        assert (
-            memory_size is not None and memory_size > 0
-        ), "The memory size must be greater than 0 and not None."
+        assert memory_size is not None and memory_size > 0, "The memory size must be greater than 0 and not None."
         self._hh_memory_size = memory_size
 
     def _format_single_inputs(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
@@ -312,9 +298,7 @@ class SequentialRNN(Sequential):
                 inputs = torch.cat([inputs, zero_inputs], dim=1)
         return inputs.float()
 
-    def _format_inputs(
-        self, inputs: Dict[str, torch.Tensor]
-    ) -> Dict[str, torch.Tensor]:
+    def _format_inputs(self, inputs: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         Set the memory size of the sequential model if not already set. The default memory size is the number of
         time steps of the inputs. Return the formatted inputs formatted by self._format_single_inputs.
@@ -326,10 +310,7 @@ class SequentialRNN(Sequential):
         :rtype: Dict[str, torch.Tensor]
         """
         max_time_steps = max([v.shape[1] for v in inputs.values()])
-        return {
-            k: self._format_single_inputs(in_tensor, time_steps=max_time_steps)
-            for k, in_tensor in inputs.items()
-        }
+        return {k: self._format_single_inputs(in_tensor, time_steps=max_time_steps) for k, in_tensor in inputs.items()}
 
     def _get_time_steps_from_inputs(self, inputs: Dict[str, torch.Tensor]) -> int:
         """
@@ -345,9 +326,7 @@ class SequentialRNN(Sequential):
         assert len(set(time_steps_entries)) == 1, "inputs must have the same time steps"
         return time_steps_entries[0]
 
-    def _init_hidden_states_memory(
-        self, h0: Optional[Dict[str, Tuple[torch.Tensor, ...]]] = None
-    ) -> Dict[str, List]:
+    def _init_hidden_states_memory(self, h0: Optional[Dict[str, Tuple[torch.Tensor, ...]]] = None) -> Dict[str, List]:
         """
         Initialize the hidden states memory of the model.
 
@@ -363,10 +342,7 @@ class SequentialRNN(Sequential):
             h0 = {layer_name: h0 for layer_name in self.get_all_layers_names()}
         elif isinstance(h0, torch.Tensor):
             h0 = {layer_name: (h0,) for layer_name in self.get_all_layers_names()}
-        return {
-            layer_name: [h0.get(layer_name, None)]
-            for layer_name in self.get_all_layers_names()
-        }
+        return {layer_name: [h0.get(layer_name, None)] for layer_name in self.get_all_layers_names()}
 
     def build(self) -> "SequentialRNN":
         """
@@ -402,9 +378,7 @@ class SequentialRNN(Sequential):
         else:
             self._outputs_to_inputs_names_map: Dict[str, str] = {
                 out_layer_name: in_layer_name
-                for in_layer_name, out_layer_name in zip(
-                    self._ordered_inputs_names, self._ordered_outputs_names
-                )
+                for in_layer_name, out_layer_name in zip(self._ordered_inputs_names, self._ordered_outputs_names)
             }
             for (
                 out_layer_name,
@@ -426,19 +400,13 @@ class SequentialRNN(Sequential):
         features_list = []
         for layer_name, layer in self.input_layers.items():
             hh = sequence_get(hidden_states.get(layer.name, []), idx=-1, default=None)
-            features, hh = unpack_out_hh(
-                layer(inputs[layer_name][:, idx], hh, t=t, **forward_kwargs)
-            )
+            features, hh = unpack_out_hh(layer(inputs[layer_name][:, idx], hh, t=t, **forward_kwargs))
             hidden_states[layer_name].append(self._memory_device_transform(hh))
             features_list.append(features)
         if features_list:
-            forward_tensor = torch.concat(
-                features_list, dim=1
-            )  # TODO: devrait pas etre dim=-1 ?
+            forward_tensor = torch.concat(features_list, dim=1)  # TODO: devrait pas etre dim=-1 ?
         else:
-            forward_tensor = torch.concat(
-                [inputs[in_name][:, idx] for in_name in inputs], dim=1
-            )
+            forward_tensor = torch.concat([inputs[in_name][:, idx] for in_name in inputs], dim=1)
         return forward_tensor
 
     def _hidden_forward_(
@@ -450,9 +418,7 @@ class SequentialRNN(Sequential):
     ) -> torch.Tensor:
         for layer_idx, layer in enumerate(self.hidden_layers):
             hh = sequence_get(hidden_states.get(layer.name, []), idx=-1, default=None)
-            forward_tensor, hh = unpack_out_hh(
-                layer(forward_tensor, hh, t=t, **forward_kwargs)
-            )
+            forward_tensor, hh = unpack_out_hh(layer(forward_tensor, hh, t=t, **forward_kwargs))
             hidden_states[layer.name].append(self._memory_device_transform(hh))
         return forward_tensor
 
@@ -477,9 +443,7 @@ class SequentialRNN(Sequential):
         hidden_states: Dict[str, List[Tuple[torch.Tensor, ...]]],
         outputs_trace: Dict[str, List[torch.Tensor]],
         time_steps: int,
-    ) -> Tuple[
-        Dict[str, List[torch.Tensor]], Dict[str, List[Tuple[torch.Tensor, ...]]]
-    ]:
+    ) -> Tuple[Dict[str, List[torch.Tensor]], Dict[str, List[Tuple[torch.Tensor, ...]]]]:
         """
         Integration of the inputs or the initial conditions.
 
@@ -498,9 +462,7 @@ class SequentialRNN(Sequential):
         for t in range(time_steps):
             forward_tensor = self._inputs_forward_(inputs, hidden_states, idx=t, t=t)
             forward_tensor = self._hidden_forward_(forward_tensor, hidden_states, t=t)
-            outputs_trace = self._outputs_forward_(
-                forward_tensor, hidden_states, outputs_trace, t=t
-            )
+            outputs_trace = self._outputs_forward_(forward_tensor, hidden_states, outputs_trace, t=t)
 
             outputs_trace = {
                 layer_name: self._pop_memory_(trace, self._out_memory_size)
@@ -519,9 +481,7 @@ class SequentialRNN(Sequential):
         outputs_trace: Dict[str, List[torch.Tensor]],
         inputs_time_steps: int,
         foresight_time_steps: int,
-    ) -> Tuple[
-        Dict[str, List[torch.Tensor]], Dict[str, List[Tuple[torch.Tensor, ...]]]
-    ]:
+    ) -> Tuple[Dict[str, List[torch.Tensor]], Dict[str, List[Tuple[torch.Tensor, ...]]]]:
         """
         Foresight prediction of the initial conditions.
 
@@ -541,21 +501,15 @@ class SequentialRNN(Sequential):
         for tau in range(foresight_time_steps - 1):
             t = inputs_time_steps + tau
             foresight_inputs_tensor = {
-                self._outputs_to_inputs_names_map[layer_name]: torch.unsqueeze(
-                    trace[-1], dim=1
-                )
+                self._outputs_to_inputs_names_map[layer_name]: torch.unsqueeze(trace[-1], dim=1)
                 for layer_name, trace in outputs_trace.items()
             }
             forecast_kwargs = dict(forecasting=True, tau=tau)
             forward_tensor = self._inputs_forward_(
                 foresight_inputs_tensor, hidden_states, idx=-1, t=t, **forecast_kwargs
             )
-            forward_tensor = self._hidden_forward_(
-                forward_tensor, hidden_states, t=t, **forecast_kwargs
-            )
-            outputs_trace = self._outputs_forward_(
-                forward_tensor, hidden_states, outputs_trace, t=t, **forecast_kwargs
-            )
+            forward_tensor = self._hidden_forward_(forward_tensor, hidden_states, t=t, **forecast_kwargs)
+            outputs_trace = self._outputs_forward_(forward_tensor, hidden_states, outputs_trace, t=t, **forecast_kwargs)
 
             outputs_trace = {
                 layer_name: self._pop_memory_(trace, self._out_memory_size)
@@ -626,12 +580,8 @@ class SequentialRNN(Sequential):
         #   start at 0 that causes the time steps to go back to 0 (for the layers) when forecasting.
 
         # integration of the inputs or the initial conditions
-        outputs_trace, hidden_states = self._integrate_inputs_(
-            inputs, hidden_states, outputs_trace, time_steps
-        )
-        if (
-            self._hh_memory_size > time_steps
-        ):  # if the initial hidden state still in memory, remove it.
+        outputs_trace, hidden_states = self._integrate_inputs_(inputs, hidden_states, outputs_trace, time_steps)
+        if self._hh_memory_size > time_steps:  # if the initial hidden state still in memory, remove it.
             hidden_states = self._remove_init_hidden_state(hidden_states)
         if foresight_time_steps > 0:
             # Foresight prediction of the initial conditions
@@ -641,10 +591,7 @@ class SequentialRNN(Sequential):
 
         hidden_states = self._format_hidden_outputs_traces(hidden_states)
         outputs_trace_tensor = self.apply_output_transform(
-            {
-                layer_name: torch.stack(trace, dim=1)
-                for layer_name, trace in outputs_trace.items()
-            }
+            {layer_name: torch.stack(trace, dim=1) for layer_name, trace in outputs_trace.items()}
         )
         return outputs_trace_tensor, hidden_states
 
@@ -677,8 +624,7 @@ class SequentialRNN(Sequential):
         if isinstance(outputs_trace, dict):
             if trunc_time_steps is not None:
                 outputs_trace = {
-                    layer_name: trace[:, -trunc_time_steps:]
-                    for layer_name, trace in outputs_trace.items()
+                    layer_name: trace[:, -trunc_time_steps:] for layer_name, trace in outputs_trace.items()
                 }
             if len(outputs_trace) == 1:
                 outputs_trace = outputs_trace[list(outputs_trace.keys())[0]]
@@ -688,9 +634,7 @@ class SequentialRNN(Sequential):
             if isinstance(hidden_states, dict):
                 if trunc_time_steps is not None:
                     hidden_states = {
-                        layer_name: tuple(
-                            trace_item[:, -trunc_time_steps:] for trace_item in trace
-                        )
+                        layer_name: tuple(trace_item[:, -trunc_time_steps:] for trace_item in trace)
                         for layer_name, trace in hidden_states.items()
                     }
                 if len(hidden_states) == 1:

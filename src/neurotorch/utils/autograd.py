@@ -1,4 +1,4 @@
-from typing import List, Iterable, Optional, Sequence, Union, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple, Union
 
 import torch
 
@@ -54,9 +54,7 @@ def compute_jacobian(
                 y.backward(grad_outputs[i], retain_graph=True)
                 for p_idx, param in enumerate(params):
                     jacobian[p_idx].append(param.grad.view(-1).detach().clone())
-            jacobian = [
-                torch.stack(jacobian[i], dim=-1).T for i in range(len(list(params)))
-            ]
+            jacobian = [torch.stack(jacobian[i], dim=-1).T for i in range(len(list(params)))]
         else:
             raise ValueError(f"Unsupported strategy: {strategy}")
     elif x is not None:

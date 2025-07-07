@@ -1,8 +1,8 @@
 import unittest
 import warnings
 
-import torch
 import numpy as np
+import torch
 
 from neurotorch.modules.layers import LILayer
 
@@ -176,9 +176,7 @@ class TestLILayer(unittest.TestCase):
         self.assertEqual(layer.bias_weights.device.type, layer.device.type)
 
         if torch.cuda.is_available():
-            layer = LILayer(
-                input_size=3, output_size=3, device=torch.device(type="cuda", index=0)
-            )
+            layer = LILayer(input_size=3, output_size=3, device=torch.device(type="cuda", index=0))
             input_ = torch.rand(1, 3, device="cpu")
             y, (hh,) = layer(input_)
             self.assertIsInstance(y, torch.Tensor)
@@ -233,9 +231,7 @@ class TestLILayer(unittest.TestCase):
             output = layer(input_)[0]
             output.mean().backward()
             self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
-            self.assertEqual(
-                layer.forward_weights.grad.shape, layer.forward_weights.shape
-            )
+            self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
             self.assertEqual(layer.forward_weights.grad.device, layer.device)
             self.assertIs(layer.bias_weights.grad, None)
         else:

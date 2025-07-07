@@ -1,15 +1,15 @@
 from .base import (
-    to_tensor,
-    to_numpy,
-    LinearRateToSpikes,
     ConstantValuesTransform,
     IdentityTransform,
-    ToDevice,
-    ToTensor,
+    LinearRateToSpikes,
+    ReduceFuncTanh,
     ReduceMax,
     ReduceMean,
     ReduceSum,
-    ReduceFuncTanh,
+    ToDevice,
+    ToTensor,
+    to_numpy,
+    to_tensor,
 )
 
 # from .spikes_encoders import (

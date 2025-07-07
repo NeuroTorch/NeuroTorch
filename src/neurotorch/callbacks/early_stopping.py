@@ -31,9 +31,7 @@ class EarlyStoppingThreshold(BaseCallback):
     Monitor the training process and set the stop_training_flag to True when the threshold is met.
     """
 
-    def __init__(
-        self, *, metric: str, threshold: float, minimize_metric: bool, **kwargs
-    ):
+    def __init__(self, *, metric: str, threshold: float, minimize_metric: bool, **kwargs):
         """
         Constructor for EarlyStoppingThreshold class.
 
@@ -52,13 +50,9 @@ class EarlyStoppingThreshold(BaseCallback):
 
     def on_iteration_end(self, trainer, **kwargs):
         if self.minimize_metric:
-            threshold_met = (
-                trainer.current_training_state.itr_metrics[self.metric] < self.threshold
-            )
+            threshold_met = trainer.current_training_state.itr_metrics[self.metric] < self.threshold
         else:
-            threshold_met = (
-                trainer.current_training_state.itr_metrics[self.metric] > self.threshold
-            )
+            threshold_met = trainer.current_training_state.itr_metrics[self.metric] > self.threshold
         if threshold_met:
             trainer.update_state_(stop_training_flag=True)
 
@@ -102,9 +96,7 @@ class EarlyStoppingOnTimeLimit(BaseCallback):
             state = checkpoint.get(self.name, {})
             self.delta_seconds = state.get(self.DELTA_SECONDS_KEY, self.delta_seconds)
             if self.resume_on_load:
-                self.current_seconds_count = state.get(
-                    self.CURRENT_SECONDS_COUNT_KEY, 0.0
-                )
+                self.current_seconds_count = state.get(self.CURRENT_SECONDS_COUNT_KEY, 0.0)
 
     def get_checkpoint_state(self, trainer, **kwargs) -> object:
         if self.save_state:

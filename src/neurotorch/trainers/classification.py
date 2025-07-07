@@ -2,11 +2,11 @@ from typing import Callable, Dict, List, Optional, Union
 
 import torch
 
-from . import Trainer
 from ..learning_algorithms.bptt import BPTT
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
-from ..transforms.base import ToTensor
 from ..metrics import ClassificationMetrics
+from ..transforms.base import ToTensor
+from . import Trainer
 
 
 class ClassificationTrainer(Trainer):
@@ -15,9 +15,7 @@ class ClassificationTrainer(Trainer):
         kwargs.setdefault("predict_method", "get_prediction_log_proba")
         super().__init__(*args, **kwargs)
 
-    def _set_default_criterion(
-        self, criterion: Optional[torch.nn.Module]
-    ) -> torch.nn.Module:
+    def _set_default_criterion(self, criterion: Optional[torch.nn.Module]) -> torch.nn.Module:
         if criterion is None:
             if isinstance(self.model.output_sizes, dict):
                 criterion = {k: torch.nn.NLLLoss() for k in self.model.output_sizes}
@@ -32,9 +30,7 @@ class ClassificationTrainer(Trainer):
             metrics = [ClassificationMetrics(self.model)]
         return metrics
 
-    def _maybe_add_learning_algorithm(
-        self, learning_algorithm: Optional[LearningAlgorithm]
-    ) -> None:
+    def _maybe_add_learning_algorithm(self, learning_algorithm: Optional[LearningAlgorithm]) -> None:
         if len(self.learning_algorithms) == 0 and learning_algorithm is None:
             learning_algorithm = BPTT(
                 optimizer=torch.optim.Adam(self.model.parameters()),

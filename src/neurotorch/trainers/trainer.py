@@ -1,16 +1,16 @@
 import warnings
 from collections import OrderedDict
-from copy import deepcopy, copy
+from copy import copy, deepcopy
 from typing import (
-    Iterable,
-    Optional,
-    List,
+    Any,
     Callable,
     Dict,
-    Any,
-    Union,
-    NamedTuple,
     Generator,
+    Iterable,
+    List,
+    NamedTuple,
+    Optional,
+    Union,
 )
 
 import numpy as np
@@ -18,13 +18,13 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from ..transforms.base import to_numpy, ToTensor
-from ..learning_algorithms.bptt import BPTT
 from ..callbacks import CheckpointManager, LoadCheckpointMode, TrainingHistory
 from ..callbacks.base_callback import BaseCallback, CallbacksList
+from ..learning_algorithms.bptt import BPTT
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
 from ..modules import BaseModel
 from ..regularization import BaseRegularization, RegularizationList
+from ..transforms.base import ToTensor, to_numpy
 from ..utils.collections import unpack_x_hh_y
 
 
@@ -106,21 +106,13 @@ class Trainer:
         model: torch.nn.Module,
         *,
         predict_method: str = "__call__",
-        criterion: Optional[
-            Union[
-                Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable
-            ]
-        ] = None,
-        regularization: Optional[
-            Union[BaseRegularization, RegularizationList, Iterable[BaseRegularization]]
-        ] = None,
+        criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
+        regularization: Optional[Union[BaseRegularization, RegularizationList, Iterable[BaseRegularization]]] = None,
         optimizer: Optional[torch.optim.Optimizer] = None,
         learning_algorithm: Optional[LearningAlgorithm] = None,
         regularization_optimizer: Optional[torch.optim.Optimizer] = None,
         metrics: Optional[List[Callable]] = None,
-        callbacks: Optional[
-            Union[List[BaseCallback], CallbacksList, BaseCallback]
-        ] = None,
+        callbacks: Optional[Union[List[BaseCallback], CallbacksList, BaseCallback]] = None,
         device: Optional[torch.device] = None,
         verbose: bool = True,
         **kwargs,
@@ -180,9 +172,7 @@ class Trainer:
         self.regularization = self._set_default_regularization(regularization)
         # self._maybe_add_regularization(self.regularization)
         self.optimizer = self._set_default_optimizer(optimizer)
-        self.regularization_optimizer = self._set_default_reg_optimizer(
-            regularization_optimizer
-        )
+        self.regularization_optimizer = self._set_default_reg_optimizer(regularization_optimizer)
         self.metrics = self._set_default_metrics(metrics)
         self.callbacks: CallbacksList = self._set_default_callbacks(callbacks)
         self._maybe_add_learning_algorithm(learning_algorithm)
@@ -240,21 +230,15 @@ class Trainer:
 
     @property
     def training_histories(self) -> CallbacksList:
-        return CallbacksList(
-            list(filter(lambda x: isinstance(x, TrainingHistory), self.callbacks))
-        )
+        return CallbacksList(list(filter(lambda x: isinstance(x, TrainingHistory), self.callbacks)))
 
     @property
     def checkpoint_managers(self) -> CallbacksList:
-        return CallbacksList(
-            list(filter(lambda x: isinstance(x, CheckpointManager), self.callbacks))
-        )
+        return CallbacksList(list(filter(lambda x: isinstance(x, CheckpointManager), self.callbacks)))
 
     @property
     def learning_algorithms(self) -> CallbacksList:
-        return CallbacksList(
-            list(filter(lambda x: isinstance(x, LearningAlgorithm), self.callbacks))
-        )
+        return CallbacksList(list(filter(lambda x: isinstance(x, LearningAlgorithm), self.callbacks)))
 
     @staticmethod
     def _set_default_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -268,9 +252,7 @@ class Trainer:
         assert kwargs["batch_size"] > 0, "batch_size must be positive"
         return kwargs
 
-    def _set_default_optimizer(
-        self, optimizer: Optional[torch.optim.Optimizer]
-    ) -> torch.optim.Optimizer:
+    def _set_default_optimizer(self, optimizer: Optional[torch.optim.Optimizer]) -> torch.optim.Optimizer:
         warnings.warn(
             "The 'optimizer' parameter is deprecated. Use the 'callbacks' parameter instead.",
             DeprecationWarning,
@@ -283,25 +265,17 @@ class Trainer:
         # 	)
         return optimizer
 
-    def _maybe_add_learning_algorithm(
-        self, learning_algorithm: Optional[LearningAlgorithm]
-    ) -> None:
+    def _maybe_add_learning_algorithm(self, learning_algorithm: Optional[LearningAlgorithm]) -> None:
         if len(self.learning_algorithms) == 0 and learning_algorithm is None:
-            learning_algorithm = BPTT(
-                optimizer=self.optimizer, criterion=self.criterion
-            )
+            learning_algorithm = BPTT(optimizer=self.optimizer, criterion=self.criterion)
         if learning_algorithm is not None:
             self.callbacks.append(learning_algorithm)
 
-    def _maybe_add_regularization(
-        self, regularization: Optional[RegularizationList]
-    ) -> None:
+    def _maybe_add_regularization(self, regularization: Optional[RegularizationList]) -> None:
         if regularization is not None:
             self.callbacks.append(regularization)
 
-    def _set_default_reg_optimizer(
-        self, optimizer: Optional[torch.optim.Optimizer]
-    ) -> torch.optim.Optimizer:
+    def _set_default_reg_optimizer(self, optimizer: Optional[torch.optim.Optimizer]) -> torch.optim.Optimizer:
         warnings.warn(
             "The 'regularization_optimizer' parameter is deprecated. Use the 'callbacks' parameter instead.",
             DeprecationWarning,
@@ -319,9 +293,7 @@ class Trainer:
             metrics = []
         return metrics
 
-    def _set_default_criterion(
-        self, criterion: Optional[torch.nn.Module]
-    ) -> torch.nn.Module:
+    def _set_default_criterion(self, criterion: Optional[torch.nn.Module]) -> torch.nn.Module:
         warnings.warn(
             "The 'criterion' parameter is deprecated. Use the 'callbacks' parameter instead.",
             DeprecationWarning,
@@ -339,9 +311,7 @@ class Trainer:
 
     def _set_default_regularization(
         self,
-        regularization: Optional[
-            Union[BaseRegularization, RegularizationList, Iterable[BaseRegularization]]
-        ],
+        regularization: Optional[Union[BaseRegularization, RegularizationList, Iterable[BaseRegularization]]],
     ) -> Optional[RegularizationList]:
         warnings.warn(
             "The 'regularization' parameter is deprecated. Use the 'callbacks' parameter instead.",
@@ -362,11 +332,7 @@ class Trainer:
             if hasattr(self.model, "device"):
                 device = self.model.device
             else:
-                device = (
-                    torch.device("cuda")
-                    if torch.cuda.is_available()
-                    else torch.device("cpu")
-                )
+                device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         return device
 
     @staticmethod
@@ -391,9 +357,7 @@ class Trainer:
         self.update_state_(info={**self.current_training_state.info, **kwargs})
 
     def update_itr_metrics_state_(self, **kwargs):
-        self.update_state_(
-            itr_metrics={**self.current_training_state.itr_metrics, **kwargs}
-        )
+        self.update_state_(itr_metrics={**self.current_training_state.itr_metrics, **kwargs})
 
     def sort_callbacks_(self, reverse: bool = False) -> CallbacksList:
         """
@@ -513,9 +477,7 @@ class Trainer:
                 itr_val_metrics = self._exec_metrics(val_dataloader, prefix="val")
             else:
                 itr_val_metrics = {}
-            self.update_itr_metrics_state_(
-                **dict(**itr_loss, **itr_train_metrics, **itr_val_metrics)
-            )
+            self.update_itr_metrics_state_(**dict(**itr_loss, **itr_train_metrics, **itr_val_metrics))
             postfix = {f"{k}": f"{v:.5e}" for k, v in self.state.itr_metrics.items()}
             postfix.update(self.callbacks.on_pbar_update(self))
             self.callbacks.on_iteration_end(self)
@@ -583,9 +545,7 @@ class Trainer:
             torch.cuda.empty_cache()
         return losses
 
-    def _exec_metrics(
-        self, dataloader: torch.utils.data.DataLoader, prefix: str
-    ) -> Dict:
+    def _exec_metrics(self, dataloader: torch.utils.data.DataLoader, prefix: str) -> Dict:
         metrics_dict = {}
         for metric in self.metrics:
             m_out = metric(dataloader)
@@ -622,23 +582,17 @@ class Trainer:
     ):
         x_batch = self.x_transform(self._batch_to_dense(self._batch_to_device(x_batch)))
         if hh_batch is not None:
-            hh_batch = self.x_transform(
-                self._batch_to_dense(self._batch_to_device(hh_batch))
-            )
+            hh_batch = self.x_transform(self._batch_to_dense(self._batch_to_device(hh_batch)))
         y_batch = self.y_transform(self._batch_to_dense(self._batch_to_device(y_batch)))
         self.update_state_(x_batch=x_batch, hh_batch=hh_batch, y_batch=y_batch)
         self.callbacks.on_batch_begin(self)
         pred_batch = self.get_pred_batch(x_batch, hh_batch)
         self.update_state_(pred_batch=pred_batch)
         if self.model.training:
-            self.callbacks.on_optimization_begin(
-                self, x=x_batch, hh_batch=hh_batch, y=y_batch, pred=pred_batch
-            )
+            self.callbacks.on_optimization_begin(self, x=x_batch, hh_batch=hh_batch, y=y_batch, pred=pred_batch)
             self.callbacks.on_optimization_end(self)
         else:
-            self.callbacks.on_validation_batch_begin(
-                self, x=x_batch, hh_batch=hh_batch, y=y_batch, pred=pred_batch
-            )
+            self.callbacks.on_validation_batch_begin(self, x=x_batch, hh_batch=hh_batch, y=y_batch, pred=pred_batch)
             self.callbacks.on_validation_batch_end(self)
         self.callbacks.on_batch_end(self)
         batch_loss = self.current_training_state.batch_loss
@@ -693,16 +647,9 @@ class Trainer:
             if isinstance(pred, torch.Tensor):
                 pred = {k: pred for k in self.criterion}
             assert (
-                isinstance(pred, dict)
-                and isinstance(y_batch, dict)
-                and isinstance(pred, dict)
+                isinstance(pred, dict) and isinstance(y_batch, dict) and isinstance(pred, dict)
             ), "If criterion is a dict, pred, y_batch and pred must be a dict too."
-            batch_loss = sum(
-                [
-                    self.criterion[k](pred[k], y_batch[k].to(self.device))
-                    for k in self.criterion
-                ]
-            )
+            batch_loss = sum([self.criterion[k](pred[k], y_batch[k].to(self.device)) for k in self.criterion])
         else:
             if isinstance(pred, dict) and len(pred) == 1:
                 pred = pred[list(pred.keys())[0]]

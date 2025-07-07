@@ -116,9 +116,7 @@ class Size:
         dimensions (List[Dimension]): The dimensions of the space.
     """
 
-    def __init__(
-        self, dimensions: Union[int, Dimension, Iterable[Union[int, Dimension]]]
-    ):
+    def __init__(self, dimensions: Union[int, Dimension, Iterable[Union[int, Dimension]]]):
         """
         Constructor for Size.
 
@@ -129,14 +127,10 @@ class Size:
             dimensions = [dimensions]
         else:
             dimensions = list(dimensions)
-        self.dimensions: List[Dimension] = [
-            Dimension.from_int_or_dimension(dimension) for dimension in dimensions
-        ]
+        self.dimensions: List[Dimension] = [Dimension.from_int_or_dimension(dimension) for dimension in dimensions]
 
     def __str__(self) -> str:
-        _str = "Size[" + ", ".join(
-            [f"{i}:" + str(dim) for i, dim in enumerate(self.dimensions)]
-        )
+        _str = "Size[" + ", ".join([f"{i}:" + str(dim) for i, dim in enumerate(self.dimensions)])
         return _str[:-2] + "]"
 
     def __repr__(self) -> str:

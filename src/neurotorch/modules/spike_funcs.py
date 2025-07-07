@@ -96,9 +96,7 @@ class HeavisideSigmoidApprox(SpikeFunction):
     """
 
     @staticmethod
-    def backward(
-        ctx: torch.autograd.function.FunctionCtx, grad_outputs: torch.Tensor
-    ) -> Any:
+    def backward(ctx: torch.autograd.function.FunctionCtx, grad_outputs: torch.Tensor) -> Any:
         """
         The implementation of the equation :eq:`fast_sigmoid_derivative`.
 
@@ -110,9 +108,7 @@ class HeavisideSigmoidApprox(SpikeFunction):
         """
         inputs, threshold, scale = ctx.saved_tensors
         grad_outputs_clone = grad_outputs.clone()
-        inputs_grad = (
-            grad_outputs_clone / (scale * torch.abs(inputs - threshold) + 1.0) ** 2
-        )
+        inputs_grad = grad_outputs_clone / (scale * torch.abs(inputs - threshold) + 1.0) ** 2
         if ctx.needs_input_grad[1]:
             threshold_grad = -inputs_grad.clone()
         else:
@@ -144,10 +140,7 @@ class HeavisidePhiApprox(SpikeFunction):
     def pseudo_derivative(inputs, threshold, gamma):
         return (gamma / (threshold + HeavisidePhiApprox.epsilon)) * torch.max(
             torch.zeros_like(inputs),
-            1
-            - torch.abs(
-                (inputs - threshold) / (threshold + HeavisidePhiApprox.epsilon)
-            ),
+            1 - torch.abs((inputs - threshold) / (threshold + HeavisidePhiApprox.epsilon)),
         )
 
     @staticmethod
@@ -167,10 +160,7 @@ class HeavisidePhiApprox(SpikeFunction):
             * (gamma / (threshold + HeavisidePhiApprox.epsilon))
             * torch.max(
                 torch.zeros_like(inputs),
-                1
-                - torch.abs(
-                    (inputs - threshold) / (threshold + HeavisidePhiApprox.epsilon)
-                ),
+                1 - torch.abs((inputs - threshold) / (threshold + HeavisidePhiApprox.epsilon)),
             )
         )
         if ctx.needs_input_grad[1]:

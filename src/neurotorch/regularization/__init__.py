@@ -1,4 +1,5 @@
 from typing import Dict, Iterable, Optional, Union
+
 import pythonbasictools as pybt
 import torch
 
@@ -100,9 +101,7 @@ class RegularizationList(BaseRegularization):
         _params = []
         for regularization in self.regularizations:
             _params.extend(regularization.params)
-        super(RegularizationList, self).__init__(
-            params=_params, Lambda=1.0, optimizer=optimizer, **kwargs
-        )
+        super(RegularizationList, self).__init__(params=_params, Lambda=1.0, optimizer=optimizer, **kwargs)
         self.regularizations = regularizations if regularizations is not None else []
 
     def __iter__(self):
@@ -122,9 +121,7 @@ class RegularizationList(BaseRegularization):
         """
         if len(self.regularizations) == 0:
             return torch.tensor(0)
-        loss = sum(
-            [regularization(*args, **kwargs) for regularization in self.regularizations]
-        )
+        loss = sum([regularization(*args, **kwargs) for regularization in self.regularizations])
         return loss
 
 

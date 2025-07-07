@@ -1,7 +1,7 @@
 import collections.abc
 import hashlib
 import pickle
-from typing import Callable, Dict, List, Any, Union, Sequence, Type, Tuple
+from typing import Any, Callable, Dict, List, Sequence, Tuple, Type, Union
 
 import torch
 
@@ -64,9 +64,7 @@ def get_meta_str(__obj: Any) -> str:
     return meta_name
 
 
-def hash_meta_str(
-    __obj: Any, hash_mth: str = "md5", out_type: str = "hex"
-) -> Union[str, int]:
+def hash_meta_str(__obj: Any, hash_mth: str = "md5", out_type: str = "hex") -> Union[str, int]:
     """
     Hash an object to get a unique and persistent id. The hash is computed by hashing the
     string representation of the entry. The string representation is obtained using the function
@@ -117,14 +115,10 @@ def get_all_params_combinations(params_space: Dict[str, Any]) -> List[Dict[str, 
     # get all the combinaison of the parameters
     all_params = list(params_space.keys())
     all_params_values = list(params_space.values())
-    all_params_combinaison = list(
-        map(lambda x: list(x), list(itertools.product(*all_params_values)))
-    )
+    all_params_combinaison = list(map(lambda x: list(x), list(itertools.product(*all_params_values))))
 
     # create a list of dict of all the combinaison
-    all_params_combinaison_dict = list(
-        map(lambda x: dict(zip(all_params, x)), all_params_combinaison)
-    )
+    all_params_combinaison_dict = list(map(lambda x: dict(zip(all_params, x)), all_params_combinaison))
     return all_params_combinaison_dict
 
 
@@ -141,10 +135,7 @@ def list_of_callable_to_sequential(
     from neurotorch.transforms.wrappers import CallableToModuleWrapper
 
     return torch.nn.Sequential(
-        *[
-            c if isinstance(c, torch.nn.Module) else CallableToModuleWrapper(c)
-            for c in callable_list
-        ]
+        *[c if isinstance(c, torch.nn.Module) else CallableToModuleWrapper(c) for c in callable_list]
     )
 
 
@@ -270,15 +261,11 @@ def unpack_tuple(
             n_fill = expected_length - x_length
             idx_start_fill = int(x_length / 2)
             idx_end_fill = idx_start_fill + n_fill - 1
-            x_indexes = list(
-                set(indexes) - set(range(idx_start_fill, idx_end_fill + 1))
-            )
+            x_indexes = list(set(indexes) - set(range(idx_start_fill, idx_end_fill + 1)))
             for i, idx in enumerate(x_indexes):
                 output[idx] = x[i]
         else:
-            raise ValueError(
-                f"fill_method must be in ['left', 'right', 'middle']. Got {fill_method}."
-            )
+            raise ValueError(f"fill_method must be in ['left', 'right', 'middle']. Got {fill_method}.")
     elif x_length > expected_length:
         n_aggregate = x_length - expected_length + 1
         if aggregate_method == "left":
@@ -294,9 +281,7 @@ def unpack_tuple(
                 + list(x[idx_end_aggregate:])
             )
         else:
-            raise ValueError(
-                f"aggregate_method must be in ['left', 'right', 'middle']. Got {aggregate_method}."
-            )
+            raise ValueError(f"aggregate_method must be in ['left', 'right', 'middle']. Got {aggregate_method}.")
     return tuple(output)
 
 

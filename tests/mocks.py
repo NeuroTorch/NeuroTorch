@@ -3,7 +3,7 @@ from collections import defaultdict
 import torch
 
 import neurotorch as nt
-from neurotorch.callbacks.base_callback import CallbacksList, BaseCallback
+from neurotorch.callbacks.base_callback import BaseCallback, CallbacksList
 from neurotorch.trainers.trainer import CurrentTrainingState
 
 
@@ -43,9 +43,7 @@ class MockTrainer:
             self.training_history = MockHistory()
             callbacks.append(MockHistory())
         else:
-            self.training_history = [
-                callback for callback in callbacks if isinstance(callback, MockHistory)
-            ][0]
+            self.training_history = [callback for callback in callbacks if isinstance(callback, MockHistory)][0]
         self.callbacks = CallbacksList(callbacks)
         self.sort_flag = False
         self.load_checkpoint_mode = None
@@ -55,9 +53,7 @@ class MockTrainer:
         self.y_shape = (1, 1, 5)
         self.model = kwargs.get(
             "model",
-            nt.SequentialRNN(
-                layers=[nt.Linear(self.x_shape[-1], self.y_shape[-1])]
-            ).build(),
+            nt.SequentialRNN(layers=[nt.Linear(self.x_shape[-1], self.y_shape[-1])]).build(),
         )
         self.optimizer = None
 
@@ -75,15 +71,11 @@ class MockTrainer:
         self.callbacks.start(self)
         self.callbacks.load_checkpoint_state(self, {})
         for i in range(n_iterations):
-            self.current_training_state = self.current_training_state.update(
-                iteration=i
-            )
+            self.current_training_state = self.current_training_state.update(iteration=i)
             self.callbacks.on_iteration_begin(self)
             self.callbacks.on_train_begin(self)
             self.callbacks.on_epoch_begin(self)
-            self.update_state_(
-                x_batch=torch.randn(*self.x_shape), y_batch=torch.randn(*self.y_shape)
-            )
+            self.update_state_(x_batch=torch.randn(*self.x_shape), y_batch=torch.randn(*self.y_shape))
             self.callbacks.on_batch_begin(self)
             pred_batch = self.model(self.state.x_batch)
             self.update_state_(pred_batch=pred_batch)
@@ -103,9 +95,7 @@ class MockTrainer:
             self.callbacks.on_batch_end(self)
             self.callbacks.on_epoch_end(self)
             self.callbacks.on_validation_end(self)
-            self.current_training_state = self.current_training_state.update(
-                itr_metrics={}
-            )
+            self.current_training_state = self.current_training_state.update(itr_metrics={})
             self.callbacks.on_iteration_end(self)
         self.callbacks.close(self)
 

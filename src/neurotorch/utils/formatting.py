@@ -1,4 +1,4 @@
-from typing import Union, Dict
+from typing import Dict, Union
 
 import torch
 
@@ -31,13 +31,9 @@ def format_pred_batch(
         assert isinstance(pred_batch, dict) and isinstance(
             y_batch, dict
         ), "If y_batch is a dict, pred must be a dict too."
-        assert set(pred_batch.keys()) == set(
-            y_batch.keys()
-        ), "Keys of y_batch and pred_batch must be the same."
+        assert set(pred_batch.keys()) == set(y_batch.keys()), "Keys of y_batch and pred_batch must be the same."
     else:
         if isinstance(pred_batch, dict):
-            assert (
-                len(pred_batch) == 1
-            ), "pred_batch must have only one key if y_batch is not a dict."
+            assert len(pred_batch) == 1, "pred_batch must have only one key if y_batch is not a dict."
             pred_batch = maybe_unpack_singleton_dict(pred_batch)
     return pred_batch

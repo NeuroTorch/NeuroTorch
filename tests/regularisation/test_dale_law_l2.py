@@ -60,9 +60,7 @@ class TestDaleLawL2(unittest.TestCase):
             weights = torch.nn.Parameter(weights)
             dale_law = DaleLawL2([weights], alpha=1, reference_weights=None)
         except ValueError:
-            self.fail(
-                "DaleLaw should not raise an error when weights_reference is None"
-            )
+            self.fail("DaleLaw should not raise an error when weights_reference is None")
 
     def test_gradient_is_compute(self):
         """
@@ -116,9 +114,7 @@ class TestDaleLawL2(unittest.TestCase):
         reference_weights = torch.rand(10, 10)
         dale_law = DaleLawL2([weights], alpha=0, reference_weights=[reference_weights])
         loss = dale_law()
-        self.assertEqual(
-            loss, -torch.trace(weights.detach().T @ torch.sign(reference_weights))
-        )
+        self.assertEqual(loss, -torch.trace(weights.detach().T @ torch.sign(reference_weights)))
 
         weights_init = torch.rand(10, 10)
         weights = torch.nn.Parameter(weights, requires_grad=True)
@@ -139,9 +135,7 @@ class TestDaleLawL2(unittest.TestCase):
         reference_weights = torch.randn(10, 10)
         dale_law = DaleLawL2([weights], alpha=0, reference_weights=[reference_weights])
         loss = dale_law()
-        self.assertEqual(
-            loss, -torch.trace(weights.detach().T @ torch.sign(reference_weights))
-        )
+        self.assertEqual(loss, -torch.trace(weights.detach().T @ torch.sign(reference_weights)))
 
     def test_value_loss_t_1(self):
         """
@@ -194,11 +188,7 @@ class TestDaleLawL2(unittest.TestCase):
             torch.round(loss.detach()),
             torch.round(
                 torch.trace(
-                    weights.detach().T
-                    @ (
-                        alpha * weights.detach()
-                        - (1 - alpha) * torch.sign(reference_weights)
-                    )
+                    weights.detach().T @ (alpha * weights.detach() - (1 - alpha) * torch.sign(reference_weights))
                 )
             ),
         )

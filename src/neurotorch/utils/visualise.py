@@ -6,8 +6,9 @@ def plot_confusion_matrix(
     cm,
     classes,
 ):
-    import matplotlib.pyplot as plt
     import itertools
+
+    import matplotlib.pyplot as plt
 
     plt.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues)
     plt.title("Confusion matrix")
@@ -35,7 +36,5 @@ def plot_confusion_matrix(
 
 def legend_without_duplicate_labels_(ax: plt.Axes):
     handles, labels = ax.get_legend_handles_labels()
-    unique = [
-        (h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]
-    ]
+    unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
     ax.legend(*zip(*unique))

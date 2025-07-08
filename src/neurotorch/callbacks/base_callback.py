@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Iterator, Dict, Any, List
+from typing import Any, Dict, Iterable, Iterator, List, Optional
 
 
 class BaseCallback:
@@ -86,11 +86,7 @@ class BaseCallback:
         self.kwargs = kwargs
         self.priority = priority if priority is not None else self.DEFAULT_PRIORITY
         self.instance_id = self.instance_counter
-        self.name = (
-            name
-            if name is not None
-            else f"{self.__class__.__name__}<{self.instance_id}>"
-        )
+        self.name = name if name is not None else f"{self.__class__.__name__}<{self.instance_id}>"
         self.save_state = save_state
         self.load_state = load_state if load_state is not None else save_state
         self.__class__.instance_counter += 1
@@ -126,11 +122,7 @@ class BaseCallback:
         :rtype: An pickleable object.
         """
         if self.save_state:
-            return {
-                k: v
-                for k, v in self.__dict__.items()
-                if k not in self.UNPICKEABLE_ATTRIBUTES
-            }
+            return {k: v for k, v in self.__dict__.items() if k not in self.UNPICKEABLE_ATTRIBUTES}
 
     def start(self, trainer, **kwargs):
         """
@@ -466,9 +458,7 @@ class CallbacksList:
 
         :return: None
         """
-        assert isinstance(
-            callback, BaseCallback
-        ), "callback must be an instance of BaseCallback"
+        assert isinstance(callback, BaseCallback), "callback must be an instance of BaseCallback"
         self.callbacks.append(callback)
         self._length += 1
         self.sort_callbacks_()
@@ -482,9 +472,7 @@ class CallbacksList:
 
         :return: None
         """
-        assert isinstance(
-            callback, BaseCallback
-        ), "callback must be an instance of BaseCallback"
+        assert isinstance(callback, BaseCallback), "callback must be an instance of BaseCallback"
         self.callbacks.remove(callback)
         self._length -= 1
         self.sort_callbacks_()
@@ -514,10 +502,7 @@ class CallbacksList:
         :return: The state of the callback.
         :rtype: An pickleable dict.
         """
-        states = {
-            callback.name: callback.get_checkpoint_state(trainer, **kwargs)
-            for callback in self.callbacks
-        }
+        states = {callback.name: callback.get_checkpoint_state(trainer, **kwargs) for callback in self.callbacks}
         states = {key: value for key, value in states.items() if value is not None}
         return states
 

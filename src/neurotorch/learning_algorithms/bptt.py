@@ -1,10 +1,10 @@
-from typing import Optional, Sequence, Union, Dict, Callable, List
+from typing import Callable, Dict, List, Optional, Sequence, Union
 
 import torch
 
-from .learning_algorithm import LearningAlgorithm
 from ..utils import list_insert_replace_at
 from ..utils.formatting import format_pred_batch
+from .learning_algorithm import LearningAlgorithm
 
 
 class BPTT(LearningAlgorithm):
@@ -22,11 +22,7 @@ class BPTT(LearningAlgorithm):
         params: Optional[Sequence[torch.nn.Parameter]] = None,
         layers: Optional[Union[Sequence[torch.nn.Module], torch.nn.Module]] = None,
         optimizer: Optional[torch.optim.Optimizer] = None,
-        criterion: Optional[
-            Union[
-                Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable
-            ]
-        ] = None,
+        criterion: Optional[Union[Dict[str, Union[torch.nn.Module, Callable]], torch.nn.Module, Callable]] = None,
         **kwargs,
     ):
         """
@@ -55,21 +51,12 @@ class BPTT(LearningAlgorithm):
         if layers is not None:
             if isinstance(layers, torch.nn.Module):
                 layers = [layers]
-            params.extend(
-                [
-                    param
-                    for layer in layers
-                    for param in layer.parameters()
-                    if param not in params
-                ]
-            )
+            params.extend([param for layer in layers for param in layer.parameters() if param not in params])
         self.params: List[torch.nn.Parameter] = params
         self.layers = layers
         self._default_params_lr = kwargs.get("params_lr", 2e-4)
         self._default_weight_decay = kwargs.get("weight_decay", 1e-2)
-        self.DEFAULT_OPTIMIZER_CLS = kwargs.get(
-            "default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS
-        )
+        self.DEFAULT_OPTIMIZER_CLS = kwargs.get("default_optimizer_cls", self.DEFAULT_OPTIMIZER_CLS)
         self._default_optim_kwargs = kwargs.get(
             "default_optim_kwargs",
             {
@@ -92,9 +79,7 @@ class BPTT(LearningAlgorithm):
     def get_checkpoint_state(self, trainer, **kwargs) -> object:
         if self.save_state:
             if self.optimizer is not None:
-                return {
-                    self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: self.optimizer.state_dict()
-                }
+                return {self.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: self.optimizer.state_dict()}
         return None
 
     def initialize_param_groups(self):
@@ -119,9 +104,7 @@ class BPTT(LearningAlgorithm):
         """
         if not self.param_groups:
             self.initialize_param_groups()
-        self.optimizer = self.DEFAULT_OPTIMIZER_CLS(
-            self.param_groups, **self._default_optim_kwargs
-        )
+        self.optimizer = self.DEFAULT_OPTIMIZER_CLS(self.param_groups, **self._default_optim_kwargs)
         return self.optimizer
 
     def start(self, trainer, **kwargs):
@@ -162,12 +145,7 @@ class BPTT(LearningAlgorithm):
             assert isinstance(pred_batch, dict) and isinstance(
                 y_batch, dict
             ), "If criterion is a dict, pred, y_batch and pred must be a dict too."
-            batch_loss = sum(
-                [
-                    criterion[k](pred_batch[k], y_batch[k].to(pred_batch[k].device))
-                    for k in criterion
-                ]
-            )
+            batch_loss = sum([criterion[k](pred_batch[k], y_batch[k].to(pred_batch[k].device)) for k in criterion])
         else:
             if isinstance(pred_batch, dict) and len(pred_batch) == 1:
                 pred_batch = pred_batch[list(pred_batch.keys())[0]]
@@ -183,9 +161,7 @@ class BPTT(LearningAlgorithm):
 
     def on_optimization_begin(self, trainer, **kwargs):
         y_batch = trainer.current_training_state.y_batch
-        pred_batch = format_pred_batch(
-            trainer.current_training_state.pred_batch, y_batch
-        )
+        pred_batch = format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
         batch_loss = self._make_optim_step(pred_batch, y_batch)
         trainer.update_state_(batch_loss=batch_loss)
 
@@ -194,9 +170,7 @@ class BPTT(LearningAlgorithm):
 
     def on_validation_batch_begin(self, trainer, **kwargs):
         y_batch = trainer.current_training_state.y_batch
-        pred_batch = format_pred_batch(
-            trainer.current_training_state.pred_batch, y_batch
-        )
+        pred_batch = format_pred_batch(trainer.current_training_state.pred_batch, y_batch)
         batch_loss = self.apply_criterion(pred_batch, y_batch)
         trainer.update_state_(batch_loss=batch_loss)
 

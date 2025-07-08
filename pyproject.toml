@@ -49,7 +49,7 @@ dependencies = [
     "psutil>=5.9.1",
     "scipy>=1.8.0",
     "six>=1.16.0",
-    "pythonbasictools (>=0.0.1a11,<0.0.2)",
+    "pythonbasictools (>=0.0.3)",
     "importlib-metadata (>=8.7.0,<9.0.0)",
 ]
 
@@ -84,6 +84,8 @@ nbmake = "^1.5.5"
 build = "^1.2.2.post1"
 wheel = "^0.45.1"
 twine = "^6.1.0"
+pytest-xdist = "^3.8.0"
+isort = "^6.0.1"
 
 
 [tool.poetry.group.docs.dependencies]
@@ -106,8 +108,26 @@ gym = ">=0.26.0,<0.27.0"
 box2d = "2.3.10"
 pygame = ">=2.0.0,<2.1.0"
 
+[tool.coverage.report]
+exclude_also = [
+    'def __repr__',
+    'if self.debug:',
+    'if settings.DEBUG',
+    'raise AssertionError',
+    'raise NotImplementedError',
+    'if __name__ == .__main__.:',
+    'if TYPE_CHECKING:',
+    '@(abc\.)?abstractmethod',
+]
+
 [[tool.mypy.overrides]]
 module = [
     "pythonbasictools",
 ]
 ignore_missing_imports = true
+
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"

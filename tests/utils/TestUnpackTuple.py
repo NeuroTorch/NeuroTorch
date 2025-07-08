@@ -55,9 +55,7 @@ class TestUnpackTuple(unittest.TestCase):
         expected_length = 3
         expected_output = ((1, 2), 3, 4)
         self.assertEqual(
-            unpack_tuple(
-                x, expected_length, aggregate_type=tuple, aggregate_method="left"
-            ),
+            unpack_tuple(x, expected_length, aggregate_type=tuple, aggregate_method="left"),
             expected_output,
         )
 
@@ -66,9 +64,7 @@ class TestUnpackTuple(unittest.TestCase):
         expected_length = 3
         expected_output = ([1, 2], 3, 4)
         self.assertEqual(
-            unpack_tuple(
-                x, expected_length, aggregate_type=list, aggregate_method="left"
-            ),
+            unpack_tuple(x, expected_length, aggregate_type=list, aggregate_method="left"),
             expected_output,
         )
 
@@ -77,9 +73,7 @@ class TestUnpackTuple(unittest.TestCase):
         expected_length = 3
         expected_output = (1, 2, (3, 4))
         self.assertEqual(
-            unpack_tuple(
-                x, expected_length, aggregate_type=tuple, aggregate_method="right"
-            ),
+            unpack_tuple(x, expected_length, aggregate_type=tuple, aggregate_method="right"),
             expected_output,
         )
 
@@ -88,9 +82,7 @@ class TestUnpackTuple(unittest.TestCase):
         expected_length = 3
         expected_output = (1, 2, [3, 4])
         self.assertEqual(
-            unpack_tuple(
-                x, expected_length, aggregate_type=list, aggregate_method="right"
-            ),
+            unpack_tuple(x, expected_length, aggregate_type=list, aggregate_method="right"),
             expected_output,
         )
 
@@ -98,9 +90,7 @@ class TestUnpackTuple(unittest.TestCase):
         x = (1, 2, 3, 4)
         expected_length = 3
         expected_output = (1, (2, 3), 4)
-        output = unpack_tuple(
-            x, expected_length, aggregate_type=tuple, aggregate_method="middle"
-        )
+        output = unpack_tuple(x, expected_length, aggregate_type=tuple, aggregate_method="middle")
         self.assertEqual(
             expected_output,
             output,
@@ -111,9 +101,7 @@ class TestUnpackTuple(unittest.TestCase):
         x = (1, 2, 3, 4, 5)
         expected_length = 4
         expected_output = (1, (2, 3), 4, 5)
-        output = unpack_tuple(
-            x, expected_length, aggregate_type=tuple, aggregate_method="middle"
-        )
+        output = unpack_tuple(x, expected_length, aggregate_type=tuple, aggregate_method="middle")
         self.assertEqual(
             expected_output,
             output,
@@ -125,8 +113,6 @@ class TestUnpackTuple(unittest.TestCase):
         expected_length = 3
         expected_output = (1, [2, 3], 4)
         self.assertEqual(
-            unpack_tuple(
-                x, expected_length, aggregate_type=list, aggregate_method="middle"
-            ),
+            unpack_tuple(x, expected_length, aggregate_type=list, aggregate_method="middle"),
             expected_output,
         )

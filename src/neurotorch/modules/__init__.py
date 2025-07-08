@@ -1,38 +1,33 @@
-from .spike_funcs import (
-    SpikeFuncType,
-    SpikeFunction,
-    SpikeFuncType2Func,
-    HeavisideSigmoidApprox,
-    HeavisidePhiApprox,
-)
-
-from .layers import (
-    LayerType,
-    BaseLayer,
-    Linear,
-    LIFLayer,
-    ALIFLayer,
-    IzhikevichLayer,
-    LILayer,
-    LayerType2Layer,
-    SpyLIFLayer,
-    SpyALIFLayer,
-    SpyLILayer,
-    SpyLIFLayerLPF,
-    SpyALIFLayerLPF,
-    LIFLayerLPF,
-    ALIFLayerLPF,
-)
-
-
 from .base import (
     BaseModel,
 )
-
+from .functions import (
+    PSigmoid,
+)
+from .layers import (
+    ALIFLayer,
+    ALIFLayerLPF,
+    BaseLayer,
+    IzhikevichLayer,
+    LayerType,
+    LayerType2Layer,
+    LIFLayer,
+    LIFLayerLPF,
+    LILayer,
+    Linear,
+    SpyALIFLayer,
+    SpyALIFLayerLPF,
+    SpyLIFLayer,
+    SpyLIFLayerLPF,
+    SpyLILayer,
+)
 from .sequential_rnn import (
     SequentialRNN,
 )
-
-from .functions import (
-    PSigmoid,
+from .spike_funcs import (
+    HeavisidePhiApprox,
+    HeavisideSigmoidApprox,
+    SpikeFunction,
+    SpikeFuncType,
+    SpikeFuncType2Func,
 )

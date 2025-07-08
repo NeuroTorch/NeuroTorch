@@ -1,45 +1,45 @@
 import enum
 import warnings
-from typing import Callable, List, Tuple, Union, Iterable
+from typing import Callable, Iterable, List, Tuple, Union
 
 import torch
 import torchvision
 
+from ..transforms.base import to_tensor
 from .autograd import (
-    zero_grad_params,
     dy_dw_local,
     filter_parameters,
     get_contributing_params,
     recursive_detach,
     recursive_detach_,
+    zero_grad_params,
+)
+from .collections import (
+    get_all_params_combinations,
+    get_meta_name,
+    get_meta_str,
+    hash_meta_str,
+    hash_params,
+    list_insert_replace_at,
+    list_of_callable_to_sequential,
+    mapping_update_recursively,
+    maybe_unpack_singleton_dict,
+    save_params,
+    sequence_get,
+    unpack_out_hh,
+    unpack_singleton_dict,
+    unpack_tuple,
 )
 from .formatting import (
     format_pred_batch,
 )
 from .random import (
-    set_seed,
     format_pseudo_rn_seed,
+    set_seed,
 )
 from .visualise import (
     legend_without_duplicate_labels_,
 )
-from .collections import (
-    get_meta_name,
-    hash_params,
-    get_meta_str,
-    hash_meta_str,
-    save_params,
-    get_all_params_combinations,
-    list_of_callable_to_sequential,
-    sequence_get,
-    list_insert_replace_at,
-    unpack_out_hh,
-    unpack_tuple,
-    unpack_singleton_dict,
-    maybe_unpack_singleton_dict,
-    mapping_update_recursively,
-)
-from ..transforms.base import to_tensor
 
 
 class ConnectivityConvention(enum.Enum):
@@ -177,9 +177,7 @@ def linear_decay(init_value, min_value, decay_value, current_itr):
 
 
 def ravel_compose_transforms(
-    transform: Union[
-        List, Tuple, torchvision.transforms.Compose, Callable, torch.nn.ModuleList
-    ],
+    transform: Union[List, Tuple, torchvision.transforms.Compose, Callable, torch.nn.ModuleList],
 ) -> List[Callable]:
     transforms = []
     if isinstance(transform, torchvision.transforms.Compose):
@@ -263,9 +261,7 @@ def clip_tensors_norm_(
         total_norm = norms[0] if len(norms) == 1 else torch.max(torch.stack(norms))
     else:
         total_norm = torch.norm(
-            torch.stack(
-                [torch.norm(t.detach(), norm_type).to(device) for t in tensors]
-            ),
+            torch.stack([torch.norm(t.detach(), norm_type).to(device) for t in tensors]),
             norm_type,
         )
     if error_if_nonfinite and torch.logical_or(total_norm.isnan(), total_norm.isinf()):

@@ -1,10 +1,10 @@
-from typing import List, Optional, Iterable, Union, Sequence
+from typing import Iterable, List, Optional, Sequence, Union
 
 import numpy as np
 import torch
 
-from .base_callback import BaseCallback
 from ..learning_algorithms.learning_algorithm import LearningAlgorithm
+from .base_callback import BaseCallback
 
 
 class LinearLRScheduler(BaseCallback):
@@ -48,10 +48,7 @@ class LinearLRScheduler(BaseCallback):
         self.lr_end = lr_end if isinstance(lr_end, Iterable) else [lr_end]
         self.n_steps = n_steps
         self.lr = self.lr_start
-        self.lr_decay = [
-            (_lr_start - _lr_end) / self.n_steps
-            for _lr_start, _lr_end in zip(self.lr_start, self.lr_end)
-        ]
+        self.lr_decay = [(_lr_start - _lr_end) / self.n_steps for _lr_start, _lr_end in zip(self.lr_start, self.lr_end)]
         self.optimizer = optimizer
         self.log_lr_to_history = kwargs.get("log_lr_to_history", True)
 
@@ -107,13 +104,10 @@ class LinearLRScheduler(BaseCallback):
         :return: None
         """
         if self.log_lr_to_history:
-            trainer.update_itr_metrics_state_(
-                **{f"lr_{i}": _lr for i, _lr in enumerate(self.lr)}
-            )
+            trainer.update_itr_metrics_state_(**{f"lr_{i}": _lr for i, _lr in enumerate(self.lr)})
         step = trainer.current_training_state.iteration
         self.lr = [
-            max(_lr_start - step * self.lr_decay, _lr_end)
-            for _lr_start, _lr_end in zip(self.lr_start, self.lr_end)
+            max(_lr_start - step * self.lr_decay, _lr_end) for _lr_start, _lr_end in zip(self.lr_start, self.lr_end)
         ]
         assert len(self.lr) > 0, "No learning rate found."
         if len(self.lr) == 1:
@@ -217,15 +211,11 @@ class LRSchedulerOnMetric(BaseCallback):
         """
         last_metric = trainer.training_history[self.metric][-1]
         if self.log_lr_to_history:
-            trainer.update_itr_metrics_state_(
-                **{f"lr_{i}": _lr for i, _lr in enumerate(self.lr)}
-            )
+            trainer.update_itr_metrics_state_(**{f"lr_{i}": _lr for i, _lr in enumerate(self.lr)})
         self.step = self.update_step(last_metric)
         self.lr = [
             max(_lr_start - self.step * _lr_decay, _min_lr)
-            for _lr_start, _lr_decay, _min_lr in zip(
-                self.lr_start, self.lr_decay, self.min_lr
-            )
+            for _lr_start, _lr_decay, _min_lr in zip(self.lr_start, self.lr_decay, self.min_lr)
         ]
         assert len(self.lr) > 0, "No learning rate found."
         if len(self.lr) == 1:
@@ -274,13 +264,9 @@ class LRSchedulerOnMetric(BaseCallback):
         """
         last_index = len(self.metric_schedule) - 1
         if self.minimize_metric:
-            next_step = last_index - np.argmax(
-                (last_metric <= self.metric_schedule)[::-1]
-            )
+            next_step = last_index - np.argmax((last_metric <= self.metric_schedule)[::-1])
         else:
-            next_step = last_index - np.argmax(
-                (last_metric >= self.metric_schedule)[::-1]
-            )
+            next_step = last_index - np.argmax((last_metric >= self.metric_schedule)[::-1])
         if self.retain_progress:
             next_step = max(self.step, next_step)
         self.step = next_step

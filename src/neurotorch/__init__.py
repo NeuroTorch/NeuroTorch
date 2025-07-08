@@ -13,99 +13,83 @@ __package__ = "neurotorch"
 __version__ = importlib_metadata.version(__package__)
 
 
+import warnings
+
+from . import init, utils
+from .callbacks import (
+    CheckpointManager,
+    LoadCheckpointMode,
+    TrainingHistory,
+)
 from .dimension import (
     Dimension,
-    DimensionProperty,
-    Size,
     DimensionLike,
+    DimensionProperty,
     DimensionsLike,
+    Size,
 )
-
+from .learning_algorithms import (
+    BPTT,
+    RLS,
+    TBPTT,
+    Eprop,
+)
+from .metrics import (
+    losses,
+)
+from .modules.layers import (
+    ALIFLayer,
+    ALIFLayerLPF,
+    LayerType,
+    LIFLayer,
+    LIFLayerLPF,
+    LILayer,
+    Linear,
+    SpyALIFLayer,
+    SpyALIFLayerLPF,
+    SpyLIFLayer,
+    SpyLIFLayerLPF,
+    SpyLILayer,
+    WilsonCowanCURBDLayer,
+    WilsonCowanLayer,
+)
 from .modules.sequential import (
     Sequential,
 )
-
 from .modules.sequential_rnn import (
     SequentialRNN,
 )
-
-from .modules.layers import (
-    LayerType,
-    Linear,
-    LILayer,
-    LIFLayer,
-    SpyLILayer,
-    SpyLIFLayer,
-    SpyALIFLayer,
-    ALIFLayer,
-    SpyLIFLayerLPF,
-    SpyALIFLayerLPF,
-    LIFLayerLPF,
-    ALIFLayerLPF,
-    WilsonCowanLayer,
-    WilsonCowanCURBDLayer,
-)
-
 from .regularization import (
-    RegularizationList,
     L1,
     L2,
+    RegularizationList,
 )
-
 from .regularization.connectome import (
     DaleLaw,
     DaleLawL2,
 )
-
 from .trainers import (
-    Trainer,
     ClassificationTrainer,
     RegressionTrainer,
+    Trainer,
     TrainingState,
 )
-
 from .transforms import (
-    to_tensor,
-    to_numpy,
     IdentityTransform,
     ToDevice,
     ToTensor,
+    to_numpy,
+    to_tensor,
 )
-
-
-from .metrics import (
-    losses,
+from .utils import (
+    set_seed,
 )
-
-from .callbacks import (
-    TrainingHistory,
-    LoadCheckpointMode,
-    CheckpointManager,
-)
-
-from . import init
-
-from .learning_algorithms import (
-    BPTT,
-    TBPTT,
-    Eprop,
-    RLS,
-)
-
 from .visualisation import (
     Visualise,
     VisualiseKMeans,
     VisualisePCA,
     VisualiseUMAP,
 )
-
-from . import utils
-
-from .utils import (
-    set_seed,
-)
-
-import warnings
 
 warnings.filterwarnings("ignore", category=Warning, module="docutils")
 warnings.filterwarnings("ignore", category=Warning, module="sphinx")

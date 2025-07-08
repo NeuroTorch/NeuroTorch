@@ -1,7 +1,8 @@
 import unittest
 
 from neurotorch.callbacks.base_callback import BaseCallback, CallbacksList
-from ..mocks import MockTrainer, MockCallback
+
+from ..mocks import MockCallback, MockTrainer
 
 
 class TestBaseCallback(unittest.TestCase):
@@ -9,15 +10,9 @@ class TestBaseCallback(unittest.TestCase):
         initial_counter = MockCallback.instance_counter
         self.callbacks = CallbacksList()
         for i in range(10):
-            self.callbacks.append(
-                MockCallback(
-                    priority=i, name=f"callback{i}", save_state=True, load_state=True
-                )
-            )
+            self.callbacks.append(MockCallback(priority=i, name=f"callback{i}", save_state=True, load_state=True))
 
-        self.assertEqual(
-            MockCallback.instance_counter, initial_counter + len(self.callbacks)
-        )
+        self.assertEqual(MockCallback.instance_counter, initial_counter + len(self.callbacks))
 
         self.trainer = MockTrainer()
         self.trainer.callbacks = self.callbacks
@@ -25,9 +20,7 @@ class TestBaseCallback(unittest.TestCase):
     def test_priority(self):
         # Check that the callbacks are sorted by priority
         for i in range(1, len(self.callbacks)):
-            self.assertGreater(
-                self.callbacks[i].priority, self.callbacks[i - 1].priority
-            )
+            self.assertGreater(self.callbacks[i].priority, self.callbacks[i - 1].priority)
 
     def test_remove(self):
         # Check that the remove method works
@@ -43,17 +36,13 @@ class TestBaseCallback(unittest.TestCase):
         self.assertEqual(self.callbacks[0].priority, 2)
 
         for i in range(1, len(self.callbacks)):
-            self.assertGreater(
-                self.callbacks[i].priority, self.callbacks[i - 1].priority
-            )
+            self.assertGreater(self.callbacks[i].priority, self.callbacks[i - 1].priority)
 
         self.callbacks.append(c0)
         self.callbacks.append(c1)
 
         for i in range(1, len(self.callbacks)):
-            self.assertGreater(
-                self.callbacks[i].priority, self.callbacks[i - 1].priority
-            )
+            self.assertGreater(self.callbacks[i].priority, self.callbacks[i - 1].priority)
 
     def test_call_counter(self):
         # Check that the call counter is correct
@@ -79,9 +68,7 @@ class TestBaseCallback(unittest.TestCase):
         for callback in self.callbacks:
             for value, mtds in nb_call_per_itr.items():
                 for mtd in mtds:
-                    self.assertEqual(
-                        callback.call_mthds_counter[mtd], value * n_iterations
-                    )
+                    self.assertEqual(callback.call_mthds_counter[mtd], value * n_iterations)
 
         for callback in self.callbacks:
             for mtd in ["start", "close"]:

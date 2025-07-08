@@ -1,14 +1,14 @@
 import pickle
 import time
 import warnings
-from typing import Callable, Dict, List, Any, Tuple, Union, Iterable, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 import torchvision
 from matplotlib import pyplot as plt
 
-from ..transforms.base import to_tensor, to_numpy
+from ..transforms.base import to_numpy, to_tensor
 
 
 def set_seed(seed: int):
@@ -18,6 +18,7 @@ def set_seed(seed: int):
     :param seed: The seed to set.
     """
     import random
+
     import torch
 
     random.seed(seed)
@@ -25,9 +26,7 @@ def set_seed(seed: int):
     torch.manual_seed(seed)
 
 
-def unitary_rn_normal_matrix(
-    n: int, m: int, generator: Optional[torch.Generator] = None
-) -> torch.Tensor:
+def unitary_rn_normal_matrix(n: int, m: int, generator: Optional[torch.Generator] = None) -> torch.Tensor:
     max_dim, min_dim = max(n, m), min(n, m)
 
     # rn_matrix = torch.randn((n, m), generator=generator)

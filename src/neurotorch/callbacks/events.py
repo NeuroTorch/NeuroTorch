@@ -74,9 +74,7 @@ class EventOnMetricThreshold(BaseCallback):
             else:
                 threshold_reached = metric_value >= self.threshold
             if threshold_reached:
-                self._current_event_output = self.event(
-                    trainer, *self.event_args, **self.event_kwargs
-                )
+                self._current_event_output = self.event(trainer, *self.event_args, **self.event_kwargs)
                 self._has_triggered = True
 
     def on_pbar_update(self, trainer, **kwargs) -> dict:

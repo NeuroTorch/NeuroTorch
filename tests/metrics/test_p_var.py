@@ -1,5 +1,7 @@
 import unittest
+
 import torch
+
 from neurotorch.metrics.regression import RegressionMetrics
 
 
@@ -49,12 +51,8 @@ class TestpVar(unittest.TestCase):
         y_pred_1 = torch.rand(1, 2, 10)
         y_pred_2 = torch.rand(1, 2, 10)
 
-        p_var_1 = RegressionMetrics.compute_p_var(
-            y_true_1, y_pred_1, torch.device("cpu")
-        )
-        p_var_2 = RegressionMetrics.compute_p_var(
-            y_true_2, y_pred_2, torch.device("cpu")
-        )
+        p_var_1 = RegressionMetrics.compute_p_var(y_true_1, y_pred_1, torch.device("cpu"))
+        p_var_2 = RegressionMetrics.compute_p_var(y_true_2, y_pred_2, torch.device("cpu"))
 
         p_var_mean = (p_var_1 + p_var_2) / 2
         self.assertTrue(
@@ -76,12 +74,8 @@ class TestpVar(unittest.TestCase):
         y_pred_1 = torch.rand(1, 2, 10)
         y_pred_2 = torch.rand(1, 2, 10)
 
-        p_var_1 = RegressionMetrics.compute_p_var(
-            y_true_1, y_pred_1, torch.device("cpu")
-        )
-        p_var_2 = RegressionMetrics.compute_p_var(
-            y_true_2, y_pred_2, torch.device("cpu")
-        )
+        p_var_1 = RegressionMetrics.compute_p_var(y_true_1, y_pred_1, torch.device("cpu"))
+        p_var_2 = RegressionMetrics.compute_p_var(y_true_2, y_pred_2, torch.device("cpu"))
         p_var_sum = torch.sum(p_var_1 + p_var_2)
         self.assertTrue(
             torch.isclose(
@@ -101,12 +95,8 @@ class TestpVar(unittest.TestCase):
         y_true_2 = torch.rand(1, 2, 10)
         y_pred_1 = torch.rand(1, 2, 10)
         y_pred_2 = torch.rand(1, 2, 10)
-        p_var_1 = RegressionMetrics.compute_p_var(
-            y_true_1, y_pred_1, torch.device("cpu")
-        )
-        p_var_2 = RegressionMetrics.compute_p_var(
-            y_true_2, y_pred_2, torch.device("cpu")
-        )
+        p_var_1 = RegressionMetrics.compute_p_var(y_true_1, y_pred_1, torch.device("cpu"))
+        p_var_2 = RegressionMetrics.compute_p_var(y_true_2, y_pred_2, torch.device("cpu"))
         p_var = torch.Tensor([p_var_1, p_var_2])
         self.assertTrue(
             torch.allclose(

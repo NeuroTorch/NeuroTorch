@@ -1,9 +1,9 @@
-from typing import Callable, Dict, List, Optional, Union, Any
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import torch
 
-from . import Trainer
 from ..metrics import RegressionMetrics
+from .trainer import Trainer
 
 
 class RegressionTrainer(Trainer):
@@ -17,9 +17,7 @@ class RegressionTrainer(Trainer):
         kwargs.setdefault("foresight_time_steps", None)
         return kwargs
 
-    def _set_default_criterion(
-        self, criterion: Optional[torch.nn.Module]
-    ) -> torch.nn.Module:
+    def _set_default_criterion(self, criterion: Optional[torch.nn.Module]) -> torch.nn.Module:
         if criterion is None:
             if isinstance(self.model.output_sizes, dict):
                 criterion = {k: torch.nn.MSELoss() for k in self.model.output_sizes}

@@ -9,6 +9,7 @@ import torch
 
 from neurotorch.callbacks import CheckpointManager, LoadCheckpointMode
 from neurotorch.modules import LIFLayer, SequentialRNN
+
 from ..mocks import MockHistory, MockTrainer
 
 
@@ -114,11 +115,7 @@ class TestCheckpointManager(unittest.TestCase):
         CheckpointManager.SAVE_EXT = ".pth"
         checkpoint_manager = CheckpointManager("./temp")
         self.assertIsInstance(checkpoint_manager.get_checkpoint_filename(), str)
-        self.assertTrue(
-            checkpoint_manager.get_checkpoint_filename().endswith(
-                CheckpointManager.SAVE_EXT
-            )
-        )
+        self.assertTrue(checkpoint_manager.get_checkpoint_filename().endswith(CheckpointManager.SAVE_EXT))
         for i in range(10):
             self.assertIn(str(i), checkpoint_manager.get_checkpoint_filename(i))
 
@@ -131,9 +128,7 @@ class TestCheckpointManager(unittest.TestCase):
             checkpoint_manager._create_new_checkpoint_meta(0, best=True),
         )
         self.assertIsInstance(
-            checkpoint_manager._create_new_checkpoint_meta(0, best=True)[
-                CheckpointManager.CHECKPOINT_BEST_KEY
-            ],
+            checkpoint_manager._create_new_checkpoint_meta(0, best=True)[CheckpointManager.CHECKPOINT_BEST_KEY],
             str,
         )
 
@@ -181,9 +176,7 @@ class TestCheckpointManager(unittest.TestCase):
             CheckpointManager.CHECKPOINT_ITR_KEY: 0,
             CheckpointManager.CHECKPOINT_METRICS_KEY: "itr_metrics",
             CheckpointManager.CHECKPOINT_STATE_DICT_KEY: {"test_key": "test_value"},
-            CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: {
-                "test_key_opt": "test_value_opt"
-            },
+            CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: {"test_key_opt": "test_value_opt"},
             CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY: "training_history",
         }
         save_path = checkpoint_manager.save_checkpoint(
@@ -191,24 +184,16 @@ class TestCheckpointManager(unittest.TestCase):
             itr_metrics=test_data[CheckpointManager.CHECKPOINT_METRICS_KEY],
             best=True,
             state_dict=test_data[CheckpointManager.CHECKPOINT_STATE_DICT_KEY],
-            optimizer_state_dict=test_data[
-                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-            ],
-            training_history=test_data[
-                CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY
-            ],
+            optimizer_state_dict=test_data[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY],
+            training_history=test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY],
         )
         self.assertTrue(save_path.endswith(CheckpointManager.SAVE_EXT))
         saved_data = torch.load(save_path)
         self.assertEqual(saved_data, test_data)
-        save_name = checkpoint_manager.get_checkpoint_filename(
-            test_data[CheckpointManager.CHECKPOINT_ITR_KEY]
-        )
+        save_name = checkpoint_manager.get_checkpoint_filename(test_data[CheckpointManager.CHECKPOINT_ITR_KEY])
         with open(checkpoint_manager.checkpoints_meta_path, "r") as jsonFile:
             meta_info = json.load(jsonFile)
-        self.assertEqual(
-            meta_info[CheckpointManager.CHECKPOINT_ITRS_KEY][str(0)], save_name
-        )
+        self.assertEqual(meta_info[CheckpointManager.CHECKPOINT_ITRS_KEY][str(0)], save_name)
         self.assertEqual(meta_info[CheckpointManager.CHECKPOINT_BEST_KEY], save_name)
 
     @_manage_temp_checkpoints_folder
@@ -219,9 +204,7 @@ class TestCheckpointManager(unittest.TestCase):
             CheckpointManager.CHECKPOINT_ITR_KEY: 0,
             CheckpointManager.CHECKPOINT_METRICS_KEY: "itr_metrics",
             CheckpointManager.CHECKPOINT_STATE_DICT_KEY: {"test_key": "test_value"},
-            CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: {
-                "test_key_opt": "test_value_opt"
-            },
+            CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: {"test_key_opt": "test_value_opt"},
             CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY: "training_history",
         }
         save_path = checkpoint_manager.save_checkpoint(
@@ -229,24 +212,16 @@ class TestCheckpointManager(unittest.TestCase):
             itr_metrics=test_data[CheckpointManager.CHECKPOINT_METRICS_KEY],
             best=False,
             state_dict=test_data[CheckpointManager.CHECKPOINT_STATE_DICT_KEY],
-            optimizer_state_dict=test_data[
-                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-            ],
-            training_history=test_data[
-                CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY
-            ],
+            optimizer_state_dict=test_data[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY],
+            training_history=test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY],
         )
         self.assertTrue(save_path.endswith(CheckpointManager.SAVE_EXT))
         saved_data = torch.load(save_path)
         self.assertEqual(saved_data, test_data)
-        save_name = checkpoint_manager.get_checkpoint_filename(
-            test_data[CheckpointManager.CHECKPOINT_ITR_KEY]
-        )
+        save_name = checkpoint_manager.get_checkpoint_filename(test_data[CheckpointManager.CHECKPOINT_ITR_KEY])
         with open(checkpoint_manager.checkpoints_meta_path, "r") as jsonFile:
             meta_info = json.load(jsonFile)
-        self.assertEqual(
-            meta_info[CheckpointManager.CHECKPOINT_ITRS_KEY][str(0)], save_name
-        )
+        self.assertEqual(meta_info[CheckpointManager.CHECKPOINT_ITRS_KEY][str(0)], save_name)
         self.assertNotIn(CheckpointManager.CHECKPOINT_BEST_KEY, meta_info)
 
     @_manage_temp_checkpoints_folder
@@ -261,9 +236,7 @@ class TestCheckpointManager(unittest.TestCase):
                 CheckpointManager.CHECKPOINT_ITR_KEY: i,
                 CheckpointManager.CHECKPOINT_METRICS_KEY: "itr_metrics",
                 CheckpointManager.CHECKPOINT_STATE_DICT_KEY: {"test_key": "test_value"},
-                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: {
-                    "test_key_opt": "test_value_opt"
-                },
+                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY: {"test_key_opt": "test_value_opt"},
                 CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY: "training_history",
             }
             save_path = checkpoint_manager.save_checkpoint(
@@ -271,19 +244,13 @@ class TestCheckpointManager(unittest.TestCase):
                 itr_metrics=test_data[CheckpointManager.CHECKPOINT_METRICS_KEY],
                 best=best,
                 state_dict=test_data[CheckpointManager.CHECKPOINT_STATE_DICT_KEY],
-                optimizer_state_dict=test_data[
-                    CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-                ],
-                training_history=test_data[
-                    CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY
-                ],
+                optimizer_state_dict=test_data[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY],
+                training_history=test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY],
             )
             self.assertTrue(save_path.endswith(CheckpointManager.SAVE_EXT))
             saved_data = torch.load(save_path)
             self.assertEqual(saved_data, test_data)
-            save_name = checkpoint_manager.get_checkpoint_filename(
-                test_data[CheckpointManager.CHECKPOINT_ITR_KEY]
-            )
+            save_name = checkpoint_manager.get_checkpoint_filename(test_data[CheckpointManager.CHECKPOINT_ITR_KEY])
 
             path_list.append(save_path)
             save_name_list.append(save_name)
@@ -292,17 +259,11 @@ class TestCheckpointManager(unittest.TestCase):
 
             with open(checkpoint_manager.checkpoints_meta_path, "r") as jsonFile:
                 meta_info = json.load(jsonFile)
-            self.assertEqual(
-                meta_info[CheckpointManager.CHECKPOINT_ITRS_KEY][str(i)], save_name
-            )
+            self.assertEqual(meta_info[CheckpointManager.CHECKPOINT_ITRS_KEY][str(i)], save_name)
             if best:
-                self.assertEqual(
-                    meta_info[CheckpointManager.CHECKPOINT_BEST_KEY], save_name
-                )
+                self.assertEqual(meta_info[CheckpointManager.CHECKPOINT_BEST_KEY], save_name)
             else:
-                self.assertNotEqual(
-                    meta_info.get(CheckpointManager.CHECKPOINT_BEST_KEY), save_name
-                )
+                self.assertNotEqual(meta_info.get(CheckpointManager.CHECKPOINT_BEST_KEY), save_name)
 
             for j in range(i):
                 self.assertEqual(
@@ -332,22 +293,14 @@ class TestCheckpointManager(unittest.TestCase):
             itr_metrics=test_data[CheckpointManager.CHECKPOINT_METRICS_KEY],
             best=True,
             state_dict=test_data[CheckpointManager.CHECKPOINT_STATE_DICT_KEY],
-            optimizer_state_dict=test_data[
-                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-            ],
-            training_history=test_data[
-                CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY
-            ],
+            optimizer_state_dict=test_data[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY],
+            training_history=test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY],
         )
 
-        checkpoint = checkpoint_manager.load_checkpoint(
-            load_checkpoint_mode=LoadCheckpointMode.BEST_ITR
-        )
+        checkpoint = checkpoint_manager.load_checkpoint(load_checkpoint_mode=LoadCheckpointMode.BEST_ITR)
         self.assertTrue(
             all(
-                torch.allclose(
-                    v, checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY][k]
-                )
+                torch.allclose(v, checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY][k])
                 for k, v in model.state_dict().items()
             )
         )
@@ -360,9 +313,7 @@ class TestCheckpointManager(unittest.TestCase):
                 )
                 for first_param_group, second_param_group in zip(
                     opt.state_dict()["param_groups"],
-                    checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY][
-                        "param_groups"
-                    ],
+                    checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY]["param_groups"],
                 )
                 for k, v in first_param_group.items()
             )
@@ -389,22 +340,14 @@ class TestCheckpointManager(unittest.TestCase):
             itr_metrics=test_data[CheckpointManager.CHECKPOINT_METRICS_KEY],
             best=False,
             state_dict=test_data[CheckpointManager.CHECKPOINT_STATE_DICT_KEY],
-            optimizer_state_dict=test_data[
-                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-            ],
-            training_history=test_data[
-                CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY
-            ],
+            optimizer_state_dict=test_data[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY],
+            training_history=test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY],
         )
 
-        checkpoint = checkpoint_manager.load_checkpoint(
-            load_checkpoint_mode=LoadCheckpointMode.LAST_ITR
-        )
+        checkpoint = checkpoint_manager.load_checkpoint(load_checkpoint_mode=LoadCheckpointMode.LAST_ITR)
         self.assertTrue(
             all(
-                torch.allclose(
-                    v, checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY][k]
-                )
+                torch.allclose(v, checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY][k])
                 for k, v in model.state_dict().items()
             )
         )
@@ -417,9 +360,7 @@ class TestCheckpointManager(unittest.TestCase):
                 )
                 for first_param_group, second_param_group in zip(
                     opt.state_dict()["param_groups"],
-                    checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY][
-                        "param_groups"
-                    ],
+                    checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY]["param_groups"],
                 )
                 for k, v in first_param_group.items()
             )
@@ -428,9 +369,7 @@ class TestCheckpointManager(unittest.TestCase):
     @_manage_temp_checkpoints_folder
     def test_load_checkpoint_sequential_best(self):
         # create model est optimizer
-        model = SequentialRNN(
-            layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)]
-        )
+        model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
         model.build()
         opt = torch.optim.Adam(model.parameters(), lr=0.1)
 
@@ -448,22 +387,14 @@ class TestCheckpointManager(unittest.TestCase):
             itr_metrics=test_data[CheckpointManager.CHECKPOINT_METRICS_KEY],
             best=True,
             state_dict=test_data[CheckpointManager.CHECKPOINT_STATE_DICT_KEY],
-            optimizer_state_dict=test_data[
-                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-            ],
-            training_history=test_data[
-                CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY
-            ],
+            optimizer_state_dict=test_data[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY],
+            training_history=test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY],
         )
 
-        checkpoint = checkpoint_manager.load_checkpoint(
-            load_checkpoint_mode=LoadCheckpointMode.BEST_ITR
-        )
+        checkpoint = checkpoint_manager.load_checkpoint(load_checkpoint_mode=LoadCheckpointMode.BEST_ITR)
         self.assertTrue(
             all(
-                torch.allclose(
-                    v, checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY][k]
-                )
+                torch.allclose(v, checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY][k])
                 for k, v in model.state_dict().items()
             )
         )
@@ -476,9 +407,7 @@ class TestCheckpointManager(unittest.TestCase):
                 )
                 for first_param_group, second_param_group in zip(
                     opt.state_dict()["param_groups"],
-                    checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY][
-                        "param_groups"
-                    ],
+                    checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY]["param_groups"],
                 )
                 for k, v in first_param_group.items()
             )
@@ -487,9 +416,7 @@ class TestCheckpointManager(unittest.TestCase):
     @_manage_temp_checkpoints_folder
     def test_load_checkpoint_sequential_not_best(self):
         # create model est optimizer
-        model = SequentialRNN(
-            layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)]
-        )
+        model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
         model.build()
         opt = torch.optim.Adam(model.parameters(), lr=0.1)
 
@@ -507,22 +434,14 @@ class TestCheckpointManager(unittest.TestCase):
             itr_metrics=test_data[CheckpointManager.CHECKPOINT_METRICS_KEY],
             best=False,
             state_dict=test_data[CheckpointManager.CHECKPOINT_STATE_DICT_KEY],
-            optimizer_state_dict=test_data[
-                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-            ],
-            training_history=test_data[
-                CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY
-            ],
+            optimizer_state_dict=test_data[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY],
+            training_history=test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY],
         )
 
-        checkpoint = checkpoint_manager.load_checkpoint(
-            load_checkpoint_mode=LoadCheckpointMode.LAST_ITR
-        )
+        checkpoint = checkpoint_manager.load_checkpoint(load_checkpoint_mode=LoadCheckpointMode.LAST_ITR)
         self.assertTrue(
             all(
-                torch.allclose(
-                    v, checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY][k]
-                )
+                torch.allclose(v, checkpoint[CheckpointManager.CHECKPOINT_STATE_DICT_KEY][k])
                 for k, v in model.state_dict().items()
             )
         )
@@ -535,9 +454,7 @@ class TestCheckpointManager(unittest.TestCase):
                 )
                 for first_param_group, second_param_group in zip(
                     opt.state_dict()["param_groups"],
-                    checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY][
-                        "param_groups"
-                    ],
+                    checkpoint[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY]["param_groups"],
                 )
                 for k, v in first_param_group.items()
             )
@@ -574,9 +491,7 @@ class TestCheckpointManager(unittest.TestCase):
     @_manage_temp_checkpoints_folder
     def test_start_load_last_minimise(self):
         # create model est optimizer
-        model = SequentialRNN(
-            layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)]
-        )
+        model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
         model.build()
         opt = torch.optim.Adam(model.parameters(), lr=0.1)
 
@@ -604,12 +519,8 @@ class TestCheckpointManager(unittest.TestCase):
             itr_metrics=test_data[CheckpointManager.CHECKPOINT_METRICS_KEY],
             best=False,
             state_dict=test_data[CheckpointManager.CHECKPOINT_STATE_DICT_KEY],
-            optimizer_state_dict=test_data[
-                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-            ],
-            training_history=test_data[
-                CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY
-            ],
+            optimizer_state_dict=test_data[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY],
+            training_history=test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY],
         )
         self.assertTrue(os.path.exists(save_path))
         checkpoint_manager.start(trainer)
@@ -621,23 +532,14 @@ class TestCheckpointManager(unittest.TestCase):
         # 	trainer.training_history,
         # 	test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY]
         # )
-        self.assertTrue(
-            trainer.training_history.min_call_flag, f"history min call not called."
-        )
-        self.assertFalse(
-            trainer.training_history.max_call_flag, f"history max call was called."
-        )
+        self.assertTrue(trainer.training_history.min_call_flag, f"history min call not called.")
+        self.assertFalse(trainer.training_history.max_call_flag, f"history max call was called.")
         # self.assertIn(new_history, trainer.callbacks)
         # self.assertNotIn(prev_history, trainer.callbacks)
         self.assertEqual(len(trainer.callbacks), prev_len)
         # self.assertTrue(trainer.sort_flag)
 
-        self.assertTrue(
-            all(
-                torch.allclose(v, trainer.model.state_dict()[k])
-                for k, v in model.state_dict().items()
-            )
-        )
+        self.assertTrue(all(torch.allclose(v, trainer.model.state_dict()[k]) for k, v in model.state_dict().items()))
         self.assertTrue(
             all(
                 np.allclose(
@@ -656,9 +558,7 @@ class TestCheckpointManager(unittest.TestCase):
     @_manage_temp_checkpoints_folder
     def test_start_load_last_maximise(self):
         # create model est optimizer
-        model = SequentialRNN(
-            layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)]
-        )
+        model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
         model.build()
         opt = torch.optim.Adam(model.parameters(), lr=0.1)
 
@@ -686,12 +586,8 @@ class TestCheckpointManager(unittest.TestCase):
             itr_metrics=test_data[CheckpointManager.CHECKPOINT_METRICS_KEY],
             best=False,
             state_dict=test_data[CheckpointManager.CHECKPOINT_STATE_DICT_KEY],
-            optimizer_state_dict=test_data[
-                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-            ],
-            training_history=test_data[
-                CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY
-            ],
+            optimizer_state_dict=test_data[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY],
+            training_history=test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY],
         )
         self.assertTrue(os.path.exists(save_path))
         checkpoint_manager.start(trainer)
@@ -710,12 +606,7 @@ class TestCheckpointManager(unittest.TestCase):
         self.assertEqual(len(trainer.callbacks), prev_len)
         # self.assertTrue(trainer.sort_flag)
 
-        self.assertTrue(
-            all(
-                torch.allclose(v, trainer.model.state_dict()[k])
-                for k, v in model.state_dict().items()
-            )
-        )
+        self.assertTrue(all(torch.allclose(v, trainer.model.state_dict()[k]) for k, v in model.state_dict().items()))
         self.assertTrue(
             all(
                 np.allclose(
@@ -734,9 +625,7 @@ class TestCheckpointManager(unittest.TestCase):
     @_manage_temp_checkpoints_folder
     def test_start_load_best_minimise(self):
         # create model est optimizer
-        model = SequentialRNN(
-            layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)]
-        )
+        model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
         model.build()
         opt = torch.optim.Adam(model.parameters(), lr=0.1)
 
@@ -764,12 +653,8 @@ class TestCheckpointManager(unittest.TestCase):
             itr_metrics=test_data[CheckpointManager.CHECKPOINT_METRICS_KEY],
             best=True,
             state_dict=test_data[CheckpointManager.CHECKPOINT_STATE_DICT_KEY],
-            optimizer_state_dict=test_data[
-                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-            ],
-            training_history=test_data[
-                CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY
-            ],
+            optimizer_state_dict=test_data[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY],
+            training_history=test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY],
         )
         self.assertTrue(os.path.exists(save_path))
         checkpoint_manager.start(trainer)
@@ -781,23 +666,14 @@ class TestCheckpointManager(unittest.TestCase):
         # 	trainer.training_history,
         # 	test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY]
         # )
-        self.assertTrue(
-            trainer.training_history.min_call_flag, f"history min call not called."
-        )
-        self.assertFalse(
-            trainer.training_history.max_call_flag, f"history max call was called."
-        )
+        self.assertTrue(trainer.training_history.min_call_flag, f"history min call not called.")
+        self.assertFalse(trainer.training_history.max_call_flag, f"history max call was called.")
         # self.assertIn(new_history, trainer.callbacks)
         # self.assertNotIn(prev_history, trainer.callbacks)
         self.assertEqual(len(trainer.callbacks), prev_len)
         # self.assertTrue(trainer.sort_flag)
 
-        self.assertTrue(
-            all(
-                torch.allclose(v, trainer.model.state_dict()[k])
-                for k, v in model.state_dict().items()
-            )
-        )
+        self.assertTrue(all(torch.allclose(v, trainer.model.state_dict()[k]) for k, v in model.state_dict().items()))
         self.assertTrue(
             all(
                 np.allclose(
@@ -812,9 +688,7 @@ class TestCheckpointManager(unittest.TestCase):
                 for k, v in first_param_group.items()
             )
         )
-        save_name = checkpoint_manager.get_checkpoint_filename(
-            test_data[CheckpointManager.CHECKPOINT_ITR_KEY]
-        )
+        save_name = checkpoint_manager.get_checkpoint_filename(test_data[CheckpointManager.CHECKPOINT_ITR_KEY])
         with open(checkpoint_manager.checkpoints_meta_path, "r") as jsonFile:
             meta_info = json.load(jsonFile)
         self.assertEqual(meta_info[CheckpointManager.CHECKPOINT_BEST_KEY], save_name)
@@ -822,9 +696,7 @@ class TestCheckpointManager(unittest.TestCase):
     @_manage_temp_checkpoints_folder
     def test_start_load_best_maximise(self):
         # create model est optimizer
-        model = SequentialRNN(
-            layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)]
-        )
+        model = SequentialRNN(layers=[LIFLayer(10, 10), LIFLayer(10, 10), LIFLayer(10, 10)])
         model.build()
         opt = torch.optim.Adam(model.parameters(), lr=0.1)
 
@@ -852,12 +724,8 @@ class TestCheckpointManager(unittest.TestCase):
             itr_metrics=test_data[CheckpointManager.CHECKPOINT_METRICS_KEY],
             best=True,
             state_dict=test_data[CheckpointManager.CHECKPOINT_STATE_DICT_KEY],
-            optimizer_state_dict=test_data[
-                CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY
-            ],
-            training_history=test_data[
-                CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY
-            ],
+            optimizer_state_dict=test_data[CheckpointManager.CHECKPOINT_OPTIMIZER_STATE_DICT_KEY],
+            training_history=test_data[CheckpointManager.CHECKPOINT_TRAINING_HISTORY_KEY],
         )
         self.assertTrue(os.path.exists(save_path))
         checkpoint_manager.start(trainer)
@@ -876,12 +744,7 @@ class TestCheckpointManager(unittest.TestCase):
         self.assertEqual(len(trainer.callbacks), prev_len)
         # self.assertTrue(trainer.sort_flag)
 
-        self.assertTrue(
-            all(
-                torch.allclose(v, trainer.model.state_dict()[k])
-                for k, v in model.state_dict().items()
-            )
-        )
+        self.assertTrue(all(torch.allclose(v, trainer.model.state_dict()[k]) for k, v in model.state_dict().items()))
         self.assertTrue(
             all(
                 np.allclose(
@@ -896,9 +759,7 @@ class TestCheckpointManager(unittest.TestCase):
                 for k, v in first_param_group.items()
             )
         )
-        save_name = checkpoint_manager.get_checkpoint_filename(
-            test_data[CheckpointManager.CHECKPOINT_ITR_KEY]
-        )
+        save_name = checkpoint_manager.get_checkpoint_filename(test_data[CheckpointManager.CHECKPOINT_ITR_KEY])
         with open(checkpoint_manager.checkpoints_meta_path, "r") as jsonFile:
             meta_info = json.load(jsonFile)
         self.assertEqual(meta_info[CheckpointManager.CHECKPOINT_BEST_KEY], save_name)

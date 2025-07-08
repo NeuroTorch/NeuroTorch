@@ -3,8 +3,8 @@ import warnings
 
 import numpy as np
 import torch
-from neurotorch.dimension import Dimension
 
+from neurotorch.dimension import Dimension
 from neurotorch.modules.layers import BaseLayer
 
 
@@ -128,9 +128,7 @@ class TestBaseLayer(unittest.TestCase):
 
         layer.update_regularization_loss = _update
         layer.update_regularization_loss(0.1)
-        self.assertTrue(
-            torch.isclose(layer._regularization_loss, layer.get_regularization_loss())
-        )
+        self.assertTrue(torch.isclose(layer._regularization_loss, layer.get_regularization_loss()))
 
     def test_get_and_reset_regularization(self):
         layer = BaseLayer(10, 10, device=torch.device("cpu"))
@@ -145,9 +143,7 @@ class TestBaseLayer(unittest.TestCase):
         self.assertTrue(torch.isclose(layer._regularization_loss, torch.tensor(0.1)))
         get_tensor = layer.get_regularization_loss()
         self.assertTrue(torch.isclose(layer._regularization_loss, get_tensor))
-        self.assertTrue(
-            torch.isclose(get_tensor, layer.get_and_reset_regularization_loss())
-        )
+        self.assertTrue(torch.isclose(get_tensor, layer.get_and_reset_regularization_loss()))
         self.assertTrue(torch.isclose(layer._regularization_loss, torch.tensor(0.0)))
 
     def test_to(self):
@@ -163,8 +159,7 @@ class TestBaseLayer(unittest.TestCase):
                 self.assertEqual(p.device.type, "cuda")
         else:
             warnings.warn(
-                "No CUDA available. Skipping test_to. Please consider running the tests on a machine "
-                "with CUDA.",
+                "No CUDA available. Skipping test_to. Please consider running the tests on a machine " "with CUDA.",
                 UserWarning,
             )
 

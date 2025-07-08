@@ -1,6 +1,8 @@
 import unittest
-import torch
+
 import numpy as np
+import torch
+
 from neurotorch.transforms.spikes_decoders import MeanConv
 
 

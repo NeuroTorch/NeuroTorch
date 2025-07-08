@@ -1,8 +1,8 @@
+import multiprocessing as mp
 import os.path
 import pickle
 import time
-import multiprocessing as mp
-from typing import Union, Optional
+from typing import Optional, Union
 
 from matplotlib import pyplot as plt
 
@@ -20,9 +20,7 @@ class _VisualizerProcess(mp.Process):
         - **lines** (list): The list of lines to plot.
     """
 
-    def __init__(
-        self, history_path: str, lock: Union[mp.Lock, mp.RLock], update_dt: float = 1.0
-    ):
+    def __init__(self, history_path: str, lock: Union[mp.Lock, mp.RLock], update_dt: float = 1.0):
         """
         Create a new process to plot the training history.
 
@@ -53,9 +51,7 @@ class _VisualizerProcess(mp.Process):
             if os.path.exists(self._history_path):
                 try:
                     with self._lock:
-                        self._training_history = pickle.load(
-                            open(self._history_path, "rb")
-                        )
+                        self._training_history = pickle.load(open(self._history_path, "rb"))
                     can_plot = True
                 except Exception:
                     time.sleep(self._update_dt)
@@ -69,9 +65,7 @@ class _VisualizerProcess(mp.Process):
         plt.pause(self._update_dt)
         while not self._close_event.is_set():
             self.update_history()
-            self.fig, self.axes, self.lines = self._training_history.update_fig(
-                self.fig, self.axes, self.lines
-            )
+            self.fig, self.axes, self.lines = self._training_history.update_fig(self.fig, self.axes, self.lines)
             plt.pause(self._update_dt)
         plt.close(self.fig)
 

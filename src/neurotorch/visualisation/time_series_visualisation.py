@@ -1,18 +1,16 @@
 import os
 from copy import deepcopy
-from typing import Optional, Tuple, Any, Sequence
+from typing import Any, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
-
 import numpy as np
 import torch
-
 from matplotlib import animation
 from scipy import interpolate
-from sklearn.cluster import KMeans, DBSCAN
+from sklearn.cluster import DBSCAN, KMeans
 from sklearn.decomposition import PCA
 
-from ..dimension import DimensionProperty, Size, DimensionsLike
+from ..dimension import DimensionProperty, DimensionsLike, Size
 from ..metrics import PVarianceLoss
 from ..transforms.base import to_numpy, to_tensor
 
@@ -57,13 +55,9 @@ class Visualise:
         mth = kwargs.get("method", "text").lower()
         start = kwargs.get("start", 0)
         if num_type == "alpha":
-            axes_numbers = [
-                chr(i) for i in range(97 + start, 97 + len(axes_view) + start)
-            ]
+            axes_numbers = [chr(i) for i in range(97 + start, 97 + len(axes_view) + start)]
         elif num_type == "numeric":
-            axes_numbers = [
-                str(i) for i in range(1 + start, len(axes_view) + 1 + start)
-            ]
+            axes_numbers = [str(i) for i in range(1 + start, len(axes_view) + 1 + start)]
         else:
             raise ValueError(f"Unknown num_type {num_type}.")
         for i, ax in enumerate(axes_view):
@@ -113,15 +107,9 @@ class Visualise:
         self._given_timeseries = deepcopy(self.timeseries)
         self.given_shape_mean = (-1, *self.timeseries.shape[-2:])
         if len(self.timeseries.shape) >= 3:
-            self.timeseries = np.mean(
-                self.timeseries.reshape(self.given_shape_mean), axis=0
-            )
-            self._mean_given_timeseries = np.mean(
-                self._given_timeseries.reshape(self.given_shape_mean), axis=0
-            )
-            self._std_given_timeseries = np.std(
-                self._given_timeseries.reshape(self.given_shape_mean), axis=0
-            )
+            self.timeseries = np.mean(self.timeseries.reshape(self.given_shape_mean), axis=0)
+            self._mean_given_timeseries = np.mean(self._given_timeseries.reshape(self.given_shape_mean), axis=0)
+            self._std_given_timeseries = np.std(self._given_timeseries.reshape(self.given_shape_mean), axis=0)
             self.is_mean = True
         else:
             self._mean_given_timeseries = self._given_timeseries
@@ -146,9 +134,9 @@ class Visualise:
         Z-score the time series.
         """
         for i in range(int(self.shape[-1])):
-            self.timeseries[:, i] = (
-                self.timeseries[:, i] - np.mean(self.timeseries[:, i])
-            ) / np.std(self.timeseries[:, i])
+            self.timeseries[:, i] = (self.timeseries[:, i] - np.mean(self.timeseries[:, i])) / np.std(
+                self.timeseries[:, i]
+            )
 
     def _set_dimension(self, shape: Optional[DimensionsLike]) -> Size:
         """
@@ -256,9 +244,7 @@ class Visualise:
             text.set_text(rf"$t = {i * step * dt:.3f} / {int(self.shape[0]) * dt}$")
             return nodes, text
 
-        anim = animation.FuncAnimation(
-            fig, _animation, frames=num_frames, interval=time_interval, blit=True
-        )
+        anim = animation.FuncAnimation(fig, _animation, frames=num_frames, interval=time_interval, blit=True)
         if filename is not None:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             if file_extension is None:
@@ -300,9 +286,7 @@ class Visualise:
         :keyword figsize: Size of the figure. Default is (12, 8).
         :keyword dpi: DPI of the figure. Default is 300.
         """
-        assert (fig is None) == (
-            ax is None
-        ), "fig and ax must be both None or both not None."
+        assert (fig is None) == (ax is None), "fig and ax must be both None or both not None."
         if fig is None or ax is None:
             fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
         ax.set_xlabel(self.shape[0].name)
@@ -343,9 +327,7 @@ class Visualise:
         :keyword figsize: Size of the figure. Default is (12, 8).
         :keyword dpi: DPI of the figure. Default is 300.
         """
-        assert (fig is None) == (
-            ax is None
-        ), "fig and ax must be both None or both not None."
+        assert (fig is None) == (ax is None), "fig and ax must be both None or both not None."
         if fig is None or ax is None:
             fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
         ax.set_xlabel(self.shape[0].name)
@@ -392,9 +374,7 @@ class Visualise:
         :keyword figsize: Size of the figure. Default is (12, 8).
         :keyword dpi: DPI of the figure. Default is 300.
         """
-        assert (fig is None) == (
-            ax is None
-        ), "fig and ax must be both None or both not None."
+        assert (fig is None) == (ax is None), "fig and ax must be both None or both not None."
         if fig is None or ax is None:
             fig, ax = plt.subplots(figsize=kwargs.get("figsize", (12, 8)))
         ax.set_xlabel(self.shape[0].name)
@@ -431,16 +411,12 @@ class Visualise:
         desc: str = "Predicted time series",
         **kwargs,
     ) -> plt.Axes:
-        predictions, target = to_tensor(
-            self._mean_given_timeseries[:, feature_index]
-        ), to_tensor(target)
+        predictions, target = to_tensor(self._mean_given_timeseries[:, feature_index]), to_tensor(target)
         if self.is_mean:
             ax.fill_between(
                 np.arange(predictions.shape[0]),
-                to_numpy(predictions)
-                - to_numpy(self._std_given_timeseries[:, feature_index]),
-                to_numpy(predictions)
-                + to_numpy(self._std_given_timeseries[:, feature_index]),
+                to_numpy(predictions) - to_numpy(self._std_given_timeseries[:, feature_index]),
+                to_numpy(predictions) + to_numpy(self._std_given_timeseries[:, feature_index]),
                 alpha=0.2,
                 color="blue",
             )
@@ -465,13 +441,9 @@ class Visualise:
         if spikes is not None:
             spikes = to_tensor(spikes)
             assert len(spikes.shape) == 2, "spikes must be a 2D tensor"
-            assert (
-                n_spikes_steps is not None
-            ), "n_spikes_steps must be provided if spikes is not None"
+            assert n_spikes_steps is not None, "n_spikes_steps must be provided if spikes is not None"
             y_max = max(target.max(), predictions.max())
-            x_scatter_space = np.linspace(
-                0, len(target), num=n_spikes_steps * len(target)
-            )
+            x_scatter_space = np.linspace(0, len(target), num=n_spikes_steps * len(target))
             x_scatter_spikes = []
             x_scatter_values = []
             x_scatter_zeros = []
@@ -480,9 +452,7 @@ class Visualise:
                     x_scatter_zeros.append(xs)
                 else:
                     x_scatter_spikes.append(xs)
-                    x_scatter_values.append(
-                        spikes[i // n_spikes_steps][i % n_spikes_steps]
-                    )
+                    x_scatter_values.append(spikes[i // n_spikes_steps][i % n_spikes_steps])
             x_scatter_values = np.clip(x_scatter_values, 0.0, 1.0)
             if x_scatter_values.size == 0:
                 x_scatter_values = 0.0
@@ -547,17 +517,13 @@ class Visualise:
 
         :return: Figure and axes.
         """
-        assert (fig is None) == (
-            axes is None
-        ), "fig and axes must be both None or both not None"
+        assert (fig is None) == (axes is None), "fig and axes must be both None or both not None"
         predictions, target = to_tensor(self._mean_given_timeseries), to_tensor(target)
         target = torch.squeeze(target.detach().cpu())
 
         errors = torch.squeeze(predictions - target.to(predictions.device)) ** 2
         if self.is_mean:
-            mean_pVar, std_pVar = PVarianceLoss().mean_std_over_batch(
-                self._given_timeseries, target[np.newaxis, ...]
-            )
+            mean_pVar, std_pVar = PVarianceLoss().mean_std_over_batch(self._given_timeseries, target[np.newaxis, ...])
             mean_pVar, std_pVar = to_numpy(mean_pVar).item(), to_numpy(std_pVar).item()
             batch_size = self._given_timeseries.shape[0]
             title = f"{title} (pVar[{batch_size}]: {mean_pVar:.3f} ± {std_pVar:.3f})"
@@ -565,24 +531,14 @@ class Visualise:
             pVar = PVarianceLoss()(predictions, target.to(predictions.device))
             title = f"{title} (pVar: {to_numpy(pVar).item():.3f})"
 
-        pVar_per_feature = PVarianceLoss(reduction="feature")(
-            predictions, target.to(predictions.device)
-        )
-        mean_pVar = PVarianceLoss(reduction="mean")(
-            predictions, target.to(predictions.device)
-        )
+        pVar_per_feature = PVarianceLoss(reduction="feature")(predictions, target.to(predictions.device))
+        mean_pVar = PVarianceLoss(reduction="mean")(predictions, target.to(predictions.device))
         mean_pVar_sort, indices = torch.sort(pVar_per_feature, descending=True)
-        var_diff, var_diff_indices = torch.sort(
-            torch.var(torch.diff(target, dim=0), dim=0), descending=True
-        )
-        typical_pVar_sort, typical_indices = torch.sort(
-            torch.abs(pVar_per_feature - mean_pVar), descending=False
-        )
+        var_diff, var_diff_indices = torch.sort(torch.var(torch.diff(target, dim=0), dim=0), descending=True)
+        typical_pVar_sort, typical_indices = torch.sort(torch.abs(pVar_per_feature - mean_pVar), descending=False)
         target = torch.squeeze(target).numpy().T
 
-        traces_to_show = kwargs.get(
-            "traces_to_show", ["error_quad", "best", "most_var", "worst"]
-        )
+        traces_to_show = kwargs.get("traces_to_show", ["error_quad", "best", "most_var", "worst"])
         traces_to_show = [t.lower() for t in traces_to_show]
         plot_error_quad = "error_quad" in traces_to_show
         traces_to_indexes = {
@@ -604,13 +560,9 @@ class Visualise:
                 traces_to_indexes[trace] = typical_indices[typical_idx]
                 traces_to_names[trace] = f"Typical {typical_idx}"
             if trace not in traces_to_indexes:
-                raise ValueError(
-                    f"Unknown trace to show: {trace}. Known traces: {list(traces_to_indexes.keys())}"
-                )
+                raise ValueError(f"Unknown trace to show: {trace}. Known traces: {list(traces_to_indexes.keys())}")
 
-        given_names = kwargs.get(
-            "traces_to_show_names", [traces_to_names[t] for t in traces_to_show]
-        )
+        given_names = kwargs.get("traces_to_show_names", [traces_to_names[t] for t in traces_to_show])
         assert len(given_names) == len(
             traces_to_show
         ), "traces_to_show_names must have the same length as traces_to_show"
@@ -633,8 +585,7 @@ class Visualise:
         if spikes is not None:
             spikes = to_numpy(spikes)
             trace_to_spikes_indexes = {
-                trace_name: spikes[:, :, indexes]
-                for trace_name, indexes in traces_to_indexes.items()
+                trace_name: spikes[:, :, indexes] for trace_name, indexes in traces_to_indexes.items()
             }
         else:
             trace_to_spikes_indexes = {}
@@ -676,9 +627,7 @@ class Visualise:
         **kwargs,
     ) -> Tuple[plt.Figure, Sequence[plt.Axes]]:
         if fig is None or axes is None:
-            fig, axes = plt.subplots(
-                ncols=2, nrows=4, figsize=kwargs.get("figsize", (16, 8))
-            )
+            fig, axes = plt.subplots(ncols=2, nrows=4, figsize=kwargs.get("figsize", (16, 8)))
         else:
             axes = np.asarray(axes)
             assert axes.shape == (
@@ -781,9 +730,7 @@ class VisualiseKMeans(Visualise):
         self.timeseries = self.permute_timeseries(self.timeseries)
 
     def _compute_kmeans_labels(self):
-        kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(
-            self.timeseries.T
-        )
+        kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(self.timeseries.T)
         return kmeans.labels_
 
     def permute_timeseries(self, timeseries: np.ndarray):
@@ -855,9 +802,7 @@ class VisualisePCA(Visualise):
         :param random_state: Determines random number generation for centroid initialization.
             Example: VisualisePCA(data).with_kmeans(n_clusters=13, random_state=0).scatter_pca()
         """
-        kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(
-            self.reduced_timeseries
-        )
+        kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(self.reduced_timeseries)
         self.kmean_label = kmeans.labels_
         return self
 
@@ -870,13 +815,9 @@ class VisualisePCA(Visualise):
         """
         dimension = len(PCs)
         if dimension < 2 or dimension > 3:
-            raise ValueError(
-                "PCs must be a tuple of 2 or 3 elements. Can only plot PCs in 2D or 3D"
-            )
+            raise ValueError("PCs must be a tuple of 2 or 3 elements. Can only plot PCs in 2D or 3D")
         if self.kmean_label is not None and color_sample:
-            raise ValueError(
-                "You can only apply color based on k-mean or the sample, not both"
-            )
+            raise ValueError("You can only apply color based on k-mean or the sample, not both")
         if max(PCs) > self.n_PC:
             raise ValueError("PCs must be less than or equal to the number of PC")
         color = None
@@ -1031,9 +972,7 @@ class VisualisePCA(Visualise):
                     self.reduced_timeseries[::reduction, PCs[0] - 1],
                     target_reduced[::reduction, PCs[0] - 1],
                 )
-                axes[0].set_title(
-                    f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})"
-                )
+                axes[0].set_title(f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})")
             else:
                 axes[0].set_title("Trajectory in PCA space with respect to time")
             if "box_aspect" in kwargs:
@@ -1066,9 +1005,7 @@ class VisualisePCA(Visualise):
                     f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})"
                 )
             else:
-                axes[n_plot - 2].set_title(
-                    "Trajectory in PCA space with respect to time"
-                )
+                axes[n_plot - 2].set_title("Trajectory in PCA space with respect to time")
             if "box_aspect" in kwargs:
                 axes[n_plot - 1].set_box_aspect(kwargs["box_aspect"])
 
@@ -1098,9 +1035,7 @@ class VisualisePCA(Visualise):
                     f"Trajectory in PCA space with respect to time (pVar = {to_numpy(pVar).item():.4f})"
                 )
             else:
-                axes[n_plot - 1].set_title(
-                    "Trajectory in PCA space with respect to time"
-                )
+                axes[n_plot - 1].set_title("Trajectory in PCA space with respect to time")
             if "box_aspect" in kwargs:
                 axes[n_plot - 1].set_box_aspect(kwargs["box_aspect"])
 
@@ -1148,9 +1083,7 @@ class VisualiseUMAP(Visualise):
         try:
             import umap
         except ImportError:
-            raise ImportError(
-                "You must install umap-learn to use this class. `pip install umap-learn`"
-            )
+            raise ImportError("You must install umap-learn to use this class. `pip install umap-learn`")
         if data is None:
             data = self.timeseries
         self.umap_transform = umap.UMAP(
@@ -1175,9 +1108,7 @@ class VisualiseUMAP(Visualise):
         :param random_state: Determines random number generation for centroid initialization.
             Example: VisualisePCA(data).with_kmeans(n_clusters=13, random_state=0).scatter_umap()
         """
-        kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(
-            self.reduced_timeseries
-        )
+        kmeans = KMeans(n_clusters=n_clusters, random_state=random_state).fit(self.reduced_timeseries)
         self.kmeans_label = kmeans.labels_
         return self
 
@@ -1189,13 +1120,9 @@ class VisualiseUMAP(Visualise):
         """
         dimension = len(UMAPs)
         if dimension < 2 or dimension > 3:
-            raise ValueError(
-                "UMAPs must be a tuple of 2 or 3 elements. Can only plot UMAPs in 2D or 3D"
-            )
+            raise ValueError("UMAPs must be a tuple of 2 or 3 elements. Can only plot UMAPs in 2D or 3D")
         if self.kmeans_label is not None and color_sample:
-            raise ValueError(
-                "You can only apply color based on k-mean or the sample, not both"
-            )
+            raise ValueError("You can only apply color based on k-mean or the sample, not both")
         if max(UMAPs) > self.n_components:
             raise ValueError("UMAPs must be less than or equal to the number of UMAP")
         color = None
@@ -1357,9 +1284,7 @@ class VisualiseUMAP(Visualise):
                 axes[0].set_box_aspect(kwargs["box_aspect"])
 
         if traces == "all":
-            axes[n_plot - 2].set_title(
-                "Trajectory in the UMAP space with respect to time"
-            )
+            axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
             axes[n_plot - 2].set_xlabel("Time")
             axes[n_plot - 2].set_ylabel(f"UMAP {UMAPs[0]}")
             if target is not None:
@@ -1385,15 +1310,11 @@ class VisualiseUMAP(Visualise):
                     f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})"
                 )
             else:
-                axes[n_plot - 2].set_title(
-                    "Trajectory in the UMAP space with respect to time"
-                )
+                axes[n_plot - 2].set_title("Trajectory in the UMAP space with respect to time")
             if "box_aspect" in kwargs:
                 axes[n_plot - 2].set_box_aspect(kwargs["box_aspect"])
 
-            axes[n_plot - 1].set_title(
-                "Trajectory in the UMAP space with respect to time"
-            )
+            axes[n_plot - 1].set_title("Trajectory in the UMAP space with respect to time")
             axes[n_plot - 1].set_xlabel("Time")
             axes[n_plot - 1].set_ylabel(f"UMAP {UMAPs[1]}")
             if target is not None:
@@ -1419,9 +1340,7 @@ class VisualiseUMAP(Visualise):
                     f"Trajectory in the UMAP space with respect to time (pVar = {to_numpy(pVar).item():.3f})"
                 )
             else:
-                axes[n_plot - 1].set_title(
-                    "Trajectory in the UMAP space with respect to time"
-                )
+                axes[n_plot - 1].set_title("Trajectory in the UMAP space with respect to time")
             if "box_aspect" in kwargs:
                 axes[n_plot - 1].set_box_aspect(kwargs["box_aspect"])
 

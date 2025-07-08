@@ -1,11 +1,11 @@
-from typing import Union, Dict, Any, Tuple, Type, Optional
+from typing import Any, Dict, Optional, Tuple, Type, Union
 
 import torch
 
+from ..modules.base import BaseModel
+from ..modules.layers import ALIFLayer, LIFLayer, SpyLIFLayer
 from .spikes_decoders import MeanConv
 from .spikes_encoders import SpikesEncoder
-from ..modules.layers import SpyLIFLayer, LIFLayer, ALIFLayer
-from ..modules.base import BaseModel
 
 
 class SpikesAutoEncoder(BaseModel):
@@ -24,9 +24,7 @@ class SpikesAutoEncoder(BaseModel):
         **kwargs,
     ):
         if encoder_type is not None and spikes_encoder is not None:
-            raise ValueError(
-                "If encoder_type is provided, spikes_encoder must be None and vice versa."
-            )
+            raise ValueError("If encoder_type is provided, spikes_encoder must be None and vice versa.")
         kwargs.setdefault("name", "SpikesAutoEncoder")
         super().__init__(n_units, n_units, **kwargs)
         if encoder_type is None:

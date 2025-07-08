@@ -1,16 +1,16 @@
 from collections import defaultdict
-from typing import Any, Optional, Dict, Callable, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from sklearn import metrics as sk_metrics
 from torch.nn.functional import mse_loss
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from sklearn import metrics as sk_metrics
 
-from .base import BaseMetrics
 from ..modules import BaseModel
-from ..transforms import to_tensor, to_numpy
+from ..transforms import to_numpy, to_tensor
+from .base import BaseMetrics
 
 
 class RegressionMetrics(BaseMetrics):
@@ -86,12 +86,8 @@ class RegressionMetrics(BaseMetrics):
     ) -> Union[float, Dict[str, float]]:
         if y_true is None:
             assert y_pred is None
-            assert (
-                model is not None
-            ), "Either model or y_pred and y_true must be supplied."
-            assert (
-                dataloader is not None
-            ), "Either model or y_pred and y_true must be supplied."
+            assert model is not None, "Either model or y_pred and y_true must be supplied."
+            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
                 model=model,
                 dataloader=dataloader,
@@ -102,12 +98,7 @@ class RegressionMetrics(BaseMetrics):
             )
 
         if isinstance(y_true, dict):
-            return {
-                k: sk_metrics.mean_absolute_error(
-                    y_true[k].flatten(), y_pred[k].flatten()
-                )
-                for k in y_true
-            }
+            return {k: sk_metrics.mean_absolute_error(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
         return sk_metrics.mean_absolute_error(y_true.flatten(), y_pred.flatten())
 
     @staticmethod
@@ -123,23 +114,14 @@ class RegressionMetrics(BaseMetrics):
     ) -> Union[float, Dict[str, float]]:
         if y_true is None:
             assert y_pred is None
-            assert (
-                model is not None
-            ), "Either model or y_pred and y_true must be supplied."
-            assert (
-                dataloader is not None
-            ), "Either model or y_pred and y_true must be supplied."
+            assert model is not None, "Either model or y_pred and y_true must be supplied."
+            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
 
         if isinstance(y_true, dict):
-            return {
-                k: sk_metrics.mean_squared_error(
-                    y_true[k].flatten(), y_pred[k].flatten()
-                )
-                for k in y_true
-            }
+            return {k: sk_metrics.mean_squared_error(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
         return sk_metrics.mean_squared_error(y_true.flatten(), y_pred.flatten())
 
     @staticmethod
@@ -155,21 +137,14 @@ class RegressionMetrics(BaseMetrics):
     ) -> Union[float, Dict[str, float]]:
         if y_true is None:
             assert y_pred is None
-            assert (
-                model is not None
-            ), "Either model or y_pred and y_true must be supplied."
-            assert (
-                dataloader is not None
-            ), "Either model or y_pred and y_true must be supplied."
+            assert model is not None, "Either model or y_pred and y_true must be supplied."
+            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
 
         if isinstance(y_true, dict):
-            return {
-                k: sk_metrics.r2_score(y_true[k].flatten(), y_pred[k].flatten())
-                for k in y_true
-            }
+            return {k: sk_metrics.r2_score(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
         return sk_metrics.r2_score(y_true.flatten(), y_pred.flatten())
 
     @staticmethod
@@ -185,21 +160,14 @@ class RegressionMetrics(BaseMetrics):
     ) -> Union[float, Dict[str, float]]:
         if y_true is None:
             assert y_pred is None
-            assert (
-                model is not None
-            ), "Either model or y_pred and y_true must be supplied."
-            assert (
-                dataloader is not None
-            ), "Either model or y_pred and y_true must be supplied."
+            assert model is not None, "Either model or y_pred and y_true must be supplied."
+            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
 
         if isinstance(y_true, dict):
-            return {
-                k: sk_metrics.d2_tweedie_score(y_true[k].flatten(), y_pred[k].flatten())
-                for k in y_true
-            }
+            return {k: sk_metrics.d2_tweedie_score(y_true[k].flatten(), y_pred[k].flatten()) for k in y_true}
         return sk_metrics.d2_tweedie_score(y_true.flatten(), y_pred.flatten())
 
     @staticmethod
@@ -224,9 +192,7 @@ class RegressionMetrics(BaseMetrics):
         elif reduction.lower() == "sum":
             p_var_value = torch.sum(p_var_values)
         else:
-            raise ValueError(
-                f"Reduction {reduction} not recognized. Try 'none'|'sum'|'mean'."
-            )
+            raise ValueError(f"Reduction {reduction} not recognized. Try 'none'|'sum'|'mean'.")
         return p_var_value
 
     @staticmethod
@@ -254,12 +220,8 @@ class RegressionMetrics(BaseMetrics):
         """
         if y_true is None:
             assert y_pred is None
-            assert (
-                model is not None
-            ), "Either model or y_pred and y_true must be supplied."
-            assert (
-                dataloader is not None
-            ), "Either model or y_pred and y_true must be supplied."
+            assert model is not None, "Either model or y_pred and y_true must be supplied."
+            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = RegressionMetrics.compute_y_true_y_pred(
                 model=model,
                 dataloader=dataloader,
@@ -270,17 +232,10 @@ class RegressionMetrics(BaseMetrics):
             )
 
         if isinstance(y_true, dict):
-            return {
-                k: to_numpy(
-                    RegressionMetrics.compute_p_var(y_true[k], y_pred[k], device)
-                )
-                for k in y_true
-            }
+            return {k: to_numpy(RegressionMetrics.compute_p_var(y_true[k], y_pred[k], device)) for k in y_true}
         return to_numpy(RegressionMetrics.compute_p_var(y_true, y_pred, device))
 
-    def __call__(
-        self, data_loader: DataLoader, verbose: Union[bool, int] = False
-    ) -> Dict[str, Any]:
+    def __call__(self, data_loader: DataLoader, verbose: Union[bool, int] = False) -> Dict[str, Any]:
         """
         Compute the metrics for the given data_loader.
         :param data_loader: The data loader to use to compute the metrics.

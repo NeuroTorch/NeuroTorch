@@ -1,5 +1,5 @@
 import numbers
-from typing import Any, Optional, Callable, Union, Dict
+from typing import Any, Callable, Dict, Optional, Union
 
 import numpy as np
 import torch

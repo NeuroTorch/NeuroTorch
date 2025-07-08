@@ -1,22 +1,22 @@
 import os
 import warnings
 from collections import defaultdict
-from typing import Optional, Union, Sequence, Dict, Tuple, Any, List
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-import matplotlib.pyplot as plt
-import matplotlib.animation as mpl_animation
-import numpy as np
 import gym
+import matplotlib.animation as mpl_animation
+import matplotlib.pyplot as plt
+import numpy as np
 import scipy
 import torch
 
-from .buffers import Trajectory
-from .curriculum import Curriculum
+from ..callbacks import TrainingHistory
 from ..dimension import SizeTypes
 from ..modules.layers import BaseNeuronsLayer
-from ..transforms.base import to_tensor, to_numpy
-from ..callbacks import TrainingHistory
+from ..transforms.base import to_numpy, to_tensor
 from ..utils import legend_without_duplicate_labels_
+from .buffers import Trajectory
+from .curriculum import Curriculum
 
 
 class TrainingHistoriesMap:
@@ -24,9 +24,7 @@ class TrainingHistoriesMap:
 
     def __init__(self, curriculum: Optional[Curriculum] = None):
         self.curriculum = curriculum
-        self.histories = defaultdict(
-            TrainingHistory, **{TrainingHistoriesMap.REPORT_KEY: TrainingHistory()}
-        )
+        self.histories = defaultdict(TrainingHistory, **{TrainingHistoriesMap.REPORT_KEY: TrainingHistory()})
 
     @property
     def report_history(self) -> TrainingHistory:
@@ -46,9 +44,7 @@ class TrainingHistoriesMap:
     def append(self, key, value):
         self.histories[TrainingHistoriesMap.REPORT_KEY].append(key, value)
         if self.curriculum is not None:
-            return self.histories[self.curriculum.current_lesson.name].append(
-                key, value
-            )
+            return self.histories[self.curriculum.current_lesson.name].append(key, value)
 
     @staticmethod
     def _set_default_plot_kwargs(kwargs: dict):
@@ -68,39 +64,24 @@ class TrainingHistoriesMap:
         kwargs = self._set_default_plot_kwargs(kwargs)
         if self.curriculum is None:
             assert lesson_idx is None, "lesson_idx must be None if curriculum is None"
-            return self.plot_history(
-                TrainingHistoriesMap.REPORT_KEY, save_path, show, **kwargs
-            )
+            return self.plot_history(TrainingHistoriesMap.REPORT_KEY, save_path, show, **kwargs)
         if lesson_idx is None:
-            self.plot_history(
-                TrainingHistoriesMap.REPORT_KEY, save_path, show, **kwargs
-            )
+            self.plot_history(TrainingHistoriesMap.REPORT_KEY, save_path, show, **kwargs)
         else:
-            self.plot_history(
-                self.curriculum[lesson_idx].name, save_path, show, **kwargs
-            )
+            self.plot_history(self.curriculum[lesson_idx].name, save_path, show, **kwargs)
 
     def plot_history(self, history_name: str, save_path=None, show=False, **kwargs):
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         history = self.histories[history_name]
-        if (
-            self.curriculum is not None
-            and history_name != TrainingHistoriesMap.REPORT_KEY
-        ):
+        if self.curriculum is not None and history_name != TrainingHistoriesMap.REPORT_KEY:
             lessons = [self.curriculum[history_name]]
             lessons_start_itr = [0]
-        elif (
-            self.curriculum is not None
-            and history_name == TrainingHistoriesMap.REPORT_KEY
-        ):
+        elif self.curriculum is not None and history_name == TrainingHistoriesMap.REPORT_KEY:
             lessons = self.curriculum.lessons
             lessons_lengths = {
-                k: [len(self.histories[lesson.name][k]) for lesson in lessons]
-                for k in history._container
+                k: [len(self.histories[lesson.name][k]) for lesson in lessons] for k in history._container
             }
-            lessons_start_itr = {
-                k: np.cumsum(lessons_lengths[k]) for k in history.keys()
-            }
+            lessons_start_itr = {k: np.cumsum(lessons_lengths[k]) for k in history.keys()}
         else:
             lessons = []
             lessons_start_itr = []
@@ -108,17 +89,11 @@ class TrainingHistoriesMap:
         kwargs = self._set_default_plot_kwargs(kwargs)
         loss_metrics = [k for k in history.keys() if "loss" in k.lower()]
         rewards_metrics = [k for k in history.keys() if "reward" in k.lower()]
-        other_metrics = [
-            k
-            for k in history.keys()
-            if k not in loss_metrics and k not in rewards_metrics
-        ]
+        other_metrics = [k for k in history.keys() if k not in loss_metrics and k not in rewards_metrics]
         n_metrics = 2 + len(other_metrics)
         n_cols = int(np.sqrt(n_metrics))
         n_rows = int(n_metrics / n_cols)
-        fig, axes = plt.subplots(
-            nrows=n_rows, ncols=n_cols, figsize=kwargs["figsize"], sharex="all"
-        )
+        fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=kwargs["figsize"], sharex="all")
         if axes.ndim == 1:
             axes = np.expand_dims(axes, axis=-1)
         for row_i in range(n_rows):
@@ -136,16 +111,12 @@ class TrainingHistoriesMap:
                         for lesson_idx, lesson in enumerate(lessons):
                             if lesson.completion_criteria.measure == k:
                                 ax.plot(
-                                    lesson.completion_criteria.threshold
-                                    * np.ones(len(history[k])),
+                                    lesson.completion_criteria.threshold * np.ones(len(history[k])),
                                     "k--",
                                     label=f"{k} threshold",
                                     linewidth=kwargs["linewidth"],
                                 )
-                            if (
-                                history_name == TrainingHistoriesMap.REPORT_KEY
-                                and lesson.is_completed
-                            ):
+                            if history_name == TrainingHistoriesMap.REPORT_KEY and lesson.is_completed:
                                 ax.axvline(
                                     lessons_start_itr[k][lesson_idx],
                                     ymin=np.min(history[k]),
@@ -200,9 +171,7 @@ def space_to_continuous_shape(
 
 
 def obs_sequence_to_batch(
-    obs: Sequence[
-        Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]
-    ],
+    obs: Sequence[Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]],
 ) -> Union[torch.Tensor, Dict[str, torch.Tensor]]:
     """
     Convert a sequence of observations to a batch of observations.
@@ -222,9 +191,7 @@ def obs_sequence_to_batch(
 
 def obs_batch_to_sequence(
     obs: Union[torch.Tensor, Dict[str, torch.Tensor]], as_numpy: bool = False
-) -> Sequence[
-    Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]
-]:
+) -> Sequence[Union[np.ndarray, torch.Tensor, Dict[str, Union[np.ndarray, torch.Tensor]]]]:
     """
     Convert a batch of observations to a sequence of observations.
 
@@ -239,10 +206,7 @@ def obs_batch_to_sequence(
     if as_numpy:
         obs = to_numpy(obs)
     if isinstance(obs, dict):
-        return [
-            {k: obs[k][i] for k in obs.keys()}
-            for i in range(obs[list(obs.keys())[0]].shape[0])
-        ]
+        return [{k: obs[k][i] for k in obs.keys()} for i in range(obs[list(obs.keys())[0]].shape[0])]
     else:
         return [obs[i] for i in range(obs.shape[0])]
 
@@ -286,9 +250,7 @@ class Linear(BaseNeuronsLayer):
         }
         if isinstance(activation, str):
             activation = activation.lower()
-            assert (
-                activation in str_to_activation.keys()
-            ), f"Activation {activation} is not implemented."
+            assert activation in str_to_activation.keys(), f"Activation {activation} is not implemented."
             self.activation = str_to_activation[activation]
         else:
             self.activation = activation
@@ -301,9 +263,7 @@ class Linear(BaseNeuronsLayer):
                 requires_grad=self.requires_grad,
             )
         else:
-            self.bias_weights = torch.zeros(
-                (int(self.output_size),), dtype=torch.float32, device=self.device
-            )
+            self.bias_weights = torch.zeros((int(self.output_size),), dtype=torch.float32, device=self.device)
         super().build()
         self.initialize_weights_()
         return self
@@ -312,23 +272,17 @@ class Linear(BaseNeuronsLayer):
         super().initialize_weights_()
         torch.nn.init.kaiming_uniform_(self._forward_weights.data, a=np.sqrt(5))
         if "bias_weights" in self.kwargs:
-            self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(
-                self.device
-            )
+            self.bias_weights.data = to_tensor(self.kwargs["bias_weights"]).to(self.device)
         else:
             # torch.nn.init.constant_(self.bias_weights, 0.0)
             bound = 1 / np.sqrt(int(self.input_size))
             torch.nn.init.uniform_(self.bias_weights, -bound, bound)
 
-    def create_empty_state(
-        self, batch_size: int = 1, **kwargs
-    ) -> Tuple[torch.Tensor, ...]:
+    def create_empty_state(self, batch_size: int = 1, **kwargs) -> Tuple[torch.Tensor, ...]:
         kwargs.setdefault("n_hh", 0)
         return super().create_empty_state(batch_size=batch_size, **kwargs)
 
-    def forward(
-        self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs
-    ):
+    def forward(self, inputs: torch.Tensor, state: Tuple[torch.Tensor, ...] = None, **kwargs):
         # assert inputs.ndim == 2
         # batch_size, nb_features = inputs.shape
         # x = torch.functional.F.linear(inputs, self.forward_weights.T, self.bias_weights)
@@ -336,9 +290,7 @@ class Linear(BaseNeuronsLayer):
         return self.activation(x)
 
 
-def env_batch_step(
-    env: gym.Env, actions: Any
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def env_batch_step(env: gym.Env, actions: Any) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Step the environment in batch mode.
 
@@ -358,9 +310,7 @@ def env_batch_step(
         observations, rewards, dones, truncateds, info = env.step(actions_as_numpy)
         infos = [info for _ in range(env.num_envs)]
     else:
-        actions_as_single = (
-            actions_as_numpy[0] if actions_as_numpy.ndim > 0 else actions_as_numpy
-        )
+        actions_as_single = actions_as_numpy[0] if actions_as_numpy.ndim > 0 else actions_as_numpy
         observation, reward, done, truncated, info = env.step(actions_as_single)
         observations = batch_dict_of_items(observation)
         rewards = np.array([reward])
@@ -450,9 +400,7 @@ def sample_action_space(action_space: gym.spaces.Space, re_format: str = "raw"):
     :return: The sampled action.
     :rtype: Any
     """
-    if isinstance(
-        action_space, (gym.spaces.Discrete, gym.spaces.MultiDiscrete, gym.spaces.Box)
-    ):
+    if isinstance(action_space, (gym.spaces.Discrete, gym.spaces.MultiDiscrete, gym.spaces.Box)):
         action = action_space.sample()
     else:
         raise NotImplementedError(f"Action space {action_space} is not implemented.")
@@ -464,9 +412,7 @@ def sample_action_space(action_space: gym.spaces.Space, re_format: str = "raw"):
         elif isinstance(action_space, gym.spaces.MultiDiscrete):
             return np.stack([np.eye(n)[a] for n, a in zip(action_space.nvec, action)])
         else:
-            raise NotImplementedError(
-                f"Action space {action_space} is not implemented."
-            )
+            raise NotImplementedError(f"Action space {action_space} is not implemented.")
     else:
         raise NotImplementedError(f"Format {re_format} is not implemented.")
 
@@ -538,9 +484,7 @@ class TrajectoryRenderer:
             self.env.unwrapped.state = x.obs
             x.others["render"] = self.env.render()
 
-    def render(
-        self, **kwargs
-    ) -> Tuple[plt.Figure, plt.Axes, mpl_animation.FuncAnimation]:
+    def render(self, **kwargs) -> Tuple[plt.Figure, plt.Axes, mpl_animation.FuncAnimation]:
         filename = kwargs.get("filename", None)
         file_extension = kwargs.get("file_extension", "gif")
         writer = kwargs.get("writer", "ffmpeg")
@@ -627,9 +571,7 @@ def continuous_actions_distribution(
     """
     if isinstance(actions, dict):
         dist = {
-            k: continuous_actions_distribution(
-                actions[k], covariance[k] if covariance is not None else None
-            )
+            k: continuous_actions_distribution(actions[k], covariance[k] if covariance is not None else None)
             for k in actions
         }
     else:
@@ -639,9 +581,7 @@ def continuous_actions_distribution(
             covariance = torch.diag(std**2)
         else:
             covariance = to_tensor(covariance)
-        dist = torch.distributions.MultivariateNormal(
-            actions, covariance.to(actions.device)
-        )
+        dist = torch.distributions.MultivariateNormal(actions, covariance.to(actions.device))
     return dist
 
 

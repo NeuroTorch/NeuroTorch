@@ -1,13 +1,13 @@
 from collections import defaultdict
-from typing import Any, Optional, Dict, Callable, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from .base import BaseMetrics
 from ..modules import BaseModel
+from .base import BaseMetrics
 
 
 class ClassificationMetrics(BaseMetrics):
@@ -57,9 +57,7 @@ class ClassificationMetrics(BaseMetrics):
                     classes = classes.to_dense()
                 inputs = inputs.to(model.device)
                 classes = classes.to(model.device)
-                outputs = model.get_prediction_proba(
-                    inputs, re_outputs_trace=False, re_hidden_states=False
-                )
+                outputs = model.get_prediction_proba(inputs, re_outputs_trace=False, re_hidden_states=False)
                 if isinstance(outputs, dict):
                     if not isinstance(classes, dict):
                         classes = {k: classes for k in outputs}
@@ -103,12 +101,8 @@ class ClassificationMetrics(BaseMetrics):
 
         if y_true is None:
             assert y_pred is None
-            assert (
-                model is not None
-            ), "Either model or y_pred and y_true must be supplied."
-            assert (
-                dataloader is not None
-            ), "Either model or y_pred and y_true must be supplied."
+            assert model is not None, "Either model or y_pred and y_true must be supplied."
+            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = ClassificationMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
@@ -134,28 +128,17 @@ class ClassificationMetrics(BaseMetrics):
 
         if y_true is None:
             assert y_pred is None
-            assert (
-                model is not None
-            ), "Either model or y_pred and y_true must be supplied."
-            assert (
-                dataloader is not None
-            ), "Either model or y_pred and y_true must be supplied."
+            assert model is not None, "Either model or y_pred and y_true must be supplied."
+            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = ClassificationMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
         if isinstance(y_true, dict):
-            average = {
-                k: ("macro" if len(set(v)) > 2 else "binary") for k, v in y_true.items()
-            }
+            average = {k: ("macro" if len(set(v)) > 2 else "binary") for k, v in y_true.items()}
         else:
             average = "macro" if len(set(y_true)) > 2 else "binary"
         if isinstance(y_true, dict):
-            return {
-                k: precision_score(
-                    y_true[k], y_pred[k], average=average, zero_division=0
-                )
-                for k in y_true
-            }
+            return {k: precision_score(y_true[k], y_pred[k], average=average, zero_division=0) for k in y_true}
         return precision_score(y_true, y_pred, average=average, zero_division=0)
 
     @staticmethod
@@ -175,12 +158,8 @@ class ClassificationMetrics(BaseMetrics):
 
         if y_true is None:
             assert y_pred is None
-            assert (
-                model is not None
-            ), "Either model or y_pred and y_true must be supplied."
-            assert (
-                dataloader is not None
-            ), "Either model or y_pred and y_true must be supplied."
+            assert model is not None, "Either model or y_pred and y_true must be supplied."
+            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = ClassificationMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
@@ -206,28 +185,19 @@ class ClassificationMetrics(BaseMetrics):
 
         if y_true is None:
             assert y_pred is None
-            assert (
-                model is not None
-            ), "Either model or y_pred and y_true must be supplied."
-            assert (
-                dataloader is not None
-            ), "Either model or y_pred and y_true must be supplied."
+            assert model is not None, "Either model or y_pred and y_true must be supplied."
+            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = ClassificationMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
 
         if isinstance(y_true, dict):
-            average = {
-                k: ("macro" if len(set(v)) > 2 else "binary") for k, v in y_true.items()
-            }
+            average = {k: ("macro" if len(set(v)) > 2 else "binary") for k, v in y_true.items()}
         else:
             average = "macro" if len(set(y_true)) > 2 else "binary"
 
         if isinstance(y_true, dict):
-            return {
-                k: f1_score(y_true[k], y_pred[k], average=average, zero_division=0)
-                for k in y_true
-            }
+            return {k: f1_score(y_true[k], y_pred[k], average=average, zero_division=0) for k in y_true}
         return f1_score(y_true, y_pred, average=average, zero_division=0)
 
     @staticmethod
@@ -247,30 +217,19 @@ class ClassificationMetrics(BaseMetrics):
 
         if y_true is None:
             assert y_pred is None
-            assert (
-                model is not None
-            ), "Either model or y_pred and y_true must be supplied."
-            assert (
-                dataloader is not None
-            ), "Either model or y_pred and y_true must be supplied."
+            assert model is not None, "Either model or y_pred and y_true must be supplied."
+            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = ClassificationMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
 
         if isinstance(y_true, dict):
-            average = {
-                k: ("macro" if len(set(v)) > 2 else "binary") for k, v in y_true.items()
-            }
+            average = {k: ("macro" if len(set(v)) > 2 else "binary") for k, v in y_true.items()}
         else:
             average = "macro" if len(set(y_true)) > 2 else "binary"
 
         if isinstance(y_true, dict):
-            return {
-                k: sk_metrics.recall_score(
-                    y_true[k], y_pred[k], average=average, zero_division=0
-                )
-                for k in y_true
-            }
+            return {k: sk_metrics.recall_score(y_true[k], y_pred[k], average=average, zero_division=0) for k in y_true}
         return sk_metrics.recall_score(y_true, y_pred, average=average, zero_division=0)
 
     @staticmethod
@@ -290,12 +249,8 @@ class ClassificationMetrics(BaseMetrics):
 
         if y_true is None:
             assert y_pred is None
-            assert (
-                model is not None
-            ), "Either model or y_pred and y_true must be supplied."
-            assert (
-                dataloader is not None
-            ), "Either model or y_pred and y_true must be supplied."
+            assert model is not None, "Either model or y_pred and y_true must be supplied."
+            assert dataloader is not None, "Either model or y_pred and y_true must be supplied."
             y_true, y_pred = ClassificationMetrics.compute_y_true_y_pred(
                 model, dataloader, device, verbose, desc, p_bar_position
             )
@@ -307,9 +262,7 @@ class ClassificationMetrics(BaseMetrics):
         fpr, tpr, thresholds = sk_metrics.roc_curve(y_true, y_pred)
         return sk_metrics.auc(fpr, tpr)
 
-    def __call__(
-        self, data_loader: DataLoader, verbose: Union[bool, int] = False
-    ) -> Dict[str, Any]:
+    def __call__(self, data_loader: DataLoader, verbose: Union[bool, int] = False) -> Dict[str, Any]:
         """
         Compute the metrics for the given data_loader.
         :param data_loader: The data loader to use to compute the metrics.

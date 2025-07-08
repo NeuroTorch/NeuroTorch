@@ -2,18 +2,15 @@ import numbers
 
 import numpy as np
 
+from . import early_stopping
 from .base_callback import (
     BaseCallback,
     CallbacksList,
 )
-
-from .checkpoints_manager import LoadCheckpointMode, CheckpointManager
-
+from .checkpoints_manager import CheckpointManager, LoadCheckpointMode
 from .history import (
     TrainingHistory,
 )
-
-from . import early_stopping
 
 
 class ForesightTimeStepUpdaterOnTarget(BaseCallback):
@@ -54,9 +51,7 @@ class ForesightTimeStepUpdaterOnTarget(BaseCallback):
             self.start_intensive_val_at = np.clip(self.start_intensive_val_at, 0.0, 1.0)
         elif not isinstance(self.start_intensive_val_at, int):
             raise ValueError("start_intensive_val_at must be a float or an integer.")
-        self.hh_memory_size_strategy = kwargs.get(
-            "hh_memory_size_strategy", "out_memory_size"
-        )
+        self.hh_memory_size_strategy = kwargs.get("hh_memory_size_strategy", "out_memory_size")
         self.val_dataloader = None
         self.kwargs = kwargs
 
@@ -71,9 +66,7 @@ class ForesightTimeStepUpdaterOnTarget(BaseCallback):
         elif isinstance(self.hh_memory_size_strategy, numbers.Number):
             return int(self.hh_memory_size_strategy)
         else:
-            raise ValueError(
-                f"Invalid hh_memory_size_strategy: {self.hh_memory_size_strategy}"
-            )
+            raise ValueError(f"Invalid hh_memory_size_strategy: {self.hh_memory_size_strategy}")
 
     def on_batch_begin(self, trainer, **kwargs):
         self._hh_memory_size_cache = trainer.model.hh_memory_size
@@ -81,12 +74,8 @@ class ForesightTimeStepUpdaterOnTarget(BaseCallback):
         self._foresight_time_steps_cache = trainer.model.foresight_time_steps
         if not trainer.model.training:
             n_times_steps = trainer.state.y_batch.shape[-2]
-            trainer.model.hh_memory_size = self.get_hh_memory_size_from_y_batch(
-                trainer.state.y_batch
-            )
-            trainer.model.out_memory_size = int(
-                n_times_steps * self.time_steps_multiplier
-            )
+            trainer.model.hh_memory_size = self.get_hh_memory_size_from_y_batch(trainer.state.y_batch)
+            trainer.model.out_memory_size = int(n_times_steps * self.time_steps_multiplier)
             trainer.model.foresight_time_steps = trainer.model.out_memory_size
 
     def on_batch_end(self, trainer, **kwargs):
@@ -99,9 +88,7 @@ class ForesightTimeStepUpdaterOnTarget(BaseCallback):
             at = int(self.start_intensive_val_at * trainer.state.n_iterations)
         else:
             at = self.start_intensive_val_at
-        if (trainer.state.iteration >= at) or (
-            (trainer.state.iteration + 1) % self.update_val_loss_freq == 0
-        ):
+        if (trainer.state.iteration >= at) or ((trainer.state.iteration + 1) % self.update_val_loss_freq == 0):
             trainer.state.objects["val_dataloader"] = self.val_dataloader
         else:
             trainer.state.objects["val_dataloader"] = None

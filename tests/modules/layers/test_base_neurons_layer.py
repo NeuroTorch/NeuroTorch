@@ -1,8 +1,9 @@
 import unittest
 import warnings
 
-from neurotorch.modules.layers import BaseNeuronsLayer
 import torch
+
+from neurotorch.modules.layers import BaseNeuronsLayer
 
 
 class TestBaseNeuronLayer(unittest.TestCase):
@@ -53,9 +54,7 @@ class TestBaseNeuronLayer(unittest.TestCase):
         2. recurrent_weights
         3. recurrent_eye_mask
         """
-        layer = BaseNeuronsLayer(
-            100, 200, device="cpu", use_recurrent_connection=True, use_rec_eye_mask=True
-        )
+        layer = BaseNeuronsLayer(100, 200, device="cpu", use_recurrent_connection=True, use_rec_eye_mask=True)
         self.assertEqual(layer.forward_weights, None)
         layer.build()
         self.assertIsInstance(layer.forward_weights, torch.Tensor)
@@ -65,9 +64,7 @@ class TestBaseNeuronLayer(unittest.TestCase):
         self.assertEqual(layer.forward_weights.device.type, "cpu")
         self.assertIsInstance(layer.rec_mask, torch.Tensor)
         self.assertEqual(layer.rec_mask.device.type, "cpu")
-        self.assertTrue(
-            torch.isclose(torch.diag(layer.rec_mask, 0).sum(), torch.tensor(0.0))
-        )
+        self.assertTrue(torch.isclose(torch.diag(layer.rec_mask, 0).sum(), torch.tensor(0.0)))
         self.assertIsInstance(layer.recurrent_weights, torch.Tensor)
         self.assertEqual(layer.recurrent_weights.device.type, "cpu")
         self.assertEqual(layer.recurrent_weights.requires_grad, True)
@@ -109,8 +106,7 @@ class TestBaseNeuronLayer(unittest.TestCase):
             self.assertEqual(layer.recurrent_weights.device.type, "cuda")
         else:
             warnings.warn(
-                "No CUDA available. Skipping test_build."
-                "Please consider running the tests on a machine with CUDA.",
+                "No CUDA available. Skipping test_build." "Please consider running the tests on a machine with CUDA.",
                 UserWarning,
             )
 

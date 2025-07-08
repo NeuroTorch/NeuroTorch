@@ -1,8 +1,8 @@
 import unittest
 import warnings
 
-import torch
 import numpy as np
+import torch
 
 from neurotorch.modules import HeavisidePhiApprox, HeavisideSigmoidApprox
 from neurotorch.modules.layers import ALIFLayer
@@ -213,9 +213,7 @@ class TestALIFLayer(unittest.TestCase):
         self.assertEqual(layer.recurrent_weights.device.type, layer.device.type)
 
         if torch.cuda.is_available():
-            layer = ALIFLayer(
-                input_size=3, output_size=3, device=torch.device(type="cuda", index=0)
-            )
+            layer = ALIFLayer(input_size=3, output_size=3, device=torch.device(type="cuda", index=0))
             input_ = torch.rand(1, 3, device="cpu")
             y, (v, a, z) = layer(input_)
             self.assertIsInstance(y, torch.Tensor)
@@ -256,9 +254,7 @@ class TestALIFLayer(unittest.TestCase):
         """
         Test if the backward method works correctly
         """
-        layer = ALIFLayer(
-            input_size=3, output_size=3, device=torch.device("cpu"), learn_beta=True
-        )
+        layer = ALIFLayer(input_size=3, output_size=3, device=torch.device("cpu"), learn_beta=True)
         input_ = torch.rand(1, 3)
         output = layer(input_)[0]
         output.mean().backward()
@@ -266,9 +262,7 @@ class TestALIFLayer(unittest.TestCase):
         self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
         self.assertEqual(layer.forward_weights.grad.device, layer.device)
         self.assertIsInstance(layer.recurrent_weights.grad, torch.Tensor)
-        self.assertEqual(
-            layer.recurrent_weights.grad.shape, layer.recurrent_weights.shape
-        )
+        self.assertEqual(layer.recurrent_weights.grad.shape, layer.recurrent_weights.shape)
         self.assertEqual(layer.recurrent_weights.grad.device, layer.device)
         self.assertEqual(layer.beta.grad.shape, layer.beta.shape)
         self.assertEqual(layer.beta.grad.device, layer.device)
@@ -287,9 +281,7 @@ class TestALIFLayer(unittest.TestCase):
         self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
         self.assertEqual(layer.forward_weights.grad.device, layer.device)
         self.assertIsInstance(layer.recurrent_weights.grad, torch.Tensor)
-        self.assertEqual(
-            layer.recurrent_weights.grad.shape, layer.recurrent_weights.shape
-        )
+        self.assertEqual(layer.recurrent_weights.grad.shape, layer.recurrent_weights.shape)
         self.assertEqual(layer.recurrent_weights.grad.device, layer.device)
         self.assertEqual(layer.beta.grad.shape, layer.beta.shape)
         self.assertEqual(layer.beta.grad.device, layer.device)
@@ -306,9 +298,7 @@ class TestALIFLayer(unittest.TestCase):
             output = layer(input_)[0]
             output.mean().backward()
             self.assertIsInstance(layer.forward_weights.grad, torch.Tensor)
-            self.assertEqual(
-                layer.forward_weights.grad.shape, layer.forward_weights.shape
-            )
+            self.assertEqual(layer.forward_weights.grad.shape, layer.forward_weights.shape)
             self.assertEqual(layer.forward_weights.grad.device, layer.device)
             self.assertIs(layer.recurrent_weights, None)
             self.assertIs(layer.beta.grad, None)

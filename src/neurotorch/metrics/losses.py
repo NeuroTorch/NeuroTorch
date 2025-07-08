@@ -86,9 +86,7 @@ class PVarianceLoss(torch.nn.Module):
         """
         x, y = to_tensor(x), to_tensor(y)
         if self.reduction == "feature":
-            x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(
-                -1, y.shape[-1]
-            )
+            x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(-1, y.shape[-1])
         else:
             x_reshape, y_reshape = x, y
         mse_loss = self.criterion(x_reshape, y_reshape)
@@ -172,9 +170,7 @@ class SMSEloss(torch.nn.Module):
     def forward(self, inputs: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         x, y = to_tensor(inputs), to_tensor(target)
         if self.reduction == "feature":
-            x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(
-                -1, y.shape[-1]
-            )
+            x_reshape, y_reshape = x.reshape(-1, x.shape[-1]), y.reshape(-1, y.shape[-1])
         else:
             x_reshape, y_reshape = x, y
         mse_loss = torch.nn.functional.mse_loss(x, y, reduction=self.reduction)

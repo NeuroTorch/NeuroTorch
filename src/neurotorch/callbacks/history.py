@@ -1,11 +1,11 @@
 import os
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional, Tuple
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-from ..transforms.base import to_numpy
 from ..callbacks.base_callback import BaseCallback
+from ..transforms.base import to_numpy
 
 
 class TrainingHistory(BaseCallback):
@@ -30,9 +30,7 @@ class TrainingHistory(BaseCallback):
     def _remove_prefix_from_metrics(metrics: List[str]):
         return [metric.split("_")[-1] for metric in metrics]
 
-    def __init__(
-        self, container: Dict[str, List[float]] = None, default_value=np.nan, **kwargs
-    ):
+    def __init__(self, container: Dict[str, List[float]] = None, default_value=np.nan, **kwargs):
         """
         Initialize the container with the given container.
 
@@ -55,9 +53,7 @@ class TrainingHistory(BaseCallback):
 
     def __setitem__(self, key, value: list):
         self._add_key(key)
-        assert len(value) == len(
-            self
-        ), "Length of value must be equal to length of container"
+        assert len(value) == len(self), "Length of value must be equal to length of container"
         self._container[key] = list(value)
 
     def __contains__(self, item):
@@ -235,9 +231,7 @@ class TrainingHistory(BaseCallback):
         """
         return self._container.get(key, default)
 
-    def create_plot(
-        self, **kwargs
-    ) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
+    def create_plot(self, **kwargs) -> Tuple[plt.Figure, Dict[str, plt.Axes], Dict[str, plt.Line2D]]:
         """
         Create a plot of the metrics in the container.
 
@@ -258,21 +252,15 @@ class TrainingHistory(BaseCallback):
         train_metrics = [k for k in keys_lower if "train" in k]
         test_metrics = [k for k in keys_lower if "test" in k]
         n_set_metrics = max(len(val_metrics), len(train_metrics), len(test_metrics))
-        max_set_metrics_container = [
-            c
-            for c in [val_metrics, train_metrics, test_metrics]
-            if len(c) == n_set_metrics
-        ][0]
-        other_metrics = list(
-            set(keys_lower) - set(val_metrics) - set(train_metrics) - set(test_metrics)
-        )
+        max_set_metrics_container = [c for c in [val_metrics, train_metrics, test_metrics] if len(c) == n_set_metrics][
+            0
+        ]
+        other_metrics = list(set(keys_lower) - set(val_metrics) - set(train_metrics) - set(test_metrics))
         n_graphs = 1 + n_set_metrics + len(other_metrics)
         n_cols = int(np.sqrt(n_graphs))
         n_rows = int(np.ceil(n_graphs / n_cols))
         axes_dict, lines = {}, {}
-        fig, axes = plt.subplots(
-            nrows=n_rows, ncols=n_cols, figsize=kwargs["figsize"], sharex="all"
-        )
+        fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=kwargs["figsize"], sharex="all")
         axes = np.ravel(axes)
         for i, ax in enumerate(axes):
             if i >= n_graphs:
@@ -281,34 +269,26 @@ class TrainingHistory(BaseCallback):
             if i == 0:
                 for k in loss_metrics:
                     key = keys_lower_to_given[k]
-                    lines[key] = ax.plot(
-                        self[key], label=key, linewidth=kwargs["linewidth"]
-                    )[0]
+                    lines[key] = ax.plot(self[key], label=key, linewidth=kwargs["linewidth"])[0]
                 axes_dict["losses"] = ax
                 ax.set_ylabel("Loss [-]", fontsize=kwargs["fontsize"])
                 ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
                 ax.legend(fontsize=kwargs["fontsize"])
             elif 0 < i <= n_set_metrics:
-                metric_basename = "_".join(
-                    max_set_metrics_container[i - 1].split("_")[1:]
-                )
+                metric_basename = "_".join(max_set_metrics_container[i - 1].split("_")[1:])
                 for prefix in ["val", "train", "test"]:
                     k = prefix + "_" + metric_basename
                     if k in keys_lower_to_given:
                         key = keys_lower_to_given[k]
                         if key in self:
-                            lines[key] = ax.plot(
-                                self[key], label=key, linewidth=kwargs["linewidth"]
-                            )[0]
+                            lines[key] = ax.plot(self[key], label=key, linewidth=kwargs["linewidth"])[0]
                             axes_dict[key] = ax
                 ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
                 ax.legend(fontsize=kwargs["fontsize"])
             else:
                 k = other_metrics[i - 1 - n_set_metrics]
                 key = keys_lower_to_given[k]
-                lines[key] = ax.plot(
-                    self[key], label=key, linewidth=kwargs["linewidth"]
-                )[0]
+                lines[key] = ax.plot(self[key], label=key, linewidth=kwargs["linewidth"])[0]
                 axes_dict[key] = ax
                 ax.set_xlabel("Iterations [-]", fontsize=kwargs["fontsize"])
                 ax.legend(fontsize=kwargs["fontsize"])
@@ -391,10 +371,7 @@ class TrainingHistory(BaseCallback):
         """
         self.insert(
             trainer.current_training_state.iteration,
-            {
-                k: to_numpy(v)
-                for k, v in trainer.current_training_state.itr_metrics.items()
-            },
+            {k: to_numpy(v) for k, v in trainer.current_training_state.itr_metrics.items()},
         )
 
     def extra_repr(self):

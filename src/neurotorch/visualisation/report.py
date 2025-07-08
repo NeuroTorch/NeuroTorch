@@ -1,12 +1,12 @@
 from matplotlib import pyplot as plt
 
+from ..metrics.losses import PVarianceLoss
 from .time_series_visualisation import (
     Visualise,
     VisualiseKMeans,
     VisualisePCA,
     VisualiseUMAP,
 )
-from ..metrics.losses import PVarianceLoss
 
 
 def UMAP_PCA_report(pred_viz: Visualise, target_viz: Visualise, **kwargs):
